@@ -41,3 +41,8 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
+## Published artifacts
+
+- `bd-thread-journeys/` — RaidGuild BD thread journeys across phases. This is a
+  concept demonstration; its middle-phase crossings are explicitly marked as
+  synthetic in the artifact.

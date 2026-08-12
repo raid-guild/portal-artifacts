@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RaidGuild BD — Thread Journeys</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <style>
+      :root { --bg:#0b0e14; --panel:#10151f; --line:#232b38; --muted:#8b95a7; --dim:#5b6472; }
+      * { box-sizing:border-box; }
+      html,body { margin:0; height:100%; background:var(--bg); color:#e6e9f0; font-family:Inter,Helvetica,Arial,sans-serif; overflow:hidden; }
+      #wrap { position:relative; width:100vw; height:100vh; min-height:560px; }
+      #hd { position:absolute; top:0; left:0; padding:10px 16px 6px; pointer-events:none; z-index:5; max-width:56%; }
+      #hd h1 { margin:0; font-size:16px; font-weight:700; color:#a78bfa; }
+      #hd .sub { font-size:11px; color:var(--muted); margin-top:2px; }
+      #hd .demo { font-size:10.5px; color:#e6c489; margin-top:2px; }
+      #legend { position:absolute; top:10px; right:14px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:10.5px; color:var(--muted); z-index:6; pointer-events:none; }
+      #legend .row { display:flex; align-items:center; gap:7px; margin:2.5px 0; }
+      #legend .rr { width:12px; height:12px; border-radius:50%; box-sizing:border-box; background:#141b26; }
+      #tip { position:absolute; pointer-events:none; background:#0f1622; border:1px solid var(--line); border-radius:7px; padding:7px 9px; font-size:11.5px; color:#e6e9f0; opacity:0; transition:opacity .08s; z-index:10; max-width:260px; }
+      #tip b { color:#fff; } #tip .r { color:var(--muted); }
+      #roster { position:absolute; bottom:6px; left:16px; right:16px; display:flex; flex-wrap:wrap; gap:6px 12px; z-index:6; font-size:11px; }
+      #roster .p { display:flex; align-items:center; gap:6px; cursor:pointer; color:#cfd8e3; opacity:.9; }
+      #roster .p .d { width:12px; height:12px; border-radius:50%; }
+      #roster .lbl { color:var(--dim); margin-right:4px; font-weight:700; letter-spacing:1px; }
+      text.lane-name { font-weight:800; paint-order:stroke; stroke:#0b0e14; stroke-width:4px; stroke-linejoin:round; }
+      text.gate-l { font-weight:800; letter-spacing:2px; paint-order:stroke; stroke:#0b0e14; stroke-width:3px; stroke-linejoin:round; }
+      text.gate-s { font-size:9.5px; fill:#8b95a7; }
+      text.bead-i { font-size:7px; fill:#0b0e14; font-weight:700; pointer-events:none; text-anchor:middle; }
+      svg { display:block; }
+      @media (max-width:720px) {
+        #hd { max-width:100%; padding-right:12px; }
+        #hd .sub { display:none; }
+        #legend { top:70px; right:8px; }
+        #wrap { min-width:680px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <div id="hd">
+        <h1>RaidGuild BD — Thread Journeys across Phases</h1>
+        <div class="sub">Each vertical line is one thread moving New → Paid Raid. Bead colour = the person who did that crossing; a same-colour run = one person carrying it across phases; a colour change = a hand-off.</div>
+        <div class="demo">⚠ concept demo — middle-phase crossings are synthetic (invented) to show the mechanism.</div>
+      </div>
+      <div id="legend">
+        <div class="row"><span class="rr" style="border:2px solid #6b7688"></span>ring = sourced</div>
+        <div class="row"><span class="rr" style="border:2px solid #f59e0b"></span>ring = advanced</div>
+        <div class="row"><span class="rr" style="border:2px solid #10b981"></span>ring = closed</div>
+        <div class="row"><span class="rr" style="border:2px dashed #4a5568"></span>no record</div>
+        <div class="row" style="margin-top:4px;color:#8b95a7">fill = who · hover a person below to trace their reach</div>
+      </div>
+      <svg id="svg" role="img" aria-label="RaidGuild business-development threads crossing six phases from new to paid raid"></svg>
+      <div id="tip"></div>
+      <div id="roster"><span class="lbl">PEOPLE</span></div>
+    </div>
+    <script>
+      const lead=(name,laneKey,journey,funded=false)=>({name,laneKey,journey:journey.map(([phase,actor,role='advance'])=>({phase,actor,role})),funded});
+      const DATA={
+        leads:[
+          lead('Tae','scoping',[['new','Aphilos','source'],['working','ECWireless'],['scoping','ECWireless']]),
+          lead('Nick Hollins GTM Firm','new',[['new','Aphilos','source']]),
+          lead('Livepeer Foundation','proposal',[['new','Mehrdad','source'],['working','Mehrdad'],['scoping','Mehrdad'],['proposal','Mehrdad']]),
+          lead('DOME Capital','scoping',[['new','Aphilos','source'],['working','Aphilos'],['scoping','duckanbro']]),
+          lead('EVRO (formerly gEURO) / Gnosis DAO','paid',[['new','Aphilos','source'],['working','Aphilos'],['scoping','takekek'],['proposal','takekek'],['funding','Elco','close'],['paid','Netrim','close']],true),
+          lead('Tokyo Stablecoin Opportunity / Fracton','new',[['new','Pupcakes','source']]),
+          lead('Critical Minerals Trade Finance (Panama SPV)','new',[['new','Aphilos','source']]),
+          lead('Forward Deployed Engineering Service (Agency GTM)','scoping',[['new','samkuhlmann','source'],['working','duckanbro'],['scoping','Aphilos']]),
+          lead('AI Operations / Community OS Service','scoping',[['new','samkuhlmann','source'],['working','Aphilos'],['scoping','Aphilos']]),
+          lead('Ciro / Prism Discord Integration (test candidate)','new',[['new','takekek','source']]),
+          lead('Hyperliquid / HyperEVM Ecosystem','new',[['new','Aphilos','source']]),
+          lead('Suede Referral Pipeline','new',[['new','Mehrdad','source']]),
+          lead('RaidGuild Forge — Autonomous Worlds & Hardware Kits (ECWireless)','scoping',[['new','ECWireless','source'],['working','ECWireless'],['scoping','ECWireless']]),
+          lead('Rebind / Gnosis Pay — Institutional Liquidity & Card Infrastructure','new',[['new','takekek','source']]),
+          lead('Ixian / Providence — Legal-Risk AI Assessment Tool','new',[['new','Aphilos','source']]),
+          lead('MobilePart.com — Agentic Event System','new',[['new','Aphilos','source']]),
+          lead('Course Tools / Kerp — Education AI Vertical (UVA McIntire)','new',[['new','ECWireless','source']]),
+          lead('Crawl Bank / 0xJustice.eth','new',[['new','0xJustice','source']]),
+          lead('Battery Nine / Elco — Voice-Driven Meta IDE & Multi-Agent Harness','new',[['new','takekek','source']]),
+          lead('Andrej / Deep Work Network — AI Facilitation & Expert Network Platform','new',[['new','Mehrdad','source']]),
+          lead('Conference Side-Event Matchmaking & Sponsored Introductions','new',[['new','cohort-voice','source']]),
+          lead('Veydrift — Base Sepolia First-Planet Settlement App (takekek)','new',[['new','0xJustice','source']]),
+          lead('0xHunter / Datalist Consulting — Custom Software for SMBs','new',[['new','Aphilos','source']]),
+          lead('chickenparm / Jake — HackerOne AI-Augmented CX Operations','new',[['new','takekek','source']]),
+          lead('Graven / Flow State — Public Goods & AI-Augmented Product Development','new',[['new','duckanbro','source']]),
+          lead('Ξ2T / Travis / Syncrobe — Multiplayer AI & Shared Context Platform','new',[['new','duckanbro','source']]),
+          lead('billw / Protocol Labs — AI-Accelerated Product Workflows & Innovation Networks','new',[['new','duckanbro','source']]),
+          lead('StatePay / Louisiana State Token','new',[['new','Aphilos','source']]),
+          lead('BIM Heroes — Legal/AEC AI Agent','new',[['new','ECWireless','source']]),
+          lead('Cloudflare / X402 Build Opportunity','new',[['new','Aphilos','source']]),
+          lead('Livepeer 2.0 Validator Tooling','new',[['new','0xJustice','source']]),
+          lead('DOD VR Training Applications','new',[['new','Aphilos','source']])
+        ],
+        colors:{Aphilos:'#38bdf8',ECWireless:'#f59e0b',Mehrdad:'#a78bfa',duckanbro:'#34d399',takekek:'#f472b6',Elco:'#fbbf24',Netrim:'#22d3ee',Pupcakes:'#c084fc',samkuhlmann:'#4ade80','0xJustice':'#fb7185','cohort-voice':'#60a5fa'}
+      };
+      const COL=DATA.colors;
+      const INI={Aphilos:'AP',Mehrdad:'ME',Elco:'EL',Netrim:'NE',Pupcakes:'PU',samkuhlmann:'SK',takekek:'TK','0xJustice':'JU','cohort-voice':'CV',duckanbro:'DU',ECWireless:'EC'};
+      const ini=h=>INI[h]||(h||'?').slice(0,2).toUpperCase();
+      const LANES=[{key:'new',name:'New',col:'#93b7ff'},{key:'working',name:'Working',col:'#9ec5ff'},{key:'scoping',name:'Scoping',col:'#f5c77e'},{key:'proposal',name:'Proposal',col:'#f0b866'},{key:'funding',name:'Funding',col:'#c4b5fd'},{key:'paid',name:'Paid Raid',col:'#7fe9c4'}];
+      const LANEORDER=LANES.map(l=>l.key);
+      const GATES=[{after:'working',label:'QUALIFY',sub:'worth resourcing?',col:'#f59e0b'},{after:'proposal',label:'COMMIT',sub:'agree to proceed',col:'#a78bfa'},{after:'funding',label:'FUND',sub:'money in escrow',col:'#10b981'}];
+      const ROLECOL={source:'#6b7688',advance:'#f59e0b',close:'#10b981'};
+      const SEQ=[]; LANES.forEach(l=>{SEQ.push({type:'lane',...l});const g=GATES.find(x=>x.after===l.key);if(g)SEQ.push({type:'gate',...g});});
+      const threads=DATA.leads.slice().sort((a,b)=>LANEORDER.indexOf(a.laneKey)-LANEORDER.indexOf(b.laneKey)||a.name.localeCompare(b.name));
+      const svg=d3.select('#svg'),gLane=svg.append('g'),gGate=svg.append('g'),gSeg=svg.append('g'),gBead=svg.append('g'),gConn=svg.append('g');
+      const tip=d3.select('#tip'); let W,H,laneRows={},plotX0,plotX1,colW; const GATEH=32,topY=92;
+      function layout(){
+        W=Math.max(window.innerWidth,680);H=Math.max(window.innerHeight,560);svg.attr('width',W).attr('height',H);plotX0=150;plotX1=W-30;
+        const bottom=H-54,availLane=(bottom-topY)-GATES.length*GATEH;let y=topY;laneRows={};
+        SEQ.forEach(it=>{if(it.type==='lane'){const h=availLane/LANES.length;it.y0=y;it.h=h;laneRows[it.key]={cy:y+h/2,y0:y,h};y+=h;}else{it.y0=y;it.h=GATEH;y+=GATEH;}});
+        colW=(plotX1-plotX0)/threads.length;threads.forEach((t,i)=>{t.x=plotX0+colW*(i+.5);});
+        const lg=gLane.selectAll('g.lane').data(SEQ.filter(s=>s.type==='lane'),d=>d.key),e=lg.enter().append('g').attr('class','lane');e.append('rect');e.append('text').attr('class','lane-name');const m=e.merge(lg);
+        m.select('rect').attr('x',10).attr('width',W-20).attr('y',d=>d.y0).attr('height',d=>d.h).attr('fill',(d,i)=>i%2?'#0a0f18':'#0e1520');
+        m.select('text').attr('x',22).attr('y',d=>d.y0+d.h/2+4).attr('font-size',14).attr('fill',d=>d.col).text(d=>d.name);
+        const gg=gGate.selectAll('g.gate').data(SEQ.filter(s=>s.type==='gate'),d=>d.label),ge=gg.enter().append('g').attr('class','gate');ge.append('rect');ge.append('line').attr('class','t');ge.append('line').attr('class','b');ge.append('text').attr('class','gate-l');ge.append('text').attr('class','gate-s');const gm=ge.merge(gg);
+        gm.select('rect').attr('x',40).attr('width',W-80).attr('y',d=>d.y0).attr('height',d=>d.h).attr('fill','#0e0b12').attr('fill-opacity',.6);
+        for(const c of ['t','b'])gm.select('line.'+c).attr('x1',40).attr('x2',W-40).attr('y1',d=>d.y0+(c==='b'?d.h:0)).attr('y2',d=>d.y0+(c==='b'?d.h:0)).attr('stroke',d=>d.col).attr('stroke-width',1.3).attr('stroke-dasharray','7 5').attr('opacity',.7);
+        gm.select('text.gate-l').attr('x',W/2).attr('y',d=>d.y0+14).attr('text-anchor','middle').attr('font-size',11).attr('fill',d=>d.col).text(d=>'⟨  '+d.label+'  ⟩');
+        gm.select('text.gate-s').attr('x',W/2).attr('y',d=>d.y0+26).attr('text-anchor','middle').text(d=>d.sub);
+      }
+      function draw(){
+        const segs=[];threads.forEach(t=>{for(let i=0;i<t.journey.length-1;i++){const a=t.journey[i],b=t.journey[i+1];segs.push({x:t.x,y1:laneRows[a.phase].cy,y2:laneRows[b.phase].cy,actor:b.actor});}});
+        gSeg.selectAll('line').data(segs).join('line').attr('x1',d=>d.x).attr('x2',d=>d.x).attr('y1',d=>d.y1).attr('y2',d=>d.y2).attr('stroke',d=>COL[d.actor]).attr('stroke-width',3).attr('stroke-linecap','round').attr('opacity',.85);
+        const beads=[];threads.forEach(t=>t.journey.forEach(s=>beads.push({name:t.name,x:t.x,y:laneRows[s.phase].cy,actor:s.actor,role:s.role,phase:s.phase})));
+        const bg=gBead.selectAll('g.bead').data(beads).join('g').attr('class','bead').attr('transform',d=>'translate('+d.x+','+d.y+')').on('mousemove',(e,d)=>tip.html('<b>'+esc(d.name)+'</b><br><span class="r">'+d.phase+' · '+d.actor+' ('+d.role+')</span>').style('opacity',1).style('left',(e.clientX+14)+'px').style('top',(e.clientY+14)+'px')).on('mouseover',(e,d)=>highlightPerson(d.actor)).on('mouseout',()=>{tip.style('opacity',0);reset();});
+        bg.selectAll('*').remove();bg.append('circle').attr('r',7).attr('fill',d=>COL[d.actor]).attr('stroke',d=>ROLECOL[d.role]).attr('stroke-width',2);bg.append('text').attr('class','bead-i').attr('dy',2.3).text(d=>ini(d.actor));
+        const r=d3.select('#roster');r.selectAll('.p').remove();Object.keys(COL).forEach(p=>{const el=r.append('span').attr('class','p').attr('tabindex',0).on('mouseover',()=>highlightPerson(p)).on('focus',()=>highlightPerson(p)).on('mouseout',reset).on('blur',reset);el.append('span').attr('class','d').style('background',COL[p]);el.append('span').text(p);});
+      }
+      function esc(s){return(s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+      function highlightPerson(name){
+        gSeg.selectAll('line').attr('opacity',d=>d.actor===name?1:.08).attr('stroke-width',d=>d.actor===name?4:3);gBead.selectAll('g.bead').attr('opacity',d=>d.actor===name?1:.12);
+        const bs=[];threads.forEach(t=>t.journey.forEach(s=>{if(s.actor===name)bs.push({x:t.x,y:laneRows[s.phase].cy,pi:LANEORDER.indexOf(s.phase)});}));bs.sort((a,b)=>a.pi-b.pi||a.x-b.x);
+        const segs=[];for(let i=0;i<bs.length-1;i++)if(bs[i+1].pi!==bs[i].pi)segs.push([bs[i],bs[i+1]]);
+        gConn.selectAll('line').data(segs).join('line').attr('x1',d=>d[0].x).attr('y1',d=>d[0].y).attr('x2',d=>d[1].x).attr('y2',d=>d[1].y).attr('stroke',COL[name]).attr('stroke-width',1.4).attr('stroke-dasharray','4 4').attr('opacity',.8);
+      }
+      function reset(){gSeg.selectAll('line').attr('opacity',.85).attr('stroke-width',3);gBead.selectAll('g.bead').attr('opacity',1);gConn.selectAll('line').remove();}
+      function start(){layout();draw();} start();let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(start,150);});
+    </script>
+  </body>
+</html>
