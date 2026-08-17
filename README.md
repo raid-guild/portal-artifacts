@@ -48,7 +48,9 @@ Open <http://localhost:8080>.
   synthetic in the artifact.
 - `veydrift-alliance-map/` — Live, read-only tactical map for Veydrift alliance
   29 (RaidGuild), with a clearly labeled fixture fallback. Its CSS/SVG planet
-  visuals are placeholders; no Veydrift artwork is included.
+  visuals are placeholders; no Veydrift artwork is included. Other public
+  alliances can be loaded with the in-map ID switcher or the shareable
+  `?alliance=<id>` query parameter.
 
 ## Veydrift read proxy
 

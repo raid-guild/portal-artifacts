@@ -112,6 +112,9 @@
       .section-count { color: var(--muted); font-size: 10px; }
 
       .filter-stack { display: grid; gap: 7px; }
+      .alliance-switch { display: grid; gap: 7px; grid-template-columns: minmax(0,1fr) auto; }
+      .alliance-switch input { background: #0a101b; border: 1px solid var(--line); border-radius: 8px; color: var(--text); min-width: 0; outline: none; padding: 8px 9px; }
+      .alliance-switch input:focus { border-color: var(--cyan); }
       .filter-button { align-items: center; display: flex; font-size: 11px; gap: 8px; justify-content: space-between; padding: 8px 9px; text-align: left; width: 100%; }
       .filter-button[aria-pressed="true"] { background: rgba(93, 228, 231, 0.1); border-color: rgba(93, 228, 231, 0.48); }
       .filter-label { align-items: center; display: flex; gap: 8px; }
@@ -163,6 +166,9 @@
       .mission.returning { stroke: #7196c7; stroke-dasharray: 2 6; }
       .mission.hostile { animation: dash 1.2s linear infinite; filter: url(#redGlow); stroke: var(--danger); stroke-dasharray: 8 6; stroke-width: 2.6; }
       .mission-hit { fill: none; pointer-events: stroke; stroke: transparent; stroke-width: 14; }
+      .mission-group { cursor: pointer; outline: none; }
+      .mission-group:hover .mission, .mission-group:focus .mission { stroke-width: 3.5; }
+      .mission-group.selected .mission { filter: url(#brightGlow); stroke-width: 4; }
       .mission-marker { fill: currentColor; }
       .mission-eta { fill: #ffaaa7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; font-weight: 700; text-anchor: middle; }
       @keyframes dash { to { stroke-dashoffset: -28; } }
@@ -228,6 +234,16 @@
       .incoming-head b { color: var(--danger); }
       .countdown { color: #ffb1ae; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 800; margin-top: 8px; }
       .unknown { color: var(--muted); font-style: italic; }
+      .mission-hero { align-items: center; display: flex; gap: 12px; margin: 14px 0 16px; }
+      .mission-symbol { align-items: center; background: rgba(169,140,255,.1); border: 1px solid rgba(169,140,255,.5); border-radius: 50%; color: var(--violet); display: flex; flex: 0 0 58px; font-size: 25px; height: 58px; justify-content: center; }
+      .mission-title h3 { font-size: 18px; margin: 0 0 3px; }
+      .mission-title p { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; margin: 0; }
+      .route-card { background: #0a101b; border: 1px solid var(--line); border-radius: 9px; padding: 10px; }
+      .route-stop { align-items: baseline; display: grid; gap: 8px; grid-template-columns: 12px 1fr; }
+      .route-stop + .route-stop { margin-top: 13px; position: relative; }
+      .route-stop + .route-stop::before { border-left: 1px dashed var(--line-bright); content: ""; height: 13px; left: 4px; position: absolute; top: -13px; }
+      .route-stop b { display: block; font-size: 11px; }
+      .route-stop small { color: var(--muted); display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; margin-top: 2px; }
 
       .statusbar { align-items: center; background: #080c14; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 9px; gap: 16px; justify-content: space-between; padding: 7px 14px; position: relative; z-index: 20; }
       .health { align-items: center; display: flex; gap: 7px; }
@@ -296,6 +312,14 @@
 
       <div class="workspace">
         <aside class="rail" id="rail" aria-label="Map filters and threats">
+          <section class="section">
+            <div class="section-head"><h2>Alliance source</h2><span class="section-count">live ID</span></div>
+            <form class="alliance-switch" id="allianceForm">
+              <label class="sr-only" for="allianceId">Alliance ID</label>
+              <input id="allianceId" name="alliance" inputmode="numeric" pattern="[0-9]+" min="1" required />
+              <button class="icon-button" type="submit">Load</button>
+            </form>
+          </section>
           <section class="section">
             <div class="section-head"><h2>Signal layers</h2><span class="section-count" id="relationCount"></span></div>
             <div class="filter-stack" id="relationFilters"></div>
@@ -373,7 +397,8 @@
     </main>
 
     <script>
-      const ALLIANCE_ID = '29';
+      const requestedAllianceId = new URLSearchParams(location.search).get('alliance');
+      const ALLIANCE_ID = requestedAllianceId && /^[0-9]+$/.test(requestedAllianceId) && Number(requestedAllianceId) > 0 ? requestedAllianceId : '29';
       const API_BASE = '/veydrift-api';
       const now = Date.now();
       const demoMembers = [
@@ -422,6 +447,7 @@
 
       const state = {
         selectedPlanet: null,
+        selectedMission: null,
         members: new Set(demoMembers.map(member => member.id)),
         relations: new Set(relations.map(relation => relation.id)),
         search: '',
@@ -435,11 +461,13 @@
       let systemById = {};
       let planetById = {};
       let memberById = {};
+      let missionById = {};
 
       function refreshIndexes() {
         systemById = Object.fromEntries(systems.map(system => [system.id, system]));
         planetById = Object.fromEntries(planets.map(planet => [planet.id, planet]));
         memberById = Object.fromEntries(members.map(member => [member.id, member]));
+        missionById = Object.fromEntries(missions.map(mission => [mission.id, mission]));
       }
       refreshIndexes();
 
@@ -532,7 +560,8 @@
           const marker = mission.relation === 'hostile' ? 'arrowHostile' : mission.relation === 'reinforcement' ? 'arrowGreen' : mission.relation === 'colonization' ? 'arrowViolet' : 'arrowFriendly';
           const mx = (a.x+b.x)/2;
           const my = (a.y+b.y)/2 - 10;
-          return `<g data-mission="${mission.id}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
+          const selected = state.selectedMission === mission.id ? ' selected' : '';
+          return `<g class="mission-group${selected}" data-mission="${mission.id}" tabindex="0" role="button" aria-label="Inspect ${esc(mission.type)} mission ${esc(mission.id)}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
         }).join('');
         const systemMarkup = activeSystems.map(system => {
           const owned = visible.filter(planet => planet.system === system.id);
@@ -574,6 +603,10 @@
           node.addEventListener('pointermove', event => positionPlanetTip(event));
           node.addEventListener('pointerleave', hidePlanetTip);
         });
+        document.querySelectorAll('[data-mission]').forEach(node => {
+          node.addEventListener('click', event => { event.stopPropagation(); selectMission(node.dataset.mission); });
+          node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectMission(node.dataset.mission); } });
+        });
       }
 
       function showPlanetTip(id, event) {
@@ -598,7 +631,56 @@
 
       function hidePlanetTip() { document.querySelector('#mapTip').classList.remove('visible'); }
 
+      function humanizeKey(value) {
+        return String(value || 'Unknown').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, char => char.toUpperCase());
+      }
+
+      function missionEndpoint(mission, side) {
+        const planetId = side === 'origin' ? mission.from : mission.to;
+        const planet = planetById[planetId];
+        if (planet) {
+          const system = systemById[planet.system];
+          return { name:planet.name, coordinates:`${system.coord}:${planet.position}` };
+        }
+        return {
+          name:mission[`${side}Name`] || `${humanizeKey(side)} unresolved`,
+          coordinates:mission[`${side}Coordinates`] || 'Coordinates unavailable'
+        };
+      }
+
+      function renderMissionDetails(mission) {
+        const origin = missionEndpoint(mission, 'origin');
+        const target = missionEndpoint(mission, 'target');
+        const shipRows = mission.shipUnits?.length
+          ? mission.shipUnits.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(humanizeKey(unit[0]))}</span><b>${unit[1]}</b></div>`).join('')
+          : '<span class="unknown">Fleet composition unavailable</span>';
+        const cargoRows = Object.entries(mission.cargo || {}).filter(([,amount]) => Number(amount) > 0).map(([resource,amount]) => `<div class="unit-row"><span class="unit-icon">▣</span><span>${esc(humanizeKey(resource))}</span><b>${Number(amount).toLocaleString()}</b></div>`).join('');
+        detailContent.className = '';
+        detailContent.innerHTML = `
+          <div class="section-head"><h2>Transit inspection</h2><button class="icon-button" id="closeDetails" type="button" aria-label="Close details">×</button></div>
+          <div class="mission-hero"><div class="mission-symbol">➤</div><div class="mission-title"><h3>${esc(humanizeKey(mission.type))}</h3><p>MISSION #${esc(mission.id)} · ${esc(String(mission.status || 'unknown').toUpperCase())}</p><div class="owner"><span class="dot" style="color:${mission.relation === 'hostile' ? 'var(--danger)' : mission.relation === 'colonization' ? 'var(--violet)' : 'var(--cyan)'}"></span>${esc(mission.ownerName || mission.owner || 'Owner unavailable')}</div></div></div>
+          <div class="metrics"><div class="metric"><span>Arrival</span><strong data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</strong></div><div class="metric"><span>Ships</span><strong>${mission.ships ?? '—'}</strong></div><div class="metric"><span>Relation</span><strong>${esc(humanizeKey(mission.relation))}</strong></div></div>
+          <div class="detail-block"><h4>Route</h4><div class="route-card"><div class="route-stop"><span>○</span><div><b>${esc(origin.name)}</b><small>${esc(origin.coordinates)}</small></div></div><div class="route-stop"><span>●</span><div><b>${esc(target.name)}</b><small>${esc(target.coordinates)}</small></div></div></div></div>
+          <div class="detail-block"><h4>Timing</h4><div class="unit-row"><span class="unit-icon">◷</span><span>Arrival</span><b>${new Date(mission.arrivalAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>${mission.returnAt ? `<div class="unit-row"><span class="unit-icon">↩</span><span>Scheduled return</span><b>${new Date(mission.returnAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>` : ''}</div>
+          <div class="detail-block"><h4>Fleet composition</h4>${shipRows}</div>
+          <div class="detail-block"><h4>Cargo</h4>${cargoRows || '<span class="unknown">No cargo reported</span>'}</div>`;
+        attachCloseDetails();
+      }
+
+      function attachCloseDetails() {
+        document.querySelector('#closeDetails').addEventListener('click', () => {
+          state.selectedPlanet = null;
+          state.selectedMission = null;
+          history.replaceState(null, '', `${location.pathname}${location.search}`);
+          details.classList.remove('open');
+          renderMap();
+          renderDetails();
+        });
+      }
+
       function renderDetails() {
+        const mission = missionById[state.selectedMission];
+        if (mission) { renderMissionDetails(mission); return; }
         const planet = planetById[state.selectedPlanet];
         if (!planet) {
           detailContent.className = 'detail-empty';
@@ -625,18 +707,23 @@
           <div class="detail-block"><h4>Stationed fleet</h4>${planet.units.length ? planet.units.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('') : '<span class="unknown">No stationed fleet reported</span>'}</div>
           <div class="detail-block"><h4>Planet defenses</h4>${planet.defenses.map(unit => `<div class="unit-row"><span class="unit-icon">⬡</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('')}</div>
           <div class="detail-block"><h4>Capabilities & queues</h4><div class="unit-row"><span class="unit-icon">◉</span><span>Shield capability</span><b>${planet.shield == null ? 'UNKNOWN' : planet.shield ? 'ONLINE' : '—'}</b></div>${planet.queues.length ? planet.queues.map(queue => `<div class="unit-row"><span class="unit-icon">◷</span><span>${esc(queue)}</span><b>ACTIVE</b></div>`).join('') : '<div class="unit-row"><span class="unit-icon">◷</span><span>Production queues</span><b>EMPTY</b></div>'}</div>`;
-        document.querySelector('#closeDetails').addEventListener('click', () => {
-          state.selectedPlanet = null;
-          history.replaceState(null, '', `${location.pathname}${location.search}`);
-          details.classList.remove('open');
-          renderMap();
-          renderDetails();
-        });
+        attachCloseDetails();
       }
 
       function selectPlanet(id) {
         state.selectedPlanet = id;
+        state.selectedMission = null;
         history.replaceState(null, '', `#planet=${encodeURIComponent(id)}`);
+        renderMap();
+        renderDetails();
+        details.classList.add('open');
+      }
+
+      function selectMission(id) {
+        state.selectedMission = id;
+        state.selectedPlanet = null;
+        history.replaceState(null, '', `#mission=${encodeURIComponent(id)}`);
+        hidePlanetTip();
         renderMap();
         renderDetails();
         details.classList.add('open');
@@ -655,6 +742,19 @@
         const response = await fetch(`${API_BASE}${path}`, { headers: { accept: 'application/json' } });
         if (!response.ok) throw new Error(`${path} returned ${response.status}`);
         return response.json();
+      }
+
+      async function mapWithConcurrency(items, limit, worker) {
+        const results = new Array(items.length);
+        let cursor = 0;
+        async function run() {
+          while (cursor < items.length) {
+            const index = cursor++;
+            results[index] = await worker(items[index], index);
+          }
+        }
+        await Promise.all(Array.from({length:Math.min(limit,items.length)}, run));
+        return results;
       }
 
       function shortWallet(wallet) { return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`; }
@@ -705,13 +805,13 @@
             color: palette[index % palette.length]
           }));
 
-          const sourceResults = await Promise.all(liveMembers.map(async member => {
+          const sourceResults = await mapWithConcurrency(liveMembers, 4, async member => {
             const [planetResult, visibilityResult] = await Promise.allSettled([
               fetchJson(`/wallet/${member.address}/planets`),
               fetchJson(`/wallet/${member.address}/fleet-visibility`)
             ]);
             return { member, planetResult, visibilityResult };
-          }));
+          });
           partialSourceCount = sourceResults.reduce((count, result) => count + (result.planetResult.status === 'rejected' ? 1 : 0) + (result.visibilityResult.status === 'rejected' ? 1 : 0), 0);
 
           const planetRows = sourceResults.flatMap(result => result.planetResult.status === 'fulfilled'
@@ -759,7 +859,16 @@
             const arrivalAt = Number(raw[timeField] || raw.arrivalAt) * 1000;
             const mission = {
               id:String(raw.missionId), from, to, relation, type:raw.missionType || 'Unknown mission',
-              arrivalAt, ships:raw.ships ? Object.values(raw.ships).reduce((sum,count) => sum+Number(count),0) : null
+              status:raw.status || 'Unknown', owner:String(raw.owner || ''),
+              ownerName:memberById[String(raw.owner || '').toLowerCase()]?.name || raw.originPlanet?.ownerDisplayName || null,
+              arrivalAt, returnAt:Number(raw.returnAt || 0) * 1000 || null,
+              ships:raw.ships ? Object.values(raw.ships).reduce((sum,count) => sum+Number(count),0) : null,
+              shipUnits:raw.ships ? Object.entries(raw.ships).filter(([,count]) => Number(count) > 0).map(([name,count]) => [name,Number(count)]) : [],
+              cargo:raw.cargo || null,
+              originName:raw.originPlanet?.name || (raw.originPlanet ? `Planet #${raw.originPlanet.planetId}` : null),
+              originCoordinates:raw.originPlanet?.coordinates || null,
+              targetName:raw.targetPlanet?.name || (raw.targetPlanet ? `Planet #${raw.targetPlanet.planetId}` : 'Unresolved target'),
+              targetCoordinates:raw.targetPlanet?.coordinates || null
             };
             if (!from) mission.origin = offMapPoint(anchor, raw.missionId);
             if (!to) mission.target = offMapPoint(anchor, raw.missionId);
@@ -776,9 +885,12 @@
             (visibility.returning || []).forEach(raw => addMission(raw, 'returning', 'returnAt'));
           });
           missions = [...missionMap.values()];
+          refreshIndexes();
           state.members = new Set(liveMembers.map(member => member.id));
           if (initialPlanet && planetById[initialPlanet]) state.selectedPlanet = initialPlanet;
+          if (initialMission && missionById[initialMission]) state.selectedMission = initialMission;
           if (state.selectedPlanet && !planetById[state.selectedPlanet]) state.selectedPlanet = null;
+          if (state.selectedMission && !missionById[state.selectedMission]) state.selectedMission = null;
           liveUpdatedAt = Date.now();
           document.querySelector('#allianceName').textContent = alliance.name || alliance.tag || `Alliance ${ALLIANCE_ID}`;
           document.querySelector('#modeTag').textContent = partialSourceCount ? 'partial live data' : 'live data';
@@ -789,7 +901,7 @@
           document.querySelector('#healthDot').style.background = partialSourceCount ? 'var(--amber)' : 'var(--green)';
           document.querySelector('#healthDot').style.boxShadow = partialSourceCount ? '0 0 8px rgba(255,191,105,.5)' : '0 0 8px rgba(120,224,143,.5)';
           render();
-          if (state.selectedPlanet) details.classList.add('open');
+          if (state.selectedPlanet || state.selectedMission) details.classList.add('open');
         } catch (error) {
           console.error(error);
           document.querySelector('#modeTag').textContent = liveUpdatedAt ? 'stale live data' : 'demo fallback';
@@ -816,6 +928,17 @@
 
       document.querySelector('#search').addEventListener('input', event => { state.search = event.target.value.trim().toLowerCase(); renderMap(); });
       document.querySelector('#refresh').addEventListener('click', loadLiveData);
+      document.querySelector('#allianceId').value = ALLIANCE_ID;
+      if (ALLIANCE_ID !== '29') document.querySelector('#allianceName').textContent = `Alliance ${ALLIANCE_ID}`;
+      document.querySelector('#allianceForm').addEventListener('submit', event => {
+        event.preventDefault();
+        const id = document.querySelector('#allianceId').value.trim();
+        if (!/^[0-9]+$/.test(id) || Number(id) < 1) return;
+        const url = new URL(location.href);
+        url.searchParams.set('alliance', id);
+        url.hash = '';
+        location.assign(url);
+      });
       document.querySelector('#filtersToggle').addEventListener('click', () => rail.classList.toggle('open'));
       document.addEventListener('keydown', event => { if (event.key === '/' && document.activeElement !== document.querySelector('#search')) { event.preventDefault(); document.querySelector('#search').focus(); } if (event.key === 'Escape') { rail.classList.remove('open'); details.classList.remove('open'); } });
 
@@ -838,9 +961,11 @@
       map.addEventListener('pointerup', () => { drag = null; });
 
       const initialPlanet = new URLSearchParams(location.hash.slice(1)).get('planet');
+      const initialMission = new URLSearchParams(location.hash.slice(1)).get('mission');
       if (planetById[initialPlanet]) state.selectedPlanet = initialPlanet;
+      if (missionById[initialMission]) state.selectedMission = initialMission;
       render();
-      if (state.selectedPlanet) details.classList.add('open');
+      if (state.selectedPlanet || state.selectedMission) details.classList.add('open');
       setInterval(updateCountdowns, 1000);
       setInterval(updateSnapshotAge, 1000);
       setInterval(() => { if (!document.hidden) loadLiveData(); }, 30000);
