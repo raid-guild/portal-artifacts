@@ -173,6 +173,27 @@
       .zoom-controls { bottom: 15px; display: grid; gap: 6px; left: 15px; position: absolute; z-index: 5; }
       .zoom-controls button { align-items: center; display: flex; height: 31px; justify-content: center; padding: 0; width: 31px; }
       .map-help { bottom: 18px; color: #65758c; font-size: 9px; left: 58px; position: absolute; }
+      .map-tip {
+        background: rgba(8, 13, 23, 0.96);
+        border: 1px solid var(--line-bright);
+        border-radius: 9px;
+        box-shadow: 0 12px 30px rgba(0,0,0,.4);
+        color: var(--text);
+        font-size: 10px;
+        max-width: 230px;
+        opacity: 0;
+        padding: 9px 10px;
+        pointer-events: none;
+        position: absolute;
+        transform: translate(12px, 12px);
+        transition: opacity .08s ease;
+        z-index: 8;
+      }
+      .map-tip.visible { opacity: 1; }
+      .map-tip strong { display: block; font-size: 12px; margin-bottom: 3px; }
+      .map-tip .tip-meta { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+      .map-tip .tip-signals { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 8px; }
+      .map-tip .tip-signals span { color: #cad7e8; white-space: nowrap; }
 
       .detail-empty { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 34px 8px; text-align: center; }
       .planet-hero { align-items: center; display: flex; gap: 14px; margin: 14px 0 18px; }
@@ -294,7 +315,7 @@
               <div class="legend-row"><span class="legend-line colonization"></span> Colonization</div>
               <div class="legend-row"><span class="legend-line returning"></span> Returning fleet</div>
               <div class="legend-row"><span class="legend-line hostile"></span> Hostile inbound</div>
-              <div class="legend-row"><span>◇</span> Fleet stationed <span style="margin-left:8px">⬡</span> Defenses</div>
+              <div class="legend-row"><span>◇</span> Fleet stationed <span style="margin-left:8px">⬡</span> Defenses <span style="margin-left:8px">◷</span> Queue</div>
             </div>
           </section>
         </aside>
@@ -337,6 +358,7 @@
             <button class="icon-button" id="zoomReset" type="button" aria-label="Reset map view">⌂</button>
           </div>
           <div class="map-help">Drag to pan · scroll to zoom · select a planet for details</div>
+          <div class="map-tip" id="mapTip" role="status" aria-live="polite"></div>
         </section>
 
         <aside class="details" id="details" aria-label="Selected planet details">
@@ -537,6 +559,7 @@
             <text class="planet-label" x="${p.x}" y="${p.y+planet.size+14}">${esc(planet.name)}</text>
             ${planet.fleet ? `<circle class="planet-badge" cx="${p.x-planet.size-5}" cy="${p.y-planet.size+1}" r="7"/><text class="planet-badge-text" x="${p.x-planet.size-5}" y="${p.y-planet.size+3.5}">◇</text>` : ''}
             ${planet.defense ? `<circle class="planet-badge" cx="${p.x+planet.size+5}" cy="${p.y+planet.size-1}" r="7"/><text class="planet-badge-text" x="${p.x+planet.size+5}" y="${p.y+planet.size+2}">⬡</text>` : ''}
+            ${planet.queues.length ? `<circle class="planet-badge" cx="${p.x-planet.size-5}" cy="${p.y+planet.size-1}" r="7"/><text class="planet-badge-text" x="${p.x-planet.size-5}" y="${p.y+planet.size+2}">◷</text>` : ''}
           </g>`;
         }).join('');
         viewport.innerHTML = `${stars}${grid}<text class="sector-label" x="30" y="40">Alliance observation field · G1</text>${missionMarkup}${systemMarkup}${planetMarkup}`;
@@ -547,8 +570,33 @@
         document.querySelectorAll('[data-planet]').forEach(node => {
           node.addEventListener('click', event => { event.stopPropagation(); selectPlanet(node.dataset.planet); });
           node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPlanet(node.dataset.planet); } });
+          node.addEventListener('pointerenter', event => showPlanetTip(node.dataset.planet, event));
+          node.addEventListener('pointermove', event => positionPlanetTip(event));
+          node.addEventListener('pointerleave', hidePlanetTip);
         });
       }
+
+      function showPlanetTip(id, event) {
+        const planet = planetById[id];
+        if (!planet) return;
+        const member = memberById[planet.owner];
+        const system = systemById[planet.system];
+        const tip = document.querySelector('#mapTip');
+        tip.innerHTML = `<strong>${esc(planet.name)}</strong><span class="tip-meta">${system.coord}:${planet.position} · ${esc(member.name)}</span><div class="tip-signals"><span>◇ ${planet.fleet} stationed</span><span>⬡ ${planet.defense} defenses</span><span>◷ ${planet.queues.length ? `${planet.queues.length} active` : 'no active queue'}</span></div>`;
+        tip.classList.add('visible');
+        positionPlanetTip(event);
+      }
+
+      function positionPlanetTip(event) {
+        const tip = document.querySelector('#mapTip');
+        const wrap = map.parentElement.getBoundingClientRect();
+        const x = Math.min(event.clientX-wrap.left, wrap.width-tip.offsetWidth-18);
+        const y = Math.min(event.clientY-wrap.top, wrap.height-tip.offsetHeight-18);
+        tip.style.left = `${Math.max(4,x)}px`;
+        tip.style.top = `${Math.max(4,y)}px`;
+      }
+
+      function hidePlanetTip() { document.querySelector('#mapTip').classList.remove('visible'); }
 
       function renderDetails() {
         const planet = planetById[state.selectedPlanet];
@@ -577,7 +625,13 @@
           <div class="detail-block"><h4>Stationed fleet</h4>${planet.units.length ? planet.units.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('') : '<span class="unknown">No stationed fleet reported</span>'}</div>
           <div class="detail-block"><h4>Planet defenses</h4>${planet.defenses.map(unit => `<div class="unit-row"><span class="unit-icon">⬡</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('')}</div>
           <div class="detail-block"><h4>Capabilities & queues</h4><div class="unit-row"><span class="unit-icon">◉</span><span>Shield capability</span><b>${planet.shield == null ? 'UNKNOWN' : planet.shield ? 'ONLINE' : '—'}</b></div>${planet.queues.length ? planet.queues.map(queue => `<div class="unit-row"><span class="unit-icon">◷</span><span>${esc(queue)}</span><b>ACTIVE</b></div>`).join('') : '<div class="unit-row"><span class="unit-icon">◷</span><span>Production queues</span><b>EMPTY</b></div>'}</div>`;
-        document.querySelector('#closeDetails').addEventListener('click', () => { details.classList.remove('open'); });
+        document.querySelector('#closeDetails').addEventListener('click', () => {
+          state.selectedPlanet = null;
+          history.replaceState(null, '', `${location.pathname}${location.search}`);
+          details.classList.remove('open');
+          renderMap();
+          renderDetails();
+        });
       }
 
       function selectPlanet(id) {
@@ -774,7 +828,12 @@
       document.querySelector('#zoomReset').addEventListener('click', () => { state.view = {x:0,y:0,scale:1}; renderMap(); });
       map.addEventListener('wheel', event => { event.preventDefault(); setZoom(event.deltaY < 0 ? .08 : -.08); }, { passive:false });
       let drag = null;
-      map.addEventListener('pointerdown', event => { drag = {x:event.clientX,y:event.clientY,vx:state.view.x,vy:state.view.y}; map.setPointerCapture(event.pointerId); });
+      map.addEventListener('pointerdown', event => {
+        if (event.target.closest('[data-planet], [data-mission]')) return;
+        hidePlanetTip();
+        drag = {x:event.clientX,y:event.clientY,vx:state.view.x,vy:state.view.y};
+        map.setPointerCapture(event.pointerId);
+      });
       map.addEventListener('pointermove', event => { if (!drag) return; state.view.x = drag.vx + (event.clientX-drag.x); state.view.y = drag.vy + (event.clientY-drag.y); viewport.setAttribute('transform', `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})`); });
       map.addEventListener('pointerup', () => { drag = null; });
 
