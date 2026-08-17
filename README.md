@@ -46,3 +46,13 @@ Open <http://localhost:8080>.
 - `bd-thread-journeys/` — RaidGuild BD thread journeys across phases. This is a
   concept demonstration; its middle-phase crossings are explicitly marked as
   synthetic in the artifact.
+- `veydrift-alliance-map/` — Live, read-only tactical map for Veydrift alliance
+  29 (RaidGuild), with a clearly labeled fixture fallback. Its CSS/SVG planet
+  visuals are placeholders; no Veydrift artwork is included.
+
+## Veydrift read proxy
+
+The service exposes a narrow, read-only subset of the public Veydrift API below
+`/veydrift-api/`. Only explicitly allowlisted `GET` and `HEAD` routes are
+forwarded. Keep this allowlist limited to routes consumed by the artifact; do
+not turn it into a general API proxy or forward browser credentials.

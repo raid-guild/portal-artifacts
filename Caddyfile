@@ -1,13 +1,39 @@
 :{$PORT:8080} {
 	root * /srv
 	encode zstd gzip
-	file_server
 
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://portal.raidguild.org https://*.up.railway.app http://localhost:*"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://portal.raidguild.org https://*.up.railway.app http://localhost:*"
 		Referrer-Policy "no-referrer"
 		X-Content-Type-Options "nosniff"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		-Server
+	}
+
+	route {
+		@veydrift_read {
+			method GET HEAD
+			path_regexp veydrift ^/veydrift-api/(runtime-config|alliance/[0-9]+|wallet/0x[a-fA-F0-9]{40}/(profile|planets|missions|queues|fleet-visibility|shipyard|defenses|alliance)|missions|mission/[0-9]+|planets/[0-9]+|universe/(systems|system|galaxies/[0-9]+/systems/[0-9]+))$
+		}
+
+		handle @veydrift_read {
+			uri strip_prefix /veydrift-api
+			reverse_proxy https://api.veydrift.com {
+				header_up -Authorization
+				header_up -Cookie
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 10s
+				}
+			}
+		}
+
+		handle /veydrift-api/* {
+			respond "Veydrift API route not allowed" 404
+		}
+
+		handle {
+			file_server
+		}
 	}
 }

@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Veydrift Alliance Signal Map</title>
+    <style>
+      :root {
+        --bg: #05070d;
+        --panel: rgba(11, 16, 28, 0.94);
+        --panel-2: #0d1422;
+        --line: #253049;
+        --line-bright: #3f506f;
+        --text: #edf6ff;
+        --muted: #8d9bb1;
+        --cyan: #5de4e7;
+        --green: #78e08f;
+        --violet: #a98cff;
+        --amber: #ffbf69;
+        --danger: #ff625f;
+        --radius: 14px;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+      body { min-height: 100vh; overflow: hidden; }
+      button, input, select { font: inherit; }
+      button { color: inherit; }
+
+      .shell {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 64% 40%, rgba(58, 96, 136, 0.13), transparent 34%),
+          linear-gradient(rgba(109, 158, 186, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(109, 158, 186, 0.025) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, 44px 44px, 44px 44px, auto;
+      }
+
+      .topbar {
+        align-items: center;
+        backdrop-filter: blur(18px);
+        background: rgba(5, 8, 14, 0.88);
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(220px, 1fr) minmax(210px, 380px) auto;
+        padding: 12px 16px;
+        position: relative;
+        z-index: 20;
+      }
+
+      .identity { align-items: center; display: flex; gap: 12px; min-width: 0; }
+      .sigil {
+        align-items: center;
+        background: linear-gradient(145deg, rgba(93, 228, 231, 0.18), rgba(169, 140, 255, 0.1));
+        border: 1px solid rgba(93, 228, 231, 0.46);
+        border-radius: 10px;
+        color: var(--cyan);
+        display: flex;
+        flex: 0 0 38px;
+        font-size: 21px;
+        height: 38px;
+        justify-content: center;
+        transform: rotate(45deg);
+      }
+      .sigil span { transform: rotate(-45deg); }
+      .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; }
+      h1 { font-size: 17px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mode-tag { border: 1px solid #765d2b; border-radius: 999px; color: var(--amber); font-size: 9px; letter-spacing: 0.1em; margin-left: 6px; padding: 3px 6px; text-transform: uppercase; vertical-align: 2px; }
+
+      .search { position: relative; }
+      .search input {
+        background: #0a101b;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        color: var(--text);
+        outline: none;
+        padding: 9px 34px 9px 36px;
+        width: 100%;
+      }
+      .search input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(93, 228, 231, 0.09); }
+      .search::before { color: var(--muted); content: "⌕"; font-size: 21px; left: 11px; position: absolute; top: 5px; }
+      .search kbd { color: #66758d; font-size: 10px; position: absolute; right: 11px; top: 11px; }
+
+      .top-actions { align-items: center; display: flex; gap: 12px; }
+      .updated { color: var(--muted); font-size: 10px; line-height: 1.4; text-align: right; }
+      .updated strong { color: #cbd7e7; display: block; font-size: 11px; font-weight: 600; }
+      .icon-button, .primary-button, .filter-button {
+        background: #101828;
+        border: 1px solid var(--line-bright);
+        border-radius: 8px;
+        cursor: pointer;
+        padding: 8px 11px;
+      }
+      .icon-button:hover, .filter-button:hover { border-color: var(--cyan); }
+      .primary-button { background: var(--cyan); border-color: var(--cyan); color: #061113; font-weight: 800; }
+      .primary-button:hover { filter: brightness(1.1); }
+      .primary-button[aria-busy="true"] { opacity: 0.7; }
+
+      .workspace { display: grid; grid-template-columns: 250px minmax(0, 1fr) 310px; min-height: 0; }
+      .rail, .details { background: var(--panel); min-height: 0; overflow: auto; padding: 16px; position: relative; z-index: 10; }
+      .rail { border-right: 1px solid var(--line); }
+      .details { border-left: 1px solid var(--line); }
+      .section + .section { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+      .section-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }
+      .section h2, .details h2 { font-size: 11px; letter-spacing: 0.14em; margin: 0; text-transform: uppercase; }
+      .section-count { color: var(--muted); font-size: 10px; }
+
+      .filter-stack { display: grid; gap: 7px; }
+      .filter-button { align-items: center; display: flex; font-size: 11px; gap: 8px; justify-content: space-between; padding: 8px 9px; text-align: left; width: 100%; }
+      .filter-button[aria-pressed="true"] { background: rgba(93, 228, 231, 0.1); border-color: rgba(93, 228, 231, 0.48); }
+      .filter-label { align-items: center; display: flex; gap: 8px; }
+      .dot { background: currentColor; border-radius: 50%; display: inline-block; height: 7px; width: 7px; }
+      .swatch { border-radius: 3px; display: inline-block; height: 10px; width: 10px; }
+
+      .threat-list { display: grid; gap: 8px; }
+      .threat-card {
+        background: linear-gradient(100deg, rgba(255, 98, 95, 0.1), transparent 70%);
+        border: 1px solid rgba(255, 98, 95, 0.34);
+        border-radius: 9px;
+        color: inherit;
+        cursor: pointer;
+        padding: 10px;
+        text-align: left;
+      }
+      .threat-card:hover { border-color: var(--danger); }
+      .threat-card strong { display: block; font-size: 11px; margin-bottom: 5px; }
+      .threat-meta { color: #ffaaa7; display: flex; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; justify-content: space-between; }
+
+      .legend { color: var(--muted); display: grid; font-size: 10px; gap: 8px; }
+      .legend-row { align-items: center; display: flex; gap: 8px; }
+      .legend-line { border-top: 2px solid var(--cyan); display: inline-block; width: 22px; }
+      .legend-line.hostile { border-color: var(--danger); border-top-style: dashed; }
+      .legend-line.returning { border-color: #7196c7; border-top-style: dotted; }
+      .legend-line.colonization { border-color: var(--violet); }
+
+      .map-wrap { min-height: 0; overflow: hidden; position: relative; }
+      #map { display: block; height: 100%; min-height: 520px; touch-action: none; width: 100%; }
+      .star-speck { fill: #b6d7ea; }
+      .grid-line { stroke: #2d3d55; stroke-dasharray: 2 10; stroke-width: 0.65; }
+      .sector-label { fill: #53657d; font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; }
+      .system-ring { fill: rgba(9, 15, 25, 0.68); stroke: #36455c; stroke-width: 1.2; }
+      .system-ring.active { stroke: var(--cyan); stroke-width: 1.8; }
+      .system-name { fill: #c9d8ea; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-anchor: middle; }
+      .system-coord { fill: #667992; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; text-anchor: middle; }
+      .orbit { fill: none; stroke: #354157; stroke-dasharray: 2 4; stroke-width: 0.7; }
+      .planet { cursor: pointer; outline: none; }
+      .planet .planet-ring { fill: none; stroke-width: 2; }
+      .planet:hover .planet-ring, .planet:focus .planet-ring { filter: url(#softGlow); stroke-width: 3; }
+      .planet.selected .planet-ring { filter: url(#brightGlow); stroke: #fff !important; stroke-width: 3; }
+      .planet-label { fill: #bccbdd; font-size: 8px; text-anchor: middle; }
+      .planet-badge { fill: #0c1320; stroke: #697d99; stroke-width: 0.8; }
+      .planet-badge-text { fill: #e7f3ff; font-size: 7px; font-weight: 800; text-anchor: middle; }
+      .mission { fill: none; pointer-events: stroke; stroke-linecap: round; stroke-width: 2; }
+      .mission.friendly { stroke: var(--cyan); }
+      .mission.reinforcement { stroke: var(--green); stroke-dasharray: 7 5; }
+      .mission.colonization { stroke: var(--violet); stroke-dasharray: 9 4; }
+      .mission.returning { stroke: #7196c7; stroke-dasharray: 2 6; }
+      .mission.hostile { animation: dash 1.2s linear infinite; filter: url(#redGlow); stroke: var(--danger); stroke-dasharray: 8 6; stroke-width: 2.6; }
+      .mission-hit { fill: none; pointer-events: stroke; stroke: transparent; stroke-width: 14; }
+      .mission-marker { fill: currentColor; }
+      .mission-eta { fill: #ffaaa7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; font-weight: 700; text-anchor: middle; }
+      @keyframes dash { to { stroke-dashoffset: -28; } }
+
+      .map-overlay { display: flex; gap: 7px; left: 14px; position: absolute; top: 14px; z-index: 4; }
+      .map-chip { backdrop-filter: blur(10px); background: rgba(9, 14, 24, 0.84); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; letter-spacing: 0.08em; padding: 6px 9px; text-transform: uppercase; }
+      .map-chip strong { color: var(--text); }
+      .zoom-controls { bottom: 15px; display: grid; gap: 6px; left: 15px; position: absolute; z-index: 5; }
+      .zoom-controls button { align-items: center; display: flex; height: 31px; justify-content: center; padding: 0; width: 31px; }
+      .map-help { bottom: 18px; color: #65758c; font-size: 9px; left: 58px; position: absolute; }
+
+      .detail-empty { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 34px 8px; text-align: center; }
+      .planet-hero { align-items: center; display: flex; gap: 14px; margin: 14px 0 18px; }
+      .planet-preview {
+        align-items: center;
+        background: radial-gradient(circle at 38% 32%, #70e2d8 0 8%, #235874 26%, #15263c 58%, #090c15 72%);
+        border: 2px solid var(--member-color, var(--cyan));
+        border-radius: 50%;
+        box-shadow: 0 0 25px color-mix(in srgb, var(--member-color, var(--cyan)) 24%, transparent);
+        display: flex;
+        flex: 0 0 72px;
+        height: 72px;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .planet-preview::after { background: repeating-linear-gradient(18deg, transparent 0 6px, rgba(255,255,255,.1) 7px, transparent 8px 12px); content: ""; inset: 0; position: absolute; }
+      .planet-title h3 { font-size: 18px; margin: 0 0 3px; }
+      .planet-title p { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; margin: 0; }
+      .owner { align-items: center; color: #b6c5d7; display: flex; font-size: 10px; gap: 6px; margin-top: 8px; }
+      .metrics { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+      .metric { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
+      .metric span { color: var(--muted); display: block; font-size: 8px; letter-spacing: 0.08em; margin-bottom: 5px; text-transform: uppercase; }
+      .metric strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .detail-block { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+      .detail-block h4 { font-size: 10px; letter-spacing: 0.12em; margin: 0 0 10px; text-transform: uppercase; }
+      .unit-row { align-items: center; background: #0a101b; border-radius: 7px; display: grid; font-size: 10px; gap: 8px; grid-template-columns: 25px 1fr auto; margin-top: 6px; padding: 7px 8px; }
+      .unit-icon { align-items: center; background: #162033; border: 1px solid #33415a; border-radius: 5px; color: var(--cyan); display: flex; height: 24px; justify-content: center; width: 24px; }
+      .unit-row b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .incoming { background: rgba(255, 98, 95, 0.07); border: 1px solid rgba(255, 98, 95, 0.3); border-radius: 9px; padding: 10px; }
+      .incoming-head { align-items: center; display: flex; font-size: 10px; justify-content: space-between; }
+      .incoming-head b { color: var(--danger); }
+      .countdown { color: #ffb1ae; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 800; margin-top: 8px; }
+      .unknown { color: var(--muted); font-style: italic; }
+
+      .statusbar { align-items: center; background: #080c14; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 9px; gap: 16px; justify-content: space-between; padding: 7px 14px; position: relative; z-index: 20; }
+      .health { align-items: center; display: flex; gap: 7px; }
+      .health-dot { background: var(--amber); border-radius: 50%; box-shadow: 0 0 8px rgba(255, 191, 105, 0.5); height: 7px; width: 7px; }
+      .statusbar strong { color: #d6e1ee; }
+
+      .mobile-panel-button { display: none; }
+      .sr-only { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+      @media (max-width: 980px) {
+        .workspace { grid-template-columns: 210px minmax(0, 1fr); }
+        .details { bottom: 29px; box-shadow: -16px 0 40px rgba(0,0,0,.4); max-width: 330px; position: fixed; right: 0; top: 63px; transform: translateX(102%); transition: transform .2s ease; width: 84vw; }
+        .details.open { transform: translateX(0); }
+        .mobile-panel-button { display: inline-flex; }
+        .topbar { grid-template-columns: minmax(220px, 1fr) minmax(180px, 320px) auto; }
+        .updated { display: none; }
+      }
+
+      @media (max-width: 700px) {
+        body { overflow: auto; }
+        .shell { min-height: 100dvh; }
+        .topbar { gap: 10px; grid-template-columns: 1fr auto; padding: 9px 10px; }
+        .identity { min-width: 0; }
+        .sigil { flex-basis: 32px; height: 32px; }
+        h1 { font-size: 14px; }
+        .mode-tag { display: none; }
+        .search { grid-column: 1 / -1; grid-row: 2; }
+        .workspace { display: block; min-height: calc(100dvh - 145px); }
+        .rail { bottom: 28px; box-shadow: 16px 0 40px rgba(0,0,0,.4); left: 0; position: fixed; top: 104px; transform: translateX(-102%); transition: transform .2s ease; width: min(82vw, 280px); z-index: 30; }
+        .rail.open { transform: translateX(0); }
+        .map-wrap { height: calc(100dvh - 145px); }
+        #map { min-height: 460px; }
+        .details { top: 104px; z-index: 30; }
+        .mobile-panel-button { display: inline-flex; }
+        .top-actions { gap: 6px; }
+        .primary-button { padding: 7px 9px; }
+        .statusbar > span:last-child { display: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="identity">
+          <div class="sigil" aria-hidden="true"><span>⌁</span></div>
+          <div>
+            <div class="eyebrow">Alliance signal map</div>
+            <h1><span id="allianceName">RaidGuild</span> <span class="mode-tag" id="modeTag">loading live data</span></h1>
+          </div>
+        </div>
+        <label class="search">
+          <span class="sr-only">Search planets, members, or coordinates</span>
+          <input id="search" type="search" placeholder="Search planet, member, 1:142…" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+        <div class="top-actions">
+          <div class="updated">Snapshot age<strong id="updated">just now</strong></div>
+          <button class="icon-button mobile-panel-button" id="filtersToggle" type="button" aria-label="Open filters">☷</button>
+          <button class="primary-button" id="refresh" type="button">↻ Refresh</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="rail" id="rail" aria-label="Map filters and threats">
+          <section class="section">
+            <div class="section-head"><h2>Signal layers</h2><span class="section-count" id="relationCount"></span></div>
+            <div class="filter-stack" id="relationFilters"></div>
+          </section>
+          <section class="section">
+            <div class="section-head"><h2>Members</h2><span class="section-count" id="memberCount"></span></div>
+            <div class="filter-stack" id="memberFilters"></div>
+          </section>
+          <section class="section">
+            <div class="section-head"><h2>Incoming threats</h2><span class="section-count" id="threatCount"></span></div>
+            <div class="threat-list" id="threatList"></div>
+          </section>
+          <section class="section">
+            <div class="section-head"><h2>Legend</h2></div>
+            <div class="legend">
+              <div class="legend-row"><span class="legend-line"></span> Friendly transit</div>
+              <div class="legend-row"><span class="legend-line colonization"></span> Colonization</div>
+              <div class="legend-row"><span class="legend-line returning"></span> Returning fleet</div>
+              <div class="legend-row"><span class="legend-line hostile"></span> Hostile inbound</div>
+              <div class="legend-row"><span>◇</span> Fleet stationed <span style="margin-left:8px">⬡</span> Defenses</div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="map-wrap" aria-label="Interactive alliance galaxy map">
+          <div class="map-overlay">
+            <span class="map-chip"><strong id="visibleSystems">4</strong> systems</span>
+            <span class="map-chip"><strong id="visiblePlanets">8</strong> planets</span>
+            <span class="map-chip"><strong id="visibleMissions">4</strong> missions</span>
+          </div>
+          <svg id="map" viewBox="0 0 900 620" role="img" aria-labelledby="mapTitle mapDesc">
+            <title id="mapTitle">Wayfarer Compact tactical galaxy map</title>
+            <desc id="mapDesc">Interactive demo map showing alliance planets, fleets, defenses, and incoming hostile missions.</desc>
+            <defs>
+              <radialGradient id="planetOcean" cx="34%" cy="28%">
+                <stop offset="0" stop-color="#8af4e3"/><stop offset=".18" stop-color="#3ca1ae"/><stop offset=".58" stop-color="#21536f"/><stop offset="1" stop-color="#0c1525"/>
+              </radialGradient>
+              <radialGradient id="planetEmber" cx="35%" cy="30%">
+                <stop offset="0" stop-color="#ffd180"/><stop offset=".23" stop-color="#bd5b3c"/><stop offset=".64" stop-color="#552842"/><stop offset="1" stop-color="#140d1b"/>
+              </radialGradient>
+              <radialGradient id="planetIce" cx="32%" cy="27%">
+                <stop offset="0" stop-color="#f3fbff"/><stop offset=".22" stop-color="#91badc"/><stop offset=".63" stop-color="#536e9f"/><stop offset="1" stop-color="#11182b"/>
+              </radialGradient>
+              <radialGradient id="planetViolet" cx="35%" cy="30%">
+                <stop offset="0" stop-color="#ead7ff"/><stop offset=".2" stop-color="#9e70d2"/><stop offset=".62" stop-color="#4b376f"/><stop offset="1" stop-color="#130f24"/>
+              </radialGradient>
+              <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="brightGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <marker id="arrowFriendly" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5de4e7"/></marker>
+              <marker id="arrowGreen" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#78e08f"/></marker>
+              <marker id="arrowViolet" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#a98cff"/></marker>
+              <marker id="arrowHostile" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#ff625f"/></marker>
+            </defs>
+            <g id="viewport"></g>
+          </svg>
+          <div class="zoom-controls" aria-label="Map zoom controls">
+            <button class="icon-button" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            <button class="icon-button" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+            <button class="icon-button" id="zoomReset" type="button" aria-label="Reset map view">⌂</button>
+          </div>
+          <div class="map-help">Drag to pan · scroll to zoom · select a planet for details</div>
+        </section>
+
+        <aside class="details" id="details" aria-label="Selected planet details">
+          <div id="detailContent" class="detail-empty">Select a planet to inspect its defenses, stationed fleet, and incoming missions.</div>
+        </aside>
+      </div>
+
+      <footer class="statusbar">
+        <span class="health"><span class="health-dot" id="healthDot"></span><strong id="healthTitle">Connecting</strong><span id="healthDetail"> · loading alliance 29</span></span>
+        <span>Placeholder visuals · no Veydrift artwork used</span>
+      </footer>
+    </main>
+
+    <script>
+      const ALLIANCE_ID = '29';
+      const API_BASE = '/veydrift-api';
+      const now = Date.now();
+      const demoMembers = [
+        { id: 'mira', name: 'Mira Vale', wallet: '0x91a7…e4c2', color: '#5de4e7' },
+        { id: 'rook', name: 'Rook IX', wallet: '0xc88d…71f0', color: '#a98cff' },
+        { id: 'sol', name: 'Sol Kade', wallet: '0x42be…993a', color: '#ffbf69' },
+        { id: 'nyx', name: 'Nyx Orison', wallet: '0x0ad4…8b17', color: '#78e08f' }
+      ];
+      const demoSystems = [
+        { id: 's142', name: 'KEPLER REACH', coord: '1:142', x: 180, y: 180 },
+        { id: 's149', name: 'GLASS MERIDIAN', coord: '1:149', x: 570, y: 145 },
+        { id: 's151', name: 'CINDER WAKE', coord: '1:151', x: 700, y: 430 },
+        { id: 's158', name: 'PALE ANCHOR', coord: '1:158', x: 290, y: 455 }
+      ];
+      const demoPlanets = [
+        { id:'p1', system:'s142', name:'Pelagos', position:4, dx:-45, dy:0, size:17, owner:'mira', type:'Oceanic', gradient:'planetOcean', fleet:38, defense:124, shield:true, moon:true, queues:['Orbital dock · 08:12'], units:[['Interceptor',24],['Frigate',10],['Surveyor',4]], defenses:[['Pulse turret',72],['Ion lattice',36],['Shield node',16]] },
+        { id:'p2', system:'s142', name:'Sable', position:8, dx:49, dy:18, size:12, owner:'rook', type:'Volcanic', gradient:'planetEmber', fleet:11, defense:48, shield:false, moon:false, queues:[], units:[['Interceptor',8],['Freighter',3]], defenses:[['Pulse turret',40],['Ion lattice',8]] },
+        { id:'p3', system:'s149', name:'Ilyon', position:2, dx:-51, dy:-2, size:15, owner:'nyx', type:'Cryogenic', gradient:'planetIce', fleet:22, defense:96, shield:true, moon:true, queues:['Shield node · 21:44'], units:[['Interceptor',14],['Frigate',6],['Surveyor',2]], defenses:[['Pulse turret',60],['Ion lattice',24],['Shield node',12]] },
+        { id:'p4', system:'s149', name:'Vesper', position:7, dx:48, dy:25, size:13, owner:'mira', type:'Crystal', gradient:'planetViolet', fleet:7, defense:30, shield:false, moon:false, queues:[], units:[['Freighter',5],['Surveyor',2]], defenses:[['Pulse turret',24],['Ion lattice',6]] },
+        { id:'p5', system:'s151', name:'Orpheon', position:3, dx:-42, dy:-26, size:16, owner:'sol', type:'Desert', gradient:'planetEmber', fleet:44, defense:151, shield:true, moon:true, queues:['Dreadnought · 32:09'], units:[['Interceptor',18],['Frigate',16],['Cruiser',8],['Freighter',2]], defenses:[['Pulse turret',84],['Ion lattice',48],['Shield node',19]] },
+        { id:'p6', system:'s151', name:'Aster', position:9, dx:50, dy:22, size:11, owner:'nyx', type:'Oceanic', gradient:'planetOcean', fleet:4, defense:19, shield:false, moon:false, queues:[], units:[['Surveyor',2],['Freighter',2]], defenses:[['Pulse turret',16],['Ion lattice',3]] },
+        { id:'p7', system:'s158', name:'Talos', position:5, dx:-49, dy:8, size:15, owner:'rook', type:'Cryogenic', gradient:'planetIce', fleet:19, defense:88, shield:true, moon:false, queues:[], units:[['Interceptor',12],['Frigate',7]], defenses:[['Pulse turret',52],['Ion lattice',26],['Shield node',10]] },
+        { id:'p8', system:'s158', name:'Eidolon', position:11, dx:49, dy:-20, size:12, owner:'sol', type:'Crystal', gradient:'planetViolet', fleet:0, defense:12, shield:false, moon:true, queues:['Probe array · 04:38'], units:[], defenses:[['Pulse turret',12]] }
+      ];
+      const demoMissions = [
+        { id:'f1', from:'p1', to:'p3', relation:'friendly', type:'Transit', arrivalAt:now+23*60*1000, ships:18 },
+        { id:'f2', from:'p7', to:'p4', relation:'reinforcement', type:'Reinforcement', arrivalAt:now+41*60*1000, ships:12 },
+        { id:'f3', from:'p5', to:'p2', relation:'returning', type:'Returning', arrivalAt:now+68*60*1000, ships:21 },
+        { id:'h1', from:null, origin:{x:850,y:300}, to:'p6', relation:'hostile', type:'Raid', arrivalAt:now+17*60*1000+34*1000, ships:null },
+        { id:'h2', from:null, origin:{x:42,y:500}, to:'p8', relation:'hostile', type:'Attack', arrivalAt:now+52*60*1000+11*1000, ships:null }
+      ];
+      const relations = [
+        { id:'friendly', label:'Friendly transit', color:'#5de4e7' },
+        { id:'reinforcement', label:'Reinforcement', color:'#78e08f' },
+        { id:'colonization', label:'Colonization', color:'#a98cff' },
+        { id:'returning', label:'Returning', color:'#7196c7' },
+        { id:'hostile', label:'Hostile inbound', color:'#ff625f' }
+      ];
+
+      let members = demoMembers;
+      let systems = demoSystems;
+      let planets = demoPlanets;
+      let missions = demoMissions;
+      let liveUpdatedAt = null;
+      let partialSourceCount = 0;
+
+      const state = {
+        selectedPlanet: null,
+        members: new Set(demoMembers.map(member => member.id)),
+        relations: new Set(relations.map(relation => relation.id)),
+        search: '',
+        view: { x: 0, y: 0, scale: 1 }
+      };
+      const map = document.querySelector('#map');
+      const viewport = document.querySelector('#viewport');
+      const detailContent = document.querySelector('#detailContent');
+      const rail = document.querySelector('#rail');
+      const details = document.querySelector('#details');
+      let systemById = {};
+      let planetById = {};
+      let memberById = {};
+
+      function refreshIndexes() {
+        systemById = Object.fromEntries(systems.map(system => [system.id, system]));
+        planetById = Object.fromEntries(planets.map(planet => [planet.id, planet]));
+        memberById = Object.fromEntries(members.map(member => [member.id, member]));
+      }
+      refreshIndexes();
+
+      function esc(value) {
+        return String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+      }
+
+      function point(planet) {
+        const system = systemById[planet.system];
+        return { x: system.x + planet.dx, y: system.y + planet.dy };
+      }
+
+      function formatEta(timestamp) {
+        const seconds = Math.max(0, Math.floor((timestamp - Date.now()) / 1000));
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const rest = seconds % 60;
+        return `${hours ? String(hours).padStart(2,'0') + ':' : ''}${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`;
+      }
+
+      function curve(a, b, bend = 0.16) {
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        return `M ${a.x} ${a.y} Q ${mx - dy * bend} ${my + dx * bend} ${b.x} ${b.y}`;
+      }
+
+      function matchesSearch(planet) {
+        if (!state.search) return true;
+        const member = memberById[planet.owner];
+        const system = systemById[planet.system];
+        const haystack = `${planet.name} ${member.name} ${member.wallet} ${system.name} ${system.coord}:${planet.position}`.toLowerCase();
+        return haystack.includes(state.search);
+      }
+
+      function visiblePlanet(planet) { return state.members.has(planet.owner) && matchesSearch(planet); }
+
+      function renderFilters() {
+        document.querySelector('#relationFilters').innerHTML = relations.map(relation => `
+          <button class="filter-button" data-relation="${relation.id}" aria-pressed="${state.relations.has(relation.id)}">
+            <span class="filter-label"><span class="dot" style="color:${relation.color}"></span>${esc(relation.label)}</span>
+            <span>${state.relations.has(relation.id) ? 'ON' : 'OFF'}</span>
+          </button>`).join('');
+        document.querySelector('#memberFilters').innerHTML = members.map(member => `
+          <button class="filter-button" data-member="${member.id}" aria-pressed="${state.members.has(member.id)}">
+            <span class="filter-label"><span class="swatch" style="background:${member.color}"></span>${esc(member.name)}</span>
+            <span>${planets.filter(planet => planet.owner === member.id).length}</span>
+          </button>`).join('');
+        document.querySelector('#memberCount').textContent = `${state.members.size}/${members.length}`;
+        document.querySelector('#relationCount').textContent = `${state.relations.size} active`;
+        document.querySelectorAll('[data-relation]').forEach(button => button.addEventListener('click', () => {
+          const id = button.dataset.relation;
+          state.relations.has(id) ? state.relations.delete(id) : state.relations.add(id);
+          render();
+        }));
+        document.querySelectorAll('[data-member]').forEach(button => button.addEventListener('click', () => {
+          const id = button.dataset.member;
+          state.members.has(id) ? state.members.delete(id) : state.members.add(id);
+          render();
+        }));
+      }
+
+      function renderThreats() {
+        const threats = missions.filter(mission => mission.relation === 'hostile' && state.relations.has('hostile'));
+        document.querySelector('#threatCount').textContent = String(threats.length);
+        document.querySelector('#threatList').innerHTML = threats.length ? threats.map(mission => {
+          const target = planetById[mission.to];
+          const system = systemById[target.system];
+          return `<button class="threat-card" data-target="${target.id}"><strong>⚠ ${esc(target.name)} · ${esc(mission.type)}</strong><span class="threat-meta"><span>${system.coord}:${target.position}</span><span data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</span></span></button>`;
+        }).join('') : `<div class="unknown">${state.relations.has('hostile') ? 'No incoming threats reported' : 'Hostile layer hidden'}</div>`;
+        document.querySelectorAll('[data-target]').forEach(button => button.addEventListener('click', () => selectPlanet(button.dataset.target)));
+      }
+
+      function renderMap() {
+        const visible = planets.filter(visiblePlanet);
+        const visibleIds = new Set(visible.map(planet => planet.id));
+        const activeSystems = systems.filter(system => visible.some(planet => planet.system === system.id));
+        const activeMissions = missions.filter(mission => state.relations.has(mission.relation) && ((mission.to && visibleIds.has(mission.to)) || (mission.from && visibleIds.has(mission.from))));
+        const grid = Array.from({length:8}, (_, index) => `<line class="grid-line" x1="${100 + index*100}" y1="20" x2="${100 + index*100}" y2="600"/><line class="grid-line" x1="20" y1="${70 + index*75}" x2="880" y2="${70 + index*75}"/>`).join('');
+        const stars = Array.from({length:54}, (_, index) => {
+          const x = (index * 163 + 71) % 880 + 10;
+          const y = (index * 97 + 43) % 590 + 10;
+          return `<circle class="star-speck" cx="${x}" cy="${y}" r="${index % 9 === 0 ? 1.15 : .55}" opacity="${.2 + (index % 5)*.1}"/>`;
+        }).join('');
+        const missionMarkup = activeMissions.map((mission, index) => {
+          const a = mission.from ? point(planetById[mission.from]) : mission.origin;
+          const b = mission.to ? point(planetById[mission.to]) : mission.target;
+          const path = curve(a, b, index % 2 ? -.13 : .13);
+          const marker = mission.relation === 'hostile' ? 'arrowHostile' : mission.relation === 'reinforcement' ? 'arrowGreen' : mission.relation === 'colonization' ? 'arrowViolet' : 'arrowFriendly';
+          const mx = (a.x+b.x)/2;
+          const my = (a.y+b.y)/2 - 10;
+          return `<g data-mission="${mission.id}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
+        }).join('');
+        const systemMarkup = activeSystems.map(system => {
+          const owned = visible.filter(planet => planet.system === system.id);
+          const systemThreat = activeMissions.some(mission => mission.relation === 'hostile' && planetById[mission.to].system === system.id);
+          return `<g class="system" data-system="${system.id}">
+            <circle class="system-ring ${systemThreat ? 'active' : ''}" cx="${system.x}" cy="${system.y}" r="78"/>
+            <circle class="orbit" cx="${system.x}" cy="${system.y}" r="54"/>
+            <circle cx="${system.x}" cy="${system.y}" r="4" fill="#d9f4ff" filter="url(#softGlow)"/>
+            <text class="system-name" x="${system.x}" y="${system.y-91}">${esc(system.name)}</text>
+            <text class="system-coord" x="${system.x}" y="${system.y-80}">${system.coord} · ${owned.length} SIGNALS</text>
+          </g>`;
+        }).join('');
+        const planetMarkup = visible.map(planet => {
+          const p = point(planet);
+          const member = memberById[planet.owner];
+          const selected = state.selectedPlanet === planet.id ? ' selected' : '';
+          const hostile = activeMissions.some(mission => mission.relation === 'hostile' && mission.to === planet.id);
+          return `<g class="planet${selected}" data-planet="${planet.id}" tabindex="0" role="button" aria-label="${esc(planet.name)}, owned by ${esc(member.name)}">
+            ${hostile ? `<circle cx="${p.x}" cy="${p.y}" r="${planet.size+10}" fill="none" stroke="#ff625f" stroke-width="1.5" opacity=".7" filter="url(#redGlow)"/>` : ''}
+            <circle class="planet-ring" cx="${p.x}" cy="${p.y}" r="${planet.size+4}" stroke="${member.color}"/>
+            <circle cx="${p.x}" cy="${p.y}" r="${planet.size}" fill="url(#${planet.gradient})"/>
+            <path d="M ${p.x-planet.size*.75} ${p.y-3} Q ${p.x} ${p.y+5} ${p.x+planet.size*.78} ${p.y-5}" fill="none" stroke="rgba(255,255,255,.23)" stroke-width="1"/>
+            ${planet.moon ? `<circle cx="${p.x+planet.size+7}" cy="${p.y-planet.size}" r="3" fill="#b9c8d9"/>` : ''}
+            <text class="planet-label" x="${p.x}" y="${p.y+planet.size+14}">${esc(planet.name)}</text>
+            ${planet.fleet ? `<circle class="planet-badge" cx="${p.x-planet.size-5}" cy="${p.y-planet.size+1}" r="7"/><text class="planet-badge-text" x="${p.x-planet.size-5}" y="${p.y-planet.size+3.5}">◇</text>` : ''}
+            ${planet.defense ? `<circle class="planet-badge" cx="${p.x+planet.size+5}" cy="${p.y+planet.size-1}" r="7"/><text class="planet-badge-text" x="${p.x+planet.size+5}" y="${p.y+planet.size+2}">⬡</text>` : ''}
+          </g>`;
+        }).join('');
+        viewport.innerHTML = `${stars}${grid}<text class="sector-label" x="30" y="40">Alliance observation field · G1</text>${missionMarkup}${systemMarkup}${planetMarkup}`;
+        viewport.setAttribute('transform', `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})`);
+        document.querySelector('#visibleSystems').textContent = String(activeSystems.length);
+        document.querySelector('#visiblePlanets').textContent = String(visible.length);
+        document.querySelector('#visibleMissions').textContent = String(activeMissions.length);
+        document.querySelectorAll('[data-planet]').forEach(node => {
+          node.addEventListener('click', event => { event.stopPropagation(); selectPlanet(node.dataset.planet); });
+          node.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPlanet(node.dataset.planet); } });
+        });
+      }
+
+      function renderDetails() {
+        const planet = planetById[state.selectedPlanet];
+        if (!planet) {
+          detailContent.className = 'detail-empty';
+          detailContent.textContent = 'Select a planet to inspect its defenses, stationed fleet, and incoming missions.';
+          return;
+        }
+        const member = memberById[planet.owner];
+        const system = systemById[planet.system];
+        const inbound = missions.filter(mission => mission.to === planet.id && mission.relation === 'hostile');
+        const defenseTier = planet.defense >= 100 ? 'HIGH' : planet.defense >= 40 ? 'MED' : 'LOW';
+        detailContent.className = '';
+        detailContent.innerHTML = `
+          <div class="section-head"><h2>Planet inspection</h2><button class="icon-button" id="closeDetails" type="button" aria-label="Close details">×</button></div>
+          <div class="planet-hero">
+            <div class="planet-preview" style="--member-color:${member.color};background:radial-gradient(circle at 34% 28%, ${planet.gradient === 'planetEmber' ? '#ffd180 0 8%,#9f4937 27%,#231126 70%' : planet.gradient === 'planetIce' ? '#f3fbff 0 8%,#6f9ec8 28%,#151a31 70%' : planet.gradient === 'planetViolet' ? '#ead7ff 0 8%,#7857a7 28%,#171029 70%' : '#8af4e3 0 8%,#2c788e 28%,#0b1425 70%'}"></div>
+            <div class="planet-title"><h3>${esc(planet.name)}</h3><p>${system.coord}:${planet.position} · ${esc(planet.type)}</p><div class="owner"><span class="swatch" style="background:${member.color}"></span>${esc(member.name)} · ${member.wallet}</div></div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><span>Fleet</span><strong>${planet.fleet}</strong></div>
+            <div class="metric"><span>Defense</span><strong>${defenseTier}</strong></div>
+            <div class="metric"><span>Moon</span><strong>${planet.moon ? 'YES' : 'NO'}</strong></div>
+          </div>
+          ${inbound.map(mission => `<div class="detail-block incoming"><div class="incoming-head"><b>⚠ HOSTILE ${esc(mission.type.toUpperCase())}</b><span>composition unknown</span></div><div class="countdown" data-countdown="${mission.arrivalAt}">ETA ${formatEta(mission.arrivalAt)}</div></div>`).join('')}
+          <div class="detail-block"><h4>Stationed fleet</h4>${planet.units.length ? planet.units.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('') : '<span class="unknown">No stationed fleet reported</span>'}</div>
+          <div class="detail-block"><h4>Planet defenses</h4>${planet.defenses.map(unit => `<div class="unit-row"><span class="unit-icon">⬡</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('')}</div>
+          <div class="detail-block"><h4>Capabilities & queues</h4><div class="unit-row"><span class="unit-icon">◉</span><span>Shield capability</span><b>${planet.shield == null ? 'UNKNOWN' : planet.shield ? 'ONLINE' : '—'}</b></div>${planet.queues.length ? planet.queues.map(queue => `<div class="unit-row"><span class="unit-icon">◷</span><span>${esc(queue)}</span><b>ACTIVE</b></div>`).join('') : '<div class="unit-row"><span class="unit-icon">◷</span><span>Production queues</span><b>EMPTY</b></div>'}</div>`;
+        document.querySelector('#closeDetails').addEventListener('click', () => { details.classList.remove('open'); });
+      }
+
+      function selectPlanet(id) {
+        state.selectedPlanet = id;
+        history.replaceState(null, '', `#planet=${encodeURIComponent(id)}`);
+        renderMap();
+        renderDetails();
+        details.classList.add('open');
+      }
+
+      function render() { renderFilters(); renderThreats(); renderMap(); renderDetails(); updateCountdowns(); }
+
+      function updateCountdowns() {
+        document.querySelectorAll('[data-countdown]').forEach(node => {
+          const prefix = node.classList.contains('countdown') ? 'ETA ' : '';
+          node.textContent = prefix + formatEta(Number(node.dataset.countdown));
+        });
+      }
+
+      async function fetchJson(path) {
+        const response = await fetch(`${API_BASE}${path}`, { headers: { accept: 'application/json' } });
+        if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+        return response.json();
+      }
+
+      function shortWallet(wallet) { return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`; }
+
+      function placeholderVisual(temperature) {
+        if (temperature == null) return { gradient:'planetViolet', type:'Temperature unknown' };
+        if (temperature <= -60) return { gradient:'planetIce', type:`${temperature}°C` };
+        if (temperature >= 55) return { gradient:'planetEmber', type:`${temperature}°C` };
+        return { gradient:'planetOcean', type:`${temperature}°C` };
+      }
+
+      function queueLabels(queueState) {
+        return Object.entries(queueState || {}).filter(([, value]) => value).map(([kind, value]) => {
+          const label = `${kind.charAt(0).toUpperCase()}${kind.slice(1)} queue`;
+          const readyAt = Number(value.readyAt || 0) * 1000;
+          return readyAt > Date.now() ? `${label} · ${formatEta(readyAt)}` : label;
+        });
+      }
+
+      function genericUnits(units, prefix) {
+        return (units || []).filter(unit => Number(unit.count) > 0).map(unit => [`${prefix} #${unit.id}`, Number(unit.count)]);
+      }
+
+      function offMapPoint(anchor, missionId) {
+        const seed = Number(String(missionId).slice(-5)) || 1;
+        return { x: anchor.x < 450 ? 850 : 50, y: 105 + (seed * 71) % 405 };
+      }
+
+      async function loadLiveData() {
+        const button = document.querySelector('#refresh');
+        button.setAttribute('aria-busy', 'true');
+        button.textContent = '↻ Refreshing';
+        document.querySelector('#healthTitle').textContent = 'Connecting';
+        document.querySelector('#healthDetail').textContent = ` · loading alliance ${ALLIANCE_ID}`;
+        document.querySelector('#healthDot').style.background = 'var(--amber)';
+
+        try {
+          const alliancePayload = await fetchJson(`/alliance/${ALLIANCE_ID}`);
+          const alliance = alliancePayload.alliance;
+          if (!alliance?.active || !Array.isArray(alliance.members)) throw new Error('Alliance response is unavailable');
+          const palette = ['#5de4e7','#a98cff','#ffbf69','#78e08f','#ff7aa8','#7bb7ff'];
+          const liveMembers = alliance.members.map((member, index) => ({
+            id: member.address.toLowerCase(),
+            name: member.displayName || shortWallet(member.address),
+            wallet: shortWallet(member.address),
+            address: member.address.toLowerCase(),
+            role: member.role,
+            color: palette[index % palette.length]
+          }));
+
+          const sourceResults = await Promise.all(liveMembers.map(async member => {
+            const [planetResult, visibilityResult] = await Promise.allSettled([
+              fetchJson(`/wallet/${member.address}/planets`),
+              fetchJson(`/wallet/${member.address}/fleet-visibility`)
+            ]);
+            return { member, planetResult, visibilityResult };
+          }));
+          partialSourceCount = sourceResults.reduce((count, result) => count + (result.planetResult.status === 'rejected' ? 1 : 0) + (result.visibilityResult.status === 'rejected' ? 1 : 0), 0);
+
+          const planetRows = sourceResults.flatMap(result => result.planetResult.status === 'fulfilled'
+            ? result.planetResult.value.planets.map(planet => ({ planet, member:result.member }))
+            : []);
+          if (!planetRows.length) throw new Error('No alliance planets were returned');
+          const systemKeys = [...new Set(planetRows.map(({planet}) => `${planet.galaxy}:${planet.system}`))].sort((a,b) => {
+            const [ag,as] = a.split(':').map(Number), [bg,bs] = b.split(':').map(Number);
+            return ag-bg || as-bs;
+          });
+          const layout = [{x:180,y:180},{x:570,y:145},{x:700,y:430},{x:290,y:455},{x:440,y:300},{x:790,y:170}];
+          const liveSystems = systemKeys.map((key, index) => {
+            const [galaxy, system] = key.split(':').map(Number);
+            return { id:`s-${key}`, name:`SYSTEM ${galaxy}:${system}`, coord:key, ...(layout[index] || {x:150+(index%4)*210,y:150+Math.floor(index/4)*250}) };
+          });
+          const livePlanets = planetRows.map(({planet,member}) => {
+            const visual = placeholderVisual(planet.temperature);
+            const angle = ((Number(planet.position) - 1) / 15) * Math.PI * 2 - Math.PI / 2;
+            const radius = 43 + (Number(planet.position) % 3) * 6;
+            const tactical = planet.tactical || {};
+            return {
+              id:String(planet.planetId), system:`s-${planet.galaxy}:${planet.system}`,
+              name:planet.name || `Planet #${planet.planetId}`, position:Number(planet.position),
+              dx:Math.cos(angle)*radius, dy:Math.sin(angle)*radius, size:11+(Number(planet.position)%5),
+              owner:member.id, type:visual.type, gradient:visual.gradient,
+              fleet:Number(tactical.ships?.count || 0), defense:Number(tactical.defenses?.count || 0),
+              shield:null, moon:Boolean(planet.moon?.exists), queues:queueLabels(planet.queues),
+              units:genericUnits(tactical.ships?.units, 'Ship class'),
+              defenses:genericUnits(tactical.defenses?.units, 'Defense unit')
+            };
+          });
+
+          members = liveMembers;
+          systems = liveSystems;
+          planets = livePlanets;
+          refreshIndexes();
+          const allianceWallets = new Set(liveMembers.map(member => member.address));
+          const missionMap = new Map();
+          const addMission = (raw, relation, timeField) => {
+            if (!raw?.missionId || missionMap.has(String(raw.missionId))) return;
+            const from = planetById[String(raw.originPlanetId)] ? String(raw.originPlanetId) : null;
+            const to = planetById[String(raw.targetPlanetId)] ? String(raw.targetPlanetId) : null;
+            if (!from && !to) return;
+            const anchor = point(planetById[from || to]);
+            const arrivalAt = Number(raw[timeField] || raw.arrivalAt) * 1000;
+            const mission = {
+              id:String(raw.missionId), from, to, relation, type:raw.missionType || 'Unknown mission',
+              arrivalAt, ships:raw.ships ? Object.values(raw.ships).reduce((sum,count) => sum+Number(count),0) : null
+            };
+            if (!from) mission.origin = offMapPoint(anchor, raw.missionId);
+            if (!to) mission.target = offMapPoint(anchor, raw.missionId);
+            missionMap.set(mission.id, mission);
+          };
+          sourceResults.forEach(result => {
+            if (result.visibilityResult.status !== 'fulfilled') return;
+            const visibility = result.visibilityResult.value;
+            (visibility.incoming || []).forEach(raw => {
+              const allied = allianceWallets.has(String(raw.owner).toLowerCase());
+              addMission(raw, allied ? (raw.missionType === 'DefenseHold' ? 'reinforcement' : 'friendly') : 'hostile', 'arrivalAt');
+            });
+            (visibility.outgoing || []).forEach(raw => addMission(raw, raw.missionType === 'Colonize' ? 'colonization' : raw.missionType === 'DefenseHold' ? 'reinforcement' : 'friendly', 'arrivalAt'));
+            (visibility.returning || []).forEach(raw => addMission(raw, 'returning', 'returnAt'));
+          });
+          missions = [...missionMap.values()];
+          state.members = new Set(liveMembers.map(member => member.id));
+          if (initialPlanet && planetById[initialPlanet]) state.selectedPlanet = initialPlanet;
+          if (state.selectedPlanet && !planetById[state.selectedPlanet]) state.selectedPlanet = null;
+          liveUpdatedAt = Date.now();
+          document.querySelector('#allianceName').textContent = alliance.name || alliance.tag || `Alliance ${ALLIANCE_ID}`;
+          document.querySelector('#modeTag').textContent = partialSourceCount ? 'partial live data' : 'live data';
+          document.querySelector('#mapTitle').textContent = `${alliance.name || alliance.tag} tactical galaxy map`;
+          document.title = `${alliance.name || alliance.tag} Alliance Signal Map`;
+          document.querySelector('#healthTitle').textContent = partialSourceCount ? 'Partial live snapshot' : 'Live snapshot';
+          document.querySelector('#healthDetail').textContent = partialSourceCount ? ` · ${partialSourceCount} source${partialSourceCount === 1 ? '' : 's'} unavailable` : ` · alliance ${ALLIANCE_ID}`;
+          document.querySelector('#healthDot').style.background = partialSourceCount ? 'var(--amber)' : 'var(--green)';
+          document.querySelector('#healthDot').style.boxShadow = partialSourceCount ? '0 0 8px rgba(255,191,105,.5)' : '0 0 8px rgba(120,224,143,.5)';
+          render();
+          if (state.selectedPlanet) details.classList.add('open');
+        } catch (error) {
+          console.error(error);
+          document.querySelector('#modeTag').textContent = liveUpdatedAt ? 'stale live data' : 'demo fallback';
+          document.querySelector('#healthTitle').textContent = liveUpdatedAt ? 'Refresh failed' : 'Live data unavailable';
+          document.querySelector('#healthDetail').textContent = liveUpdatedAt ? ' · retaining the last successful snapshot' : ' · showing clearly marked fixture data';
+          document.querySelector('#healthDot').style.background = 'var(--danger)';
+        } finally {
+          button.removeAttribute('aria-busy');
+          button.textContent = '↻ Refresh';
+        }
+      }
+
+      function updateSnapshotAge() {
+        if (!liveUpdatedAt) return;
+        const seconds = Math.floor((Date.now()-liveUpdatedAt)/1000);
+        document.querySelector('#updated').textContent = seconds < 5 ? 'just now' : `${seconds}s ago`;
+        if (seconds > 60) {
+          document.querySelector('#modeTag').textContent = 'stale live data';
+          document.querySelector('#healthTitle').textContent = 'Stale snapshot';
+          document.querySelector('#healthDetail').textContent = ' · last successful refresh was over 60 seconds ago';
+          document.querySelector('#healthDot').style.background = 'var(--amber)';
+        }
+      }
+
+      document.querySelector('#search').addEventListener('input', event => { state.search = event.target.value.trim().toLowerCase(); renderMap(); });
+      document.querySelector('#refresh').addEventListener('click', loadLiveData);
+      document.querySelector('#filtersToggle').addEventListener('click', () => rail.classList.toggle('open'));
+      document.addEventListener('keydown', event => { if (event.key === '/' && document.activeElement !== document.querySelector('#search')) { event.preventDefault(); document.querySelector('#search').focus(); } if (event.key === 'Escape') { rail.classList.remove('open'); details.classList.remove('open'); } });
+
+      function setZoom(delta) {
+        state.view.scale = Math.min(1.75, Math.max(.7, state.view.scale + delta));
+        viewport.setAttribute('transform', `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})`);
+      }
+      document.querySelector('#zoomIn').addEventListener('click', () => setZoom(.15));
+      document.querySelector('#zoomOut').addEventListener('click', () => setZoom(-.15));
+      document.querySelector('#zoomReset').addEventListener('click', () => { state.view = {x:0,y:0,scale:1}; renderMap(); });
+      map.addEventListener('wheel', event => { event.preventDefault(); setZoom(event.deltaY < 0 ? .08 : -.08); }, { passive:false });
+      let drag = null;
+      map.addEventListener('pointerdown', event => { drag = {x:event.clientX,y:event.clientY,vx:state.view.x,vy:state.view.y}; map.setPointerCapture(event.pointerId); });
+      map.addEventListener('pointermove', event => { if (!drag) return; state.view.x = drag.vx + (event.clientX-drag.x); state.view.y = drag.vy + (event.clientY-drag.y); viewport.setAttribute('transform', `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})`); });
+      map.addEventListener('pointerup', () => { drag = null; });
+
+      const initialPlanet = new URLSearchParams(location.hash.slice(1)).get('planet');
+      if (planetById[initialPlanet]) state.selectedPlanet = initialPlanet;
+      render();
+      if (state.selectedPlanet) details.classList.add('open');
+      setInterval(updateCountdowns, 1000);
+      setInterval(updateSnapshotAge, 1000);
+      setInterval(() => { if (!document.hidden) loadLiveData(); }, 30000);
+      loadLiveData();
+    </script>
+  </body>
+</html>
