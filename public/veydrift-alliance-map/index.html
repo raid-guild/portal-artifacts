@@ -220,6 +220,8 @@
       .planet-title h3 { font-size: 18px; margin: 0 0 3px; }
       .planet-title p { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; margin: 0; }
       .owner { align-items: center; color: #b6c5d7; display: flex; font-size: 10px; gap: 6px; margin-top: 8px; }
+      .official-link { align-items: center; border-bottom: 1px solid rgba(93,228,231,.55); color: var(--cyan); display: inline-flex; font-size: 10px; gap: 5px; margin-top: 9px; padding-bottom: 2px; text-decoration: none; }
+      .official-link:hover, .official-link:focus { border-color: var(--text); color: var(--text); outline: none; }
       .metrics { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
       .metric { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
       .metric span { color: var(--muted); display: block; font-size: 8px; letter-spacing: 0.08em; margin-bottom: 5px; text-transform: uppercase; }
@@ -689,6 +691,10 @@
         }
         const member = memberById[planet.owner];
         const system = systemById[planet.system];
+        const [galaxy, systemNumber] = system.coord.split(':').map(Number);
+        const officialPlanetUrl = Number.isInteger(galaxy) && Number.isInteger(systemNumber) && Number.isInteger(planet.position)
+          ? `https://veydrift.com/planet/${galaxy}/${systemNumber}/${planet.position}`
+          : null;
         const inbound = missions.filter(mission => mission.to === planet.id && mission.relation === 'hostile');
         const defenseTier = planet.defense >= 100 ? 'HIGH' : planet.defense >= 40 ? 'MED' : 'LOW';
         detailContent.className = '';
@@ -696,7 +702,7 @@
           <div class="section-head"><h2>Planet inspection</h2><button class="icon-button" id="closeDetails" type="button" aria-label="Close details">×</button></div>
           <div class="planet-hero">
             <div class="planet-preview" style="--member-color:${member.color};background:radial-gradient(circle at 34% 28%, ${planet.gradient === 'planetEmber' ? '#ffd180 0 8%,#9f4937 27%,#231126 70%' : planet.gradient === 'planetIce' ? '#f3fbff 0 8%,#6f9ec8 28%,#151a31 70%' : planet.gradient === 'planetViolet' ? '#ead7ff 0 8%,#7857a7 28%,#171029 70%' : '#8af4e3 0 8%,#2c788e 28%,#0b1425 70%'}"></div>
-            <div class="planet-title"><h3>${esc(planet.name)}</h3><p>${system.coord}:${planet.position} · ${esc(planet.type)}</p><div class="owner"><span class="swatch" style="background:${member.color}"></span>${esc(member.name)} · ${member.wallet}</div></div>
+            <div class="planet-title"><h3>${esc(planet.name)}</h3><p>${system.coord}:${planet.position} · ${esc(planet.type)}</p><div class="owner"><span class="swatch" style="background:${member.color}"></span>${esc(member.name)} · ${member.wallet}</div>${officialPlanetUrl ? `<a class="official-link" href="${officialPlanetUrl}" target="_blank" rel="noopener noreferrer">Open in Veydrift <span aria-hidden="true">↗</span></a>` : ''}</div>
           </div>
           <div class="metrics">
             <div class="metric"><span>Fleet</span><strong>${planet.fleet}</strong></div>
