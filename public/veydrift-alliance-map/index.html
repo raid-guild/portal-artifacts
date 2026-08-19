@@ -141,6 +141,7 @@
       .legend-line.hostile { border-color: var(--danger); border-top-style: dashed; }
       .legend-line.returning { border-color: #7196c7; border-top-style: dotted; }
       .legend-line.colonization { border-color: var(--violet); }
+      .legend-line.attack { border-color: var(--amber); border-top-style: dashed; }
 
       .map-wrap { min-height: 0; overflow: hidden; position: relative; }
       #map { display: block; height: 100%; min-height: 520px; touch-action: none; width: 100%; }
@@ -163,6 +164,7 @@
       .mission.friendly { stroke: var(--cyan); }
       .mission.reinforcement { stroke: var(--green); stroke-dasharray: 7 5; }
       .mission.colonization { stroke: var(--violet); stroke-dasharray: 9 4; }
+      .mission.attack { animation: dash 1.5s linear infinite; stroke: var(--amber); stroke-dasharray: 9 5; }
       .mission.returning { stroke: #7196c7; stroke-dasharray: 2 6; }
       .mission.hostile { animation: dash 1.2s linear infinite; filter: url(#redGlow); stroke: var(--danger); stroke-dasharray: 8 6; stroke-width: 2.6; }
       .mission-hit { fill: none; pointer-events: stroke; stroke: transparent; stroke-width: 14; }
@@ -170,7 +172,10 @@
       .mission-group:hover .mission, .mission-group:focus .mission { stroke-width: 3.5; }
       .mission-group.selected .mission { filter: url(#brightGlow); stroke-width: 4; }
       .mission-marker { fill: currentColor; }
-      .mission-eta { fill: #ffaaa7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; font-weight: 700; text-anchor: middle; }
+      .mission-eta { fill: #9eafc4; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; font-weight: 700; text-anchor: middle; }
+      .mission-group.attack .mission-eta { fill: var(--amber); }
+      .mission-group.colonization .mission-eta { fill: #c9b8ff; }
+      .mission-group.hostile .mission-eta { fill: #ffaaa7; }
       @keyframes dash { to { stroke-dashoffset: -28; } }
 
       .map-overlay { display: flex; gap: 7px; left: 14px; position: absolute; top: 14px; z-index: 4; }
@@ -338,6 +343,7 @@
             <div class="section-head"><h2>Legend</h2></div>
             <div class="legend">
               <div class="legend-row"><span class="legend-line"></span> Friendly transit</div>
+              <div class="legend-row"><span class="legend-line attack"></span> Alliance attack</div>
               <div class="legend-row"><span class="legend-line colonization"></span> Colonization</div>
               <div class="legend-row"><span class="legend-line returning"></span> Returning fleet</div>
               <div class="legend-row"><span class="legend-line hostile"></span> Hostile inbound</div>
@@ -374,6 +380,8 @@
               <marker id="arrowFriendly" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5de4e7"/></marker>
               <marker id="arrowGreen" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#78e08f"/></marker>
               <marker id="arrowViolet" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#a98cff"/></marker>
+              <marker id="arrowAttack" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#ffbf69"/></marker>
+              <marker id="arrowReturning" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7196c7"/></marker>
               <marker id="arrowHostile" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#ff625f"/></marker>
             </defs>
             <g id="viewport"></g>
@@ -435,6 +443,7 @@
       const relations = [
         { id:'friendly', label:'Friendly transit', color:'#5de4e7' },
         { id:'reinforcement', label:'Reinforcement', color:'#78e08f' },
+        { id:'attack', label:'Alliance attack', color:'#ffbf69' },
         { id:'colonization', label:'Colonization', color:'#a98cff' },
         { id:'returning', label:'Returning', color:'#7196c7' },
         { id:'hostile', label:'Hostile inbound', color:'#ff625f' }
@@ -559,11 +568,11 @@
           const a = mission.from ? point(planetById[mission.from]) : mission.origin;
           const b = mission.to ? point(planetById[mission.to]) : mission.target;
           const path = curve(a, b, index % 2 ? -.13 : .13);
-          const marker = mission.relation === 'hostile' ? 'arrowHostile' : mission.relation === 'reinforcement' ? 'arrowGreen' : mission.relation === 'colonization' ? 'arrowViolet' : 'arrowFriendly';
+          const marker = mission.relation === 'hostile' ? 'arrowHostile' : mission.relation === 'attack' ? 'arrowAttack' : mission.relation === 'reinforcement' ? 'arrowGreen' : mission.relation === 'colonization' ? 'arrowViolet' : mission.relation === 'returning' ? 'arrowReturning' : 'arrowFriendly';
           const mx = (a.x+b.x)/2;
           const my = (a.y+b.y)/2 - 10;
           const selected = state.selectedMission === mission.id ? ' selected' : '';
-          return `<g class="mission-group${selected}" data-mission="${mission.id}" tabindex="0" role="button" aria-label="Inspect ${esc(mission.type)} mission ${esc(mission.id)}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
+          return `<g class="mission-group ${mission.relation}${selected}" data-mission="${mission.id}" tabindex="0" role="button" aria-label="Inspect ${esc(mission.type)} mission ${esc(mission.id)}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
         }).join('');
         const systemMarkup = activeSystems.map(system => {
           const owned = visible.filter(planet => planet.system === system.id);
@@ -660,7 +669,7 @@
         detailContent.className = '';
         detailContent.innerHTML = `
           <div class="section-head"><h2>Transit inspection</h2><button class="icon-button" id="closeDetails" type="button" aria-label="Close details">×</button></div>
-          <div class="mission-hero"><div class="mission-symbol">➤</div><div class="mission-title"><h3>${esc(humanizeKey(mission.type))}</h3><p>MISSION #${esc(mission.id)} · ${esc(String(mission.status || 'unknown').toUpperCase())}</p><div class="owner"><span class="dot" style="color:${mission.relation === 'hostile' ? 'var(--danger)' : mission.relation === 'colonization' ? 'var(--violet)' : 'var(--cyan)'}"></span>${esc(mission.ownerName || mission.owner || 'Owner unavailable')}</div></div></div>
+          <div class="mission-hero"><div class="mission-symbol">➤</div><div class="mission-title"><h3>${esc(humanizeKey(mission.type))}</h3><p>MISSION #${esc(mission.id)} · ${esc(String(mission.status || 'unknown').toUpperCase())}</p><div class="owner"><span class="dot" style="color:${mission.relation === 'hostile' ? 'var(--danger)' : mission.relation === 'attack' ? 'var(--amber)' : mission.relation === 'colonization' ? 'var(--violet)' : mission.relation === 'returning' ? '#7196c7' : 'var(--cyan)'}"></span>${esc(mission.ownerName || mission.owner || 'Owner unavailable')}</div></div></div>
           <div class="metrics"><div class="metric"><span>Arrival</span><strong data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</strong></div><div class="metric"><span>Ships</span><strong>${mission.ships ?? '—'}</strong></div><div class="metric"><span>Relation</span><strong>${esc(humanizeKey(mission.relation))}</strong></div></div>
           <div class="detail-block"><h4>Route</h4><div class="route-card"><div class="route-stop"><span>○</span><div><b>${esc(origin.name)}</b><small>${esc(origin.coordinates)}</small></div></div><div class="route-stop"><span>●</span><div><b>${esc(target.name)}</b><small>${esc(target.coordinates)}</small></div></div></div></div>
           <div class="detail-block"><h4>Timing</h4><div class="unit-row"><span class="unit-icon">◷</span><span>Arrival</span><b>${new Date(mission.arrivalAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>${mission.returnAt ? `<div class="unit-row"><span class="unit-icon">↩</span><span>Scheduled return</span><b>${new Date(mission.returnAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>` : ''}</div>
@@ -784,6 +793,13 @@
         return (units || []).filter(unit => Number(unit.count) > 0).map(unit => [`${prefix} #${unit.id}`, Number(unit.count)]);
       }
 
+      function outgoingRelation(missionType) {
+        if (['Attack','AcsAttack','Intercept','MissileAttack'].includes(missionType)) return 'attack';
+        if (missionType === 'Colonize') return 'colonization';
+        if (missionType === 'DefenseHold') return 'reinforcement';
+        return 'friendly';
+      }
+
       function offMapPoint(anchor, missionId) {
         const seed = Number(String(missionId).slice(-5)) || 1;
         return { x: anchor.x < 450 ? 850 : 50, y: 105 + (seed * 71) % 405 };
@@ -856,13 +872,16 @@
           refreshIndexes();
           const allianceWallets = new Set(liveMembers.map(member => member.address));
           const missionMap = new Map();
-          const addMission = (raw, relation, timeField) => {
+          const addMission = (raw, relation, timeField, reverse = false) => {
             if (!raw?.missionId || missionMap.has(String(raw.missionId))) return;
-            const from = planetById[String(raw.originPlanetId)] ? String(raw.originPlanetId) : null;
-            const to = planetById[String(raw.targetPlanetId)] ? String(raw.targetPlanetId) : null;
+            let from = planetById[String(raw.originPlanetId)] ? String(raw.originPlanetId) : null;
+            let to = planetById[String(raw.targetPlanetId)] ? String(raw.targetPlanetId) : null;
+            if (reverse) [from, to] = [to, from];
             if (!from && !to) return;
             const anchor = point(planetById[from || to]);
             const arrivalAt = Number(raw[timeField] || raw.arrivalAt) * 1000;
+            const routeOrigin = reverse ? raw.targetPlanet : raw.originPlanet;
+            const routeTarget = reverse ? raw.originPlanet : raw.targetPlanet;
             const mission = {
               id:String(raw.missionId), from, to, relation, type:raw.missionType || 'Unknown mission',
               status:raw.status || 'Unknown', owner:String(raw.owner || ''),
@@ -871,10 +890,10 @@
               ships:raw.ships ? Object.values(raw.ships).reduce((sum,count) => sum+Number(count),0) : null,
               shipUnits:raw.ships ? Object.entries(raw.ships).filter(([,count]) => Number(count) > 0).map(([name,count]) => [name,Number(count)]) : [],
               cargo:raw.cargo || null,
-              originName:raw.originPlanet?.name || (raw.originPlanet ? `Planet #${raw.originPlanet.planetId}` : null),
-              originCoordinates:raw.originPlanet?.coordinates || null,
-              targetName:raw.targetPlanet?.name || (raw.targetPlanet ? `Planet #${raw.targetPlanet.planetId}` : 'Unresolved target'),
-              targetCoordinates:raw.targetPlanet?.coordinates || null
+              originName:routeOrigin?.name || (routeOrigin ? `Planet #${routeOrigin.planetId}` : 'Unresolved origin'),
+              originCoordinates:routeOrigin?.coordinates || null,
+              targetName:routeTarget?.name || (routeTarget ? `Planet #${routeTarget.planetId}` : 'Unresolved target'),
+              targetCoordinates:routeTarget?.coordinates || null
             };
             if (!from) mission.origin = offMapPoint(anchor, raw.missionId);
             if (!to) mission.target = offMapPoint(anchor, raw.missionId);
@@ -885,10 +904,10 @@
             const visibility = result.visibilityResult.value;
             (visibility.incoming || []).forEach(raw => {
               const allied = allianceWallets.has(String(raw.owner).toLowerCase());
-              addMission(raw, allied ? (raw.missionType === 'DefenseHold' ? 'reinforcement' : 'friendly') : 'hostile', 'arrivalAt');
+              addMission(raw, allied ? outgoingRelation(raw.missionType) : 'hostile', 'arrivalAt');
             });
-            (visibility.outgoing || []).forEach(raw => addMission(raw, raw.missionType === 'Colonize' ? 'colonization' : raw.missionType === 'DefenseHold' ? 'reinforcement' : 'friendly', 'arrivalAt'));
-            (visibility.returning || []).forEach(raw => addMission(raw, 'returning', 'returnAt'));
+            (visibility.outgoing || []).forEach(raw => addMission(raw, outgoingRelation(raw.missionType), 'arrivalAt'));
+            (visibility.returning || []).forEach(raw => addMission(raw, 'returning', 'returnAt', true));
           });
           missions = [...missionMap.values()];
           refreshIndexes();
