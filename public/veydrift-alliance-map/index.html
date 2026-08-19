@@ -162,10 +162,10 @@
       .planet-badge-text { fill: #e7f3ff; font-size: 7px; font-weight: 800; text-anchor: middle; }
       .mission { fill: none; pointer-events: stroke; stroke-linecap: round; stroke-width: 2; }
       .mission.friendly { stroke: var(--cyan); }
-      .mission.reinforcement { stroke: var(--green); stroke-dasharray: 7 5; }
-      .mission.colonization { stroke: var(--violet); stroke-dasharray: 9 4; }
+      .mission.reinforcement { animation: dash 1.7s linear infinite; stroke: var(--green); stroke-dasharray: 7 5; }
+      .mission.colonization { animation: dash 1.6s linear infinite; stroke: var(--violet); stroke-dasharray: 9 4; }
       .mission.attack { animation: dash 1.5s linear infinite; stroke: var(--amber); stroke-dasharray: 9 5; }
-      .mission.returning { stroke: #7196c7; stroke-dasharray: 2 6; }
+      .mission.returning { animation: dash 1.8s linear infinite; stroke: #7196c7; stroke-dasharray: 2 6; }
       .mission.hostile { animation: dash 1.2s linear infinite; filter: url(#redGlow); stroke: var(--danger); stroke-dasharray: 8 6; stroke-width: 2.6; }
       .mission-hit { fill: none; pointer-events: stroke; stroke: transparent; stroke-width: 14; }
       .mission-group { cursor: pointer; outline: none; }
@@ -176,6 +176,13 @@
       .mission-group.attack .mission-eta { fill: var(--amber); }
       .mission-group.colonization .mission-eta { fill: #c9b8ff; }
       .mission-group.hostile .mission-eta { fill: #ffaaa7; }
+      .mission-direction { pointer-events: none; }
+      .mission-direction.friendly { fill: var(--cyan); }
+      .mission-direction.reinforcement { fill: var(--green); }
+      .mission-direction.attack { fill: var(--amber); }
+      .mission-direction.colonization { fill: var(--violet); }
+      .mission-direction.returning { fill: #8db8ef; }
+      .mission-direction.hostile { fill: var(--danger); filter: url(#redGlow); }
       @keyframes dash { to { stroke-dashoffset: -28; } }
 
       .map-overlay { display: flex; gap: 7px; left: 14px; position: absolute; top: 14px; z-index: 4; }
@@ -568,11 +575,10 @@
           const a = mission.from ? point(planetById[mission.from]) : mission.origin;
           const b = mission.to ? point(planetById[mission.to]) : mission.target;
           const path = curve(a, b, index % 2 ? -.13 : .13);
-          const marker = mission.relation === 'hostile' ? 'arrowHostile' : mission.relation === 'attack' ? 'arrowAttack' : mission.relation === 'reinforcement' ? 'arrowGreen' : mission.relation === 'colonization' ? 'arrowViolet' : mission.relation === 'returning' ? 'arrowReturning' : 'arrowFriendly';
           const mx = (a.x+b.x)/2;
           const my = (a.y+b.y)/2 - 10;
           const selected = state.selectedMission === mission.id ? ' selected' : '';
-          return `<g class="mission-group ${mission.relation}${selected}" data-mission="${mission.id}" tabindex="0" role="button" aria-label="Inspect ${esc(mission.type)} mission ${esc(mission.id)}"><path class="mission ${mission.relation}" d="${path}" marker-end="url(#${marker})"/><path class="mission-hit" d="${path}"/><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
+          return `<g class="mission-group ${mission.relation}${selected}" data-mission="${mission.id}" tabindex="0" role="button" aria-label="Inspect ${esc(mission.type)} mission ${esc(mission.id)}"><path class="mission ${mission.relation}" d="${path}"/><path class="mission-hit" d="${path}"/><path class="mission-direction ${mission.relation}" d="M -6 -4 L 2 0 L -6 4 Z"><animateMotion dur="2.8s" repeatCount="indefinite" rotate="auto" path="${path}" keyPoints=".08;.92" keyTimes="0;1" calcMode="linear"/></path><text class="mission-eta" x="${mx}" y="${my}" data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</text></g>`;
         }).join('');
         const systemMarkup = activeSystems.map(system => {
           const owned = visible.filter(planet => planet.system === system.id);
