@@ -258,6 +258,32 @@
       .route-stop + .route-stop::before { border-left: 1px dashed var(--line-bright); content: ""; height: 13px; left: 4px; position: absolute; top: -13px; }
       .route-stop b { display: block; font-size: 11px; }
       .route-stop small { color: var(--muted); display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; margin-top: 2px; }
+      .detail-heading-row { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }
+      .detail-heading-row h4 { margin: 0; }
+      .explore-button { background: transparent; border: 0; color: var(--cyan); cursor: pointer; font-size: 9px; padding: 3px 0; text-decoration: underline; text-decoration-color: rgba(93,228,231,.45); text-underline-offset: 3px; }
+      .explore-button:hover, .explore-button:focus-visible { color: var(--text); outline: none; text-decoration-color: currentColor; }
+
+      .fleet-dialog { background: #080d17; border: 1px solid var(--line-bright); border-radius: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.72); color: var(--text); max-height: min(760px, calc(100dvh - 32px)); max-width: calc(100vw - 28px); padding: 0; width: 760px; }
+      .fleet-dialog::backdrop { backdrop-filter: blur(5px); background: rgba(1,4,9,.76); }
+      .fleet-dialog-head { align-items: flex-start; background: linear-gradient(110deg, rgba(93,228,231,.1), transparent 55%); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 18px 20px; }
+      .fleet-dialog-head h2 { font-size: 17px; margin: 0 0 4px; }
+      .fleet-dialog-head p { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; margin: 0; }
+      .fleet-dialog-body { max-height: calc(100dvh - 130px); overflow: auto; padding: 18px 20px 20px; }
+      .fleet-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+      .fleet-summary span { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; padding: 6px 9px; }
+      .fleet-summary strong { color: var(--text); }
+      .fleet-catalog { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .fleet-card { background: #0b1220; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+      .fleet-card-head { align-items: center; display: flex; gap: 10px; }
+      .fleet-card-count { align-items: center; background: rgba(93,228,231,.1); border: 1px solid rgba(93,228,231,.38); border-radius: 8px; color: var(--cyan); display: flex; flex: 0 0 42px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 800; height: 42px; justify-content: center; }
+      .fleet-card h3 { font-size: 13px; margin: 0 0 3px; }
+      .fleet-card-label { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+      .fleet-stats { display: grid; gap: 6px; grid-template-columns: repeat(3,1fr); margin-top: 11px; }
+      .fleet-stat { background: #080d17; border-radius: 6px; padding: 7px; }
+      .fleet-stat span { color: var(--muted); display: block; font-size: 8px; margin-bottom: 3px; text-transform: uppercase; }
+      .fleet-stat b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+      .fleet-cost { color: #8191a8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; margin-top: 9px; }
+      .fleet-catalog-note { color: #718198; font-size: 9px; line-height: 1.5; margin: 14px 0 0; }
 
       .statusbar { align-items: center; background: #080c14; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 9px; gap: 16px; justify-content: space-between; padding: 7px 14px; position: relative; z-index: 20; }
       .health { align-items: center; display: flex; gap: 7px; }
@@ -302,6 +328,9 @@
         .primary-button { padding: 7px 9px; }
         .visual-note { display: none; }
         .status-meta { gap: 0; }
+        .fleet-dialog { width: calc(100vw - 20px); }
+        .fleet-dialog-head, .fleet-dialog-body { padding-left: 14px; padding-right: 14px; }
+        .fleet-catalog { grid-template-columns: 1fr; }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -428,10 +457,39 @@
       </footer>
     </main>
 
+    <dialog class="fleet-dialog" id="fleetExplorer" aria-labelledby="fleetExplorerTitle">
+      <div class="fleet-dialog-head">
+        <div><h2 id="fleetExplorerTitle">Fleet explorer</h2><p id="fleetExplorerSubtitle"></p></div>
+        <button class="icon-button" id="closeFleetExplorer" type="button" aria-label="Close fleet explorer">×</button>
+      </div>
+      <div class="fleet-dialog-body" id="fleetExplorerContent"></div>
+    </dialog>
+
     <script>
       const requestedAllianceId = new URLSearchParams(location.search).get('alliance');
       const ALLIANCE_ID = requestedAllianceId && /^[0-9]+$/.test(requestedAllianceId) && Number(requestedAllianceId) > 0 ? requestedAllianceId : '29';
       const API_BASE = '/veydrift-api';
+      // Current public Veydrift combat catalog. IDs remain visible in the explorer for verification.
+      const SHIP_CATALOG = [
+        {id:0, name:'Small Cargo', role:'Civil', attack:5, shield:10, hull:400, cost:[2000,2000,0]},
+        {id:1, name:'Light Fighter', role:'Combat', attack:50, shield:10, hull:400, cost:[3000,1000,0]},
+        {id:2, name:'Recycler', role:'Civil', attack:1, shield:10, hull:1600, cost:[10000,6000,2000]},
+        {id:3, name:'Colony Ship', role:'Civil', attack:50, shield:100, hull:3000, cost:[10000,20000,10000]},
+        {id:4, name:'Large Cargo', role:'Civil', attack:5, shield:25, hull:1200, cost:[6000,6000,0]},
+        {id:5, name:'Heavy Fighter', role:'Combat', attack:150, shield:25, hull:1000, cost:[6000,4000,0]},
+        {id:6, name:'Cruiser', role:'Combat', attack:400, shield:50, hull:2700, cost:[20000,7000,2000]},
+        {id:7, name:'Battleship', role:'Combat', attack:1000, shield:200, hull:6000, cost:[45000,15000,0]},
+        {id:8, name:'Bomber', role:'Combat', attack:1000, shield:500, hull:7500, cost:[50000,25000,15000]},
+        {id:9, name:'Solar Satellite', role:'Special', attack:1, shield:1, hull:200, cost:[0,2000,500]},
+        {id:10, name:'Destroyer', role:'Combat', attack:2000, shield:500, hull:11000, cost:[60000,50000,15000]},
+        {id:11, name:'Dreadstar', role:'Special', attack:200000, shield:50000, hull:900000, cost:[5000000,4000000,1000000]},
+        {id:12, name:'Battlecruiser', role:'Combat', attack:700, shield:400, hull:7000, cost:[30000,40000,15000]},
+        {id:13, name:'Reaper', role:'Combat', attack:2800, shield:700, hull:14000, cost:[85000,55000,20000]},
+        {id:14, name:'Pathfinder', role:'Special', attack:200, shield:100, hull:2300, cost:[8000,15000,8000]},
+        {id:15, name:'Crawler', role:'Special', attack:1, shield:1, hull:400, cost:[2000,2000,1000]}
+      ];
+      const DEFENSE_CATALOG = ['Rocket Launcher','Light Laser','Heavy Laser','Small Shield Dome','Gauss Cannon','Ion Cannon','Plasma Turret','Large Shield Dome','Anti-Ballistic Missile','Interplanetary Missile'];
+      const shipById = Object.fromEntries(SHIP_CATALOG.map(ship => [ship.id, ship]));
       const now = Date.now();
       const demoMembers = [
         { id: 'mira', name: 'Mira Vale', wallet: '0x91a7…e4c2', color: '#5de4e7' },
@@ -491,6 +549,8 @@
       const detailContent = document.querySelector('#detailContent');
       const rail = document.querySelector('#rail');
       const details = document.querySelector('#details');
+      const fleetExplorer = document.querySelector('#fleetExplorer');
+      const fleetExplorerContent = document.querySelector('#fleetExplorerContent');
       let systemById = {};
       let planetById = {};
       let memberById = {};
@@ -667,6 +727,28 @@
         return String(value || 'Unknown').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, char => char.toUpperCase());
       }
 
+      function unitSpec(unit) {
+        if (unit[2] != null && shipById[unit[2]]) return shipById[unit[2]];
+        return SHIP_CATALOG.find(ship => ship.name === unit[0]) || null;
+      }
+
+      function renderFleetExplorer(planet) {
+        const member = memberById[planet.owner];
+        const system = systemById[planet.system];
+        const knownUnits = planet.units.map(unit => ({ unit, spec:unitSpec(unit) }));
+        const combatCount = knownUnits.reduce((sum, entry) => sum + (entry.spec?.role === 'Combat' ? Number(entry.unit[1]) : 0), 0);
+        document.querySelector('#fleetExplorerSubtitle').textContent = `${planet.name} · ${system.coord}:${planet.position} · ${member.name}`;
+        fleetExplorerContent.innerHTML = `
+          <div class="fleet-summary"><span><strong>${planet.fleet.toLocaleString()}</strong> total units</span><span><strong>${planet.units.length}</strong> classes</span><span><strong>${combatCount.toLocaleString()}</strong> combat ships</span></div>
+          <div class="fleet-catalog">${knownUnits.map(({unit,spec}) => `
+            <article class="fleet-card">
+              <div class="fleet-card-head"><div class="fleet-card-count">${Number(unit[1]).toLocaleString()}</div><div><h3>${esc(unit[0])}</h3><div class="fleet-card-label">${spec ? `${esc(spec.role)} · class #${spec.id}` : `Unresolved class${unit[2] == null ? '' : ` #${esc(unit[2])}`}`}</div></div></div>
+              ${spec ? `<div class="fleet-stats"><div class="fleet-stat"><span>Attack</span><b>${spec.attack.toLocaleString()}</b></div><div class="fleet-stat"><span>Shield</span><b>${spec.shield.toLocaleString()}</b></div><div class="fleet-stat"><span>Hull</span><b>${spec.hull.toLocaleString()}</b></div></div><div class="fleet-cost">Build cost · M ${spec.cost[0].toLocaleString()} · C ${spec.cost[1].toLocaleString()} · D ${spec.cost[2].toLocaleString()}</div>` : '<p class="fleet-catalog-note">This class is not present in the current public catalog.</p>'}
+            </article>`).join('')}</div>
+          <p class="fleet-catalog-note">Names and base combat stats are resolved from Veydrift’s public game catalog. Class IDs are retained so future catalog changes remain easy to audit.</p>`;
+        fleetExplorer.showModal();
+      }
+
       function missionEndpoint(mission, side) {
         const planetId = side === 'origin' ? mission.from : mission.to;
         const planet = planetById[planetId];
@@ -740,10 +822,11 @@
             <div class="metric"><span>Moon</span><strong>${planet.moon ? 'YES' : 'NO'}</strong></div>
           </div>
           ${inbound.map(mission => `<div class="detail-block incoming"><div class="incoming-head"><b>⚠ HOSTILE ${esc(mission.type.toUpperCase())}</b><span>composition unknown</span></div><div class="countdown" data-countdown="${mission.arrivalAt}">ETA ${formatEta(mission.arrivalAt)}</div></div>`).join('')}
-          <div class="detail-block"><h4>Stationed fleet</h4>${planet.units.length ? planet.units.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('') : '<span class="unknown">No stationed fleet reported</span>'}</div>
+          <div class="detail-block"><div class="detail-heading-row"><h4>Stationed fleet</h4>${planet.units.length ? '<button class="explore-button" id="openFleetExplorer" type="button">Explore fleet ↗</button>' : ''}</div>${planet.units.length ? planet.units.map(unit => `<div class="unit-row"><span class="unit-icon">◇</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('') : '<span class="unknown">No stationed fleet reported</span>'}</div>
           <div class="detail-block"><h4>Planet defenses</h4>${planet.defenses.map(unit => `<div class="unit-row"><span class="unit-icon">⬡</span><span>${esc(unit[0])}</span><b>${unit[1]}</b></div>`).join('')}</div>
           <div class="detail-block"><h4>Capabilities & queues</h4><div class="unit-row"><span class="unit-icon">◉</span><span>Shield capability</span><b>${planet.shield == null ? 'UNKNOWN' : planet.shield ? 'ONLINE' : '—'}</b></div>${planet.queues.length ? planet.queues.map(queue => `<div class="unit-row"><span class="unit-icon">◷</span><span>${esc(queue)}</span><b>ACTIVE</b></div>`).join('') : '<div class="unit-row"><span class="unit-icon">◷</span><span>Production queues</span><b>EMPTY</b></div>'}</div>`;
         attachCloseDetails();
+        document.querySelector('#openFleetExplorer')?.addEventListener('click', () => renderFleetExplorer(planet));
       }
 
       function selectPlanet(id) {
@@ -810,8 +893,8 @@
         });
       }
 
-      function genericUnits(units, prefix) {
-        return (units || []).filter(unit => Number(unit.count) > 0).map(unit => [`${prefix} #${unit.id}`, Number(unit.count)]);
+      function genericUnits(units, prefix, catalog) {
+        return (units || []).filter(unit => Number(unit.count) > 0).map(unit => [catalog[Number(unit.id)]?.name || catalog[Number(unit.id)] || `${prefix} #${unit.id}`, Number(unit.count), Number(unit.id)]);
       }
 
       function outgoingRelation(missionType) {
@@ -882,8 +965,8 @@
               owner:member.id, type:visual.type, gradient:visual.gradient,
               fleet:Number(tactical.ships?.count || 0), defense:Number(tactical.defenses?.count || 0),
               shield:null, moon:Boolean(planet.moon?.exists), queues:queueLabels(planet.queues),
-              units:genericUnits(tactical.ships?.units, 'Ship class'),
-              defenses:genericUnits(tactical.defenses?.units, 'Defense unit')
+              units:genericUnits(tactical.ships?.units, 'Ship class', shipById),
+              defenses:genericUnits(tactical.defenses?.units, 'Defense unit', DEFENSE_CATALOG)
             };
           });
 
@@ -909,7 +992,7 @@
               ownerName:memberById[String(raw.owner || '').toLowerCase()]?.name || raw.originPlanet?.ownerDisplayName || null,
               arrivalAt, returnAt:Number(raw.returnAt || 0) * 1000 || null,
               ships:raw.ships ? Object.values(raw.ships).reduce((sum,count) => sum+Number(count),0) : null,
-              shipUnits:raw.ships ? Object.entries(raw.ships).filter(([,count]) => Number(count) > 0).map(([name,count]) => [name,Number(count)]) : [],
+              shipUnits:raw.ships ? Object.entries(raw.ships).filter(([,count]) => Number(count) > 0).map(([id,count]) => [shipById[Number(id)]?.name || id,Number(count)]) : [],
               cargo:raw.cargo || null,
               originName:routeOrigin?.name || (routeOrigin ? `Planet #${routeOrigin.planetId}` : 'Unresolved origin'),
               originCoordinates:routeOrigin?.coordinates || null,
@@ -986,7 +1069,9 @@
         location.assign(url);
       });
       document.querySelector('#filtersToggle').addEventListener('click', () => rail.classList.toggle('open'));
-      document.addEventListener('keydown', event => { if (event.key === '/' && document.activeElement !== document.querySelector('#search')) { event.preventDefault(); document.querySelector('#search').focus(); } if (event.key === 'Escape') { rail.classList.remove('open'); details.classList.remove('open'); } });
+      document.querySelector('#closeFleetExplorer').addEventListener('click', () => fleetExplorer.close());
+      fleetExplorer.addEventListener('click', event => { if (event.target === fleetExplorer) fleetExplorer.close(); });
+      document.addEventListener('keydown', event => { if (event.key === '/' && document.activeElement !== document.querySelector('#search')) { event.preventDefault(); document.querySelector('#search').focus(); } if (event.key === 'Escape' && !fleetExplorer.open) { rail.classList.remove('open'); details.classList.remove('open'); } });
 
       function setZoom(delta) {
         state.view.scale = Math.min(1.75, Math.max(.7, state.view.scale + delta));
