@@ -43,6 +43,9 @@ Open <http://localhost:8080>.
 
 ## Published artifacts
 
+- `desert-walker/` — Interactive Three.js vignette featuring a textured
+  dieselpunk survey walker in a procedural desert, with orbit controls and
+  optional ambient motion.
 - `bd-thread-journeys/` — RaidGuild BD thread journeys across phases. This is a
   concept demonstration; its middle-phase crossings are explicitly marked as
   synthetic in the artifact.

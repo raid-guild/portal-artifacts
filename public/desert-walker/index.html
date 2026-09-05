@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="An interactive dieselpunk walker crossing a hand-painted desert world."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23253f40'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23efad5b'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23253f40'/%3E%3C/svg%3E"
+    />
+    <title>The Long Crossing — Desert Walker</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="experience" aria-label="Interactive 3D desert walker scene">
+      <canvas id="scene" aria-label="A rust-orange mechanical walker in a desert landscape"></canvas>
+
+      <header class="title-card">
+        <p class="eyebrow">Field note · Outpost 07</p>
+        <h1>The Long<br />Crossing</h1>
+        <p class="dek">A survey vessel, somewhere beyond the salt mesas.</p>
+      </header>
+
+      <aside class="controls" aria-label="Scene controls">
+        <button id="motion-toggle" type="button" aria-pressed="true">
+          <span class="button-icon" aria-hidden="true">◉</span>
+          Drift on
+        </button>
+        <button id="reset-view" type="button">
+          <span class="button-icon" aria-hidden="true">↺</span>
+          Reset view
+        </button>
+        <p>Drag to orbit · Scroll to zoom</p>
+      </aside>
+
+      <section id="loading" class="loading" aria-live="polite">
+        <span class="loader-mark" aria-hidden="true"></span>
+        <p>Waking the survey vessel</p>
+        <div class="loading-track"><span id="loading-progress"></span></div>
+      </section>
+
+      <p id="scene-error" class="scene-error" hidden>
+        The vessel could not be loaded. Please refresh to try again.
+      </p>
+
+      <div class="grain" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+    </main>
+
+    <script src="./vendor/three.min.js"></script>
+    <script src="./vendor/OrbitControls.js"></script>
+    <script src="./vendor/GLTFLoader.js"></script>
+    <script src="./scene.js"></script>
+  </body>
+</html>
