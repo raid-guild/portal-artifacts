@@ -777,7 +777,8 @@
           <div class="detail-block"><h4>Route</h4><div class="route-card"><div class="route-stop"><span>○</span><div><b>${esc(origin.name)}</b><small>${esc(origin.coordinates)}</small></div></div><div class="route-stop"><span>●</span><div><b>${esc(target.name)}</b><small>${esc(target.coordinates)}</small></div></div></div></div>
           <div class="detail-block"><h4>Timing</h4><div class="unit-row"><span class="unit-icon">◷</span><span>Arrival</span><b>${new Date(mission.arrivalAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>${mission.returnAt ? `<div class="unit-row"><span class="unit-icon">↩</span><span>Scheduled return</span><b>${new Date(mission.returnAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>` : ''}</div>
           <div class="detail-block"><h4>Fleet composition</h4>${shipRows}</div>
-          <div class="detail-block"><h4>Cargo</h4>${cargoRows || '<span class="unknown">No cargo reported</span>'}</div>`;
+          <div class="detail-block"><h4>Cargo</h4>${cargoRows || '<span class="unknown">No cargo reported</span>'}</div>
+          <div class="detail-block"><h4>Mission record</h4><a class="official-link" href="/veydrift-mission-explorer/mission/${encodeURIComponent(mission.id)}?alliance=${encodeURIComponent(ALLIANCE_ID)}">Open in Mission Explorer <span aria-hidden="true">→</span></a></div>`;
         attachCloseDetails();
       }
 

@@ -54,6 +54,9 @@ Open <http://localhost:8080>.
   visuals are placeholders; no Veydrift artwork is included. Other public
   alliances can be loaded with the in-map ID switcher or the shareable
   `?alliance=<id>` query parameter.
+- `veydrift-mission-explorer/` — Live, read-only explorer for public Veydrift
+  missions, including flight path, fleet, cargo, combat results, and contextual
+  links to the alliance map. Deep links use `/mission/<id>` beneath this path.
 
 ## Veydrift read proxy
 

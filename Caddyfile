@@ -15,6 +15,9 @@
 	}
 
 	route {
+		@veydrift_mission_explorer path_regexp mission_explorer ^/veydrift-mission-explorer/mission/[0-9]+/?$
+		rewrite @veydrift_mission_explorer /veydrift-mission-explorer/index.html
+
 		@veydrift_read {
 			method GET HEAD
 			path_regexp veydrift ^/veydrift-api/(runtime-config|alliance/[0-9]+|wallet/0x[a-fA-F0-9]{40}/(profile|planets|missions|queues|fleet-visibility|shipyard|defenses|alliance)|missions|mission/[0-9]+|planets/[0-9]+|universe/(systems|system|galaxies/[0-9]+/systems/[0-9]+))$
