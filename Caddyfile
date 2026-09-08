@@ -2,6 +2,10 @@
 	root * /srv
 	encode zstd gzip
 
+	# Revalidate walker assets so repeat visitors receive new deployments.
+	@walker path /desert-walker /desert-walker/*
+	header @walker Cache-Control "no-cache"
+
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://portal.raidguild.org https://*.up.railway.app http://localhost:*"
 		Referrer-Policy "no-referrer"

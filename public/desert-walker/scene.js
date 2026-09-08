@@ -617,7 +617,7 @@
   }
 
   new THREE.GLTFLoader(manager).load(
-    "./assets/walker.glb?v=astra-q4-1",
+    "./assets/walker.glb?v=5a5ef6386502",
     function (gltf) {
       try {
         vessel = gltf.scene;
