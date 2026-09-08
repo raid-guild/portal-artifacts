@@ -34,8 +34,8 @@
   controls.maxDistance = 58;
   controls.minPolarAngle = Math.PI * 0.22;
   controls.maxPolarAngle = Math.PI * 0.48;
-  controls.autoRotate = !reducedMotion;
-  controls.autoRotateSpeed = 0.28;
+  // Idle camera motion is time-based and yields immediately to manual controls.
+  controls.autoRotate = false;
   controls.update();
 
   scene.add(new THREE.HemisphereLight(0xb9e2df, 0x6b3821, 1.85));
@@ -56,6 +56,8 @@
     const clearing = Math.exp(-(x * x + z * z) / 680) * 1.7;
     return broad + crossed - clearing - 1.3;
   }
+
+  let terrainSurface;
 
   function makeTerrain() {
     const geometry = new THREE.PlaneGeometry(320, 320, 110, 110);
@@ -86,6 +88,8 @@
     terrain.rotation.x = -Math.PI / 2;
     terrain.receiveShadow = true;
     scene.add(terrain);
+    terrainSurface = terrain;
+    terrain.updateMatrixWorld(true);
   }
 
   function makeMesa(x, z, radius, height, seed) {
@@ -353,8 +357,169 @@
   const birds = makeBirds();
   const smoke = makeSmoke();
   let vessel;
-  let vesselBaseY = 0;
+  let mixer;
+  let engineFlame;
+  let flameTime = 0;
+  let vesselRadius = 0;
+  const smokeOrigin = new THREE.Vector3(5.6, 7.7, -1.6);
   let motionEnabled = !reducedMotion;
+  const idleOrbit = {
+    interacting: false,
+    resumeAt: 0,
+    rebase: true,
+    time: 0,
+    radius: 0,
+    phi: 0,
+    spherical: new THREE.Spherical(),
+    offset: new THREE.Vector3(),
+  };
+
+  function pauseIdleOrbit(delay) {
+    idleOrbit.resumeAt = performance.now() + delay;
+    idleOrbit.rebase = true;
+  }
+  controls.addEventListener("start", function () {
+    idleOrbit.interacting = true;
+    pauseIdleOrbit(4000);
+  });
+  controls.addEventListener("end", function () {
+    idleOrbit.interacting = false;
+    pauseIdleOrbit(4000);
+  });
+
+  function updateIdleCamera(delta) {
+    if (!vessel || !motionEnabled || idleOrbit.interacting || performance.now() < idleOrbit.resumeAt) return;
+    const orbit = idleOrbit.spherical.setFromVector3(idleOrbit.offset.copy(camera.position).sub(controls.target));
+    if (idleOrbit.rebase) {
+      idleOrbit.radius = orbit.radius;
+      idleOrbit.phi = orbit.phi;
+      idleOrbit.time = 0;
+      idleOrbit.rebase = false;
+    }
+    // Ease into a sweeping orbit, linger near bow/stern, and gently crane/dolly.
+    // Cap frame time so returning to a backgrounded tab never jumps the camera.
+    const step = Math.min(delta, 0.05);
+    idleOrbit.time += step;
+    const ease = THREE.MathUtils.smoothstep(idleOrbit.time, 0, 3);
+    const bowAngle = vessel.rotation.y - Math.PI / 2;
+    const pace = 0.052 * (1 - 0.32 * Math.cos(2 * (orbit.theta - bowAngle)));
+    orbit.theta -= step * pace * ease;
+    const phi = THREE.MathUtils.clamp(
+      idleOrbit.phi + Math.sin(idleOrbit.time * 0.16) * 0.085,
+      controls.minPolarAngle + 0.025,
+      controls.maxPolarAngle - 0.025
+    );
+    const radius = Math.min(controls.maxDistance, idleOrbit.radius * (1 + 0.055 * (1 - Math.cos(idleOrbit.time * 0.13))));
+    const blend = 1 - Math.exp(-step * ease * 0.7);
+    orbit.phi = THREE.MathUtils.lerp(orbit.phi, phi, blend);
+    orbit.radius = THREE.MathUtils.lerp(orbit.radius, radius, blend);
+    camera.position.copy(controls.target).add(idleOrbit.offset.setFromSpherical(orbit));
+  }
+
+  function makeEngineFlame(model) {
+    const flame = new THREE.Group();
+    flame.name = "Rear_Engine_Blue_Flame";
+    // GLB coordinates are meters, Y-up. The aft nozzle points along local +X.
+    flame.position.set(4.62, 3.5, 0);
+    const time = { value: 0 };
+    const vertexShader = `
+      uniform float time;
+      varying vec2 flameUV;
+      varying vec3 flameNormal;
+      varying vec3 flameView;
+      void main() {
+        flameUV = uv;
+        vec3 p = position;
+        float taper = sin(uv.y * 3.14159265);
+        float ripple = sin(uv.y * 19.0 - time * 8.0 + uv.x * 6.2831853);
+        p.y += taper * ripple * 0.026;
+        p.z += taper * sin(uv.y * 15.0 - time * 6.0) * 0.022;
+        vec4 viewPosition = modelViewMatrix * vec4(p, 1.0);
+        flameNormal = normalize(normalMatrix * normal);
+        flameView = -viewPosition.xyz;
+        gl_Position = projectionMatrix * viewPosition;
+      }
+    `;
+    const fragmentShader = `
+      uniform float time;
+      uniform float strength;
+      uniform vec3 baseColor;
+      uniform vec3 tipColor;
+      varying vec2 flameUV;
+      varying vec3 flameNormal;
+      varying vec3 flameView;
+      void main() {
+        float axial = flameUV.y;
+        float stream = sin(axial * 31.0 - time * 11.0 + sin(flameUV.x * 6.2831853) * 2.4);
+        float fine = sin(axial * 67.0 - time * 17.0 + cos(flameUV.x * 18.849556) * 1.3);
+        float wisps = 0.76 + stream * 0.16 + fine * 0.08;
+        float fade = pow(1.0 - axial, 0.7) * smoothstep(0.0, 0.075, axial);
+        vec3 color = mix(baseColor, tipColor, smoothstep(0.08, 0.85, axial));
+        float softEdge = pow(abs(dot(normalize(flameNormal), normalize(flameView))), 0.65);
+        gl_FragColor = vec4(color, min(0.92, fade * wisps * strength * softEdge));
+        #include <tonemapping_fragment>
+        #include <encodings_fragment>
+      }
+    `;
+    function plume(name, radius, length, strength, base, tip) {
+      const geometry = new THREE.ConeGeometry(radius, length, 24, 12, true);
+      geometry.translate(0, length / 2, 0);
+      geometry.rotateZ(-Math.PI / 2);
+      const material = new THREE.ShaderMaterial({
+        uniforms: { time, strength: { value: strength }, baseColor: { value: new THREE.Color(base) }, tipColor: { value: new THREE.Color(tip) } },
+        vertexShader, fragmentShader,
+        transparent: true,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+        depthTest: true,
+        side: THREE.FrontSide,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = name;
+      mesh.renderOrder = 2;
+      flame.add(mesh);
+      return mesh;
+    }
+    const outer = plume("Exhaust_Blue_Outer_Plume", 0.34, 1.65, 1.8, 0x004aff, 0x081dcc);
+    const core = plume("Exhaust_Cyan_White_Core", 0.18, 1.02, 1.15, 0x9aefff, 0x0875ff);
+    const glowCanvas = document.createElement("canvas");
+    glowCanvas.width = glowCanvas.height = 128;
+    const context = glowCanvas.getContext("2d");
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(190, 247, 255, 0.95)");
+    gradient.addColorStop(0.25, "rgba(63, 186, 255, 0.7)");
+    gradient.addColorStop(0.6, "rgba(15, 78, 255, 0.22)");
+    gradient.addColorStop(1, "rgba(15, 78, 255, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 128, 128);
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    glowTexture.encoding = THREE.sRGBEncoding;
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: true, opacity: 0.8,
+    }));
+    glow.name = "Exhaust_Nozzle_Glow";
+    glow.position.x = 0.09;
+    glow.scale.set(0.82, 0.82, 1);
+    flame.add(glow);
+    const light = new THREE.PointLight(0x248bff, 1.2, 4, 2);
+    light.name = "Exhaust_Blue_Spill";
+    light.position.x = 0.35;
+    flame.add(light);
+    model.add(flame);
+    return { flame, time, outer, core, glow, light };
+  }
+
+  function updateEngineFlame(delta) {
+    if (!engineFlame) return;
+    if (motionEnabled) flameTime += Math.min(delta, 0.05);
+    engineFlame.time.value = flameTime;
+    const pulse = Math.sin(flameTime * 6.3) * 0.045 + Math.sin(flameTime * 10.7) * 0.025;
+    engineFlame.outer.scale.x = 1 + pulse;
+    engineFlame.core.scale.x = 1 + pulse * 0.7;
+    engineFlame.glow.material.opacity = 0.8 + pulse;
+    engineFlame.light.intensity = 1.2 + pulse * 2;
+  }
 
   const manager = new THREE.LoadingManager();
   manager.onProgress = function (_url, loaded, total) {
@@ -369,213 +534,131 @@
     loadingScreen.classList.add("is-complete");
   };
 
-  function addCockpitInterior(model) {
-    const interior = new THREE.Group();
-    interior.name = "Cockpit Interior Detail";
-
-    const charcoal = new THREE.MeshStandardMaterial({
-      color: 0x171d1c,
-      roughness: 0.94,
-      metalness: 0.08,
+  // Semantic contact anchors are exported with the four leg assemblies.
+  // Raycast the actual triangulated terrain instead of approximating its height.
+  function groundVessel(model) {
+    model.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const contacts = [];
+    model.traverse(function (object) {
+      if (object.userData.role === "foot-contact") contacts.push(object);
     });
-    const leather = new THREE.MeshStandardMaterial({
-      color: 0x3a2118,
-      roughness: 1,
-      metalness: 0,
+    contacts.forEach(function (contact) {
+      const foot = contact.getWorldPosition(new THREE.Vector3());
+      ray.set(new THREE.Vector3(foot.x, 50, foot.z), down);
+      const hit = ray.intersectObject(terrainSurface)[0];
+      const leg = model.getObjectByName(contact.userData.leg);
+      if (!hit || !leg) throw new Error("Walker foot contact is missing terrain or leg assembly");
+      const offset = hit.point.y - foot.y + 0.025;
+      const position = leg.getWorldPosition(new THREE.Vector3());
+      position.y += offset;
+      leg.position.copy(leg.parent.worldToLocal(position));
+      foot.y += offset;
+      contact.position.copy(contact.parent.worldToLocal(foot));
     });
-    const instrument = new THREE.MeshStandardMaterial({
-      color: 0x151a18,
-      roughness: 0.72,
-      metalness: 0.22,
-    });
-    const amber = new THREE.MeshStandardMaterial({
-      color: 0xd77d31,
-      emissive: 0x8e2e08,
-      emissiveIntensity: 1.7,
-      roughness: 0.5,
-    });
-    const brass = new THREE.MeshStandardMaterial({
-      color: 0x8a5a2d,
-      roughness: 0.7,
-      metalness: 0.34,
-    });
-
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.12, 3.42), charcoal);
-    floor.position.set(-4.36, 3.62, 0);
-    interior.add(floor);
-
-    for (let index = 0; index < 7; index += 1) {
-      const floorStrip = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.035, 0.035), brass);
-      floorStrip.position.set(-4.36, 3.7, -1.34 + index * 0.45);
-      interior.add(floorStrip);
-    }
-
-    [-0.68, 0.68].forEach(function (z, index) {
-      const seat = new THREE.Group();
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.38, 0.68), leather);
-      base.position.y = 0.12;
-      const back = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.22, 0.5), leather);
-      back.position.set(0.25, 0.75, 0);
-      back.rotation.z = -0.12;
-      seat.add(base, back);
-
-      const shoulderBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.82, 0.56), brass);
-      shoulderBar.position.set(0.19, 0.82, 0);
-      shoulderBar.rotation.z = -0.12;
-      seat.add(shoulderBar);
-
-      seat.position.set(-4.05 + index * 0.16, 4.15, z);
-      interior.add(seat);
-    });
-
-    const consolePanel = new THREE.Mesh(new THREE.BoxGeometry(0.52, 1.2, 2.4), instrument);
-    consolePanel.position.set(-5.12, 4.45, 0);
-    consolePanel.rotation.z = -0.18;
-    interior.add(consolePanel);
-
-    for (let row = 0; row < 2; row += 1) {
-      for (let column = 0; column < 4; column += 1) {
-        const gauge = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), amber);
-        gauge.position.set(-5.42, 4.25 + row * 0.32, -0.68 + column * 0.45);
-        interior.add(gauge);
-      }
-    }
-
-    [-0.72, 0.72].forEach(function (z) {
-      const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.045, 7, 18), brass);
-      yoke.position.set(-4.84, 4.82, z);
-      yoke.rotation.y = Math.PI / 2;
-      interior.add(yoke);
-
-      const yokeStem = cylinderBetween(
-        new THREE.Vector3(-4.82, 4.8, z),
-        new THREE.Vector3(-5.18, 4.52, z),
-        0.035,
-        brass
-      );
-      interior.add(yokeStem);
-    });
-
-    for (let index = 0; index < 5; index += 1) {
-      const lever = cylinderBetween(
-        new THREE.Vector3(-5.02, 4.0, -0.52 + index * 0.25),
-        new THREE.Vector3(-4.82, 4.38 + (index % 2) * 0.11, -0.52 + index * 0.25),
-        0.025,
-        brass
-      );
-      interior.add(lever);
-      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), index === 2 ? amber : charcoal);
-      knob.position.set(-4.82, 4.38 + (index % 2) * 0.11, -0.52 + index * 0.25);
-      interior.add(knob);
-    }
-
-    const rearBulkhead = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.15, 3.55), charcoal);
-    rearBulkhead.position.set(-3.13, 5.18, 0);
-    interior.add(rearBulkhead);
-
-    const warmCabinLight = new THREE.PointLight(0xf19b50, 0.5, 5.5, 2);
-    warmCabinLight.position.set(-4.45, 6.05, 0.35);
-    interior.add(warmCabinLight);
-
-    interior.traverse(function (object) {
-      if (object.isMesh) object.castShadow = false;
-    });
-    model.add(interior);
+    model.updateMatrixWorld(true);
   }
 
-  function addRaidGuildStamp(model) {
-    new THREE.TextureLoader(manager).load("./assets/raidguild-symbol.svg?v=brand", function (texture) {
-      texture.encoding = THREE.sRGBEncoding;
-      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      const stampMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
-        color: 0x7a4435,
-        transparent: true,
-        opacity: 0.78,
-        alphaTest: 0.045,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        side: THREE.DoubleSide,
-      });
-      [1, -1].forEach(function (side) {
-        const stamp = new THREE.Mesh(new THREE.PlaneGeometry(1.72, 1.62), stampMaterial.clone());
-        stamp.name = side === 1 ? "RaidGuild Hull Stamp Starboard" : "RaidGuild Hull Stamp Port";
-        stamp.position.set(-1.75, 5.35, side * 2.47);
-        stamp.rotation.y = side === 1 ? 0 : Math.PI;
-        stamp.rotation.z = side * -0.035;
-        stamp.renderOrder = 4;
-        model.add(stamp);
+  function prepareVesselMaterials(model) {
+    const prepared = new Set();
+    model.traverse(function (object) {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach(function (material) {
+        if (!material) return;
+        const isGlass = material.name === "Cockpit_Glass_SmokeBlue";
+        const isMark = material.name === "RaidGuild_Canonical_Oxide_Decal";
+        const isEmissive = material.emissive && material.emissive.getHex() !== 0;
+        if (isGlass) {
+          object.castShadow = false;
+          object.receiveShadow = false;
+          object.renderOrder = 3;
+        }
+        if (isMark) {
+          object.castShadow = false;
+          object.renderOrder = 2;
+        }
+        if (prepared.has(material)) return;
+        prepared.add(material);
+        if (isGlass) {
+          material.color.setHex(0x70969a);
+          material.transparent = true;
+          material.opacity = 0.52;
+          material.roughness = 0.32;
+          material.metalness = 0;
+          material.depthWrite = false;
+          material.side = THREE.FrontSide;
+          material.envMapIntensity = 0.18;
+          if ("transmission" in material) material.transmission = 0.18;
+          if ("thickness" in material) material.thickness = 0;
+          if ("ior" in material) material.ior = 1.43;
+        } else if (isMark) {
+          material.color.setHex(0x906b59);
+          material.transparent = false;
+          material.alphaTest = 0.35;
+          material.side = THREE.FrontSide;
+          material.polygonOffset = true;
+          material.polygonOffsetFactor = -1;
+          material.polygonOffsetUnits = -1;
+        } else if (!isEmissive) {
+          // Tint only the painted armor; keep glass, logos and bare machinery distinct.
+          if (material.name === "01 • weathered ochre enamel") material.color.setHex(0xb85a2b);
+          if (material.name === "02 • pale service panels") material.color.setHex(0xc17a43);
+          if ("roughness" in material) material.roughness = Math.max(material.roughness, 0.78);
+          if ("metalness" in material) material.metalness = Math.min(material.metalness, 0.28);
+        }
+        if (material.map) material.map.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+        material.needsUpdate = true;
       });
     });
   }
 
   new THREE.GLTFLoader(manager).load(
-    "./assets/walker.glb?v=hull-canopy",
+    "./assets/walker.glb?v=astra-q4-1",
     function (gltf) {
-      vessel = gltf.scene;
-      const initialBounds = new THREE.Box3().setFromObject(vessel);
-      const initialSize = initialBounds.getSize(new THREE.Vector3());
-      const targetLength = 20;
-      const scale = targetLength / Math.max(initialSize.x, initialSize.z);
-      vessel.scale.setScalar(scale);
-
-      const bounds = new THREE.Box3().setFromObject(vessel);
-      const center = bounds.getCenter(new THREE.Vector3());
-      vessel.position.x -= center.x;
-      vessel.position.z -= center.z;
-      vessel.position.y -= bounds.min.y - terrainHeight(0, 0) + 0.08;
-      vessel.rotation.y = -0.32;
-      vesselBaseY = vessel.position.y;
-
-      vessel.traverse(function (object) {
-        if (!object.isMesh) return;
-
-        if (object.name.indexOf("Expedition Insignia") === 0) {
-          object.visible = false;
-          return;
+      try {
+        vessel = gltf.scene;
+        vessel.name = "Desert_Walker_Q4";
+        const initialBounds = new THREE.Box3().setFromObject(vessel);
+        const initialSize = initialBounds.getSize(new THREE.Vector3());
+        vessel.scale.setScalar(20 / Math.max(initialSize.x, initialSize.z));
+        // Keep the existing camera's home direction, presenting the new bow toward it.
+        vessel.rotation.y = Math.PI - 0.32;
+        const bounds = new THREE.Box3().setFromObject(vessel);
+        const center = bounds.getCenter(new THREE.Vector3());
+        vessel.position.set(-center.x, terrainHeight(0, 0) - bounds.min.y, -center.z);
+        prepareVesselMaterials(vessel);
+        scene.add(vessel);
+        groundVessel(vessel);
+        engineFlame = makeEngineFlame(vessel);
+        const fittedBounds = new THREE.Box3().setFromObject(vessel);
+        vesselRadius = fittedBounds.getBoundingSphere(new THREE.Sphere()).radius;
+        homeTarget.y = fittedBounds.getCenter(new THREE.Vector3()).y;
+        controls.target.copy(homeTarget);
+        // Smoke follows the aft machinery in model space after normalization.
+        smokeOrigin.copy(vessel.localToWorld(new THREE.Vector3(2.5, 4.7, 0)));
+        if (gltf.animations.length) {
+          mixer = new THREE.AnimationMixer(vessel);
+          gltf.animations.forEach(function (clip) { mixer.clipAction(clip).play(); });
         }
-
-        object.castShadow = true;
-        object.receiveShadow = true;
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach(function (material) {
-          if (!material) return;
-
-          const isCockpitGlass = /glass|canopy/i.test(material.name);
-          if (isCockpitGlass) {
-            material.color.setHex(0x315c68);
-            material.transparent = true;
-            material.opacity = 0.5;
-            material.depthWrite = false;
-            material.side = THREE.DoubleSide;
-            material.roughness = 0.26;
-            material.metalness = 0;
-            material.envMapIntensity = 0.18;
-            if ("transmission" in material) material.transmission = 0.18;
-            if ("thickness" in material) material.thickness = 0.22;
-            if ("ior" in material) material.ior = 1.43;
-            if ("clearcoat" in material) material.clearcoat = 0.12;
-            if ("clearcoatRoughness" in material) material.clearcoatRoughness = 0.48;
-            object.castShadow = false;
-            object.renderOrder = 3;
-          } else {
-            if ("roughness" in material) material.roughness = Math.max(material.roughness || 0, 0.78);
-            if ("metalness" in material) material.metalness = Math.min(material.metalness || 0, 0.28);
-          }
-
-          if (material.map) material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-          material.needsUpdate = true;
-        });
-      });
-
-      addCockpitInterior(vessel);
-      addRaidGuildStamp(vessel);
-
-      scene.add(vessel);
+        resize();
+        camera.position.copy(homePosition);
+        controls.update();
+      } catch (error) {
+        if (vessel) scene.remove(vessel);
+        manager.onError();
+        console.error("Unable to prepare survey vessel", error);
+      }
     },
     function (event) {
       if (event.total) loadingProgress.style.width = `${Math.round((event.loaded / event.total) * 100)}%`;
+    },
+    function (error) {
+      manager.onError();
+      console.error("Unable to load survey vessel", error);
     }
   );
 
@@ -583,7 +666,7 @@
   motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Drift ${motionEnabled ? "on" : "off"}`;
   motionToggle.addEventListener("click", function () {
     motionEnabled = !motionEnabled;
-    controls.autoRotate = motionEnabled;
+    pauseIdleOrbit(500);
     motionToggle.setAttribute("aria-pressed", String(motionEnabled));
     motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Drift ${motionEnabled ? "on" : "off"}`;
   });
@@ -592,6 +675,7 @@
     camera.position.copy(homePosition);
     controls.target.copy(homeTarget);
     controls.update();
+    pauseIdleOrbit(1500);
   });
 
   function resize() {
@@ -599,7 +683,21 @@
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
+    if (vesselRadius) {
+      const halfVerticalFov = THREE.MathUtils.degToRad(camera.fov / 2);
+      const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * camera.aspect);
+      const fitDistance = vesselRadius / Math.sin(Math.min(halfVerticalFov, halfHorizontalFov)) * 1.08;
+      const direction = new THREE.Vector3(24, 8.4, 29).normalize();
+      const homeDistance = Math.max(new THREE.Vector3(24, 8.4, 29).length(), fitDistance);
+      homePosition.copy(homeTarget).addScaledVector(direction, homeDistance);
+      controls.maxDistance = Math.max(58, homeDistance * 1.2);
+      // On a narrower viewport, move outward only as needed to keep the whole vessel visible.
+      if (camera.position.distanceTo(controls.target) < fitDistance) {
+        camera.position.sub(controls.target).normalize().multiplyScalar(fitDistance).add(controls.target);
+      }
+    }
     camera.updateProjectionMatrix();
+    idleOrbit.rebase = true;
   }
 
   window.addEventListener("resize", resize);
@@ -607,10 +705,11 @@
 
   const clock = new THREE.Clock();
   function render() {
-    const elapsed = clock.getElapsedTime();
+    const delta = clock.getDelta();
+    const elapsed = clock.elapsedTime;
+    if (mixer && motionEnabled) mixer.update(delta);
     if (motionEnabled) {
       dust.rotation.y = elapsed * 0.004;
-      if (vessel) vessel.position.y = vesselBaseY + Math.sin(elapsed * 0.72) * 0.018;
       birds.position.x = -46 + ((elapsed * 1.05) % 32);
       birds.children.forEach(function (bird, index) {
         bird.position.y += Math.sin(elapsed * 2.1 + index) * 0.0016;
@@ -627,14 +726,16 @@
     smoke.forEach(function (puff, index) {
       const cycle = (elapsed * (motionEnabled ? 0.08 : 0) + puff.userData.phase) % 1;
       puff.position.set(
-        5.6 + Math.sin(cycle * 8 + index) * 0.5 + cycle * 1.6,
-        7.7 + cycle * 8.5,
-        -1.6 + Math.cos(cycle * 6 + index) * 0.35
+        smokeOrigin.x + Math.sin(cycle * 8 + index) * 0.5 + cycle * 1.6,
+        smokeOrigin.y + cycle * 8.5,
+        smokeOrigin.z + Math.cos(cycle * 6 + index) * 0.35
       );
       const size = 0.4 + cycle * 2.8;
       puff.scale.set(size, size, 1);
       puff.material.opacity = Math.sin(cycle * Math.PI) * 0.24;
     });
+    updateEngineFlame(delta);
+    updateIdleCamera(delta);
     controls.update();
     renderer.render(scene, camera);
     window.requestAnimationFrame(render);
