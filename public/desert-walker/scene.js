@@ -604,9 +604,13 @@
           material.polygonOffsetFactor = -1;
           material.polygonOffsetUnits = -1;
         } else if (!isEmissive) {
-          // Tint only the painted armor; keep glass, logos and bare machinery distinct.
-          if (material.name === "01 • weathered ochre enamel") material.color.setHex(0xb85a2b);
-          if (material.name === "02 • pale service panels") material.color.setHex(0xc17a43);
+          // The supplied rust texture carries the paint color; keep its natural variation.
+          if (material.name === "01 • weathered ochre enamel") material.color.setHex(0xffffff);
+          if (material.name === "02 • pale service panels") material.color.setHex(0xe3c6a7);
+          if (/^(01|02) •/.test(material.name) && material.map) {
+            material.bumpMap = material.map;
+            material.bumpScale = 0.025;
+          }
           if ("roughness" in material) material.roughness = Math.max(material.roughness, 0.78);
           if ("metalness" in material) material.metalness = Math.min(material.metalness, 0.28);
         }
@@ -617,7 +621,7 @@
   }
 
   new THREE.GLTFLoader(manager).load(
-    "./assets/walker.glb?v=5a5ef6386502",
+    "./assets/walker.glb?v=ae60a5afe106",
     function (gltf) {
       try {
         vessel = gltf.scene;
