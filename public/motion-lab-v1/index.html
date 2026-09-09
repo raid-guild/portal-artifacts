@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="RaidGuild Motion Lab v1 — an accessible study of navigation and modal transitions."
+    />
+    <title>Motion Lab v1 · RaidGuild</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#laboratory">Skip to motion controls</a>
+
+    <header class="masthead">
+      <a class="brand" href="#stage" aria-label="Motion Lab home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <path d="m13 10 11 3 24 29-6 6-24-29-5-9Z" />
+            <path d="m51 10-11 3-24 29 6 6 24-29 5-9Z" />
+            <path d="M9 51h18M37 51h18" />
+          </svg>
+        </span>
+        <span><strong>RAID</strong>GUILD <small>Motion Lab · v1</small></span>
+      </a>
+      <p class="masthead-note">Interaction specimen / RG—26.01</p>
+    </header>
+
+    <main>
+      <section class="stage" id="stage" aria-labelledby="scene-title">
+        <div class="orbit orbit-one" aria-hidden="true"></div>
+        <div class="orbit orbit-two" aria-hidden="true"></div>
+        <div class="stage-grid" aria-hidden="true"></div>
+
+        <div class="scene is-active" data-scene="threshold">
+          <p class="eyebrow">01 / THE THRESHOLD</p>
+          <h1 id="scene-title">Venture<br /><em>beyond.</em></h1>
+          <p class="scene-copy">
+            A motion field guide for moving between guild spaces without losing
+            orientation, intent, or a sense of ceremony.
+          </p>
+          <button class="text-action" type="button" data-open-modal>
+            Inspect the field note <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <div class="scene" data-scene="arsenal" aria-hidden="true">
+          <p class="eyebrow">02 / THE ARSENAL</p>
+          <h2>Tools for<br /><em>uncertain worlds.</em></h2>
+          <p class="scene-copy">
+            Product, protocol, and narrative systems assembled by crews who know
+            when to sharpen an edge—and when to remove one.
+          </p>
+          <button class="text-action" type="button" data-open-modal tabindex="-1">
+            Inspect the field note <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <div class="scene" data-scene="field-notes" aria-hidden="true">
+          <p class="eyebrow">03 / FIELD NOTES</p>
+          <h2>Signals from<br /><em>the frontier.</em></h2>
+          <p class="scene-copy">
+            Working knowledge from live raids: what held, what shifted, and what
+            the next crew should carry forward.
+          </p>
+          <button class="text-action" type="button" data-open-modal tabindex="-1">
+            Inspect the field note <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <div class="scene" data-scene="tavern" aria-hidden="true">
+          <p class="eyebrow">04 / THE TAVERN</p>
+          <h2>Find your<br /><em>raid party.</em></h2>
+          <p class="scene-copy">
+            The commons between campaigns: a place to trade context, gather a
+            crew, and decide what deserves to exist next.
+          </p>
+          <button class="text-action" type="button" data-open-modal tabindex="-1">
+            Inspect the field note <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+
+        <aside class="scene-index" aria-label="Current destination">
+          <span class="index-number">01</span>
+          <span class="index-line"></span>
+          <span>04</span>
+        </aside>
+
+        <nav class="destination-nav" aria-label="Explore mock destinations">
+          <button class="destination is-current" type="button" data-destination="threshold" aria-current="page">
+            <span>01</span> Threshold
+          </button>
+          <button class="destination" type="button" data-destination="arsenal">
+            <span>02</span> Arsenal
+          </button>
+          <button class="destination" type="button" data-destination="field-notes">
+            <span>03</span> Field notes
+          </button>
+          <button class="destination" type="button" data-destination="tavern">
+            <span>04</span> Tavern
+          </button>
+        </nav>
+
+        <div class="stage-caption" aria-hidden="true">
+          <span>SCROLL SURFACE</span>
+          <span>MOTION / BRAND / ACCESS</span>
+        </div>
+      </section>
+
+      <section class="laboratory" id="laboratory" aria-labelledby="lab-title">
+        <div class="lab-intro">
+          <p class="eyebrow">MOTION STUDY / CONTROL ROOM</p>
+          <h2 id="lab-title">Tune the<br /><em>crossing.</em></h2>
+          <p>
+            Select a recipe, then navigate above or open the specimen note.
+            Every transition uses the same timing token so the comparison stays honest.
+          </p>
+          <div class="motion-readout" aria-live="polite" aria-atomic="true">
+            <span class="readout-dot"></span>
+            <span id="motion-status">Ready · Stamp wipe · 1100 ms</span>
+          </div>
+        </div>
+
+        <form class="controls" aria-label="Motion controls" onsubmit="return false">
+          <fieldset class="recipe-fieldset">
+            <legend>Transition recipe</legend>
+            <label class="recipe-card is-selected">
+              <input type="radio" name="recipe" value="stamp" checked />
+              <span class="recipe-number">A / PRIMARY</span>
+              <strong>Guild stamp wipe</strong>
+              <small>Swords converge, the mark holds, then the next surface is revealed.</small>
+            </label>
+            <label class="recipe-card">
+              <input type="radio" name="recipe" value="ink" />
+              <span class="recipe-number">B / TACTILE</span>
+              <strong>Stamp to ink</strong>
+              <small>A soft impression blooms into an opaque ink field.</small>
+            </label>
+            <label class="recipe-card">
+              <input type="radio" name="recipe" value="split" />
+              <span class="recipe-number">C / DIRECT</span>
+              <strong>Blade split</strong>
+              <small>Two diagonal edges meet, then clear the center line.</small>
+            </label>
+            <label class="recipe-card">
+              <input type="radio" name="recipe" value="fade" />
+              <span class="recipe-number">D / QUIET</span>
+              <strong>Fade through</strong>
+              <small>A restrained handoff for frequent or low-stakes changes.</small>
+            </label>
+          </fieldset>
+
+          <div class="tuning-row">
+            <label class="range-control" for="duration">
+              <span>Duration <output id="duration-output" for="duration">1100 ms</output></span>
+              <input id="duration" type="range" min="500" max="1800" step="100" value="1100" />
+              <span class="range-scale"><small>500</small><small>1800</small></span>
+            </label>
+
+            <label class="select-control" for="easing">
+              <span>Easing</span>
+              <select id="easing">
+                <option value="cubic-bezier(.76, 0, .24, 1)">Guild curve</option>
+                <option value="cubic-bezier(.16, 1, .3, 1)">Swift settle</option>
+                <option value="ease-in-out">Classic ease</option>
+                <option value="linear">Linear study</option>
+              </select>
+            </label>
+
+            <button class="replay-button" type="button" data-replay>
+              <svg viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M25 10V4l-3 3a11 11 0 1 0 3 12" />
+              </svg>
+              Replay last transition
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <footer>
+      <span>RAIDGUILD / MOTION LAB v1</span>
+      <span>STATIC · SANDBOX-SAFE · NO TELEMETRY</span>
+    </footer>
+
+    <div class="transition-layer" data-transition-layer aria-hidden="true">
+      <div class="transition-panel panel-left"></div>
+      <div class="transition-panel panel-right"></div>
+      <div class="ink-field"></div>
+      <div class="transition-stamp">
+        <span class="stamp-ring"></span>
+        <svg class="stamp-swords" viewBox="0 0 180 180">
+          <path class="sword sword-left" d="M30 20 53 31l50 75-13 13-55-70-5-29Zm53 99-19 25m-9-11 21 21" />
+          <path class="sword sword-right" d="m150 20-23 11-50 75 13 13 55-70 5-29Zm-53 99 19 25m9-11-21 21" />
+        </svg>
+        <span class="stamp-copy">RAIDGUILD <small>CROSSING</small></span>
+      </div>
+    </div>
+
+    <dialog class="field-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-copy">
+      <div class="dialog-frame">
+        <button class="dialog-close" type="button" data-close-modal aria-label="Close field note">
+          <span aria-hidden="true">×</span>
+        </button>
+        <p class="eyebrow">FIELD NOTE / 07</p>
+        <p class="dialog-kicker">DESIGN SYSTEMS · INTERACTION · ACCESS</p>
+        <h2 id="dialog-title">Motion should<br /><em>carry context.</em></h2>
+        <p id="dialog-copy">
+          The stamp is not a loading screen. It is a brief piece of wayfinding:
+          enough ceremony to mark a crossing, enough restraint to keep the user’s
+          intention in view.
+        </p>
+        <dl>
+          <div><dt>Principle</dt><dd>Orientation before spectacle</dd></div>
+          <div><dt>Fallback</dt><dd>120 ms fade with identical state change</dd></div>
+          <div><dt>Focus</dt><dd>Returned to the opening control</dd></div>
+        </dl>
+        <button class="dialog-action" type="button" data-close-modal>
+          Return to the laboratory <span aria-hidden="true">↙</span>
+        </button>
+      </div>
+    </dialog>
+  </body>
+</html>
