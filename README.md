@@ -41,8 +41,22 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
+## Portal motion study
+
+`public/portal-motion/` contains the built portal animation. Editable source is in
+`studies/portal-motion/`. To rebuild with Node 22.13 or newer:
+
+```sh
+cd studies/portal-motion
+npm ci
+npm run build:railway
+cp -R dist-railway/. ../../public/portal-motion/
+```
+
 ## Published artifacts
 
+- `portal-motion/` — Interactive spark portal with palette mixing, size controls,
+  and a blurred mountain destination that reveals on hover.
 - `desert-walker/` — Interactive Three.js vignette featuring a textured
   dieselpunk survey walker in a procedural desert, with orbit controls and
   optional ambient motion.
