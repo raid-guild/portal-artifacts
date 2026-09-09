@@ -70,6 +70,17 @@ main { margin: 0 auto; max-width: 1400px; padding: 34px clamp(18px,4vw,54px) 64p
 .mission-head { align-items: flex-end; display: flex; gap: 20px; justify-content: space-between; margin-bottom: 22px; }
 .mission-head h1 { font: 600 clamp(34px,6vw,70px)/.9 "Arial Narrow",sans-serif; letter-spacing: -.045em; margin: 7px 0 0; text-transform: uppercase; }
 .mission-head h1 span { color: var(--faint); font-weight: 400; }
+.alliance-context { align-items: center; display: flex; gap: 18px; justify-content: space-between; margin-bottom: 14px; padding: 14px 16px; }
+.alliance-identity { align-items: center; display: flex; gap: 12px; min-width: 0; }
+.alliance-mark { align-items: center; background: rgba(88,217,221,.08); border: 1px solid rgba(88,217,221,.45); border-radius: 8px; color: var(--cyan); display: flex; flex: 0 0 38px; font-size: 20px; height: 38px; justify-content: center; transform: rotate(45deg); }
+.alliance-mark span { transform: rotate(-45deg); }
+.alliance-context strong { display: block; font-size: 14px; }
+.alliance-context small { color: var(--muted); display: block; font: 10px ui-monospace,monospace; margin-top: 3px; }
+.alliance-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: flex-end; text-align: right; }
+.alliance-relation { color: var(--muted); font-size: 11px; }
+.alliance-relation.allied { color: var(--green); }
+.alliance-button { background: rgba(88,217,221,.09); border: 1px solid rgba(88,217,221,.45); border-radius: 7px; color: var(--cyan); font-size: 12px; font-weight: 600; padding: 8px 11px; text-decoration: none; white-space: nowrap; }
+.alliance-button:hover { background: rgba(88,217,221,.15); border-color: var(--cyan); }
 .status { border: 1px solid currentColor; border-radius: 999px; font: 600 10px ui-monospace,monospace; letter-spacing: .1em; padding: 7px 10px; text-transform: uppercase; }
 .status.outbound { color: var(--amber); }
 .status.returning { color: #84ace0; }
@@ -153,6 +164,8 @@ footer a { color: #bfc2c8; text-decoration: none; }
   .mission-search { grid-column: 1 / -1; grid-row: 2; }
   .topbar nav a { display: none; }
   .mission-head { align-items: flex-start; flex-direction: column; }
+  .alliance-context { align-items: flex-start; flex-direction: column; }
+  .alliance-actions { justify-content: flex-start; text-align: left; }
   .metrics { grid-template-columns: repeat(2,1fr); }
   .grid { grid-template-columns: 1fr; }
   .section.wide { grid-column: auto; }

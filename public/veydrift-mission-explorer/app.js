@@ -13,7 +13,9 @@
   const DEFENSES = ['Rocket Launcher','Light Laser','Heavy Laser','Gauss Cannon','Ion Cannon','Plasma Turret','Small Shield Dome','Large Shield Dome','Anti-Ballistic Missile','Interplanetary Missile'];
   const app = document.querySelector('#app');
   const input = document.querySelector('#missionInput');
+  const allianceNav = document.querySelector('#allianceNav');
   const allianceId = new URLSearchParams(location.search).get('alliance')?.replace(/\D/g, '') || DEFAULT_ALLIANCE;
+  allianceNav.href = `/veydrift-alliance-map/?alliance=${encodeURIComponent(allianceId)}`;
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -102,15 +104,25 @@
     </section>`;
   }
 
-  function renderMission(plot, allianceMembers) {
+  function renderMission(plot, alliance) {
     const mission = plot.mission;
     const report = plot.battleReport;
     const state = phase(mission);
+    const allianceMembers = new Map((alliance.members || []).map(member => [String(member.address).toLowerCase(), member]));
     const originAllied = allianceMembers.has(String(mission.originPlanet?.owner || mission.owner).toLowerCase());
     const targetAllied = allianceMembers.has(String(mission.targetPlanet?.owner || '').toLowerCase());
+    const missionMember = allianceMembers.get(String(mission.owner).toLowerCase());
+    const allianceName = alliance.name || alliance.tag || `Alliance ${allianceId}`;
+    const allianceMeta = [alliance.tag && alliance.tag !== allianceName ? alliance.tag : null, `Alliance ${allianceId}`, alliance.members?.length != null ? `${alliance.members.length} members` : null].filter(Boolean).join(' · ');
+    const relationText = missionMember ? `${missionMember.displayName || shortAddress(mission.owner)} is an alliance member` : targetAllied ? 'Inbound to an alliance planet' : 'Mission is outside this alliance';
     const resultClass = report?.outcome === 'DefenderWin' ? 'loss' : '';
     const resultTitle = report?.outcome?.replace(/([A-Z])/g, ' $1').trim() || 'No battle report';
+    allianceNav.textContent = `${allianceName} map`;
     app.innerHTML = `
+      <section class="alliance-context panel">
+        <div class="alliance-identity"><span class="alliance-mark" aria-hidden="true"><span>⌁</span></span><div><strong>${esc(allianceName)}</strong><small>${esc(allianceMeta)}</small></div></div>
+        <div class="alliance-actions"><span class="alliance-relation ${missionMember || targetAllied ? 'allied' : ''}">${esc(relationText)}</span><a class="alliance-button" href="/veydrift-alliance-map/?alliance=${encodeURIComponent(allianceId)}">Open ${esc(allianceName)} Alliance Map →</a></div>
+      </section>
       <div class="mission-head"><div><span class="kicker">Mission telemetry</span><h1>${esc(mission.missionType)} <span>#${esc(mission.missionId)}</span></h1></div><span class="status ${esc(state)}">${esc(mission.status || state)}</span></div>
       ${routePlot(mission)}
       <div class="metrics">
@@ -175,9 +187,8 @@
         fetchJson(`/mission/${id}`),
         fetchJson(`/alliance/${allianceId}`).catch(() => ({alliance:{members:[]}}))
       ]);
-      const members = new Set((allianceResult.alliance?.members || []).map(member => String(member.address).toLowerCase()));
       document.title = `Mission #${id} — Rift Plot`;
-      renderMission(plot, members);
+      renderMission(plot, allianceResult.alliance || {members:[]});
       clearInterval(window.riftClock);
       window.riftClock = setInterval(() => updateCountdown(plot.mission), 1000);
     } catch (error) {

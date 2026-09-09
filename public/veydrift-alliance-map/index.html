@@ -234,6 +234,9 @@
       .owner { align-items: center; color: #b6c5d7; display: flex; font-size: 10px; gap: 6px; margin-top: 8px; }
       .official-link { align-items: center; border-bottom: 1px solid rgba(93,228,231,.55); color: var(--cyan); display: inline-flex; font-size: 10px; gap: 5px; margin-top: 9px; padding-bottom: 2px; text-decoration: none; }
       .official-link:hover, .official-link:focus { border-color: var(--text); color: var(--text); outline: none; }
+      .mission-explorer-card { align-items: center; background: linear-gradient(110deg, rgba(93,228,231,.12), rgba(169,140,255,.06)); border: 1px solid rgba(93,228,231,.38); border-radius: 9px; display: flex; gap: 12px; justify-content: space-between; padding: 11px; }
+      .mission-explorer-card span { color: var(--muted); display: block; font-size: 9px; margin-top: 3px; }
+      .mission-explorer-card .official-link { background: rgba(93,228,231,.12); border: 1px solid rgba(93,228,231,.42); border-radius: 6px; flex: 0 0 auto; margin: 0; padding: 7px 9px; }
       .metrics { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
       .metric { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
       .metric span { color: var(--muted); display: block; font-size: 8px; letter-spacing: 0.08em; margin-bottom: 5px; text-transform: uppercase; }
@@ -774,11 +777,11 @@
           <div class="section-head"><h2>Transit inspection</h2><button class="icon-button" id="closeDetails" type="button" aria-label="Close details">×</button></div>
           <div class="mission-hero"><div class="mission-symbol">➤</div><div class="mission-title"><h3>${esc(humanizeKey(mission.type))}</h3><p>MISSION #${esc(mission.id)} · ${esc(String(mission.status || 'unknown').toUpperCase())}</p><div class="owner"><span class="dot" style="color:${mission.relation === 'hostile' ? 'var(--danger)' : mission.relation === 'attack' ? 'var(--amber)' : mission.relation === 'colonization' ? 'var(--violet)' : mission.relation === 'returning' ? '#7196c7' : 'var(--cyan)'}"></span>${esc(mission.ownerName || mission.owner || 'Owner unavailable')}</div></div></div>
           <div class="metrics"><div class="metric"><span>Arrival</span><strong data-countdown="${mission.arrivalAt}">${formatEta(mission.arrivalAt)}</strong></div><div class="metric"><span>Ships</span><strong>${mission.ships ?? '—'}</strong></div><div class="metric"><span>Relation</span><strong>${esc(humanizeKey(mission.relation))}</strong></div></div>
+          <div class="detail-block mission-explorer-card"><div><b>MISSION #${esc(mission.id)}</b><span>${esc(humanizeKey(mission.type))} · ${esc(String(mission.status || 'unknown').toUpperCase())}</span></div><a class="official-link" href="/veydrift-mission-explorer/mission/${encodeURIComponent(mission.id)}?alliance=${encodeURIComponent(ALLIANCE_ID)}">Full report →</a></div>
           <div class="detail-block"><h4>Route</h4><div class="route-card"><div class="route-stop"><span>○</span><div><b>${esc(origin.name)}</b><small>${esc(origin.coordinates)}</small></div></div><div class="route-stop"><span>●</span><div><b>${esc(target.name)}</b><small>${esc(target.coordinates)}</small></div></div></div></div>
           <div class="detail-block"><h4>Timing</h4><div class="unit-row"><span class="unit-icon">◷</span><span>Arrival</span><b>${new Date(mission.arrivalAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>${mission.returnAt ? `<div class="unit-row"><span class="unit-icon">↩</span><span>Scheduled return</span><b>${new Date(mission.returnAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></div>` : ''}</div>
           <div class="detail-block"><h4>Fleet composition</h4>${shipRows}</div>
-          <div class="detail-block"><h4>Cargo</h4>${cargoRows || '<span class="unknown">No cargo reported</span>'}</div>
-          <div class="detail-block"><h4>Mission record</h4><a class="official-link" href="/veydrift-mission-explorer/mission/${encodeURIComponent(mission.id)}?alliance=${encodeURIComponent(ALLIANCE_ID)}">Open in Mission Explorer <span aria-hidden="true">→</span></a></div>`;
+          <div class="detail-block"><h4>Cargo</h4>${cargoRows || '<span class="unknown">No cargo reported</span>'}</div>`;
         attachCloseDetails();
       }
 
