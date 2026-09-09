@@ -30,6 +30,7 @@
   let running = false;
   let lastTrigger = null;
   let transitionTimer = 0;
+  let closeAfterOpening = false;
 
   const reducedDuration = () => (motionQuery.matches ? 120 : duration);
   const midpoint = () => Math.round(reducedDuration() * 0.48);
@@ -140,11 +141,18 @@
   function openDialog(event) {
     if (running || dialog.open) return;
     lastTrigger = event.currentTarget;
+    closeAfterOpening = false;
     runTransition({
       label: "Opening field note",
       atMidpoint: () => {
         dialog.showModal();
         dialog.querySelector("[data-close-modal]").focus({ preventScroll: true });
+      },
+      onComplete: () => {
+        if (closeAfterOpening) {
+          closeAfterOpening = false;
+          closeDialog();
+        }
       },
     });
   }
@@ -163,14 +171,24 @@
     });
   }
 
+  function requestDialogClose() {
+    if (!dialog.open) return;
+    if (running) {
+      closeAfterOpening = true;
+      updateReadout("Close queued");
+      return;
+    }
+    closeDialog();
+  }
+
   modalOpeners.forEach((button) => button.addEventListener("click", openDialog));
-  modalClosers.forEach((button) => button.addEventListener("click", closeDialog));
+  modalClosers.forEach((button) => button.addEventListener("click", requestDialogClose));
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
-    closeDialog();
+    requestDialogClose();
   });
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) closeDialog();
+    if (event.target === dialog) requestDialogClose();
   });
 
   motionQuery.addEventListener?.("change", () => updateReadout("Preference changed"));
