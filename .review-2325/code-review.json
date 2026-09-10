@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "status": "approved",
+  "reviewMode": "initial",
+  "baseSha": "7ad333cd07e6133c9267b169d7021143007781b6",
+  "headSha": "114732d515ff0ced45ec5193ffb8d409fe878836",
+  "previousHeadSha": null,
+  "repositoryPolicy": [
+    "README.md",
+    "Caddyfile",
+    "Dockerfile",
+    "studies/motion-lab-v1/README.md"
+  ],
+  "checks": [
+    {
+      "name": "PR identity and immutable diff",
+      "status": "passed",
+      "evidence": "GitHub PR #4 is open against main with base 7ad333cd07e6133c9267b169d7021143007781b6 and head 114732d515ff0ced45ec5193ffb8d409fe878836; the complete base...head diff contains 10 added Motion Lab source/output files."
+    },
+    {
+      "name": "Required verification artifact pair",
+      "status": "passed",
+      "evidence": "verification.json artifact 38e5596e-b0bc-4ae2-a622-e39b65585247 is conclusively passed for the exact reviewed head, and restored verification.md artifact 86652310-d302-4e47-86d6-e2c290b6101a references that structured result while preserving failed run 4397ba6b-e9d3-4881-91bc-47faccedfd8f and recovery artifact c071fc33-9f1f-4af2-91a9-82ec1a3341b5."
+    },
+    {
+      "name": "Required Motion Lab dependency",
+      "status": "passed",
+      "evidence": "git merge-base --is-ancestor 14ef8ac2f212c554b0b4d3203a340a983fd57fb6 114732d515ff0ced45ec5193ffb8d409fe878836 returned success."
+    },
+    {
+      "name": "Syntax, build synchronization, and diff hygiene",
+      "status": "passed",
+      "evidence": "Executed node --check on app.js and build.mjs, rebuilt the artifact, compared all HTML/CSS/JS/SVG source-output pairs byte-for-byte, and ran git diff --check; all passed and no tracked files changed."
+    },
+    {
+      "name": "Canonical stamp provenance",
+      "status": "passed",
+      "evidence": "Independently fetched raid-guild/brand commit 8f0b5eecd9fe0c086e138ba33307110e1d902b06 path public/assets/logos/symbol-m500.svg; its SHA-256 and both bundled copies equal 1f3201af196f72a305e7df3ae048ae639c5fb63706396086900755d765a7bc05."
+    },
+    {
+      "name": "Focused browser interaction and accessibility matrix",
+      "status": "passed",
+      "evidence": "After two infrastructure-only attempts encountered an unavailable transient preview server, started a stable local server and reran the exact Playwright 1.55/Chromium matrix successfully: desktop stamp aperture scale 0.73341 to 18 with opacity 1, mobile 390px without overflow, sandboxed iframe navigation, all recipes, modal Escape/focus restoration, and reduced-motion completion in 199ms with stamp/mask hidden. Screenshots were visually inspected; no console, page, request, HTTP, or external-network errors were reported."
+    }
+  ],
+  "findings": [],
+  "githubDelivery": {
+    "summaryCommentId": 5626889408,
+    "summaryCommentUrl": "https://github.com/raid-guild/portal-artifacts/pull/4#issuecomment-5626889408",
+    "inlineCommentIds": []
+  },
+  "summary": "Approved for head 114732d515ff0ced45ec5193ffb8d409fe878836. The canonical RaidGuild asset is provenance-matched, the expanding stamp-mask reveal works across the required desktop/mobile/sandbox/reduced-motion scenarios, source and public output are synchronized, and no blocking or high-severity findings remain."
+}

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "status": "passed",
+  "baseSha": "7ad333cd07e6133c9267b169d7021143007781b6",
+  "headSha": "114732d515ff0ced45ec5193ffb8d409fe878836",
+  "agentRunId": "4397ba6b-e9d3-4881-91bc-47faccedfd8f",
+  "runtime": {
+    "key": "codex-default",
+    "features": [
+      "repository",
+      "shell",
+      "browser-automation"
+    ]
+  },
+  "checks": [
+    {
+      "key": "source-dependency",
+      "name": "Required Motion Lab source dependency",
+      "status": "passed",
+      "command": "git merge-base --is-ancestor 14ef8ac2f212c554b0b4d3203a340a983fd57fb6 HEAD",
+      "evidence": "The exact PR #3 head is an ancestor of the current head, with one revision commit applied above it."
+    },
+    {
+      "key": "syntax",
+      "name": "JavaScript syntax checks",
+      "status": "passed",
+      "command": "node --check studies/motion-lab-v1/app.js && node --check studies/motion-lab-v1/build.mjs",
+      "evidence": "Both editable JavaScript files parsed without errors."
+    },
+    {
+      "key": "build-sync",
+      "name": "Static build and source/output synchronization",
+      "status": "passed",
+      "command": "node studies/motion-lab-v1/build.mjs; cmp editable and public HTML/CSS/JS/SVG pairs",
+      "evidence": "The build completed and all four generated public files were byte-identical to their editable-source counterparts."
+    },
+    {
+      "key": "canonical-asset",
+      "name": "Canonical RaidGuild stamp provenance",
+      "status": "passed",
+      "command": "sha256sum both raidguild-stamp.svg copies; fetch raid-guild/brand@8f0b5eec.../public/assets/logos/symbol-m500.svg and hash it",
+      "evidence": "Both bundled copies and the independently fetched canonical asset matched SHA-256 1f3201af196f72a305e7df3ae048ae639c5fb63706396086900755d765a7bc05."
+    },
+    {
+      "key": "diff-check",
+      "name": "Diff whitespace check",
+      "status": "passed",
+      "command": "git diff --check 7ad333cd07e6133c9267b169d7021143007781b6..HEAD",
+      "evidence": "No whitespace errors were reported."
+    },
+    {
+      "key": "browser-audit",
+      "name": "Browser console and network audit",
+      "status": "passed",
+      "command": "Playwright 1.55.0 / Chromium 140 browser matrix against http://127.0.0.1:4173/motion-lab-v1/",
+      "evidence": "All journeys completed with no console errors, page errors, failed requests, HTTP error responses, or external runtime requests."
+    }
+  ],
+  "browserJourneys": [
+    {
+      "name": "Desktop canonical stamp reveal and preserved interactions",
+      "status": "passed",
+      "url": "http://127.0.0.1:4173/motion-lab-v1/",
+      "evidence": "At 1440x900, the canonical SVG was used by the visible brand and luminance mask; during the primary transition the mask surface opacity was 1 and the measured aperture scale expanded from 0.249631 to 18. All four recipes, destination state, replay, keyboard Escape close, and opener focus restoration passed. Runtime screenshot was visually inspected."
+    },
+    {
+      "name": "Mobile responsive stamp reveal",
+      "status": "passed",
+      "url": "http://127.0.0.1:4173/motion-lab-v1/",
+      "evidence": "At 390x844, the stamp aperture visibly revealed the Arsenal scene, navigation completed correctly, and document width equaled viewport width (390px) with no horizontal overflow. Runtime screenshot was visually inspected."
+    },
+    {
+      "name": "Sandboxed iframe compatibility",
+      "status": "passed",
+      "url": "http://127.0.0.1:4173/motion-lab-v1/",
+      "evidence": "At 1024x900, the artifact loaded and navigated to Tavern inside an iframe limited to sandbox=allow-scripts allow-modals."
+    },
+    {
+      "name": "Reduced-motion navigation and modal",
+      "status": "passed",
+      "url": "http://127.0.0.1:4173/motion-lab-v1/",
+      "evidence": "At 390x844 with prefers-reduced-motion: reduce, navigation completed in 208ms using reduced-fade while the stamp, mask, and transition panels stayed hidden; reduced-motion modal open/close and focus restoration also passed."
+    }
+  ],
+  "unexpectedTrackedChanges": [],
+  "limitations": [
+    "Stable shared-host publication is intentionally deferred to the later deployment and public-verification workflow steps; this verification exercised the exact implementation head locally."
+  ],
+  "summary": "Passed independent verification at exact head 114732d515ff0ced45ec5193ffb8d409fe878836: the official pinned RaidGuild stamp drives a visibly expanding mask reveal on desktop and mobile, preserved interactions and reduced motion work, static outputs are synchronized, and browser audits are clean."
+}
