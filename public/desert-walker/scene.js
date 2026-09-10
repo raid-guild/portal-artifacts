@@ -935,20 +935,32 @@
   const sandGeometry=new THREE.BufferGeometry();
   const sandPositions=new Float32Array(6000*3);
   for(let i=0;i<sandPositions.length;i+=3) {
-    sandPositions[i]=Math.random()*100-50; sandPositions[i+1]=Math.random()*32-5; sandPositions[i+2]=Math.random()*100-50;
+    sandPositions[i]=Math.random()*64-32; sandPositions[i+1]=Math.random()*40-20; sandPositions[i+2]=Math.random()*64-32;
   }
   sandGeometry.setAttribute("position",new THREE.BufferAttribute(sandPositions,3));
+  sandGeometry.setAttribute("seed",new THREE.BufferAttribute(Float32Array.from({length:6000},()=>Math.random()),1));
   const sandMaterial=new THREE.ShaderMaterial({
     transparent:true,depthWrite:false,
     uniforms:{tint:{value:new THREE.Color()},intensity:{value:0.15},inverseVessel:{value:new THREE.Matrix4()}},
-    vertexShader:`uniform mat4 inverseVessel; varying vec3 cabin;
-      void main(){vec4 world=modelMatrix*vec4(position,1.);cabin=(inverseVessel*world).xyz;
+    vertexShader:`attribute float seed; uniform mat4 inverseVessel; uniform float intensity;
+      varying vec3 cabin; varying float grain; varying vec2 windDirection; varying float height;
+      void main(){vec4 world=modelMatrix*vec4(position,1.);cabin=(inverseVessel*world).xyz;height=world.y;
+      grain=seed;
       vec4 view=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*view;
-      gl_PointSize=clamp(38./max(1.,-view.z),1.,5.);}`,
+      vec3 wind=(viewMatrix*vec4(1.,.06,.23,0.)).xyz;
+      windDirection=normalize(vec2(wind.x,-wind.y)+vec2(.0001));
+      gl_PointSize=clamp((90.+grain*130.)/max(2.,-view.z),1.8,13.)*(.65+intensity*.7);}`,
     fragmentShader:`uniform vec3 tint;uniform float intensity;varying vec3 cabin;
-      void main(){if(abs(cabin.x)<4.4 && cabin.y>2.3 && cabin.y<4.9 && abs(cabin.z)<1.4)discard;
-      float r=length(gl_PointCoord-vec2(.5));float alpha=(1.-smoothstep(.12,.5,r))*(.22+intensity*.38);
-      gl_FragColor=vec4(tint,alpha);}`
+      varying float grain; varying vec2 windDirection; varying float height;
+      void main(){if(height < -1.5 || (abs(cabin.x)<4.4 && cabin.y>2.3 && cabin.y<4.9 && abs(cabin.z)<1.4))discard;
+      vec2 p=gl_PointCoord-vec2(.5);
+      vec2 oriented=vec2(dot(p,windDirection),dot(p,vec2(-windDirection.y,windDirection.x)));
+      float streak=step(.55,grain)*intensity;
+      float r=length(oriented/vec2(.30+streak*.17,.30-streak*.21));
+      float alpha=(1.-smoothstep(.55,1.,r))*(.42+intensity*.43);
+      // Both bright grains and darker grit stay legible against the dusty sky.
+      vec3 color=mix(tint*.35,mix(tint,vec3(1.,.83,.55),.55),step(.45,grain));
+      gl_FragColor=vec4(color,alpha);}`
   });
   const stormSand=new THREE.Points(sandGeometry,sandMaterial);
   stormSand.name="Atmosphere_Windblown_Sand";stormSand.frustumCulled=false;scene.add(stormSand);
@@ -957,15 +969,15 @@
   applyAtmosphere();
   function updateAtmosphere(delta) {
     if(vessel) {
-      stormSand.position.set(vessel.position.x,0,vessel.position.z);
+      stormSand.position.copy(camera.position);
       sandMaterial.uniforms.inverseVessel.value.copy(vessel.matrixWorld).invert();
     }
     if(!motionEnabled || weather.storm===0)return;
     const dt=Math.min(delta,0.05);weather.time+=dt;
     const wind=(2+weather.storm*18)*(1+Math.sin(weather.time*0.7)*0.22);
     for(let i=0;i<sandGeometry.drawRange.count*3;i+=3){
-      sandPositions[i]=((sandPositions[i]+50+dt*wind)%100)-50;
-      sandPositions[i+2]=((sandPositions[i+2]+50+dt*wind*0.23)%100)-50;
+      sandPositions[i]=((sandPositions[i]+32+dt*wind)%64)-32;
+      sandPositions[i+2]=((sandPositions[i+2]+32+dt*wind*0.23)%64)-32;
     }
     sandGeometry.attributes.position.needsUpdate=true;
   }
