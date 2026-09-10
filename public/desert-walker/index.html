@@ -30,10 +30,22 @@
         <input id="sandstorm" type="range" min="0" max="100" step="1" value="15" />
         <label for="day-time">Time of day <output id="time-value" for="day-time">15:00</output></label>
         <input id="day-time" type="range" min="0" max="24" step="0.25" value="15" />
-        <div class="sound-row"><button id="sound-toggle" type="button" aria-pressed="false">Sound off</button><span>Wind · Hull · Machinery</span></div>
-        <label for="sound-volume">Volume <output id="volume-value" for="sound-volume">35%</output></label>
-        <input id="sound-volume" type="range" min="0" max="100" step="1" value="35" />
+        <label for="headlight-intensity">Headlights <output id="headlight-value" for="headlight-intensity">Off</output></label>
+        <input id="headlight-intensity" type="range" min="0" max="100" step="1" value="0" />
+        <label for="meteor-intensity">Meteors <output id="meteor-value" for="meteor-intensity">Off</output></label>
+        <input id="meteor-intensity" type="range" min="0" max="100" step="1" value="0" />
+        <label for="sound-volume">Sound volume <output id="volume-value" for="sound-volume">Off</output></label>
+        <input id="sound-volume" type="range" min="0" max="100" step="1" value="0" />
+        <div class="cockpit-radio-controls">
+          <label for="radio-channel">Radio tuner</label>
+          <input id="radio-channel" type="range" min="1" max="3" step="0.01" value="1" aria-valuetext="CH 01 · Walker Radio" />
+          <div class="radio-stations" aria-hidden="true"><span>01</span><span>02</span><span>03</span></div>
+          <p id="radio-status" class="radio-display" aria-live="polite">CH 01 · Walker Radio</p>
+          <label for="radio-volume">Radio volume <output id="radio-volume-value" for="radio-volume">Off</output></label>
+          <input id="radio-volume" type="range" min="0" max="100" step="1" value="0" />
+        </div>
       </details>
+      <audio id="cockpit-radio" src="./assets/walker-radio.mp3" preload="none" loop></audio>
       <aside class="controls" aria-label="Scene controls">
         <button id="motion-toggle" type="button" aria-pressed="true">
           <span class="button-icon" aria-hidden="true">◉</span>
@@ -75,7 +87,10 @@
     <script src="./vendor/three.min.js"></script>
     <script src="./vendor/OrbitControls.js"></script>
     <script src="./vendor/GLTFLoader.js"></script>
-    <script src="./audio.js?v=0b6958b6a9e4"></script>
-    <script src="./scene.js?v=6928c54b3f96"></script>
+    <script src="./cockpit-radio.js?v=fe1436ea7754"></script>
+    <script src="./headlights.js?v=4efbd6cb891d"></script>
+    <script src="./meteors.js?v=e1a2c361d7f1"></script>
+    <script src="./audio.js?v=9d9f17089940"></script>
+    <script src="./scene.js?v=59994a8ddb11"></script>
   </body>
 </html>

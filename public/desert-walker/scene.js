@@ -357,6 +357,7 @@
   const flag = makeOutpost(17, 9);
   const birds = makeBirds();
   const smoke = makeSmoke();
+  let headlights;
   let vessel;
   let mixer;
   let engineFlame;
@@ -604,6 +605,7 @@
     cameraToggle.textContent = enabled ? "Exterior view" : "Cockpit view";
     cameraToggle.setAttribute("aria-pressed",String(enabled));
     document.body.classList.toggle("cockpit-view",enabled);
+    document.dispatchEvent(new CustomEvent("cockpit-view-change", {detail:enabled}));
     document.querySelector(".controls p").textContent = enabled ? "Drag to look · Arrows to steer" : "Drag to orbit · Scroll to zoom";
     if (!enabled) { camera.position.copy(homePosition); controls.target.copy(homeTarget); }
     resize(); pauseIdleOrbit(1500);
@@ -813,9 +815,11 @@
         prepareVesselMaterials(vessel);
         scene.add(vessel);
         prepareWalking(vessel);
+        window.installCockpitRadio(vessel, camera, canvas);
         engineFlame = makeEngineFlame(vessel);
         const fittedBounds = new THREE.Box3().setFromObject(vessel);
         vesselRadius = fittedBounds.getBoundingSphere(new THREE.Sphere()).radius;
+        headlights = window.createWalkerHeadlights(vessel);
         homeTarget.y = fittedBounds.getCenter(new THREE.Vector3()).y;
         controls.target.copy(homeTarget);
         // Smoke follows the aft machinery in model space after normalization.
@@ -983,6 +987,7 @@
   }
 
   const soundscape = window.createWalkerAudio();
+  const meteorShower = window.createWalkerMeteors(scene, camera, terrainHeight, makeSmokeTexture(), giant => soundscape.rumble(giant));
   const clock = new THREE.Clock();
   function render() {
     const delta = clock.getDelta();
@@ -1015,7 +1020,9 @@
       puff.scale.set(size, size, 1);
       puff.material.opacity = Math.sin(cycle * Math.PI) * 0.24;
     });
+    meteorShower.update(delta, motionEnabled);
     updateAtmosphere(delta);
+    if(headlights)headlights.update(weather.storm,weather.hour);
     updateEngineFlame(delta);
     if (cockpitMode) updateCockpitCamera();
     else { updateIdleCamera(delta); controls.update(); }

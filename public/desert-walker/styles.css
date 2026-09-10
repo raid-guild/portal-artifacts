@@ -289,11 +289,18 @@ h1 {
   .title-card h1 { font-size:26px; }
 }
 
-.sound-row { display:flex; align-items:center; gap:9px; margin-top:16px; }
-.sound-row button { color:#fff2cc; border:1px solid #fff0ca66; background:#6f553b; border-radius:8px; padding:7px 10px; cursor:pointer; white-space:nowrap; font:inherit; }
-.sound-row span { font-size:10px; color:#eabd84; }
 .atmosphere-panel { max-height:calc(100% - 180px); overflow:auto; }
 
 .join-raidguild { display:inline-flex; align-items:center; gap:7px; padding:8px 11px; margin-bottom:4px; border:1px solid #fff0ca55; border-radius:999px; background:#292c2bd9; color:#f5c78a; font:500 11px system-ui,sans-serif; text-decoration:none; }
 .join-raidguild:hover { color:#fff2cc; background:#6f553b; }
 .join-raidguild:focus-visible { outline:2px solid #fff2cc; outline-offset:3px; }
+
+.cockpit-radio-controls { display:none; border-top:1px solid #fff0ca33; margin-top:16px; }
+.cockpit-view .cockpit-radio-controls { display:block; }
+
+.audio-description { color:#eabd84; font-size:10px; margin:14px 0 0; }
+
+#radio-channel:focus-visible { outline:2px solid #fff2cc; outline-offset:3px; }
+.radio-display { padding:10px; margin:10px 0 0; border-radius:5px; background:#151e1b; color:#dab979; font:11px monospace; letter-spacing:.04em; }
+
+.radio-stations { display:flex; justify-content:space-between; color:#eabd84; font:10px monospace; padding:0 3px; }
