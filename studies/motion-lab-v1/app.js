@@ -2,7 +2,7 @@
   "use strict";
 
   const names = {
-    stamp: "Stamp wipe",
+    stamp: "Stamp reveal",
     ink: "Stamp to ink",
     split: "Blade split",
     fade: "Fade through",

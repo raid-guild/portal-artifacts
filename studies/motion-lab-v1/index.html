@@ -18,11 +18,7 @@
     <header class="masthead">
       <a class="brand" href="#stage" aria-label="Motion Lab home">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64" role="img">
-            <path d="m13 10 11 3 24 29-6 6-24-29-5-9Z" />
-            <path d="m51 10-11 3-24 29 6 6 24-29 5-9Z" />
-            <path d="M9 51h18M37 51h18" />
-          </svg>
+          <img src="raidguild-stamp.svg" alt="" />
         </span>
         <span><strong>RAID</strong>GUILD <small>Motion Lab · v1</small></span>
       </a>
@@ -120,7 +116,7 @@
           </p>
           <div class="motion-readout" aria-live="polite" aria-atomic="true">
             <span class="readout-dot"></span>
-            <span id="motion-status">Ready · Stamp wipe · 1100 ms</span>
+            <span id="motion-status">Ready · Stamp reveal · 1100 ms</span>
           </div>
         </div>
 
@@ -130,8 +126,8 @@
             <label class="recipe-card is-selected">
               <input type="radio" name="recipe" value="stamp" checked />
               <span class="recipe-number">A / PRIMARY</span>
-              <strong>Guild stamp wipe</strong>
-              <small>Swords converge, the mark holds, then the next surface is revealed.</small>
+              <strong>Guild stamp reveal</strong>
+              <small>The official mark holds, then its expanding silhouette reveals the next surface.</small>
             </label>
             <label class="recipe-card">
               <input type="radio" name="recipe" value="ink" />
@@ -190,12 +186,21 @@
       <div class="transition-panel panel-left"></div>
       <div class="transition-panel panel-right"></div>
       <div class="ink-field"></div>
+      <svg class="stamp-mask" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <filter id="stamp-mask-black" color-interpolation-filters="sRGB">
+            <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+          </filter>
+          <mask id="stamp-reveal-mask" x="0" y="0" width="1000" height="1000" maskUnits="userSpaceOnUse" style="mask-type: luminance">
+            <rect width="1000" height="1000" fill="white" />
+            <image class="stamp-mask-image" href="raidguild-stamp.svg" x="444" y="447.5" width="112" height="105" filter="url(#stamp-mask-black)" />
+          </mask>
+        </defs>
+        <rect class="stamp-mask-surface" width="1000" height="1000" mask="url(#stamp-reveal-mask)" />
+      </svg>
       <div class="transition-stamp">
         <span class="stamp-ring"></span>
-        <svg class="stamp-swords" viewBox="0 0 180 180">
-          <path class="sword sword-left" d="M30 20 53 31l50 75-13 13-55-70-5-29Zm53 99-19 25m-9-11 21 21" />
-          <path class="sword sword-right" d="m150 20-23 11-50 75 13 13 55-70 5-29Zm-53 99 19 25m9-11-21 21" />
-        </svg>
+        <img class="stamp-swords" src="raidguild-stamp.svg" alt="" />
         <span class="stamp-copy">RAIDGUILD <small>CROSSING</small></span>
       </div>
     </div>

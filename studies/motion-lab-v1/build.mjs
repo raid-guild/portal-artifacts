@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const outputDirectory = join(sourceDirectory, "..", "..", "public", "motion-lab-v1");
-const publicFiles = ["index.html", "styles.css", "app.js"];
+const publicFiles = ["index.html", "styles.css", "app.js", "raidguild-stamp.svg"];
 
 await mkdir(outputDirectory, { recursive: true });
 await Promise.all(
