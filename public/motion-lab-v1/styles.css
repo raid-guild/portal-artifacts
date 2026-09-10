@@ -42,8 +42,13 @@ button, select { color: inherit; }
 button { cursor: pointer; }
 
 :focus-visible {
-  outline: 3px solid var(--scroll-mid);
+  outline: 3px solid var(--moloch-deep);
   outline-offset: 4px;
+}
+
+.masthead :focus-visible,
+.stage :focus-visible {
+  outline-color: var(--scroll-mid);
 }
 
 .skip-link {

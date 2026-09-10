@@ -10,6 +10,7 @@
 
   const root = document.documentElement;
   const body = document.body;
+  const stage = document.querySelector("#stage");
   const layer = document.querySelector("[data-transition-layer]");
   const scenes = [...document.querySelectorAll("[data-scene]")];
   const destinations = [...document.querySelectorAll("[data-destination]")];
@@ -71,6 +72,7 @@
 
     document.querySelector(".index-number").textContent = String(activeIndex + 1).padStart(2, "0");
     document.querySelector(".index-line").style.setProperty("--progress", (activeIndex + 1) / scenes.length);
+    stage.setAttribute("aria-labelledby", `scene-${nextScene}-title`);
   }
 
   function runTransition({ label = "Transitioning", reverse = false, atMidpoint, onComplete } = {}) {
