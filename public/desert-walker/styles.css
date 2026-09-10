@@ -89,7 +89,7 @@ h1 {
   right: clamp(1rem, 3vw, 2.5rem);
   bottom: clamp(1rem, 3vw, 2rem);
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: auto auto auto;
   gap: 0.5rem;
   align-items: center;
 }
@@ -252,3 +252,48 @@ h1 {
     transition-duration: 0.01ms !important;
   }
 }
+
+.drive-controls { position:absolute; left:clamp(1rem,3vw,2.5rem); bottom:clamp(1rem,3vw,2rem); z-index:4; color:#fff2cc; font:500 11px system-ui,sans-serif; }
+.drive-pad { display:grid; grid-template-columns:repeat(3,44px); gap:5px; }
+.drive-pad button { border:1px solid #fff0ca66; border-radius:12px; height:42px; background:#2b261e99; color:#fff2cc; font-size:24px; touch-action:none; user-select:none; }
+.drive-pad button:active { background:#95672f; }
+.drive-pad button:first-child { grid-column:2; }
+.drive-pad button:nth-child(2) { grid-column:1; }
+.cockpit-view .title-card { opacity:0; pointer-events:none; }
+@media(max-width:600px) {
+  .controls { grid-template-columns:auto auto; gap:5px; }
+  .controls button { padding:0.6rem; }
+  .drive-controls { left:0.8rem; bottom:0.8rem; }
+  .drive-controls p { max-width:135px; font-size:9px; }
+  .drive-pad { grid-template-columns:repeat(3,36px); gap:4px; }
+  .drive-pad button { height:36px; }
+}
+
+.cockpit-view #scene { cursor:grab; touch-action:none; }
+.cockpit-view #scene.looking { cursor:grabbing; }
+@media(max-width:600px) {
+  .cockpit-view .controls p { display:block; font-size:8px; letter-spacing:0; }
+}
+
+.atmosphere-panel { position:absolute; z-index:5; right:clamp(1rem,3vw,2.5rem); top:clamp(1rem,3vw,2rem); width:260px; padding:16px 18px; border:1px solid #fff0ca44; border-radius:15px; background:#292c2bd9; backdrop-filter:blur(12px); color:#fff2cc; font:12px system-ui,sans-serif; }
+.atmosphere-panel summary { cursor:pointer; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; }
+.atmosphere-panel label { display:flex; justify-content:space-between; gap:8px; margin-top:19px; }
+.atmosphere-panel output { color:#eabd84; font-size:11px; }
+.atmosphere-panel input { width:100%; margin:10px 0 0; accent-color:#e4ab66; cursor:pointer; }
+.atmosphere-panel input:focus-visible { outline:2px solid #fff2cc; outline-offset:4px; }
+@media(max-width:600px) {
+  .atmosphere-panel { width:190px; padding:12px; right:0.8rem; top:0.8rem; }
+  .atmosphere-panel label { flex-wrap:wrap; margin-top:12px; }
+  .atmosphere-panel summary { font-size:10px; }
+  .title-card { max-width:calc(100% - 215px); }
+  .title-card h1 { font-size:26px; }
+}
+
+.sound-row { display:flex; align-items:center; gap:9px; margin-top:16px; }
+.sound-row button { color:#fff2cc; border:1px solid #fff0ca66; background:#6f553b; border-radius:8px; padding:7px 10px; cursor:pointer; white-space:nowrap; font:inherit; }
+.sound-row span { font-size:10px; color:#eabd84; }
+.atmosphere-panel { max-height:calc(100% - 180px); overflow:auto; }
+
+.join-raidguild { display:inline-flex; align-items:center; gap:7px; padding:8px 11px; margin-bottom:4px; border:1px solid #fff0ca55; border-radius:999px; background:#292c2bd9; color:#f5c78a; font:500 11px system-ui,sans-serif; text-decoration:none; }
+.join-raidguild:hover { color:#fff2cc; background:#6f553b; }
+.join-raidguild:focus-visible { outline:2px solid #fff2cc; outline-offset:3px; }

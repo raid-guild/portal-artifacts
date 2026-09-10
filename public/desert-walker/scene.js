@@ -38,7 +38,8 @@
   controls.autoRotate = false;
   controls.update();
 
-  scene.add(new THREE.HemisphereLight(0xb9e2df, 0x6b3821, 1.85));
+  const skyLight = new THREE.HemisphereLight(0xb9e2df, 0x6b3821, 1.85);
+  scene.add(skyLight);
   const sun = new THREE.DirectionalLight(0xffd69b, 3.1);
   sun.position.set(-28, 42, 18);
   sun.castShadow = true;
@@ -534,31 +535,206 @@
     loadingScreen.classList.add("is-complete");
   };
 
-  // Semantic contact anchors are exported with the four leg assemblies.
-  // Raycast the actual triangulated terrain instead of approximating its height.
-  function groundVessel(model) {
-    model.updateMatrixWorld(true);
-    const ray = new THREE.Raycaster();
-    const down = new THREE.Vector3(0, -1, 0);
-    const contacts = [];
-    model.traverse(function (object) {
-      if (object.userData.role === "foot-contact") contacts.push(object);
-    });
-    contacts.forEach(function (contact) {
-      const foot = contact.getWorldPosition(new THREE.Vector3());
-      ray.set(new THREE.Vector3(foot.x, 50, foot.z), down);
-      const hit = ray.intersectObject(terrainSurface)[0];
-      const leg = model.getObjectByName(contact.userData.leg);
-      if (!hit || !leg) throw new Error("Walker foot contact is missing terrain or leg assembly");
-      const offset = hit.point.y - foot.y + 0.025;
-      const position = leg.getWorldPosition(new THREE.Vector3());
-      position.y += offset;
-      leg.position.copy(leg.parent.worldToLocal(position));
-      foot.y += offset;
-      contact.position.copy(contact.parent.worldToLocal(foot));
-    });
-    model.updateMatrixWorld(true);
+  let cockpitMode = false;
+  const cockpitLook = { yaw: 0, pitch: -0.216, pointer: null, x: 0, y: 0 };
+  function endCockpitLook() {
+    const pointer = cockpitLook.pointer;
+    cockpitLook.pointer = null;
+    if (pointer !== null && canvas.hasPointerCapture(pointer)) canvas.releasePointerCapture(pointer);
+    canvas.classList.remove("looking");
   }
+  canvas.addEventListener("pointerdown", function (event) {
+    if (!cockpitMode || cockpitLook.pointer !== null || event.button !== 0) return;
+    event.preventDefault();
+    cockpitLook.pointer = event.pointerId;
+    cockpitLook.x = event.clientX; cockpitLook.y = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+    canvas.classList.add("looking");
+  });
+  canvas.addEventListener("pointermove", function (event) {
+    if (!cockpitMode || cockpitLook.pointer !== event.pointerId) return;
+    const sensitivity = Math.PI / Math.max(320, Math.min(innerWidth, innerHeight));
+    cockpitLook.yaw -= (event.clientX-cockpitLook.x)*sensitivity;
+    cockpitLook.pitch = THREE.MathUtils.clamp(cockpitLook.pitch + (event.clientY-cockpitLook.y)*sensitivity, -1.22, 1.22);
+    cockpitLook.x = event.clientX; cockpitLook.y = event.clientY;
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) {
+    canvas.addEventListener(type, function (event) {
+      if (cockpitLook.pointer === event.pointerId) endCockpitLook();
+    });
+  });
+  window.addEventListener("blur", endCockpitLook);
+  document.addEventListener("visibilitychange", endCockpitLook);
+  let manualDrive = false;
+  const driveKeys = new Set();
+  const cameraToggle = document.querySelector("#camera-toggle");
+  const driveStatus = document.querySelector("#drive-status");
+  const keyDirections = {KeyW:"forward",ArrowUp:"forward",KeyS:"back",ArrowDown:"back",KeyA:"left",ArrowLeft:"left",KeyD:"right",ArrowRight:"right"};
+  function takeControl() {
+    manualDrive = true; walkEnabled = false; updateWalkButton();
+    driveStatus.textContent = "Manual · Hold arrows or WASD to steer";
+  }
+  window.addEventListener("keydown", function (event) {
+    if (!keyDirections[event.code] || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+    event.preventDefault(); takeControl(); driveKeys.add(keyDirections[event.code]);
+  });
+  window.addEventListener("keyup", function (event) {
+    if (keyDirections[event.code]) { event.preventDefault(); driveKeys.delete(keyDirections[event.code]); }
+  });
+  function releaseDrive() { driveKeys.clear(); }
+  window.addEventListener("blur", releaseDrive);
+  document.addEventListener("visibilitychange", releaseDrive);
+  document.querySelectorAll("[data-drive]").forEach(function (button) {
+    button.addEventListener("pointerdown", function (event) {
+      event.preventDefault(); button.setPointerCapture(event.pointerId);
+      takeControl(); driveKeys.add(button.dataset.drive);
+    });
+    ["pointerup","pointercancel","lostpointercapture"].forEach(function (type) {
+      button.addEventListener(type,function () { driveKeys.delete(button.dataset.drive); });
+    });
+  });
+  function setCockpit(enabled) {
+    endCockpitLook();
+    cockpitMode = enabled;
+    if (enabled) { cockpitLook.yaw = 0; cockpitLook.pitch = -0.216; }
+    resetButton.innerHTML = enabled ? "Center view" : '<span class="button-icon" aria-hidden="true">↺</span> Reset view';
+    controls.enabled = !enabled;
+    camera.fov = enabled ? 74 : 39;
+    camera.near = enabled ? 0.025 : 0.1;
+    cameraToggle.textContent = enabled ? "Exterior view" : "Cockpit view";
+    cameraToggle.setAttribute("aria-pressed",String(enabled));
+    document.body.classList.toggle("cockpit-view",enabled);
+    document.querySelector(".controls p").textContent = enabled ? "Drag to look · Arrows to steer" : "Drag to orbit · Scroll to zoom";
+    if (!enabled) { camera.position.copy(homePosition); controls.target.copy(homeTarget); }
+    resize(); pauseIdleOrbit(1500);
+  }
+  cameraToggle.addEventListener("click", function () { if (vessel) setCockpit(!cockpitMode); });
+  function updateCockpitCamera() {
+    if (!vessel) return;
+    camera.position.copy(vessel.localToWorld(new THREE.Vector3(-2.98,4.0,0.38)));
+    const direction = new THREE.Vector3(
+      -Math.cos(cockpitLook.pitch)*Math.cos(cockpitLook.yaw),
+      Math.sin(cockpitLook.pitch),
+      Math.cos(cockpitLook.pitch)*Math.sin(cockpitLook.yaw)
+    );
+    camera.lookAt(vessel.localToWorld(new THREE.Vector3(-2.98,4.0,0.38).add(direction)));
+  }
+  let walking;
+  let walkEnabled = !reducedMotion;
+  const walkToggle = document.querySelector("#walk-toggle");
+  const groundRay = new THREE.Raycaster();
+  function footHeight(point) {
+    groundRay.set(new THREE.Vector3(point.x, 50, point.z), new THREE.Vector3(0, -1, 0));
+    const hit = groundRay.intersectObject(terrainSurface)[0];
+    return (hit ? hit.point.y : terrainHeight(point.x, point.z)) + 0.035;
+  }
+
+  function prepareWalking(model) {
+    const legs = [];
+    model.traverse(function (root) {
+      if (!root.userData.articulated) return;
+      const hip = new THREE.Vector3().fromArray(root.userData.restHip);
+      const knee = new THREE.Vector3().fromArray(root.userData.restKnee);
+      const ankle = new THREE.Vector3().fromArray(root.userData.restAnkle);
+      const neutral = ankle.clone(); neutral.y = 0;
+      const planted = model.localToWorld(neutral.clone()); planted.y = footHeight(planted);
+      legs.push({root, hip, knee, ankle, neutral, planted,
+        upper: model.getObjectByName(root.name + "_Upper"),
+        lower: model.getObjectByName(root.name + "_Lower"),
+        foot: model.getObjectByName(root.name + "_Foot"),
+        contact: model.getObjectByName(root.name + "_FootContact"),
+        upperDirection: knee.clone().sub(hip), lowerDirection: ankle.clone().sub(knee)});
+    });
+    if (legs.length !== 4) throw new Error("Walking requires four articulated legs");
+    const order = ["Leg_Front_Port", "Leg_Rear_Starboard", "Leg_Front_Starboard", "Leg_Rear_Port"];
+    legs.sort((a, b) => order.indexOf(a.root.name) - order.indexOf(b.root.name));
+    model.position.y -= model.scale.x * 0.23;
+    walking = {legs, time: 0, step: -1, origin: model.position.clone(), yaw: model.rotation.y};
+    solveWalkingPose();
+  }
+
+  function solveWalkingPose() {
+    vessel.updateMatrixWorld(true);
+    // Lower the chassis on uneven ground before a supporting leg reaches full extension.
+    let supportedHeight = vessel.position.y;
+    walking.legs.forEach(function (leg) {
+      const hipWorld = vessel.localToWorld(leg.hip.clone());
+      const reach = (leg.upperDirection.length() + leg.lowerDirection.length()) * vessel.scale.x * 0.98;
+      const horizontal = Math.hypot(hipWorld.x-leg.planted.x, hipWorld.z-leg.planted.z);
+      const vertical = Math.sqrt(Math.max(0, reach*reach-horizontal*horizontal));
+      supportedHeight = Math.min(supportedHeight, leg.planted.y + leg.ankle.y*vessel.scale.x
+        + vertical - leg.hip.y*vessel.scale.x);
+    });
+    vessel.position.y = supportedHeight;
+    vessel.updateMatrixWorld(true);
+    walking.legs.forEach(function (leg) {
+      const ankle = vessel.worldToLocal(leg.planted.clone()); ankle.y += leg.ankle.y;
+      const direction = ankle.clone().sub(leg.hip);
+      const l1 = leg.upperDirection.length(), l2 = leg.lowerDirection.length();
+      const distance = THREE.MathUtils.clamp(direction.length(), Math.abs(l1-l2)+0.001, l1+l2-0.001);
+      direction.normalize();
+      // Bend toward the original knee, preserving the mechanical elbow direction.
+      const restAxis = leg.ankle.clone().sub(leg.hip).normalize();
+      const pole = leg.upperDirection.clone().addScaledVector(restAxis, -leg.upperDirection.dot(restAxis));
+      pole.addScaledVector(direction, -pole.dot(direction)).normalize();
+      const along = (l1*l1 - l2*l2 + distance*distance)/(2*distance);
+      const knee = leg.hip.clone().addScaledVector(direction, along)
+        .addScaledVector(pole, Math.sqrt(Math.max(0, l1*l1-along*along)));
+      leg.upper.position.copy(leg.hip);
+      leg.upper.quaternion.setFromUnitVectors(leg.upperDirection.clone().normalize(), knee.clone().sub(leg.hip).normalize());
+      leg.lower.position.copy(knee);
+      leg.lower.quaternion.setFromUnitVectors(leg.lowerDirection.clone().normalize(), ankle.clone().sub(knee).normalize());
+      leg.foot.position.copy(ankle);
+      if (leg.contact) leg.contact.position.copy(vessel.worldToLocal(leg.planted.clone()));
+    });
+    vessel.updateMatrixWorld(true);
+  }
+
+  function updateWalking(delta) {
+    if (!walking) return;
+    const throttle = (driveKeys.has("forward") ? 1 : 0) - (driveKeys.has("back") ? 1 : 0);
+    const steering = (driveKeys.has("left") ? 1 : 0) - (driveKeys.has("right") ? 1 : 0);
+    const driving = manualDrive && (throttle !== 0 || steering !== 0);
+    // Finish the lifted foot's step after releasing steering, then stand still.
+    if (!walkEnabled && !driving && (walking.step < 0 || walking.time/1.2-walking.step >= 0.85)) return;
+    const dt = Math.min(delta, 0.05);
+    walking.time += dt;
+    const previous = vessel.position.clone();
+    const speed = manualDrive ? throttle*0.35 : 0.35;
+    vessel.rotation.y += (manualDrive ? steering*0.045 : 0.025)*dt;
+    const forward = new THREE.Vector3(-1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0),vessel.rotation.y);
+    const next = vessel.position.clone().addScaledVector(forward,speed*dt);
+    // Keep manual exploration inside the terrain and lit clearing.
+    if (Math.hypot(next.x,next.z) < 32) { vessel.position.x=next.x; vessel.position.z=next.z; }
+    vessel.position.y = walking.origin.y + terrainHeight(vessel.position.x,vessel.position.z)
+      - terrainHeight(walking.origin.x,walking.origin.z) + Math.sin(walking.time*Math.PI*2/4.8)*0.035;
+    vessel.updateMatrixWorld(true);
+    const step = Math.floor(walking.time/1.2);
+    const phase = (walking.time/1.2)%1;
+    const leg = walking.legs[step%4];
+    if (step !== walking.step) {
+      walking.step = step;
+      leg.start = leg.planted.clone();
+      const landing = leg.neutral.clone(); landing.x -= (manualDrive ? throttle : 1)*0.28;
+      leg.end = vessel.localToWorld(landing);
+      leg.end.y = footHeight(leg.end);
+    }
+    const t = Math.min(phase/0.85, 1);
+    const eased = t*t*(3-2*t);
+    leg.planted.lerpVectors(leg.start,leg.end,eased);
+    leg.planted.y += Math.pow(Math.sin(Math.PI*t),2)*0.58;
+    solveWalkingPose();
+    const follow = vessel.position.clone().sub(previous);
+    camera.position.add(follow); controls.target.add(follow);
+    homeTarget.add(follow); homePosition.add(follow);
+    smokeOrigin.copy(vessel.localToWorld(new THREE.Vector3(2.5,4.7,0)));
+  }
+  function updateWalkButton() {
+    walkToggle.setAttribute("aria-pressed",String(walkEnabled));
+    walkToggle.textContent = walkEnabled ? "Pause walk" : "Auto walk";
+  }
+  walkToggle.addEventListener("click",function () { walkEnabled = !walkEnabled; manualDrive = false; releaseDrive(); driveStatus.textContent = "Hold arrows or WASD to take control"; updateWalkButton(); });
+  updateWalkButton();
 
   function prepareVesselMaterials(model) {
     const prepared = new Set();
@@ -621,7 +797,7 @@
   }
 
   new THREE.GLTFLoader(manager).load(
-    "./assets/walker.glb?v=ae60a5afe106",
+    "./assets/walker.glb?v=55f1723b5f11",
     function (gltf) {
       try {
         vessel = gltf.scene;
@@ -636,7 +812,7 @@
         vessel.position.set(-center.x, terrainHeight(0, 0) - bounds.min.y, -center.z);
         prepareVesselMaterials(vessel);
         scene.add(vessel);
-        groundVessel(vessel);
+        prepareWalking(vessel);
         engineFlame = makeEngineFlame(vessel);
         const fittedBounds = new THREE.Box3().setFromObject(vessel);
         vesselRadius = fittedBounds.getBoundingSphere(new THREE.Sphere()).radius;
@@ -676,6 +852,10 @@
   });
 
   resetButton.addEventListener("click", function () {
+    if (cockpitMode) {
+      cockpitLook.yaw = 0; cockpitLook.pitch = -0.216;
+      endCockpitLook(); updateCockpitCamera(); return;
+    }
     camera.position.copy(homePosition);
     controls.target.copy(homeTarget);
     controls.update();
@@ -687,7 +867,7 @@
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
-    if (vesselRadius) {
+    if (vesselRadius && !cockpitMode) {
       const halfVerticalFov = THREE.MathUtils.degToRad(camera.fov / 2);
       const halfHorizontalFov = Math.atan(Math.tan(halfVerticalFov) * camera.aspect);
       const fitDistance = vesselRadius / Math.sin(Math.min(halfVerticalFov, halfHorizontalFov)) * 1.08;
@@ -707,10 +887,95 @@
   window.addEventListener("resize", resize);
   resize();
 
+  const stormSlider = document.querySelector("#sandstorm");
+  const timeSlider = document.querySelector("#day-time");
+  const weather = { storm: 0.15, hour: 15, time: 0 };
+  // Interpolate an art-directed day rather than snapping between lighting presets.
+  const dayPalette = [
+    [0,0x101d36,0x394960,0x273347,0x768eb9,0x302d3d,0.55,0.32],
+    [5,0x253354,0x95695d,0x62515b,0xa497b8,0x53392d,0.7,0.5],
+    [7,0x8b9ca7,0xe8aa79,0xc99a76,0xffba7b,0x774f35,1.2,2.2],
+    [12,0x66aeb8,0xd8b477,0xc9a36d,0xffe7b9,0x6b3821,1.85,3.1],
+    [16,0x74a8ad,0xddaa71,0xc9a36d,0xffd69b,0x6b3821,1.65,2.8],
+    [18,0x665f83,0xe79860,0xb87d60,0xff9856,0x623633,1.05,2.1],
+    [20,0x1d2c49,0x665775,0x494459,0x9aadd7,0x342e40,0.6,0.42],
+    [24,0x101d36,0x394960,0x273347,0x768eb9,0x302d3d,0.55,0.32]
+  ];
+  function applyAtmosphere() {
+    weather.storm = Number(stormSlider.value)/100;
+    weather.hour = Number(timeSlider.value);
+    const hour = weather.hour, storm = weather.storm;
+    let index=0; while(index<dayPalette.length-2 && hour>dayPalette[index+1][0]) index++;
+    const a=dayPalette[index],b=dayPalette[index+1],t=(hour-a[0])/(b[0]-a[0]);
+    const color = n => new THREE.Color(a[n]).lerp(new THREE.Color(b[n]),t);
+    const night = hour<6 || hour>19;
+    const sand = new THREE.Color(night ? 0x66594c : 0xb78d59);
+    const top=color(1).lerp(sand,storm*0.8), horizon=color(2).lerp(sand,storm*0.85);
+    document.querySelector("#experience").style.background = `linear-gradient(${top.getStyle()} 0%, ${horizon.getStyle()} 75%, ${horizon.getStyle()} 100%)`;
+    scene.fog.color.copy(color(3)).lerp(sand,storm*0.8);
+    scene.fog.density=0.0068+storm*storm*0.025;
+    skyLight.color.copy(color(4)); skyLight.groundColor.copy(color(5));
+    skyLight.intensity=THREE.MathUtils.lerp(a[6],b[6],t)*(1-storm*0.25);
+    sun.color.copy(color(4));sun.intensity=THREE.MathUtils.lerp(a[7],b[7],t)*(1-storm*0.78);
+    const angle=(hour-6)/12*Math.PI;
+    sun.position.set(Math.cos(angle)*42,Math.max(8,Math.sin(angle)*48),18);
+    largeMoon.material.opacity=(night?0.95:0.5)*(1-storm*0.95);
+    smallMoon.material.opacity=(night?0.9:0.45)*(1-storm*0.95);
+    dust.material.opacity=0.12+storm*0.3;
+    sandMaterial.uniforms.tint.value.copy(scene.fog.color);
+    sandMaterial.uniforms.intensity.value=storm;
+    sandGeometry.setDrawRange(0,Math.floor(6000*storm));
+    document.querySelector("#storm-value").textContent = `${Math.round(storm*100)}% · ${storm<0.1?"Clear":storm<0.4?"Breeze":storm<0.75?"Blowing sand":"Sandstorm"}`;
+    const minutes=Math.round(hour*60)%1440;
+    const label=`${String(Math.floor(minutes/60)).padStart(2,"0")}:${String(minutes%60).padStart(2,"0")}`;
+    document.querySelector("#time-value").textContent=label;
+    timeSlider.setAttribute("aria-valuetext",label);
+    stormSlider.setAttribute("aria-valuetext",document.querySelector("#storm-value").textContent);
+  }
+  const sandGeometry=new THREE.BufferGeometry();
+  const sandPositions=new Float32Array(6000*3);
+  for(let i=0;i<sandPositions.length;i+=3) {
+    sandPositions[i]=Math.random()*100-50; sandPositions[i+1]=Math.random()*32-5; sandPositions[i+2]=Math.random()*100-50;
+  }
+  sandGeometry.setAttribute("position",new THREE.BufferAttribute(sandPositions,3));
+  const sandMaterial=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,
+    uniforms:{tint:{value:new THREE.Color()},intensity:{value:0.15},inverseVessel:{value:new THREE.Matrix4()}},
+    vertexShader:`uniform mat4 inverseVessel; varying vec3 cabin;
+      void main(){vec4 world=modelMatrix*vec4(position,1.);cabin=(inverseVessel*world).xyz;
+      vec4 view=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*view;
+      gl_PointSize=clamp(38./max(1.,-view.z),1.,5.);}`,
+    fragmentShader:`uniform vec3 tint;uniform float intensity;varying vec3 cabin;
+      void main(){if(abs(cabin.x)<4.4 && cabin.y>2.3 && cabin.y<4.9 && abs(cabin.z)<1.4)discard;
+      float r=length(gl_PointCoord-vec2(.5));float alpha=(1.-smoothstep(.12,.5,r))*(.22+intensity*.38);
+      gl_FragColor=vec4(tint,alpha);}`
+  });
+  const stormSand=new THREE.Points(sandGeometry,sandMaterial);
+  stormSand.name="Atmosphere_Windblown_Sand";stormSand.frustumCulled=false;scene.add(stormSand);
+  stormSlider.addEventListener("input",applyAtmosphere);
+  timeSlider.addEventListener("input",applyAtmosphere);
+  applyAtmosphere();
+  function updateAtmosphere(delta) {
+    if(vessel) {
+      stormSand.position.set(vessel.position.x,0,vessel.position.z);
+      sandMaterial.uniforms.inverseVessel.value.copy(vessel.matrixWorld).invert();
+    }
+    if(!motionEnabled || weather.storm===0)return;
+    const dt=Math.min(delta,0.05);weather.time+=dt;
+    const wind=(2+weather.storm*18)*(1+Math.sin(weather.time*0.7)*0.22);
+    for(let i=0;i<sandGeometry.drawRange.count*3;i+=3){
+      sandPositions[i]=((sandPositions[i]+50+dt*wind)%100)-50;
+      sandPositions[i+2]=((sandPositions[i+2]+50+dt*wind*0.23)%100)-50;
+    }
+    sandGeometry.attributes.position.needsUpdate=true;
+  }
+
+  const soundscape = window.createWalkerAudio();
   const clock = new THREE.Clock();
   function render() {
     const delta = clock.getDelta();
     const elapsed = clock.elapsedTime;
+    updateWalking(delta);
     if (mixer && motionEnabled) mixer.update(delta);
     if (motionEnabled) {
       dust.rotation.y = elapsed * 0.004;
@@ -738,9 +1003,13 @@
       puff.scale.set(size, size, 1);
       puff.material.opacity = Math.sin(cycle * Math.PI) * 0.24;
     });
+    updateAtmosphere(delta);
     updateEngineFlame(delta);
-    updateIdleCamera(delta);
-    controls.update();
+    if (cockpitMode) updateCockpitCamera();
+    else { updateIdleCamera(delta); controls.update(); }
+    soundscape.update(delta, {storm:weather.storm, cockpit:cockpitMode,
+      walkTime:walking ? walking.time : 0,
+      distance:vessel ? camera.position.distanceTo(vessel.position) : 40});
     renderer.render(scene, camera);
     window.requestAnimationFrame(render);
   }

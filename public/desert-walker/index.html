@@ -24,11 +24,23 @@
         <p class="dek">A survey vessel, somewhere beyond the salt mesas.</p>
       </header>
 
+      <details class="atmosphere-panel" open>
+        <summary>Atmosphere</summary>
+        <label for="sandstorm">Sandstorm <output id="storm-value" for="sandstorm">15% · Breeze</output></label>
+        <input id="sandstorm" type="range" min="0" max="100" step="1" value="15" />
+        <label for="day-time">Time of day <output id="time-value" for="day-time">15:00</output></label>
+        <input id="day-time" type="range" min="0" max="24" step="0.25" value="15" />
+        <div class="sound-row"><button id="sound-toggle" type="button" aria-pressed="false">Sound off</button><span>Wind · Hull · Machinery</span></div>
+        <label for="sound-volume">Volume <output id="volume-value" for="sound-volume">35%</output></label>
+        <input id="sound-volume" type="range" min="0" max="100" step="1" value="35" />
+      </details>
       <aside class="controls" aria-label="Scene controls">
         <button id="motion-toggle" type="button" aria-pressed="true">
           <span class="button-icon" aria-hidden="true">◉</span>
           Drift on
         </button>
+        <button id="walk-toggle" type="button" aria-pressed="true">Pause walk</button>
+        <button id="camera-toggle" type="button" aria-pressed="false">Cockpit view</button>
         <button id="reset-view" type="button">
           <span class="button-icon" aria-hidden="true">↺</span>
           Reset view
@@ -36,6 +48,16 @@
         <p>Drag to orbit · Scroll to zoom</p>
       </aside>
 
+      <aside class="drive-controls" aria-label="Walker steering">
+        <a class="join-raidguild" href="https://portal.raidguild.org" target="_blank" rel="noopener noreferrer">Join RaidGuild <span aria-hidden="true">↗</span></a>
+        <p id="drive-status">Hold arrows or WASD to take control</p>
+        <div class="drive-pad">
+          <button type="button" data-drive="forward" aria-label="Walk forward">↑</button>
+          <button type="button" data-drive="left" aria-label="Turn left">←</button>
+          <button type="button" data-drive="back" aria-label="Walk backward">↓</button>
+          <button type="button" data-drive="right" aria-label="Turn right">→</button>
+        </div>
+      </aside>
       <section id="loading" class="loading" aria-live="polite">
         <span class="loader-mark" aria-hidden="true"></span>
         <p>Waking the survey vessel</p>
@@ -53,6 +75,7 @@
     <script src="./vendor/three.min.js"></script>
     <script src="./vendor/OrbitControls.js"></script>
     <script src="./vendor/GLTFLoader.js"></script>
-    <script src="./scene.js?v=5ca337b7f7fd"></script>
+    <script src="./audio.js?v=0b6958b6a9e4"></script>
+    <script src="./scene.js?v=f4d77292d27b"></script>
   </body>
 </html>
