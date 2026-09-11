@@ -1,7 +1,8 @@
 # Module Gallery Study
 
-An accessible elastic editorial mosaic with in-grid detail expansion and a
-directionally navigable spatial arrangement.
+An accessible 30-module elastic editorial mosaic with responsive 1–8 column
+controls, in-grid detail expansion, and a directionally navigable spatial
+arrangement.
 
 ## Build
 

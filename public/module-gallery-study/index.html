@@ -44,7 +44,7 @@
             <h1 id="page-title">The field<br /><em>responds.</em></h1>
           </div>
           <div class="intro-aside">
-            <p class="intro-copy">Move through a collection that makes room for attention. Each module expands from its place; the rest of the field finds a new rhythm around it.</p>
+            <p class="intro-copy">Move through thirty distinct experiments that make room for attention. Each module expands from its place; the rest of the field finds a new rhythm around it.</p>
             <p class="interaction-note"><span aria-hidden="true">↗</span> Hover to reshape · Select to unfold</p>
           </div>
         </section>
@@ -52,9 +52,16 @@
         <section class="gallery-section" aria-labelledby="gallery-title">
           <div class="section-heading">
             <h2 id="gallery-title">Current collection</h2>
-            <p><span id="module-count">06</span> experiments <span aria-hidden="true">↘</span></p>
+            <div class="collection-tools">
+              <p class="collection-count"><span id="module-count">30</span> experiments <span aria-hidden="true">↘</span></p>
+              <div class="density-control">
+                <label for="column-count">Columns</label>
+                <input id="column-count" type="range" min="3" max="8" value="5" step="1" aria-describedby="column-help" />
+                <output for="column-count" id="column-output">5</output>
+              </div>
+            </div>
           </div>
-          <p class="gallery-help" id="gallery-help">In Spatial view, use the arrow keys to move directionally through the field.</p>
+          <p class="gallery-help" id="gallery-help"><span id="column-help">Choose how many columns fill the gallery. The available range adapts to the viewport.</span> In Spatial view, use the arrow keys to move directionally through the field.</p>
           <div class="gallery" id="gallery" data-gallery aria-describedby="gallery-help"></div>
         </section>
       </main>

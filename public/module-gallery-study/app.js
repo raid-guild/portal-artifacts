@@ -2,19 +2,46 @@
   "use strict";
 
   const modules = [
-    { slug: "signal", title: "Signal Garden", type: "Generative systems", caption: "Signals / drift / attention", description: "A responsive field of small signals that gathers, drifts, and reorganizes around attention without demanding it.", tags: ["Creative code", "Sound", "WebGL"] },
-    { slug: "atlas", title: "Soft Atlas", type: "Spatial archive", caption: "Routes through uncertainty", description: "A map for uncertain territory, pairing hand-drawn geography with a searchable index of stories, routes, and loose ends.", tags: ["Mapping", "Archives", "Research"] },
-    { slug: "relay", title: "Relay / 03", type: "Network study", caption: "Transmission leaves a trace", description: "A compact visualization of how ideas move between people, where transmission leaves a trace and pauses become part of the record.", tags: ["Networks", "Data", "Motion"] },
-    { slug: "ledger", title: "Living Ledger", type: "Editorial tool", caption: "Context is the record", description: "A public notebook that treats budgets, decisions, and context as one continuous editorial object instead of separate reports.", tags: ["Publishing", "Governance", "Type"] },
-    { slug: "orbit", title: "Near Orbit", type: "Ambient interface", caption: "For what matters later", description: "A quiet peripheral interface for things that matter later: slow signals, shared observations, and work still finding its shape.", tags: ["Ambient UI", "Prototype", "3D"] },
-    { slug: "commons", title: "Common Ground", type: "Civic platform", caption: "Questions before answers", description: "A lightweight meeting surface designed to make shared questions visible before a group rushes toward answers.", tags: ["Community", "Participation", "Tools"] },
+    { slug: "signal", title: "Signal Garden", type: "Generative systems", caption: "Signals / drift / attention", description: "A responsive field of small signals that gathers, drifts, and reorganizes around attention without demanding it.", tags: ["Creative code", "Sound", "WebGL"], format: "feature", typeStyle: "serif" },
+    { slug: "atlas", title: "Soft Atlas", type: "Spatial archive", caption: "Routes through uncertainty", description: "A map for uncertain territory, pairing hand-drawn geography with a searchable index of stories, routes, and loose ends.", tags: ["Mapping", "Archives", "Research"], format: "wide", typeStyle: "italic" },
+    { slug: "relay", title: "Relay / 03", type: "Network study", caption: "Transmission leaves a trace", description: "A compact visualization of how ideas move between people, where transmission leaves a trace and pauses become part of the record.", tags: ["Networks", "Data", "Motion"], format: "standard", typeStyle: "mono" },
+    { slug: "ledger", title: "Living Ledger", type: "Editorial tool", caption: "Context is the record", description: "A public notebook that treats budgets, decisions, and context as one continuous editorial object instead of separate reports.", tags: ["Publishing", "Governance", "Type"], format: "tall", typeStyle: "serif" },
+    { slug: "orbit", title: "Near Orbit", type: "Ambient interface", caption: "For what matters later", description: "A quiet peripheral interface for things that matter later: slow signals, shared observations, and work still finding its shape.", tags: ["Ambient UI", "Prototype", "3D"], format: "wide", typeStyle: "display" },
+    { slug: "commons", title: "Common Ground", type: "Civic platform", caption: "Questions before answers", description: "A lightweight meeting surface designed to make shared questions visible before a group rushes toward answers.", tags: ["Community", "Participation", "Tools"], format: "compact", typeStyle: "sans" },
+    { slug: "tide", title: "Tidal Memory", type: "Data portrait", caption: "The archive breathes", description: "A tidal portrait of collective memory where records surface, recede, and return with new relationships attached.", tags: ["Data", "Memory", "Visualization"], format: "tall", typeStyle: "italic" },
+    { slug: "loom", title: "Protocol Loom", type: "Coordination study", caption: "Rules become texture", description: "A tactile model of shared protocols, weaving permissions and handoffs into a pattern people can read at a glance.", tags: ["Protocols", "Coordination", "Systems"], format: "standard", typeStyle: "mono" },
+    { slug: "afterimage", title: "Afterimage FM", type: "Sonic essay", caption: "Tune the residual", description: "A browser radio assembled from residual tones, field recordings, and the quiet static between remembered places.", tags: ["Audio", "Essay", "Broadcast"], format: "feature", typeStyle: "display" },
+    { slug: "index", title: "Unfinished Index", type: "Research tool", caption: "Entries resist closure", description: "An index that foregrounds omissions and contradictions, keeping research open to revision instead of forcing completion.", tags: ["Research", "Taxonomy", "Publishing"], format: "compact", typeStyle: "serif" },
+    { slug: "chorus", title: "Small Chorus", type: "Participatory audio", caption: "Many voices / one room", description: "A shared vocal instrument where short contributions overlap into a changing, collectively authored atmosphere.", tags: ["Voice", "Participation", "Sound"], format: "wide", typeStyle: "italic" },
+    { slug: "fieldnotes", title: "Field Notes 11", type: "Mobile notebook", caption: "Observed in motion", description: "A pocket notebook for observations made between destinations, tuned for fragments, sketches, and locationless context.", tags: ["Mobile", "Notes", "Fieldwork"], format: "standard", typeStyle: "mono" },
+    { slug: "threshold", title: "Threshold Weather", type: "Ambient display", caption: "A forecast for change", description: "A slow display that translates organizational pressure into weather without pretending uncertainty is a number.", tags: ["Climate", "Ambient", "Organizations"], format: "tall", typeStyle: "display" },
+    { slug: "kiln", title: "Open Kiln", type: "Learning platform", caption: "Practice under heat", description: "A studio for learning in public, where drafts, critique, and repeated attempts remain visible beside finished work.", tags: ["Learning", "Practice", "Community"], format: "feature", typeStyle: "serif" },
+    { slug: "braid", title: "Three-Part Braid", type: "Narrative system", caption: "Stories cross and return", description: "Three accounts unfold in parallel, crossing at shared events while preserving the friction between their perspectives.", tags: ["Narrative", "Archives", "Interface"], format: "standard", typeStyle: "italic" },
+    { slug: "weather", title: "Local Weather", type: "Community sensor", caption: "Conditions, collectively", description: "A neighborhood sensor assembled from human reports, making room for felt conditions that instruments overlook.", tags: ["Civic tech", "Sensors", "Care"], format: "wide", typeStyle: "sans" },
+    { slug: "interval", title: "Useful Interval", type: "Time study", caption: "Pause has a shape", description: "A set of temporal tools for protecting the useful interval between response, decision, and irreversible action.", tags: ["Time", "Tools", "Governance"], format: "compact", typeStyle: "mono" },
+    { slug: "beacon", title: "Quiet Beacon", type: "Presence signal", caption: "Visible without urgency", description: "A low-pressure presence signal for distributed teams that communicates availability without manufacturing urgency.", tags: ["Presence", "Remote work", "Signals"], format: "tall", typeStyle: "display" },
+    { slug: "lattice", title: "Care Lattice", type: "Mutual-aid map", caption: "Support has structure", description: "A privacy-minded map of mutual support that reveals capacity and connection while resisting extractive profiles.", tags: ["Care", "Mapping", "Privacy"], format: "feature", typeStyle: "serif" },
+    { slug: "murmur", title: "Public Murmur", type: "Listening space", caption: "Soft signals accumulate", description: "An anonymous listening space where small concerns can accumulate into patterns without becoming a popularity contest.", tags: ["Listening", "Public space", "Moderation"], format: "standard", typeStyle: "italic" },
+    { slug: "archive", title: "Archive of Maybe", type: "Speculative catalog", caption: "Evidence for alternatives", description: "A catalog of proposals that never happened, treating unrealized futures as evidence rather than failure.", tags: ["Speculation", "Catalog", "Futures"], format: "wide", typeStyle: "display" },
+    { slug: "switchyard", title: "Switchyard", type: "Workflow model", caption: "Handoffs become legible", description: "A visual switchyard for complex collaborations, showing where work waits, forks, returns, and changes hands.", tags: ["Workflow", "Operations", "Networks"], format: "tall", typeStyle: "mono" },
+    { slug: "pollen", title: "Pollen Office", type: "Distributed studio", caption: "Ideas travel lightly", description: "A playful studio model for distributing tiny prompts that cross-pollinate work without central assignment.", tags: ["Studio", "Prompts", "Networks"], format: "compact", typeStyle: "sans" },
+    { slug: "nightshift", title: "Night Shift", type: "Maintenance log", caption: "Care after closing", description: "A luminous record of invisible maintenance: the fixes, checks, and acts of care that happen after closing.", tags: ["Maintenance", "Labor", "Logging"], format: "feature", typeStyle: "display" },
+    { slug: "measure", title: "Counter Measure", type: "Metrics critique", caption: "Count what escapes", description: "A counter-dashboard that pairs every metric with what it excludes, delays, or quietly changes through observation.", tags: ["Metrics", "Ethics", "Data"], format: "standard", typeStyle: "mono" },
+    { slug: "vessel", title: "Borrowed Vessel", type: "Object archive", caption: "Use leaves a contour", description: "An object archive organized by traces of use, repair, lending, and the stories carried between temporary keepers.", tags: ["Objects", "Repair", "Archives"], format: "tall", typeStyle: "serif" },
+    { slug: "assembly", title: "Assembly Line", type: "Decision theater", caption: "A room for dissent", description: "A decision space that gives proposals, objections, and unresolved tensions equal visual weight before a vote.", tags: ["Decisions", "Facilitation", "Governance"], format: "wide", typeStyle: "sans" },
+    { slug: "echo", title: "Echo Practice", type: "Conversation tool", caption: "Return before reply", description: "A conversation tool that asks participants to reflect what they heard before adding a new position.", tags: ["Dialogue", "Reflection", "Practice"], format: "compact", typeStyle: "italic" },
+    { slug: "wayfinder", title: "Wayfinder Zero", type: "Orientation system", caption: "Begin from where you are", description: "An orientation system that starts with present constraints and relationships instead of an idealized destination.", tags: ["Orientation", "Strategy", "Mapping"], format: "feature", typeStyle: "display" },
+    { slug: "aperture", title: "Shared Aperture", type: "Collective camera", caption: "Attention edits the frame", description: "A collective camera whose framing emerges from many partial views, revealing how attention edits every record.", tags: ["Imaging", "Collective", "Perception"], format: "wide", typeStyle: "serif" },
   ];
 
   const gallery = document.querySelector("[data-gallery]");
+  const columnInput = document.querySelector("#column-count");
+  const columnOutput = document.querySelector("#column-output");
   const viewStatus = document.querySelector("#view-status");
   const viewButtons = [...document.querySelectorAll("[data-view-option]")];
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const mobileQuery = window.matchMedia("(max-width: 600px)");
+  const mobileQuery = window.matchMedia("(max-width: 700px)");
+  const columnPreferences = { desktop: 5, mobile: 2 };
   let activeModule = null;
   let peekedModule = null;
   let spatialScene = null;
@@ -37,6 +64,8 @@
     const detailId = `module-detail-${index + 1}`;
     detail.className = "module-detail";
     detail.id = detailId;
+    detail.setAttribute("role", "region");
+    detail.setAttribute("aria-labelledby", `${detailId}-title`);
     detail.hidden = true;
 
     const back = document.createElement("button");
@@ -77,7 +106,7 @@
 
   modules.forEach((module, index) => {
     const card = document.createElement("article");
-    card.className = "module";
+    card.className = `module format-${module.format} type-${module.typeStyle}`;
     card.dataset.moduleIndex = String(index);
 
     const inner = document.createElement("div");
@@ -105,8 +134,42 @@
   });
 
   const cards = [...gallery.querySelectorAll(".module")];
+  document.querySelector("#module-count").textContent = String(modules.length).padStart(2, "0");
+
+  function columnMode() {
+    return mobileQuery.matches ? "mobile" : "desktop";
+  }
+
+  function applyColumns(value, announce = true) {
+    const mode = columnMode();
+    const min = mode === "mobile" ? 1 : 3;
+    const max = mode === "mobile" ? 3 : 8;
+    const columns = Math.max(min, Math.min(max, Number(value)));
+    columnPreferences[mode] = columns;
+    columnInput.min = String(min);
+    columnInput.max = String(max);
+    columnInput.value = String(columns);
+    columnInput.setAttribute("aria-valuetext", `${columns} ${columns === 1 ? "column" : "columns"}`);
+    columnOutput.value = String(columns);
+    columnOutput.textContent = String(columns);
+    animateLayout(() => {
+      clearPeek(false);
+      gallery.style.setProperty("--columns", String(columns));
+      gallery.dataset.columns = String(columns);
+    });
+    if (announce) {
+      const selected = activeModule ? ` ${modules[Number(activeModule.dataset.moduleIndex)].title} remains open.` : "";
+      viewStatus.textContent = `Gallery arranged in ${columns} ${columns === 1 ? "column" : "columns"}.${selected}`;
+    }
+  }
+
+  function syncColumnRange(announce = false) {
+    const mode = columnMode();
+    applyColumns(columnPreferences[mode], announce);
+  }
 
   function animateLayout(mutate) {
+    cards.forEach((card) => card.getAnimations().forEach((animation) => animation.cancel()));
     const before = new Map(cards.map((card) => [card, card.getBoundingClientRect()]));
     mutate();
     if (motionQuery.matches) return;
@@ -131,10 +194,13 @@
     });
   }
 
+  columnInput.addEventListener("input", () => applyColumns(columnInput.value));
+
   function clearPeek(animate = true) {
     if (!peekedModule) return;
     const mutate = () => {
       peekedModule?.classList.remove("is-peek");
+      cards.forEach((card) => card.classList.remove("is-neighbor"));
       peekedModule = null;
       gallery.classList.remove("has-peek");
     };
@@ -145,7 +211,12 @@
     if (activeModule || card === peekedModule || mobileQuery.matches) return;
     animateLayout(() => {
       peekedModule?.classList.remove("is-peek");
+      cards.forEach((item) => item.classList.remove("is-neighbor"));
       peekedModule = card;
+      const index = cards.indexOf(card);
+      cards.forEach((item, itemIndex) => {
+        if (itemIndex > index && itemIndex <= index + 2) item.classList.add("is-neighbor");
+      });
       card.classList.add("is-peek");
       gallery.classList.add("has-peek");
     });
@@ -366,10 +437,12 @@
     }
   });
   mobileQuery.addEventListener?.("change", () => {
+    syncColumnRange(true);
     syncMobileDetailIsolation();
     if (activeModule && mobileQuery.matches && !activeModule.contains(document.activeElement)) {
       activeModule.querySelector("[data-close-detail]").focus({ preventScroll: true });
     }
   });
+  syncColumnRange(false);
   setView("editorial", false);
 })();
