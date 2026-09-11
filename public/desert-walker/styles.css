@@ -304,3 +304,37 @@ h1 {
 .radio-display { padding:10px; margin:10px 0 0; border-radius:5px; background:#151e1b; color:#dab979; font:11px monospace; letter-spacing:.04em; }
 
 .radio-stations { display:flex; justify-content:space-between; color:#eabd84; font:10px monospace; padding:0 3px; }
+/* Compact instrument dials on every screen size. */
+.atmosphere-panel { width:220px; padding:14px; max-height:calc(100% - 100px); }
+.dial-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 6px; margin-top:18px; }
+.dial-button { appearance:none; border:0; padding:4px; background:none; color:#f8e4ba; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; font:11px system-ui,sans-serif; min-width:0; }
+.dial-face { display:block; width:46px; height:46px; border-radius:50%; border:2px solid #ac8f60; background:radial-gradient(circle at 35% 28%,#657068,#323b35 65%); box-shadow:0 3px 0 #121914,0 0 0 4px #151d18; position:relative; transform:rotate(var(--dial-angle)); }
+.dial-pointer { position:absolute; width:3px; height:13px; top:4px; left:20px; background:#f0c17b; border-radius:3px; }
+.dial-value { color:#eabd84; font:10px monospace; min-height:12px; }
+.dial-button:hover .dial-face,.dial-button[aria-expanded=true] .dial-face { border-color:#ffdb9e; box-shadow:0 3px 0 #121914,0 0 0 4px #635035; }
+.dial-button:focus-visible { outline:2px solid #f0c17b; border-radius:8px; }
+.dial-hint { font:10px system-ui,sans-serif; text-align:center; color:#d0b98f; margin:14px 0 0; }
+.radio-dial { display:none; }.cockpit-view .radio-dial { display:flex; }
+.settings-actions { display:grid; gap:7px; margin-top:16px; border-top:1px solid #fff0ca33; padding-top:12px; }
+.settings-actions button,.camera-access { border:1px solid #fff0ca55; border-radius:20px; background:#292c2be8; padding:10px 12px; color:#fff2cc; cursor:pointer; font:11px system-ui,sans-serif; }
+.dial-popup { position:fixed; z-index:10; width:44px; height:163px; padding:8px 4px; border:1px solid #b4986a; border-radius:24px; background:#242d27f5; box-shadow:0 4px 12px #0005; }
+.dial-popup[hidden],.dial-popup label,.dial-popup output,.dial-popup .radio-display { display:none; }
+.dial-popup input[type=range] { writing-mode:vertical-lr; direction:rtl; width:34px; height:145px; margin:0; display:block; accent-color:#e6b979; cursor:ns-resize; touch-action:none; }
+.dial-popup input:focus-visible { outline:1px solid #e6b979; outline-offset:2px; border-radius:18px; }
+@media(max-width:600px) {
+ .atmosphere-panel { right:12px; top:max(12px,env(safe-area-inset-top)); width:200px; max-height:calc(100% - 145px); }
+ .atmosphere-panel:not([open]) { width:112px; }
+ .camera-access { position:absolute; z-index:6; top:max(12px,env(safe-area-inset-top)); left:12px; min-height:42px; }
+ .title-card { top:78px; max-width:calc(100% - 32px); pointer-events:none; }
+ .title-card h1 { font-size:30px; }
+ .title-card .eyebrow { font-size:9px; }
+ .drive-controls { bottom:calc(92px + env(safe-area-inset-bottom)); }
+ .controls { display:none; }
+ .dial-grid { gap:10px 4px; }
+}
+
+.dial-button { touch-action:none; user-select:none; cursor:ns-resize; }
+.dial-button.dial-dragging { cursor:grabbing; }
+
+.radio-dial-row { display:none; grid-column:1 / -1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; border-top:1px solid #fff0ca33; margin-top:2px; padding-top:14px; }
+.cockpit-view .radio-dial-row { display:grid; }

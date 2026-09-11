@@ -364,7 +364,16 @@
   let flameTime = 0;
   let vesselRadius = 0;
   const smokeOrigin = new THREE.Vector3(5.6, 7.7, -1.6);
-  let motionEnabled = !reducedMotion;
+  let cameraDriftEnabled = !reducedMotion;
+  // Camera drift never pauses the environment. Respect reduced motion until
+  // the visitor explicitly enables an animated weather effect with its slider.
+  let effectsEnabled = !reducedMotion;
+  let effectsTime = 0;
+  ["#sandstorm", "#meteor-intensity"].forEach(function (selector) {
+    document.querySelector(selector).addEventListener("input",function () {
+      if (Number(this.value)>0) effectsEnabled = true;
+    });
+  });
   const idleOrbit = {
     interacting: false,
     resumeAt: 0,
@@ -390,7 +399,7 @@
   });
 
   function updateIdleCamera(delta) {
-    if (!vessel || !motionEnabled || idleOrbit.interacting || performance.now() < idleOrbit.resumeAt) return;
+    if (!vessel || !cameraDriftEnabled || idleOrbit.interacting || performance.now() < idleOrbit.resumeAt) return;
     const orbit = idleOrbit.spherical.setFromVector3(idleOrbit.offset.copy(camera.position).sub(controls.target));
     if (idleOrbit.rebase) {
       idleOrbit.radius = orbit.radius;
@@ -514,7 +523,7 @@
 
   function updateEngineFlame(delta) {
     if (!engineFlame) return;
-    if (motionEnabled) flameTime += Math.min(delta, 0.05);
+    if (effectsEnabled) flameTime += Math.min(delta, 0.05);
     engineFlame.time.value = flameTime;
     const pulse = Math.sin(flameTime * 6.3) * 0.045 + Math.sin(flameTime * 10.7) * 0.025;
     engineFlame.outer.scale.x = 1 + pulse;
@@ -846,13 +855,13 @@
     }
   );
 
-  motionToggle.setAttribute("aria-pressed", String(motionEnabled));
-  motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Drift ${motionEnabled ? "on" : "off"}`;
+  motionToggle.setAttribute("aria-pressed", String(cameraDriftEnabled));
+  motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Camera drift ${cameraDriftEnabled ? "on" : "off"}`;
   motionToggle.addEventListener("click", function () {
-    motionEnabled = !motionEnabled;
+    cameraDriftEnabled = !cameraDriftEnabled;
     pauseIdleOrbit(500);
-    motionToggle.setAttribute("aria-pressed", String(motionEnabled));
-    motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Drift ${motionEnabled ? "on" : "off"}`;
+    motionToggle.setAttribute("aria-pressed", String(cameraDriftEnabled));
+    motionToggle.innerHTML = `<span class="button-icon" aria-hidden="true">◉</span>Camera drift ${cameraDriftEnabled ? "on" : "off"}`;
   });
 
   resetButton.addEventListener("click", function () {
@@ -868,7 +877,9 @@
 
   function resize() {
     const width = window.innerWidth;
-    const height = window.innerHeight;
+    const viewport = window.visualViewport;
+    const height = viewport && viewport.scale === 1 ? Math.round(viewport.height) : window.innerHeight;
+    document.querySelector("#experience").style.height = height + "px";
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     if (vesselRadius && !cockpitMode) {
@@ -889,6 +900,7 @@
   }
 
   window.addEventListener("resize", resize);
+  if(window.visualViewport) window.visualViewport.addEventListener("resize", resize);
   resize();
 
   const stormSlider = document.querySelector("#sandstorm");
@@ -976,7 +988,8 @@
       stormSand.position.copy(camera.position);
       sandMaterial.uniforms.inverseVessel.value.copy(vessel.matrixWorld).invert();
     }
-    if(!motionEnabled || weather.storm===0)return;
+    stormSand.visible=effectsEnabled && weather.storm>0;
+    if(!effectsEnabled || weather.storm===0)return;
     const dt=Math.min(delta,0.05);weather.time+=dt;
     const wind=(2+weather.storm*18)*(1+Math.sin(weather.time*0.7)*0.22);
     for(let i=0;i<sandGeometry.drawRange.count*3;i+=3){
@@ -991,10 +1004,11 @@
   const clock = new THREE.Clock();
   function render() {
     const delta = clock.getDelta();
-    const elapsed = clock.elapsedTime;
+    if(effectsEnabled) effectsTime += Math.min(delta,0.05);
+    const elapsed = effectsTime;
     updateWalking(delta);
-    if (mixer && motionEnabled) mixer.update(delta);
-    if (motionEnabled) {
+    if (mixer && effectsEnabled) mixer.update(delta);
+    if (effectsEnabled) {
       dust.rotation.y = elapsed * 0.004;
       birds.position.x = -46 + ((elapsed * 1.05) % 32);
       birds.children.forEach(function (bird, index) {
@@ -1010,7 +1024,7 @@
       flagPositions.needsUpdate = true;
     }
     smoke.forEach(function (puff, index) {
-      const cycle = (elapsed * (motionEnabled ? 0.08 : 0) + puff.userData.phase) % 1;
+      const cycle = (elapsed * 0.08 + puff.userData.phase) % 1;
       puff.position.set(
         smokeOrigin.x + Math.sin(cycle * 8 + index) * 0.5 + cycle * 1.6,
         smokeOrigin.y + cycle * 8.5,
@@ -1020,7 +1034,7 @@
       puff.scale.set(size, size, 1);
       puff.material.opacity = Math.sin(cycle * Math.PI) * 0.24;
     });
-    meteorShower.update(delta, motionEnabled);
+    meteorShower.update(delta, effectsEnabled);
     updateAtmosphere(delta);
     if(headlights)headlights.update(weather.storm,weather.hour);
     updateEngineFlame(delta);
