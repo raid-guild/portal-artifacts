@@ -208,6 +208,7 @@ body[data-view="spatial"] .module-detail { background: #f8f6ee; color: #171715; 
   .module:nth-child(1), .module:nth-child(5), body[data-view="spatial"] .module:nth-child(1), body[data-view="spatial"] .module:nth-child(5) { height: 94vw; max-height: 520px; }
   .gallery.has-peek .module:not(.is-peek), .gallery.has-peek .module.is-peek { height: auto; }
   .gallery.has-peek .module.is-peek { min-height: 112vw; }
+  .gallery.has-open { perspective: none; }
   .gallery.has-open .module:not(.is-open) { display: none; }
   .module.is-open, body[data-view="spatial"] .module.is-open { background: var(--paper-bright); height: 100dvh; inset: 0; margin: 0; min-height: 100dvh; overflow-y: auto; position: fixed; width: 100vw; z-index: 90; }
   .module.is-open .module-inner { box-shadow: none; height: auto; min-height: 100%; transform: none !important; }
