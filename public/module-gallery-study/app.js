@@ -14,9 +14,11 @@
   const viewStatus = document.querySelector("#view-status");
   const viewButtons = [...document.querySelectorAll("[data-view-option]")];
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const mobileQuery = window.matchMedia("(max-width: 600px)");
   let activeModule = null;
   let peekedModule = null;
   let spatialScene = null;
+  let mobileInertElements = [];
 
   function artwork(module) {
     const art = document.createElement("span");
@@ -140,7 +142,7 @@
   }
 
   function setPeek(card) {
-    if (activeModule || card === peekedModule || window.matchMedia("(max-width: 600px)").matches) return;
+    if (activeModule || card === peekedModule || mobileQuery.matches) return;
     animateLayout(() => {
       peekedModule?.classList.remove("is-peek");
       peekedModule = card;
@@ -155,6 +157,38 @@
   });
   gallery.addEventListener("pointerleave", () => clearPeek());
 
+  function syncMobileDetailIsolation() {
+    mobileInertElements.forEach((element) => { element.inert = false; });
+    mobileInertElements = [];
+    if (!activeModule || !mobileQuery.matches) return;
+
+    const background = document.querySelectorAll(
+      ".skip-link, .masthead, .intro, .section-heading, .gallery-help, footer, .module:not(.is-open)",
+    );
+    background.forEach((element) => {
+      if (!element.inert) {
+        element.inert = true;
+        mobileInertElements.push(element);
+      }
+    });
+  }
+
+  function containMobileDetailFocus(event) {
+    if (event.key !== "Tab" || !activeModule || !mobileQuery.matches) return;
+    const detail = activeModule.querySelector(".module-detail");
+    const focusable = [...detail.querySelectorAll("a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])")]
+      .filter((element) => !element.hidden && element.offsetParent !== null);
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const focused = document.activeElement;
+    if (!detail.contains(focused) || (!event.shiftKey && focused === last) || (event.shiftKey && focused === first)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
+  }
+
   function openDetail(card) {
     if (activeModule === card) return;
     if (activeModule) closeDetail(false);
@@ -168,6 +202,7 @@
       card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "true");
       document.body.classList.add("detail-open");
     });
+    syncMobileDetailIsolation();
     requestAnimationFrame(() => {
       card.scrollIntoView({ behavior: motionQuery.matches ? "auto" : "smooth", block: "center" });
       card.querySelector("[data-close-detail]").focus({ preventScroll: true });
@@ -179,6 +214,8 @@
     if (!activeModule) return;
     const card = activeModule;
     const trigger = card.querySelector("[data-module-trigger]");
+    mobileInertElements.forEach((element) => { element.inert = false; });
+    mobileInertElements = [];
     animateLayout(() => {
       card.querySelector(".module-detail").hidden = true;
       card.classList.remove("is-open");
@@ -198,6 +235,7 @@
     if (event.target.closest("[data-close-detail]")) closeDetail();
   });
   document.addEventListener("keydown", (event) => {
+    containMobileDetailFocus(event);
     if (event.key === "Escape" && activeModule) {
       event.preventDefault();
       closeDetail();
@@ -325,6 +363,12 @@
     if (document.body.dataset.view === "spatial") {
       spatialScene?.stop();
       spatialScene?.start();
+    }
+  });
+  mobileQuery.addEventListener?.("change", () => {
+    syncMobileDetailIsolation();
+    if (activeModule && mobileQuery.matches && !activeModule.contains(document.activeElement)) {
+      activeModule.querySelector("[data-close-detail]").focus({ preventScroll: true });
     }
   });
   setView("editorial", false);
