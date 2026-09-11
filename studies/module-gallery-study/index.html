@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="An interactive study comparing editorial and spatial treatments for a living module gallery." />
+    <meta name="description" content="An elastic editorial mosaic for exploring a living collection of digital modules." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23151210'/%3E%3Cpath d='M16 32h32M32 16v32' stroke='%23ff5a35' stroke-width='6'/%3E%3C/svg%3E" />
-    <title>Module Gallery — View Study</title>
+    <title>Module Gallery — Elastic Editorial Mosaic</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="vendor/three.min.js" defer></script>
     <script src="app.js" defer></script>
@@ -14,23 +14,26 @@
   <body data-view="editorial">
     <a class="skip-link" href="#gallery">Skip to module gallery</a>
     <canvas id="spatial-scene" aria-hidden="true"></canvas>
+
     <div class="page-shell">
       <header class="masthead">
         <a class="wordmark" href="./" aria-label="Module Gallery home">
           <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>Module<br />Gallery</span>
         </a>
-        <div class="view-switcher" aria-label="Gallery view">
-          <span class="view-label">View</span>
+
+        <div class="view-switcher" aria-label="Gallery arrangement">
+          <span class="view-label">Field</span>
           <div class="view-options">
             <button type="button" data-view-option="editorial" aria-pressed="true">
-              <span class="view-icon icon-editorial" aria-hidden="true"></span>Editorial
+              <span class="view-icon icon-editorial" aria-hidden="true"></span>Mosaic
             </button>
             <button type="button" data-view-option="spatial" aria-pressed="false">
-              <span class="view-icon icon-spatial" aria-hidden="true"></span>3D
+              <span class="view-icon icon-spatial" aria-hidden="true"></span>Spatial
             </button>
           </div>
         </div>
+
         <p class="edition">Study 01 <span>•</span> September 2026</p>
       </header>
 
@@ -38,47 +41,37 @@
         <section class="intro" aria-labelledby="page-title">
           <div>
             <p class="eyebrow">A living index of digital practice</p>
-            <h1 id="page-title">Six modules.<br /><em>One field.</em></h1>
+            <h1 id="page-title">The field<br /><em>responds.</em></h1>
           </div>
-          <p class="intro-copy">
-            A comparative study in browsing: move between a flat editorial index
-            and a quiet spatial field, then open any module for its full story.
-          </p>
+          <div class="intro-aside">
+            <p class="intro-copy">Move through thirty distinct experiments that make room for attention. Each module expands from its place; the rest of the field finds a new rhythm around it.</p>
+            <p class="interaction-note"><span aria-hidden="true">↗</span> Hover to reshape · Select to unfold</p>
+          </div>
         </section>
 
-        <section class="gallery-section" id="gallery" aria-labelledby="gallery-title">
+        <section class="gallery-section" aria-labelledby="gallery-title">
           <div class="section-heading">
             <h2 id="gallery-title">Current collection</h2>
-            <p><span id="module-count">06</span> experiments <span aria-hidden="true">↘</span></p>
+            <div class="collection-tools">
+              <p class="collection-count"><span id="module-count">30</span> experiments <span aria-hidden="true">↘</span></p>
+              <div class="density-control">
+                <label for="column-count">Columns</label>
+                <input id="column-count" type="range" min="3" max="8" value="5" step="1" aria-describedby="column-help" />
+                <output for="column-count" id="column-output">5</output>
+              </div>
+            </div>
           </div>
-          <div class="gallery" data-gallery></div>
+          <p class="gallery-help" id="gallery-help"><span id="column-help">Choose how many columns fill the gallery. The available range adapts to the viewport.</span> In Spatial view, use the arrow keys to move directionally through the field.</p>
+          <div class="gallery" id="gallery" data-gallery aria-describedby="gallery-help"></div>
         </section>
       </main>
 
       <footer>
-        <p>Built to compare, not to conclude.</p>
+        <p>Built to move, not to settle.</p>
         <p><span class="status-dot" aria-hidden="true"></span> All systems local</p>
       </footer>
     </div>
 
-    <dialog class="detail-dialog" aria-labelledby="detail-title" aria-describedby="detail-description">
-      <article class="detail-card">
-        <button class="back-button" type="button" data-close-detail><span aria-hidden="true">←</span> Back to gallery</button>
-        <div class="detail-layout">
-          <div class="detail-visual" data-detail-visual aria-hidden="true"></div>
-          <div class="detail-content">
-            <p class="detail-index" data-detail-index></p>
-            <h2 id="detail-title"></h2>
-            <p id="detail-description" class="detail-description"></p>
-            <ul class="detail-tags" data-detail-tags aria-label="Module tags"></ul>
-            <div class="detail-actions">
-              <a data-primary-link target="_blank" rel="noopener noreferrer">Explore project <span aria-hidden="true">↗</span></a>
-              <a data-secondary-link target="_blank" rel="noopener noreferrer">Field notes <span aria-hidden="true">↗</span></a>
-            </div>
-          </div>
-        </div>
-      </article>
-    </dialog>
     <p class="sr-only" id="view-status" aria-live="polite"></p>
   </body>
 </html>
