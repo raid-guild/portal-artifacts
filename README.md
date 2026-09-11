@@ -71,6 +71,8 @@ cp -R dist-railway/. ../../public/portal-motion/
 - `veydrift-mission-explorer/` — Live, read-only explorer for public Veydrift
   missions, including flight path, fleet, cargo, combat results, and contextual
   links to the alliance map. Deep links use `/mission/<id>` beneath this path.
+- `module-gallery-study/` — Switchable editorial and restrained Three.js module
+  gallery with responsive, keyboard-accessible detail views.
 
 ## Veydrift read proxy
 
