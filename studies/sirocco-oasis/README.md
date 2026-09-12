@@ -17,6 +17,7 @@ Open the local URL printed by Vite. For a deployable static build, run `npm run 
 
 - Tap or click the pond for a crown splash, airborne droplets, a Worthington-style central jet, and overlapping return ripples. The water reflects the splash and surrounding landscape.
 - Drag to orbit. Scroll or pinch to approach.
+- **Ship view** approaches Morrow, the ring-shaped water harvester. Start/pause its pumps, adjust the pump rate, then release three full lift balloons toward the moving airship. **Vista** returns to the landscape; harvesting and deliveries continue. Delivery counts reset when the page reloads.
 - **Drift** starts a slow camera journey. Dragging stops it.
 - **Sound** enables a synthesized wind bed and soft water notes. Audio is off until requested.
 - **Reset view** returns to the responsive opening composition.
@@ -40,7 +41,7 @@ Sand sheets are skipped at zero storm and excluded from the reflection pass to k
 
 - `src/main.js` — layout, instancing, toon palette, sky, reflection/ripple shader, wind, dust, clouds, airship path, camera, and synthesized audio.
 - `src/style.css` — responsive overlay controls.
-- `public/models/` — 11 separate GLB assets: basin, three palms, two bushes, spire, mesa, boulders, agave, and airship.
+- `public/models/` — 13 separate GLB assets: basin, three palms, two bushes, spire, mesa, boulders, agave, airship, harvester, and lift balloon.
 - `blender/oasis-assets.blend` — editable original models in a dedicated asset scene. The preexisting Blender scene was preserved.
 - `blender/build_assets.py` — reproducible asset-authoring script. Paths resolve relative to the Blender scripts; no machine-specific directory is needed. Run in Blender with a window context or via the interactive MCP.
 - `blender/palm-preview.png` — prototype render inspected before assembly.
@@ -49,9 +50,9 @@ The scene merges asset primitives by material and instances vegetation and scatt
 
 ## Scope and performance
 
-The airship follows a slow looping path. Camera movement is constrained to the composed vista. This is a stylized scene, not an open-world simulation. Reduced-motion preference disables autonomous airship, foliage gust, cloud, and dust motion; deliberate camera controls and water interactions remain available.
+The airship follows a slow looping path. Camera movement is constrained to the composed vista, with a close orbit around the harvester. This is a stylized scene, not an open-world simulation. Reduced-motion preference disables autonomous airship, foliage gust, cloud, and dust motion; deliberate camera controls and water interactions remain available.
 
-Chrome desktop rendering and interaction checks are included in the development verification. Performance depends on the device and WebGL2 support; a physical low-end mobile GPU has not been benchmarked. The complete GLB library is below 1 MB before transfer compression.
+Chrome desktop rendering and interaction checks are included in the development verification. Performance depends on the device and WebGL2 support; a physical low-end mobile GPU has not been benchmarked. The harvester and reusable balloon add approximately 2.4 MB of GLB data before transfer compression. Material batching keeps their draw calls low.
 
 ## Portal Artifacts deployment
 
@@ -67,6 +68,12 @@ cp -R studies/sirocco-oasis/dist/. public/sirocco-oasis/
 ```
 
 The existing Caddy/Railway service serves the checked-in public build. Keep this stable URL. The Blender files remain in `studies/` and are not publicly served.
+
+## Water harvester
+
+`blender/harvester.blend` and `blender/build_harvester.py` contain the editable model and reproducible authoring script. `src/harvester.js` handles vessel motion, reservoir inflation, pumping rings, and deliveries; `src/harvest-state.js` owns the bounded batch state. Three balloons fill in 18 simulation seconds at 1× pump rate. At most nine vessels can be airborne. Departures are staggered and target the live airship position. The barge is approximately 11% of the lake’s width; Ship view has its own orbit limits and responsive framing.
+
+Run `node tests/harvest-state.test.mjs` from this study to check pause/resume, capacity, delivery timing, repeat cycles, and flight bounds.
 
 ## Splash animation
 
