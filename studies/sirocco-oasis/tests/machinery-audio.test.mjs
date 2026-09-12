@@ -1,7 +1,7 @@
 import {chromium,expect} from '@playwright/test';
 const browser=await chromium.launch({headless:true,channel:'chrome',args:['--no-sandbox','--use-angle=swiftshader']});
 try{
- for(let step=Number(process.env.MACHINERY_STAGE||0);step<5;step++){
+ for(let step=Number(process.env.MACHINERY_STAGE||0);step<Number(process.env.MACHINERY_END||5);step++){
   const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.addInitScript(s=>localStorage.setItem('sirocco.morrow.v2',JSON.stringify({step:s,elapsed:0,fill:s>2?1:0,running:false,rate:1,delivered:0,flights:[]})),step);
@@ -11,6 +11,7 @@ try{
   await page.locator('#ship-view').click();await page.locator('#pump').click();
   await expect.poll(async()=>(await stats()).loaded,{timeout:20000}).toBe(5);await expect.poll(async()=>(await stats()).rms,{timeout:10000}).toBeGreaterThan(.001);
   expect((await stats()).stage).toBe(step);expect((await stats()).loops).toBe(2);expect((await stats()).voices).toBeLessThanOrEqual(12);
+  if(step===2){for(let i=0;i<16;i++){await page.locator('#pump').click();await page.waitForTimeout(70);}await expect.poll(async()=>(await stats()).loops).toBe(2);expect((await stats()).voices).toBeLessThanOrEqual(12);console.log('PASS: rapid start/stop presses retain the running engine layers.');}
   await page.locator('#pump').click();await expect.poll(async()=>(await stats()).loops).toBe(0);
   await page.locator('#machinery-volume').focus();await page.locator('#machinery-volume').press('Home');
   await expect.poll(async()=>(await stats()).rms,{timeout:5000}).toBeLessThan(.0001);
