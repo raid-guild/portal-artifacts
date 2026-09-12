@@ -289,6 +289,7 @@ let selectedId = "raidguild";
 let tourIndex = 0;
 let tourTimer = null;
 let detailPinned = false;
+let detailId = null;
 
 function readStoredTheme() {
   try {
@@ -334,6 +335,7 @@ function renderNodes() {
 
 function renderRoutes() {
   routes.setAttribute("viewBox", "0 0 100 100");
+  routes.setAttribute("preserveAspectRatio", "none");
   routes.innerHTML = EDGES.map(([fromId, toId, type]) => {
     const from = byId.get(fromId);
     const to = byId.get(toId);
@@ -364,6 +366,7 @@ function renderSystem() {
 }
 
 function setDetail(node, announce = false) {
+  detailId = node.id;
   document.querySelector("#detail-index").textContent = `RG—${String(node.order).padStart(2, "0")}`;
   const status = document.querySelector("#detail-status");
   status.textContent = node.status.toUpperCase();
@@ -375,7 +378,7 @@ function setDetail(node, announce = false) {
   document.querySelector("#detail-relation").textContent = node.relation;
   const destination = document.querySelector("#detail-destination");
   destination.innerHTML = node.url
-    ? `<a class="destination-link" href="${node.url}" target="_blank" rel="noreferrer"><span>${node.destination}</span><span aria-hidden="true">↗</span></a>`
+    ? `<a class="destination-link" href="${node.url}" target="_self" rel="noreferrer"><span>${node.destination}</span><span aria-hidden="true">↗</span></a>`
     : `<span class="destination-muted"><span>${node.destination}</span><span aria-hidden="true">—</span></span>`;
   if (announce) announcer.textContent = `${node.label} selected. ${node.status}. ${node.description}`;
 }
@@ -433,7 +436,7 @@ function previewNode(id) {
 
 function restoreSelection() {
   const node = byId.get(selectedId);
-  setDetail(node);
+  if (detailId !== selectedId) setDetail(node);
   setHighlight(selectedId);
   if (!detailPinned) closeDetail();
 }
@@ -483,6 +486,7 @@ function startTour() {
     showTourStep(tourIndex === TOUR.length - 1 ? 0 : tourIndex + 1);
     return;
   }
+  if (tourIndex === TOUR.length - 1) tourIndex = 0;
   tourToggle.setAttribute("aria-pressed", "true");
   tourToggle.querySelector("span:first-child").textContent = "Ⅱ";
   tourToggle.querySelector(".tour-label").textContent = "Pause journey";
