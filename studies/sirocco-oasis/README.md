@@ -23,6 +23,19 @@ Open the local URL printed by Vite. For a deployable static build, run `npm run 
 - **H** hides or shows the interface; **Escape** restores it.
 - Focus the scene and press **Space** for a central ripple; left/right arrow keys adjust the orbit.
 
+## Atmosphere controls
+
+The translucent top-right panel collapses to its title and starts collapsed on phones.
+
+- **Time of day:** 00:00–24:00; adjusts sky, sun position, lighting, fog color, stars, and water brightness.
+- **Sandstorm:** 0–100%; six large procedural rolling cloud sheets and distance haze.
+- **Wind:** 0–100%; controls palm sway, cloud drift, and sand-cloud advection. At zero, wind-driven motion stops.
+- **Texture / grit:** 0–100%; static screen grain plus antialiased close-up ground grain.
+- **Ripple strength:** 0–200%; changes the strength of interactive ripples and previews a ripple as adjusted.
+- **Restore sunset:** restores all five controls without moving the camera.
+
+Sand sheets are skipped at zero storm and excluded from the reflection pass to keep GPU cost bounded. Grain uses one transparent screen pass without another render target. Settings are temporary for the current page session.
+
 ## Files
 
 - `src/main.js` — layout, instancing, toon palette, sky, reflection/ripple shader, wind, dust, clouds, airship path, camera, and synthesized audio.
