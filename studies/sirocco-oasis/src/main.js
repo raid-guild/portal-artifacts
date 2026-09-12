@@ -103,8 +103,8 @@ for(let i=0;i<15;i++)place('mesa',(rand()-.5)*170,-.4,-36-rand()*94,.5+rand()*.7
 place('boulder',-22,-.4,21,4,.4);place('boulder',22,-.3,24,4.8,2);place('boulder',17,-.4,19,2,2.2);
 place('agave',-19,1,23,3.1,0);place('agave',19,1.2,24,3.9,1);place('agave',24,1.5,20,2.4,1.5);place('agave',-23,.5,16,1.7,2.5);place('agave',12,.1,17,1.1,1);
 ship=place('airship',-14,25,-42,1.48);ship.rotation.y=.15;
-harvester=createHarvester({scene,hull:kit.harvester,balloon:kit['water-balloon'],roomModel:kit['control-room'],emitWave,reduced});document.querySelector('#ship-view').disabled=false;
-ready=true;document.querySelector('#loading').classList.add('done');document.querySelector('#loading').setAttribute('aria-hidden','true');window.__oasis={getStats:()=>({ready,ripples:rippleCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,airship:ship.position.toArray(),camera:camera.position.toArray(),time:clockTime}),waterPoint:()=>{const p=new THREE.Vector3(0,.08,0).project(camera);return{x:(p.x+1)/2*innerWidth,y:(1-p.y)/2*innerHeight};}};
+harvester=createHarvester({scene,hull:kit.harvester,balloon:kit['water-balloon'],roomModel:kit['control-room'],emitWave,reduced,camera});document.querySelector('#ship-view').disabled=false;
+ready=true;document.querySelector('#loading').classList.add('done');document.querySelector('#loading').setAttribute('aria-hidden','true');window.__oasis={getStats:()=>({machinery:harvester.sound.stats(),ready,ripples:rippleCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,airship:ship.position.toArray(),camera:camera.position.toArray(),time:clockTime}),waterPoint:()=>{const p=new THREE.Vector3(0,.08,0).project(camera);return{x:(p.x+1)/2*innerWidth,y:(1-p.y)/2*innerHeight};}};
 }catch(e){console.error(e);document.querySelector('#load-status').textContent='The landscape could not load. Please refresh to try again.';}}
 
 const raycaster=new THREE.Raycaster();const pointer=new THREE.Vector2();let down=null;

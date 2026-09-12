@@ -92,3 +92,19 @@ Run `node tests/harvest-state.test.mjs` from this study to check every manual ga
 ## Splash animation
 
 `src/splashes.js` stages a hollow twelve-point crown, outward ballistic droplets, a delayed central jet, a detached tip droplet, and a return wave. It is an art-directed approximation, not a Navier–Stokes fluid simulation. Five reusable splash slots and 125 instanced droplets bound rapid-tap costs; crown/jet geometry is deformed in the vertex shader. Shoreline clipping prevents splash sheets and droplets extending onto the sand. Reduced-motion preference retains surface ripples and omits vertical splashes.
+
+## Recorded machinery sound
+
+Each of the five work stages layers CC0 diesel, generator, ratchet, impact and air-release recordings. The first operator action unlocks Web Audio; there is no sound on page load. **Machinery** is a separate saved volume control, independent of ambient Sound and the cabin radio. Pausing fades the running layers; pressure-test completion vents and dispatch releases the latches. Pump rate changes diesel playback speed. The cabin muffles high frequencies and the vista attenuates the machinery with distance. Low-shelf EQ adds weight, with compression to control layered peaks. Leaving the tab suspends the machinery context.
+
+The five short, mono recordings total about 488 KiB. Three loop seams are crossfaded offline; buffers are decoded once, with two sustained voices per stage and a cap of twelve total voices including fading layers and one-shots. `audio-source/fetch.py` and `prepare.py` reproduce the downloads and edits from the repository root (Python 3 and FFmpeg required). Temporary source recordings are kept in `work/mechanics/` during preparation.
+
+Recording credits (CC0 1.0; also shipped in `public/audio/machinery/credits.json`):
+
+- [Car engine — BeeProductive](https://freesound.org/people/BeeProductive/sounds/395586/)
+- [Diesel Power Generator — qubodup](https://freesound.org/people/qubodup/sounds/189896/)
+- [Clunky Metal Noise — Swedger](https://freesound.org/people/Swedger/sounds/170633/)
+- [Air release — davidlay1](https://freesound.org/people/davidlay1/sounds/416080/)
+- [Turnstile — strikingtwice](https://freesound.org/people/strikingtwice/sounds/260208/)
+
+`node tests/machinery-audio.test.mjs` checks all five stages in Chrome: real nonzero Web Audio output, two running layers, pause, mute/unmute, room/vista mix and no runtime errors. It uses isolated browser contexts and leaves the user's saved shift untouched.

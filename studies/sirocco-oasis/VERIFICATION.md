@@ -28,3 +28,10 @@
 - State suite passes every manual gate, pause/resume, mid-fill/mid-flight restore, bounded flights, the final one-vessel batch and exactly 1,000 deliveries after a simulated full shift.
 - Isolated Chrome browser suite passes stored 123/1000 quota and 42% fill restoration, disabled premature dispatch, actual HTML audio playback in the cabin, immediate radio pause on Deck, silent reload, and no runtime/shader errors.
 - Browser suite: `node tests/browser.test.mjs` (installed Chrome required; local Vite server on 5174 by default, configurable via OASIS_TEST_URL).
+
+## Recorded diesel and mechanical sound
+
+- Five CC0 source pages and recording licenses verified; excerpts and credits ship with the scene. Source clips normalized and loop boundaries crossfaded; encoded sample peaks remain below 0 dBFS.
+- Production build and five-stage harvest state suite pass.
+- Chrome audio checks pass for all five stages: five decoded buffers, nonzero analyser output, exactly two sustained layers, capped total voices, pause, mute to effectively zero output, unmute, cabin filtering and vista attenuation. No runtime errors.
+- Audio is uninitialized on initial load and unlocks on a deliberate work action or Machinery volume adjustment. Machinery volume is independent of the radio and ambience.
