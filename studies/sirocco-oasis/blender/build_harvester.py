@@ -65,7 +65,8 @@ box('Door_glass',(-3.462,0,1.82),(.025,.49,.32),glass,.025)
 for z in (.86,1.02,1.18):box('Access_step',(-2.7,-1.27,z),(.8,.4,.07),dark,.025)
 cyl('Radio_mast',(-3,.48,2.98),.025,1.2,brass,vertices=8);pipe('Aerial',[(-3.45,.48,3.45),(-2.55,.48,3.45)],.016,dark)
 ball('Cabin_beacon',(-2.2,.4,2.59),(.10,.10,.14),light)
-# Exposed rear engine, exhausts, vents and a ducted impeller.
+# Exposed rear engine, shifted port-side clear of the fill cradle.
+engine_before=set(scene.objects)
 box('Engine_cradle',(0,3.01,.95),(1.6,1.52,.5),dark,.12)
 box('Engine_block',(0,3.05,1.38),(1.25,1.25,.58),teal,.15)
 for i in range(6):box('Cooling_fin',(-.53+i*.21,3.02,1.73),(.07,1.0,.09),cream,.018)
@@ -76,6 +77,7 @@ o=ring('Engine_duct',.56,.13,0,teal);o.location=(0,4.01,.45);o.rotation_euler.x=
 cyl('Propeller_hub',(0,4.01,.45),.12,.25,brass,(math.pi/2,0,0))
 for a in (0,math.tau/3,2*math.tau/3):
     o=box('Impeller_blade',(.26*math.cos(a),4.01,.45+.26*math.sin(a)),(.48,.045,.13),dark,.03);o.rotation_euler.y=-a
+for o in set(scene.objects)-engine_before:o.location.x-=1.35;o.location.y-=.35
 # Intake machinery bends into the open water well.
 cyl('Centrifugal_pump',(-1.92,-.65,1.08),.27,.4,teal,(0,math.pi/2,0))
 pipe('Intake_riser',[(-2,-.65,1.04),(-1.5,-.65,1.14),(-1.25,-.55,.6),(-1.25,-.55,-.38)],.12,brass)

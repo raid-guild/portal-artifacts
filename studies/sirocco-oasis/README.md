@@ -17,7 +17,7 @@ Open the local URL printed by Vite. For a deployable static build, run `npm run 
 
 - Tap or click the pond for a crown splash, airborne droplets, a Worthington-style central jet, and overlapping return ripples. The water reflects the splash and surrounding landscape.
 - Drag to orbit. Scroll or pinch to approach.
-- **Ship view** approaches Morrow, the ring-shaped water harvester. Start/pause its pumps, adjust the pump rate, then release three full lift balloons toward the moving airship. **Vista** returns to the landscape; harvesting and deliveries continue. Delivery counts reset when the page reloads.
+- **Ship view** approaches Morrow, the ring-shaped water harvester. Run the five-stage work order from the panel or physical controls. **Control room** takes the operator’s seat; the field receiver is audible only there. **Vista** returns to the landscape; harvesting and deliveries continue. Your shift and quota are saved in this browser.
 - **Drift** starts a slow camera journey. Dragging stops it.
 - **Sound** enables a synthesized wind bed and soft water notes. Audio is off until requested.
 - **Reset view** returns to the responsive opening composition.
@@ -41,7 +41,7 @@ Sand sheets are skipped at zero storm and excluded from the reflection pass to k
 
 - `src/main.js` — layout, instancing, toon palette, sky, reflection/ripple shader, wind, dust, clouds, airship path, camera, and synthesized audio.
 - `src/style.css` — responsive overlay controls.
-- `public/models/` — 13 separate GLB assets: basin, three palms, two bushes, spire, mesa, boulders, agave, airship, harvester, and lift balloon.
+- `public/models/` — 14 separate GLB assets: basin, three palms, two bushes, spire, mesa, boulders, agave, airship, harvester, lift balloon, and control room.
 - `blender/oasis-assets.blend` — editable original models in a dedicated asset scene. The preexisting Blender scene was preserved.
 - `blender/build_assets.py` — reproducible asset-authoring script. Paths resolve relative to the Blender scripts; no machine-specific directory is needed. Run in Blender with a window context or via the interactive MCP.
 - `blender/palm-preview.png` — prototype render inspected before assembly.
@@ -71,9 +71,23 @@ The existing Caddy/Railway service serves the checked-in public build. Keep this
 
 ## Water harvester
 
-`blender/harvester.blend` and `blender/build_harvester.py` contain the editable model and reproducible authoring script. `src/harvester.js` handles vessel motion, reservoir inflation, pumping rings, and deliveries; `src/harvest-state.js` owns the bounded batch state. Three balloons fill in 18 simulation seconds at 1× pump rate. At most nine vessels can be airborne. Departures are staggered and target the live airship position. The barge is approximately 11% of the lake’s width; Ship view has its own orbit limits and responsive framing.
+`blender/harvester.blend` and `blender/build_harvester.py` contain the editable barge. The engine is mounted beside the wheelhouse, clear of the balloon cradles. `blender/control-room.blend` and its authoring script contain the cabin console and receiver housing. Physical runtime buttons, displays and dial drive the same state as the HTML panel.
 
-Run `node tests/harvest-state.test.mjs` from this study to check pause/resume, capacity, delivery timing, repeat cycles, and flight bounds.
+Every batch requires five manual starts, with no automatic progression:
+
+1. Open intake — 8 seconds.
+2. Prime lines — 12 seconds.
+3. Fill reservoirs — 60 seconds at 1×; adjustable from 0.5× to 1.5×.
+4. Seal and pressure-test — 15 seconds.
+5. File dispatch — 10 seconds, then launch up to three balloons.
+
+The current stage can pause/resume. On the console, press the illuminated stage button or the pause switch; click the rate dial to cycle its settings. A matching control pod is on the outside of the cabin. The quota is **1,000 delivered vessels**, credited on arrival at the moving airship, with the final consignment limited to the remaining capacity. At 1× there are at least 334 cycles and about 9.7 hours of operation, plus operator delays. Up to nine vessels can be airborne.
+
+The current stage, elapsed operation, fill, rate, deliveries and flights are stored under `sirocco.morrow.v2` in localStorage. Save occurs on actions, stage changes, deliveries, every five simulation seconds, and when leaving the page. Work pauses when the page is hidden/closed; there is no offline production. Reloading resumes the saved shift. Storage is local to this browser and origin, not an account or shared multiplayer quota. If storage is unavailable the panel reports session-only operation.
+
+The cabin radio reuses the three user-supplied tracks at `/desert-walker/assets/`. Tap its display to change station and its lower minus/plus zones to change volume. Accessible sliders are in the fold-out Operator panel. It starts silent and pauses immediately outside the control room or when the page is hidden. The Vite development middleware serves these same repository assets without duplicating audio into the oasis build.
+
+Run `node tests/harvest-state.test.mjs` from this study to check every manual gate, pause/resume, saved mid-fill and mid-flight state, bounded flights, full quota completion and the one-vessel final dispatch. The barge is approximately 11% of the lake’s width. The cabin uses a fixed seated camera; return to Deck to orbit.
 
 ## Splash animation
 

@@ -1,7 +1,7 @@
 # Verification
 
 - Production build: passed with Vite 6.4.3. The bundled Three.js chunk produces a size advisory, not an error.
-- All 13 Blender GLB assets loaded successfully.
+- All 14 Blender GLB assets loaded successfully.
 - Desktop Chrome rendering: no page or shader errors.
 - Live in-app preview: no reported browser runtime errors.
 - Pond taps: verified on desktop and 390 × 844 viewport; water interaction dismisses its hint.
@@ -18,3 +18,13 @@
 - Browser full cycle: three reservoirs filled to 100%, released, traveled to the airship, and counted as three delivered. Vista/Ship view changes preserve the cycle.
 - Desktop and 390 × 844 phone views inspected; ship remains small in the opening vista.
 - New asset batching strips unused texture attributes to accommodate mixed Blender primitives.
+
+## Operator station and shift quota
+
+- Engine translated toward the wheelhouse in Blender; revised preview confirms clearance around all three balloon stations.
+- Cabin and deck controls share one five-stage state machine. Browser clicks on physical Prime and Dispatch buttons advanced the corresponding timed stage; the physical radio display changed the accessible station selector to Orbital Rad.
+- Full manual browser cycle reached dispatch and launched three vessels; reload during the shift preserved fill, stage and pump rate.
+- Desktop and 390 × 844 phone console screenshots inspected. Fold-out controls retain accessible buttons and sliders.
+- State suite passes every manual gate, pause/resume, mid-fill/mid-flight restore, bounded flights, the final one-vessel batch and exactly 1,000 deliveries after a simulated full shift.
+- Isolated Chrome browser suite passes stored 123/1000 quota and 42% fill restoration, disabled premature dispatch, actual HTML audio playback in the cabin, immediate radio pause on Deck, silent reload, and no runtime/shader errors.
+- Browser suite: `node tests/browser.test.mjs` (installed Chrome required; local Vite server on 5174 by default, configurable via OASIS_TEST_URL).
