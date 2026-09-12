@@ -15,7 +15,7 @@ Open the local URL printed by Vite. For a deployable static build, run `npm run 
 
 ## Explore
 
-- Tap or click the pond to create overlapping ripples that distort the actual landscape reflection.
+- Tap or click the pond for a crown splash, airborne droplets, a Worthington-style central jet, and overlapping return ripples. The water reflects the splash and surrounding landscape.
 - Drag to orbit. Scroll or pinch to approach.
 - **Drift** starts a slow camera journey. Dragging stops it.
 - **Sound** enables a synthesized wind bed and soft water notes. Audio is off until requested.
@@ -31,7 +31,7 @@ The translucent top-right panel collapses to its title and starts collapsed on p
 - **Sandstorm:** 0–100%; six large procedural rolling cloud sheets and distance haze.
 - **Wind:** 0–100%; controls palm sway, cloud drift, and sand-cloud advection. At zero, wind-driven motion stops.
 - **Texture / grit:** 0–100%; static screen grain plus antialiased close-up ground grain.
-- **Ripple strength:** 0–200%; changes the strength of interactive ripples and previews a ripple as adjusted.
+- **Ripple strength:** 0–200%; scales the crown, jet, droplets, and surface ripples, previewing the effect as adjusted. At zero, the impact effect is suppressed.
 - **Restore sunset:** restores all five controls without moving the camera.
 
 Sand sheets are skipped at zero storm and excluded from the reflection pass to keep GPU cost bounded. Grain uses one transparent screen pass without another render target. Settings are temporary for the current page session.
@@ -67,3 +67,7 @@ cp -R studies/sirocco-oasis/dist/. public/sirocco-oasis/
 ```
 
 The existing Caddy/Railway service serves the checked-in public build. Keep this stable URL. The Blender files remain in `studies/` and are not publicly served.
+
+## Splash animation
+
+`src/splashes.js` stages a hollow twelve-point crown, outward ballistic droplets, a delayed central jet, a detached tip droplet, and a return wave. It is an art-directed approximation, not a Navier–Stokes fluid simulation. Five reusable splash slots and 125 instanced droplets bound rapid-tap costs; crown/jet geometry is deformed in the vertex shader. Shoreline clipping prevents splash sheets and droplets extending onto the sand. Reduced-motion preference retains surface ripples and omits vertical splashes.

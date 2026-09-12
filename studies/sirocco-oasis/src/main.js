@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import './style.css';
+import { createSplashSystem } from './splashes.js';
 import { bindAtmosphereControls, createAtmosphere, environmentUniforms, settings } from './atmosphere.js';
 bindAtmosphereControls();
 
@@ -46,10 +47,10 @@ const rippleSlots=Array.from({length:10},()=>new THREE.Vector4(0,0,-100,0));
 const waterShader={uniforms:{color:{value:new THREE.Color('#78e5d8')},tDiffuse:{value:null},textureMatrix:{value:new THREE.Matrix4()},uDay:environmentUniforms.daylight,uStrength:environmentUniforms.ripple,uTime:shared.time,uRipples:{value:rippleSlots}},vertexShader:`uniform mat4 textureMatrix;varying vec4 vUv;varying vec3 vWorld;void main(){vUv=textureMatrix*vec4(position,1.);vWorld=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform sampler2D tDiffuse;uniform vec3 color;uniform float uTime,uDay,uStrength;uniform vec4 uRipples[10];varying vec4 vUv;varying vec3 vWorld;
 void main(){vec2 p=vWorld.xz;float a=atan(-p.y/8.,p.x/12.);float edge=length(p/vec2(12.,8.))/(1.+.035*sin(a*5.)+.018*cos(a*9.));
 float wave=sin(p.x*2.4+p.y*1.9+uTime*.65)*.45+sin(p.y*4.1-p.x*.7-uTime*.8)*.25;
-float rip=0.;vec2 offset=vec2(sin(p.y*3.+uTime*.7),cos(p.x*2.-uTime*.4))*.0015;
-for(int i=0;i<10;i++){float age=uTime-uRipples[i].z;float dist=distance(p,uRipples[i].xy);float ring=dist-age*2.;float envelope=exp(-ring*ring*2.)*exp(-age*.38)*step(0.,age)*uRipples[i].w;float v=sin(ring*12.)*envelope*uStrength;rip+=v;offset+=normalize(p-uRipples[i].xy+vec2(.001))*v*.009;}
+float rip=0.;float cavity=0.;vec2 offset=vec2(sin(p.y*3.+uTime*.7),cos(p.x*2.-uTime*.4))*.0015;
+for(int i=0;i<10;i++){float age=uTime-uRipples[i].z;float dist=distance(p,uRipples[i].xy);float ring=dist-age*2.8;float envelope=exp(-ring*ring*1.6)*exp(-age*.3)*step(0.,age)*uRipples[i].w;float v=sin(ring*12.)*envelope*uStrength;rip+=v;cavity+=exp(-dist*dist*.95)*exp(-pow((age-.36)*4.5,2.))*step(0.,age)*uStrength*uRipples[i].w;offset+=normalize(p-uRipples[i].xy+vec2(.001))*v*.009;}
 vec2 uv=vUv.xy/vUv.w+offset;vec3 reflection=texture2D(tDiffuse,uv).rgb;
-vec3 deep=vec3(.065,.45,.48);vec3 shallow=vec3(.39,.79,.73);vec3 c=mix(deep,shallow,smoothstep(.1,1.,edge));c=mix(c,reflection,.32);c+=wave*.012+rip*vec3(.26,.38,.32);
+vec3 deep=vec3(.065,.45,.48);vec3 shallow=vec3(.39,.79,.73);vec3 c=mix(deep,shallow,smoothstep(.1,1.,edge));c=mix(c,reflection,.32);c=mix(c,vec3(.025,.25,.29),min(.65,cavity*.5));c+=wave*.012+rip*vec3(.26,.38,.32);c+=max(0.,rip)*vec3(.12,.2,.17);
 float foam=smoothstep(.965,.987,edge+sin(a*41.+uTime)*.004);c=mix(c,vec3(.82,.98,.88),foam*.92);
 float threads=pow(max(0.,sin(p.x*1.7+p.y*7.+wave*2.+uTime*.45)),28.);c+=threads*.035;
 c*=.18+.82*uDay;gl_FragColor=vec4(c,1.);
@@ -101,7 +102,9 @@ ready=true;document.querySelector('#loading').classList.add('done');document.que
 }catch(e){console.error(e);document.querySelector('#load-status').textContent='The landscape could not load. Please refresh to try again.';}}
 
 const raycaster=new THREE.Raycaster();const pointer=new THREE.Vector2();let down=null;
-function rippleAt(x,z){rippleSlots[rippleIndex].set(x,z,clockTime,1);rippleIndex=(rippleIndex+1)%10;rippleCount++;document.querySelector('#water-hint').classList.add('dismiss');playDrop();}
+function emitWave(x,z,amount=1){rippleSlots[rippleIndex].set(x,z,clockTime,amount);rippleIndex=(rippleIndex+1)%10;}
+const splashes=createSplashSystem({scene,daylight:environmentUniforms.daylight,reduced,onReturn:emitWave});
+function rippleAt(x,z){splashes.spawn(x,z,clockTime,settings.ripple/100);rippleSlots[rippleIndex].set(x,z,clockTime,1);rippleIndex=(rippleIndex+1)%10;rippleCount++;document.querySelector('#water-hint').classList.add('dismiss');playDrop();}
 canvas.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,id:e.pointerId};});
 canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7){down=null;return;}down=null;pointer.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObject(water)[0];if(hit)rippleAt(hit.point.x,hit.point.z);});
 canvas.addEventListener('pointercancel',()=>down=null);
@@ -121,6 +124,6 @@ let ripplePreview;document.querySelector('#tune-ripple').addEventListener('input
 const hintPosition=new THREE.Vector3();const hint=document.querySelector('#water-hint');
 const clock=new THREE.Clock();
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05);if(document.hidden)return;clockTime+=dt;shared.time.value=clockTime;if(!reduced)shared.windTime.value+=dt*environmentUniforms.wind.value;atmosphere.update(dt);const t=clockTime;shared.gust.value=reduced?0:Math.pow(.5+.5*Math.sin(t*.17),5);if(ship&&!reduced){ship.position.set(-14+Math.sin(t*.027)*13,25+Math.sin(t*.22)*.45,-42+Math.sin(t*.019)*5);ship.rotation.z=Math.sin(t*.14)*.012;ship.rotation.y=t*.016;}
-if(!reduced){clouds.forEach(({mesh,x,phase})=>{mesh.position.x=x+Math.sin(shared.windTime.value*.012+phase)*7;mesh.quaternion.copy(camera.quaternion);});}if(tour){const az=Math.sin(t*.045)*.4;const distance=home.z+11;camera.position.set(focus.x+Math.sin(az)*distance,home.y+Math.sin(t*.06)*3,Math.cos(az)*distance-10);camera.lookAt(controls.target);}controls.update();if(ready&&!hint.classList.contains('dismiss')){hintPosition.set(0,.08,0).project(camera);hint.style.left=((hintPosition.x+1)*innerWidth/2)+'px';hint.style.top=((1-hintPosition.y)*innerHeight/2)+'px';}renderer.render(scene,camera);atmosphere.renderGrain(renderer);}
+if(!reduced){clouds.forEach(({mesh,x,phase})=>{mesh.position.x=x+Math.sin(shared.windTime.value*.012+phase)*7;mesh.quaternion.copy(camera.quaternion);});}if(tour){const az=Math.sin(t*.045)*.4;const distance=home.z+11;camera.position.set(focus.x+Math.sin(az)*distance,home.y+Math.sin(t*.06)*3,Math.cos(az)*distance-10);camera.lookAt(controls.target);}controls.update();if(ready&&!hint.classList.contains('dismiss')){hintPosition.set(0,.08,0).project(camera);hint.style.left=((hintPosition.x+1)*innerWidth/2)+'px';hint.style.top=((1-hintPosition.y)*innerHeight/2)+'px';}splashes.update(clockTime);renderer.render(scene,camera);atmosphere.renderGrain(renderer);}
 addEventListener('resize',()=>{fitHome();camera.position.copy(home);controls.target.copy(focus);camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<700?57:45;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 init();frame();
