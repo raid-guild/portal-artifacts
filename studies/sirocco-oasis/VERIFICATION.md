@@ -43,3 +43,9 @@
 - Chrome verified all three new songs play, station labels match, radio pauses outside the cabin, and saved shift data survives reload.
 - Removed the duplicate exterior control pod. The physical console remains inside the cabin; the operator panel continues to work in Ship view.
 - Switching into or out of the cabin applies the final camera position synchronously with no fly-through. Browser checks assert no active camera transition in either direction.
+
+## Perspective-specific Drift
+
+- Production build passes. Targeted Chrome test passes for Vista, Ship and Control room: Drift preserves the selected view, moves the exterior camera or seated look target, and stops without switching perspectives. No page errors.
+- The cabin camera stays seated; exterior Drift starts at the current orbit and zoom. Ship/cabin instant cuts remain unchanged.
+- Test: `node studies/sirocco-oasis/tests/drift.test.mjs` from the repository root (local Vite on 5174, or OASIS_TEST_URL). Reduced motion isolates Drift from ambient vessel bob and entry animations.

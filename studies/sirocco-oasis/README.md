@@ -18,7 +18,7 @@ Open the local URL printed by Vite. For a deployable static build, run `npm run 
 - Tap or click the pond for a crown splash, airborne droplets, a Worthington-style central jet, and overlapping return ripples. The water reflects the splash and surrounding landscape.
 - Drag to orbit. Scroll or pinch to approach.
 - **Ship view** approaches Morrow, the ring-shaped water harvester. Run the five-stage work order from the panel or physical controls. **Control room** takes the operator’s seat; the field receiver is audible only there. **Vista** returns to the landscape; harvesting and deliveries continue. Your shift and quota are saved in this browser.
-- **Drift** starts a slow camera journey. Dragging stops it.
+- **Drift** stays in the selected perspective: a wide sway in Vista, an orbit from your current distance in Ship view, and a gentle seated look-around in the control room. Toggle it off to stop; dragging stops exterior camera drift.
 - **Sound** enables a synthesized wind bed and soft water notes. Audio is off until requested.
 - **Reset view** returns to the responsive opening composition.
 - **H** hides or shows the interface; **Escape** restores it.
