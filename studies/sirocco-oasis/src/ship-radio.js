@@ -1,9 +1,9 @@
-const channels=[['Walker Radio','walker-radio.mp3'],['Orbital Rad','orbital-rad.mp3'],['Docking Lights','docking-lights.mp3']];
+const channels=[['Pump Man','pump-man.mp3'],['Mesa Jam','mesa-jam.mp3'],['Oasis Vibes','oasis-vibes.mp3']];
 export function createShipRadio(){
  const audio=new Audio();audio.id='field-radio-audio';audio.hidden=true;audio.preload='none';audio.loop=true;document.body.append(audio);
  const channel=document.querySelector('#radio-channel'),volume=document.querySelector('#radio-volume'),status=document.querySelector('#radio-status'),level=document.querySelector('#radio-volume-value');
  let inside=false,current=0,request=0;
- function sync(){const id=++request;const c=Number(channel.value)-1;if(c!==current||!audio.src){current=c;audio.src='/desert-walker/assets/'+channels[c][1];}audio.volume=Number(volume.value)/100;level.textContent=volume.value==='0'?'Off':volume.value+'%';status.textContent=`CH 0${c+1} · ${channels[c][0]}`;
+ function sync(){const id=++request;const c=Number(channel.value)-1;if(c!==current||!audio.src){current=c;audio.src=`${import.meta.env.BASE_URL}audio/radio/${channels[c][1]}`;}audio.volume=Number(volume.value)/100;level.textContent=volume.value==='0'?'Off':volume.value+'%';status.textContent=`CH 0${c+1} · ${channels[c][0]}`;
   if(!inside||document.hidden||audio.volume===0){audio.pause();return;}audio.play().catch(e=>{if(id!==request||e.name==='AbortError')return;status.textContent='Reception unavailable · raise volume to retry';});
  }
  channel.oninput=sync;volume.oninput=sync;document.addEventListener('visibilitychange',sync);sync();

@@ -35,3 +35,11 @@
 - Production build and five-stage harvest state suite pass.
 - Chrome audio checks pass for all five stages: five decoded buffers, nonzero analyser output, exactly two sustained layers, capped total voices, pause, mute to effectively zero output, unmute, cabin filtering and vista attenuation. No runtime errors.
 - Audio is uninitialized on initial load and unlocks on a deliberate work action or Machinery volume adjustment. Machinery volume is independent of the radio and ambience.
+
+## Oasis radio playlist
+
+- Stations replaced with user-provided Pump Man, Mesa Jam and Oasis Vibes, encoded as full-length 192 kbps MP3 copies. WAV originals remain unchanged; durations match within encoder padding (<0.1s).
+- Oasis assets are self-contained under `audio/radio/`; walker playlist is unchanged.
+- Chrome verified all three new songs play, station labels match, radio pauses outside the cabin, and saved shift data survives reload.
+- Removed the duplicate exterior control pod. The physical console remains inside the cabin; the operator panel continues to work in Ship view.
+- Switching into or out of the cabin applies the final camera position synchronously with no fly-through. Browser checks assert no active camera transition in either direction.

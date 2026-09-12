@@ -81,13 +81,13 @@ Every batch requires five manual starts, with no automatic progression:
 4. Seal and pressure-test — 15 seconds.
 5. File dispatch — 10 seconds, then launch up to three balloons.
 
-The current stage can pause/resume. On the console, press the illuminated stage button or the pause switch; click the rate dial to cycle its settings. A matching control pod is on the outside of the cabin. The quota is **1,000 delivered vessels**, credited on arrival at the moving airship, with the final consignment limited to the remaining capacity. At 1× there are at least 334 cycles and about 9.7 hours of operation, plus operator delays. Up to nine vessels can be airborne.
+The current stage can pause/resume. On the console, press the illuminated stage button or the pause switch; click the rate dial to cycle its settings. The physical console is inside the cabin; Ship view uses the operator panel. The quota is **1,000 delivered vessels**, credited on arrival at the moving airship, with the final consignment limited to the remaining capacity. At 1× there are at least 334 cycles and about 9.7 hours of operation, plus operator delays. Up to nine vessels can be airborne.
 
 The current stage, elapsed operation, fill, rate, deliveries and flights are stored under `sirocco.morrow.v2` in localStorage. Save occurs on actions, stage changes, deliveries, every five simulation seconds, and when leaving the page. Work pauses when the page is hidden/closed; there is no offline production. Reloading resumes the saved shift. Storage is local to this browser and origin, not an account or shared multiplayer quota. If storage is unavailable the panel reports session-only operation.
 
-The cabin radio reuses the three user-supplied tracks at `/desert-walker/assets/`. Tap its display to change station and its lower minus/plus zones to change volume. Accessible sliders are in the fold-out Operator panel. It starts silent and pauses immediately outside the control room or when the page is hidden. The Vite development middleware serves these same repository assets without duplicating audio into the oasis build.
+The cabin radio plays the three user-supplied songs: **01 Pump Man**, **02 Mesa Jam**, and **03 Oasis Vibes**. Browser copies are 192 kbps MP3 files in `public/audio/radio/`; the original WAV files are unchanged. Tap its display to change station and its lower minus/plus zones to change volume. Accessible sliders are in the fold-out Operator panel. It starts silent and pauses immediately outside the control room or when the page is hidden. These tracks belong to the oasis; the walker radio retains its existing playlist.
 
-Run `node tests/harvest-state.test.mjs` from this study to check every manual gate, pause/resume, saved mid-fill and mid-flight state, bounded flights, full quota completion and the one-vessel final dispatch. The barge is approximately 11% of the lake’s width. The cabin uses a fixed seated camera; return to Deck to orbit.
+Run `node tests/harvest-state.test.mjs` from this study to check every manual gate, pause/resume, saved mid-fill and mid-flight state, bounded flights, full quota completion and the one-vessel final dispatch. The barge is approximately 11% of the lake’s width. The cabin uses a fixed seated camera. Switching to or from the cabin is an instant cut; return to Deck to orbit.
 
 ## Splash animation
 
