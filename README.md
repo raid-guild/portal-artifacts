@@ -73,6 +73,9 @@ cp -R dist-railway/. ../../public/portal-motion/
   links to the alliance map. Deep links use `/mission/<id>` beneath this path.
 - `module-gallery-study/` — Switchable editorial and restrained Three.js module
   gallery with responsive, keyboard-accessible detail views.
+- `web-presence-map/` — Interactive RaidGuild constellation showing the public
+  front door, community world, Portal capabilities, knowledge routes, and
+  outward-facing specialist offerings.
 
 ## Veydrift read proxy
 
