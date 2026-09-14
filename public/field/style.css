@@ -72,3 +72,5 @@
 @media (orientation:landscape) and (max-height:600px){.touch-walk #lesson{left:164px;right:164px;max-height:calc(100% - 120px);padding:10px 14px}.touch-walk #lesson h1{font-size:18px}.touch-walk #lesson .progress,.touch-walk #lesson .lessonTop{display:none}.touch-walk #description{font-size:13px;line-height:1.35}.touch-walk #primary{min-height:44px}.touch-mode #touchControls{bottom:calc(22px + env(safe-area-inset-bottom));left:max(16px,env(safe-area-inset-left))}.touch-mode #run{bottom:calc(82px + env(safe-area-inset-bottom))}.touch-mode #crouch{bottom:calc(24px + env(safe-area-inset-bottom))}.touch-mode #interact{bottom:calc(140px + env(safe-area-inset-bottom))}}
 
 .touch-mode #mobileSound[hidden]{display:none}.touch-mode #debugClose{font-size:14px;min-height:44px;padding:0 12px}.touch-mode #debugPanel small{display:none}.touch-mode #lessonToggle{min-height:44px}
+
+#menuTitle{padding:0;border:0;background:none;text-align:left;font:500 13px "IBM Plex Mono",monospace;letter-spacing:1px;color:inherit;touch-action:manipulation;user-select:none;-webkit-user-select:none}.touch-mode #menuTitle{min-height:44px}#godControls[hidden]{display:none}

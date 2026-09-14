@@ -31,15 +31,16 @@ function tutorial(){
 }
 function reset(){location.reload()}
 $('restart').onclick=reset;
-let debugOpen=false,debugSequence='',debugKeyTime=0;
-function toggleDebug(open=!debugOpen){debugOpen=open;$('debugPanel').hidden=!open;keys.clear();touchController?.reset();debugSequence='';audioState();if(open){document.exitPointerLock?.();$('debugClose').focus();}}
+let debugOpen=false,debugSequence='',debugKeyTime=0,godTaps=0,godTapStart=0;
+function toggleDebug(open=!debugOpen,reveal=false){godTaps=0;$('godControls').hidden=isTouch&&!reveal;$('menuTitle').textContent=isTouch&&!reveal?'SURVEY CONTROLS':'DEBUG / FIELD';$('debugPanel').setAttribute('aria-label',isTouch&&!reveal?'Survey controls':'Debug panel');debugOpen=open;$('debugPanel').hidden=!open;keys.clear();touchController?.reset();debugSequence='';audioState();if(open){document.exitPointerLock?.();$('debugClose').focus();}}
 $('debugClose').onclick=()=>toggleDebug(false);
 $('mobileMenu').onclick=()=>toggleDebug(true);
+$('menuTitle').onclick=()=>{if(!isTouch||!debugOpen)return;const now=performance.now();if(!godTaps||now-godTapStart>3000){godTaps=0;godTapStart=now;}if(++godTaps===5){$('godControls').hidden=false;$('menuTitle').textContent='DEBUG / FIELD';$('debugPanel').setAttribute('aria-label','Debug panel');godTaps=0;}};
 $('mobileMap').onclick=()=>setView(state.view==='plan'?'walk':'plan');
 $('mobileSound').onclick=()=>setSound(!sound);
 $('lessonToggle').onclick=()=>{const collapsed=$('lesson').classList.toggle('collapsed');$('lessonToggle').textContent=collapsed?'Show instructions':'Hide instructions';};
 
-function debugKey(e){if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return debugOpen;const tag=e.target?.tagName;if(['INPUT','TEXTAREA','SELECT'].includes(tag)||e.target?.isContentEditable)return debugOpen;const t=performance.now();if(t-debugKeyTime>1400)debugSequence='';debugKeyTime=t;if(e.key.length===1)debugSequence=(debugSequence+e.key.toLowerCase()).slice(-3);if(debugSequence==='god'){e.preventDefault();toggleDebug();return true;}if(debugOpen&&e.key==='Escape'){e.preventDefault();toggleDebug(false);return true;}if(debugOpen&&e.key==='Tab'){const buttons=[...$('debugPanel').querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')];const i=buttons.indexOf(document.activeElement);e.preventDefault();buttons[(i+(e.shiftKey?-1:1)+buttons.length)%buttons.length]?.focus();return true;}return debugOpen;}
+function debugKey(e){if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return debugOpen;const tag=e.target?.tagName;if(['INPUT','TEXTAREA','SELECT'].includes(tag)||e.target?.isContentEditable)return debugOpen;const t=performance.now();if(t-debugKeyTime>1400)debugSequence='';debugKeyTime=t;if(e.key.length===1)debugSequence=(debugSequence+e.key.toLowerCase()).slice(-3);if(debugSequence==='god'){e.preventDefault();toggleDebug(!debugOpen,true);return true;}if(debugOpen&&e.key==='Escape'){e.preventDefault();toggleDebug(false);return true;}if(debugOpen&&e.key==='Tab'){const buttons=[...$('debugPanel').querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')];const visibleButtons=buttons.filter(b=>!b.closest?.('[hidden]'));const i=visibleButtons.indexOf(document.activeElement);e.preventDefault();visibleButtons[(i+(e.shiftKey?-1:1)+visibleButtons.length)%visibleButtons.length]?.focus();return true;}return debugOpen;}
 
 function toggleCrouch(){if(!maze)return;if(crouched&&!maze.model.canStand(state.player.x,state.player.z,false))return;crouched=!crouched;$('crouch').textContent=crouched?(isTouch?'Stand':'Stand · C'):(isTouch?'Crouch':'Crouch · C');}
 $('crouch').onclick=toggleCrouch;
