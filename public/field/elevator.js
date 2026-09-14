@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {ElevatorState} from './elevator-state.js';
+import {ElevatorState,elevatorReveal,ELEVATOR_REVEAL_Z} from './elevator-state.js';
 export class Elevator{
  constructor(props,arrival=false){
  this.state=new ElevatorState(arrival);this.root=new THREE.Group();this.owned=[];
@@ -15,9 +15,9 @@ export class Elevator{
  box(1.23,1.25,1.79,.17,.28,.07,trim);box(1.23,1.28,1.84,.06,.06,.02,lamp);
  box(1.23,1.2,1.405,.22,.38,.045,trim);label('DESCEND',1.25,1.6,1.37,Math.PI,.46,.18);box(1.23,1.2,1.37,.07,.07,.025,lamp);
  this.light=new THREE.PointLight(0xd5d2aa,3,5,1.5);this.light.position.set(0,2.6,0);this.root.add(this.light);
- this.goat=props.getObjectByName('Goatman')?.clone();if(this.goat&&!arrival){this.goat.position.set(0,0,3.5);this.goat.rotation.y=Math.PI;this.goat.traverse(o=>{if(o.isMesh){const make=m=>{const c=m.clone();c.transparent=true;c.opacity=.6;this.owned.push(c);return c;};o.material=Array.isArray(o.material)?o.material.map(make):make(o.material);}});this.root.add(this.goat);}else this.goat=null;
+ this.goatMaterials=[];this.goat=props.getObjectByName('Goatman')?.clone();if(this.goat&&!arrival){this.goat.scale.multiplyScalar(.88);this.goat.position.set(0,0,ELEVATOR_REVEAL_Z);this.goat.rotation.y=Math.PI;this.goat.traverse(o=>{if(o.isMesh){const make=m=>{const c=m.clone();c.transparent=true;c.opacity=0;c.depthWrite=false;this.goatMaterials.push(c);this.owned.push(c);return c;};o.material=Array.isArray(o.material)?o.material.map(make):make(o.material);}});this.root.add(this.goat);}else this.goat=null;
  if(this.goat)this.goat.visible=false;
  }
- update(dt){const descend=this.state.update(dt);this.left.position.x=-.46-this.state.open*.92;this.right.position.x=.46+this.state.open*.92;if(this.goat)this.goat.visible=this.state.reveal;this.light.intensity=this.state.phase==='travel'?1.8:3;return descend;}
+ update(dt){const descend=this.state.update(dt);this.left.position.x=-.46-this.state.open*.92;this.right.position.x=.46+this.state.open*.92;if(this.goat){const reveal=elevatorReveal(this.state.phase,this.state.open,this.state.time);this.goat.visible=reveal.opacity>0;this.goat.position.x=reveal.offset;for(const material of this.goatMaterials)material.opacity=reveal.opacity;}this.light.intensity=this.state.phase==='travel'?1.8:3;return descend;}
  dispose(){for(const o of this.owned)o.dispose();this.root.removeFromParent();}
 }

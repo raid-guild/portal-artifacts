@@ -34,3 +34,9 @@ console.log('PASS: descent requires facing the doors, with no camera rotation.')
 const {createFlashlight}=await import('../dist/flashlight.js');
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(),torch=createFlashlight(scene);camera.position.set(5,1.6,7);camera.rotation.set(.25,1.2,0,'YXZ');camera.updateMatrixWorld();torch.update(camera,true);assert.ok(torch.light.visible&&torch.light.castShadow);const expected=camera.getWorldDirection(new THREE.Vector3()),actual=torch.light.target.position.clone().sub(camera.position).normalize();assert.ok(expected.dot(actual)>.9999);torch.update(camera,false);assert.equal(torch.light.visible,false);
 console.log('PASS: flashlight follows yaw/pitch, casts shadows and toggles off.');
+const {elevatorReveal,ELEVATOR_REVEAL_Z}=await import('../dist/elevator-state.js');
+assert.equal(elevatorReveal('open',1,0).opacity,0);assert.equal(elevatorReveal('closing',.9,0).opacity,0);assert.equal(elevatorReveal('travel',0,0).opacity,0);
+assert.ok(elevatorReveal('closing',.85,.4).opacity>0);assert.ok(elevatorReveal('closing',.85,.4).opacity<elevatorReveal('closing',.75,.4).opacity);
+for(const x of[-1,0,1])for(const z of[-1,.6]){const yaw=Math.atan2(x,-(ELEVATOR_REVEAL_Z-z));assert.ok(facesLiftDoors(yaw,0,x,z));const fraction=(1.62-z)/(ELEVATOR_REVEAL_Z-z),atDoor=x*(1-fraction);assert.ok(Math.abs(atDoor)<.8*.92,'View to figure clears the wider opening, even beside panel');}
+const intensities=Array.from({length:30},(_,i)=>elevatorReveal('closing',.6,i*.02).opacity);assert.ok(Math.max(...intensities)-Math.min(...intensities)>.3,'Uneven flicker');
+console.log('PASS: earlier fade, proximity-aware framing and uneven glitch opacity.');
