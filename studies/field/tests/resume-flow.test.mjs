@@ -13,3 +13,9 @@ assert.equal(maze.floor,-1);assert.equal(maze.model.seed,777);assert.equal(maze.
 savedSurvey=null;state.stage=0;resumeUI();assert.equal($('continueSurvey').hidden,true);`;
 vm.runInContext(code,box);assert.equal(stored.floor,-1);assert.equal(stored.seed,777);assert.equal(stored.index,9);
 console.log('PASS: saved survey preserves CAD start, waits for assets, resumes correct seeded floor/checkpoint/progress and hides continuation for new players.');
+vm.runInContext(`
+savedSurvey={version:1,seed:42,floor:1,index:4,minVisited:-6,maxVisited:11,milestones:[[4,true],[6,false]],flashlight:true,complete:false};continueSurvey();
+assert.equal(maze.model.current,4);assert.equal(maze.model.chunks.get(4).room.kind,'elevator');assert.equal(state.yaw,Math.PI);assert.ok(maze.model.canWalk(state.player.x,state.player.z));
+state.player={x:.2,z:maze.model.worldZ(4)-52};state.yaw=0;descendFloor();assert.equal(maze.floor,-1);assert.equal(state.player.x,-.2);assert.equal(state.player.z,0);assert.equal(state.yaw,-Math.PI);
+`,box);
+console.log('PASS: reverse elevator checkpoint resumes at its entrance; descent preserves cabin-relative position and view.');

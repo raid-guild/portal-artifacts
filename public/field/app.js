@@ -37,12 +37,12 @@ function tutorial(){
  else $('primary').disabled=false;
 }
 function resumeUI(){const button=$('continueSurvey');button.hidden=!savedSurvey||state.stage!==0;button.disabled=!ready;button.textContent=savedSurvey?`Continue survey · Floor ${savedSurvey.floor===1?'01':'−01'} / Facility ${String(savedSurvey.maxVisited-savedSurvey.minVisited+1).padStart(3,'0')}`:'Continue survey';}
-function saveSurvey(){if(!maze)return;const m=maze.model,value={version:1,seed:m.seed,floor:maze.floor,index:m.current,minVisited:m.minVisited,maxVisited:m.maxVisited,flashlight:flashlightOn,complete:surveyComplete};if(writeCheckpoint(value))savedSurvey=value;}
+function saveSurvey(){if(!maze)return;const m=maze.model,value={version:1,seed:m.seed,floor:maze.floor,index:m.current,minVisited:m.minVisited,maxVisited:m.maxVisited,flashlight:flashlightOn,complete:surveyComplete,milestones:[...m.milestones]};if(writeCheckpoint(value))savedSurvey=value;}
 function continueSurvey(){
  if(!ready||!savedSurvey)return;const checkpoint={...savedSurvey};enterMaze(false);
  maze.dispose();maze=new EndlessMaze(scene,kit,props,checkpoint.seed,{x:0,z:0},checkpoint.floor);maze.entranceAttached=false;
- maze.model.ensure(checkpoint.index);maze.model.minVisited=checkpoint.minVisited;maze.model.maxVisited=checkpoint.maxVisited;maze.model.maxDepth=Math.max(Math.abs(checkpoint.minVisited),Math.abs(checkpoint.maxVisited));maze.sync();
- state.player={x:0,z:maze.model.worldZ(checkpoint.index)+5.2};state.yaw=0;state.pitch=0;state.visited.clear();state.pan={x:0,y:0};lastMazeRoom=null;surveyComplete=checkpoint.complete;flashlightOn=checkpoint.floor===-1&&checkpoint.flashlight;floorLighting(checkpoint.floor);flashlightUI();
+ maze.model.milestones=new Map(checkpoint.milestones||[]);maze.model.chunks.clear();maze.model.ensure(checkpoint.index);maze.model.minVisited=checkpoint.minVisited;maze.model.maxVisited=checkpoint.maxVisited;maze.model.maxDepth=Math.max(Math.abs(checkpoint.minVisited),Math.abs(checkpoint.maxVisited));maze.sync();
+ const reverse=maze.model.chunks.get(checkpoint.index).room.reverse;state.player={x:0,z:maze.model.worldZ(checkpoint.index)+(reverse?-57.2:5.2)};state.yaw=reverse?Math.PI:0;state.pitch=0;state.visited.clear();state.pan={x:0,y:0};lastMazeRoom=null;surveyComplete=checkpoint.complete;flashlightOn=checkpoint.floor===-1&&checkpoint.flashlight;floorLighting(checkpoint.floor);flashlightUI();
  $('systemStatus').textContent=surveyComplete?'SURVEY COMPLETE':`SURVEY RESTORED · FLOOR ${checkpoint.floor===1?'01':'−01'}`;setView('walk');updateMaze(0);saveSurvey();
 }
 $('continueSurvey').onclick=continueSurvey;
@@ -65,7 +65,7 @@ $('crouch').onclick=toggleCrouch;
 $('run').onclick=()=>{running=!running;$('run').textContent=running?(isTouch?'Running':'Run on · Shift'):(isTouch?'Run':'Run · Shift');$('run').setAttribute('aria-pressed',running);};
 function movementSpeed(){return crouched?1.25:(running||keys.has('shift'))?4.5:2.5;}
 
-function interact(){const lift=maze?.elevator();if(lift){const p=maze.model.sample(state.player.x,state.player.z);if(lift.state.interact(p.x,p.z,facesLiftDoors(state.yaw,state.pitch,p.x,p.z))){tone(145,.3,.025);return;}}if(maze&&maze.model.openDoor(state.player.x,state.player.z)){tone(110,.25,.03);$('interact').hidden=true;}}
+function interact(){const lift=maze?.elevator();if(lift){const p=maze.model.sample(state.player.x,state.player.z);if(lift.state.interact(p.x,p.z,facesLiftDoors(state.yaw-(p.reverse?Math.PI:0),state.pitch,p.x,p.z))){tone(145,.3,.025);return;}}if(maze&&maze.model.openDoor(state.player.x,state.player.z)){tone(110,.25,.03);$('interact').hidden=true;}}
 $('interact').onclick=interact;
 function flashlightUI(){const available=maze?.floor===-1;$('flashlight').hidden=!available||state.view!=='walk';$('flashlight').textContent=`Flashlight ${flashlightOn?'on':'off'}${isTouch?'':' · F'}`;$('flashlight').setAttribute('aria-pressed',String(flashlightOn));if(!available&&flashlight)flashlight.light.visible=false;}
 function toggleFlashlight(){if(maze?.floor!==-1)return;flashlightOn=!flashlightOn;flashlightUI();saveSurvey();}
@@ -82,7 +82,7 @@ $('debugJump').onclick=()=>{
  if(type==='recognition'&&floor!==-1){$('debugInfo').textContent='Choose floor −01 for the recognition room.';return;}let target=type==='recognition'?13:type==='elevator'?(floor===1?13:0):findFacility(maze.model.seed,number-1,type);while(target!==null&&type!=='any'&&type!=='elevator'&&type!=='recognition'&&['elevator','recognition'].includes(maze.model.make(target).room.kind))target=findFacility(maze.model.seed,target+1,type);if(target===null){$('debugInfo').textContent='No matching room found.';return;}
  if(worldGroup){scene.remove(worldGroup);worldGroup=null;lights=[];ceilings=[];}maze.entranceAttached=false;
  // Rebuild the chosen section from its base recipe so the requested variation is reproducible.
- maze.model.ensure(target);maze.model.chunks.set(target,maze.model.make(target));maze.model.pendingExpiry=null;maze.model.minVisited=0;maze.model.maxVisited=target;maze.model.maxDepth=target;maze.sync();
+ maze.model.milestones.clear();maze.model.ensure(target);maze.model.chunks.set(target,maze.model.make(target));maze.model.pendingExpiry=null;maze.model.minVisited=0;maze.model.maxVisited=target;maze.model.maxDepth=target;maze.sync();
  const room=maze.model.chunks.get(target).room,z=maze.model.worldZ(target),x=maze.model.offset.x;
  state.player={x,z:z+5.2};state.yaw=0;state.pitch=0;
  if(type==='ghost'){const seat=ghostRoom(room);state.player={x:x+branchX(room)+1,z:z+seat.z};state.yaw=branchX(room)<0?Math.PI/2:-Math.PI/2;}
@@ -144,14 +144,14 @@ function move(dt){if(maze?.elevator()?.state.locked){if(keys.has('arrowleft'))st
 function descendFloor(){
  const p=maze.model.sample(state.player.x,state.player.z),seed=(maze.model.seed^0x51ed270b)>>>0;
  maze.dispose();maze=new EndlessMaze(scene,kit,props,seed,{x:0,z:0},-1);maze.entranceAttached=false;maze.sync();
- state.player={x:p.x,z:p.z};state.visited.clear();state.pan={x:0,y:0};state.drift={x:8,y:-10};lastMazeRoom=null;eyeHeight=1.65;crouched=false;keys.clear();touchController?.reset();
+ state.player={x:p.x,z:p.z};if(p.reverse)state.yaw-=Math.PI;state.visited.clear();state.pan={x:0,y:0};state.drift={x:8,y:-10};lastMazeRoom=null;eyeHeight=1.65;crouched=false;keys.clear();touchController?.reset();
  flashlightOn=true;flashlightUI();floorLighting(-1);$('systemStatus').textContent='RESTRICTED OPERATIONS · FLOOR -01';$('sheetSub').textContent='FLOOR -01 / INTERIOR';tone(92,.5,.035);
 }
 function updateMaze(dt){
  const changed=maze.update(state.player,dt,nowTime,state.yaw,state.view==='walk',eyeHeight);if(changed.expired!==null){for(const cell of state.visited.keys()){const z=Number(cell.split(',')[1]);if(maze.model.indexAt(z)===changed.expired)state.visited.delete(cell);}if(sound)ambience?.impact();}const local=maze.model.sample(state.player.x,state.player.z);if(worldGroup&&local.index>=0&&local.z< -16&&Math.abs(local.x)>6.5){scene.remove(worldGroup);worldGroup=null;lights=[];ceilings=[];maze.entranceAttached=false;maze.sync();}if(changed.rebased){state.visited.clear();state.pan={x:0,y:0};}
  const lift=maze.elevator(),liftPhase=lift?.state.phase;if(lift&&state.view==='walk'&&lift.update(dt)){descendFloor();return;}if(lift?.state.phase==='travel'&&liftPhase!=='travel')tone(48,3,.04);
  const s=maze.model.sample(state.player.x,state.player.z),door=maze.model.nearbyDoor(state.player.x,state.player.z);
- const liftPrompt=lift?.state.prompt(s.x,s.z,facesLiftDoors(state.yaw,state.pitch,s.x,s.z));$('interact').hidden=state.view!=='walk'||(!door&&!liftPrompt);$('interact').textContent=liftPrompt?liftPrompt+(isTouch?'':' · E'):(door?.door.id==='observation'?(isTouch?'Open observation door':'Open observation door · E'):(isTouch?'Open door':'Open door · E'));
+ const liftPrompt=lift?.state.prompt(s.x,s.z,facesLiftDoors(state.yaw-(s.reverse?Math.PI:0),state.pitch,s.x,s.z));$('interact').hidden=state.view!=='walk'||(!door&&!liftPrompt);$('interact').textContent=liftPrompt?liftPrompt+(isTouch?'':' · E'):(door?.door.id==='observation'?(isTouch?'Open observation door':'Open observation door · E'):(isTouch?'Open door':'Open door · E'));
  if(s.chunk?.room.kind==='recognition'&&s.z< -6.4&&!surveyComplete){surveyComplete=true;saveSurvey();$('systemStatus').textContent='SURVEY COMPLETE · WE THANK YOU FOR YOUR SACRIFICE';}
  const low=s.chunk?.room.kind==='crawl'&&s.z<4&&s.z> -6;
  $('viewHint').textContent=isTouch?(low&&!crouched?'Tap Crouch to continue':'Left thumb: move · drag view to look'):low&&!crouched?'LOW CLEARANCE · C TO CROUCH':state.view==='plan'?'M RETURN · SCROLL TO ZOOM · DRAG TO PAN':'W A S D MOVE · SHIFT RUN · E DOOR · C CROUCH · M MAP · V SOUND';
