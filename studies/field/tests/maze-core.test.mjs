@@ -48,3 +48,20 @@ for(let seed=0;seed<30;seed++){
 console.log('PASS: debug destinations exist across 30 seeds; ghosts start after facility 7; facility 10 and the following dead end allow onward progress.');
 for(const turn of [8,-10]){const room={turn},b=branchX(room),side=b<0?-1:1;assert.equal(enteredGhostRoom(room,b+1,-15),false);assert.equal(enteredGhostRoom(room,b+1+side*1.3,-15),true);assert.equal(Math.cos(ghostRoom(room).rotation),b<0?1:-1);}
 console.log('PASS: chairs face left relative to approach; figures disappear just past the hallway junction.');
+// Facility 11: retreat a few meters and turn away, not all the way to the room.
+for(let seed=0;seed<50;seed++){
+ const m=new MazeTopology(seed);m.ensure(10);const r=m.chunks.get(10).room,z=m.worldZ(10),x=r.turn+1;
+ m.update({x,z:z-30.5},0);assert.ok(m.chunks.get(10).reachedEnd);
+ m.update({x,z:z-26},0);assert.equal(m.chunks.get(10).room.deadEnd,true,'Never erase a watched dead end');
+ m.update({x,z:z-26},Math.PI);assert.equal(m.chunks.get(10).room.deadEnd,false);assert.ok(reachable(m,10));
+ // Annex route must expire the previous section too.
+ const n=new MazeTopology(seed);n.update({x:0,z:n.worldZ(1)+5});const c=n.chunks.get(1);assert.ok(c.room.branch);const prior=n.chunks.get(0).room.turn;
+ assert.equal(n.update({x:branchX(c.room)+1,z:n.worldZ(1)-20},0).expired,0);assert.notEqual(n.chunks.get(0).room.turn,prior);
+ const nextTurn=n.chunks.get(1).room.turn;n.update({x:0,z:n.worldZ(0)-55},Math.PI);const back=n.chunks.get(0).room;
+ assert.equal(n.update({x:branchX(back)+1,z:n.worldZ(0)-39},Math.PI).expired,1);assert.notEqual(n.chunks.get(1).room.turn,nextTurn);
+ // Crossing multiple sections without visiting an expiry zone still retires old layouts.
+ const p=new MazeTopology(seed),old=p.chunks.get(0).room.turn;p.ensure(1);p.ensure(2);p.ensure(1);assert.notEqual(p.chunks.get(0).room.turn,old);
+ const revised=p.chunks.get(0).room.turn;p.ensure(2);p.ensure(1);assert.notEqual(p.chunks.get(0).room.turn,revised);
+ for(let i=3;i<100;i++)p.ensure(i);assert.ok(p.history.size<=64&&p.chunks.size<=3);
+}
+console.log('PASS: 50 seeds, early hidden facility-11 reopening, both annex expiry directions, guaranteed changed recycled layouts and bounded history.');
