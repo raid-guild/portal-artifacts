@@ -1,3 +1,4 @@
+import {secondLookEligible} from './second-look.js';
 // Bounded room topology. Render positions are local; identities survive rebasing.
 export const SPAN=64;
 export const cellKey=(x,z)=>`${x},${z}`;
@@ -72,6 +73,6 @@ export function ghostRoom(room){const b=branchX(room);return{x:(b<0?b-8:b+8)+1,z
 export function enteredGhostRoom(room,x,z){const p=ghostRoom(room),b=branchX(room),toward=(x-(b+1))*(b<0?-1:1);return toward>1.15&&toward<10&&Math.abs(z-p.z)<3;}
 export function isMusicRoom(index,room){return Math.abs(index)%4===1&&!['crawl','stairs','pit'].includes(room.kind);}
 export function findFacility(seed,start,type){
- for(let i=start;i<start+256;i++){const r=recipe(i,seed);if(type==='any'||type===r.kind||type==='music'&&isMusicRoom(i,r)||type==='ghost'&&r.branch&&r.ghost||type==='narrow'&&r.narrow||type==='tall'&&r.ceiling>3||type==='hanging'&&r.ceiling>3&&r.hanging)return i;}
+ for(let i=start;i<start+256;i++){const r=recipe(i,seed);if(type==='secondLook'&&secondLookEligible(r,seed)||type==='any'||type===r.kind||type==='music'&&isMusicRoom(i,r)||type==='ghost'&&r.branch&&r.ghost||type==='narrow'&&r.narrow||type==='tall'&&r.ceiling>3||type==='hanging'&&r.ceiling>3&&r.hanging)return i;}
  return null;
 }

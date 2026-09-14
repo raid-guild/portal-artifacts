@@ -25,3 +25,21 @@ Editable Blender files are in `outputs/`. Regeneration scripts in `tools/` deriv
 Commit this repository and push to GitHub. Deploy the repository root to the existing portal-artifacts Railway service using its Dockerfile and Caddyfile. Keep all other published demo paths intact.
 
 Migrated from FIELD Sites source commit `7029d414dc24e76f164054dbe8867e5abb7ebb96`. The previous Sites deployment remains a historical copy.
+
+## Second look / Goatman
+
+A stationary Blender model (`outputs/FIELD-goatman.blend`, reproducible with
+`tools/create_goatman.py`) exports to `public/field/assets/goatman.glb`.
+Natural encounters are seeded, begin at facility index 7 (facility 8), and use
+selected full-width long corridors. Walk past the dark stretch while looking
+forward, then turn back. Approaching dissolves the silhouette between 19 and
+11 meters; looking away removes it. No animation, sound cue, pursuit or collision.
+The controller keeps only one encounter and a depth high-water mark, so revisits
+do not replay it and memory stays bounded.
+
+GOD → **Second look / Goatman** → **Go to facility / find room** places the player
+in an armed hallway facing away. Turn around to test. Mobile GOD remains hidden
+behind five quick taps on SURVEY CONTROLS in Menu.
+
+Run `node tests/second-look.test.mjs` from this directory for seeded eligibility,
+visibility, distance fade, revisits and corridor clearance checks.
