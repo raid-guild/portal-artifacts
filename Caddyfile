@@ -3,6 +3,9 @@
 	encode zstd gzip
 
 	# Revalidate walker assets so repeat visitors receive new deployments.
+	@field path /field /field/*
+	header @field Cache-Control "no-cache"
+
 	@walker path /desert-walker /desert-walker/*
 	header @walker Cache-Control "no-cache"
 

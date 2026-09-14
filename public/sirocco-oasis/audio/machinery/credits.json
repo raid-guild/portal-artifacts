@@ -1,0 +1,41 @@
+{
+  "license": "CC0 1.0",
+  "processing": "HQ preview recordings excerpted, mono, loudness normalized, loop seams crossfaded. Runtime pitch, EQ and layers vary with operation.",
+  "sources": [
+    {
+      "name": "diesel",
+      "author": "BeeProductive",
+      "page": "https://freesound.org/people/BeeProductive/sounds/395586/",
+      "preview": "https://cdn.freesound.org/previews/395/395586_4298084-hq.mp3",
+      "license": "CC0 1.0"
+    },
+    {
+      "name": "generator",
+      "author": "qubodup",
+      "page": "https://freesound.org/people/qubodup/sounds/189896/",
+      "preview": "https://cdn.freesound.org/previews/189/189896_71257-hq.mp3",
+      "license": "CC0 1.0"
+    },
+    {
+      "name": "clunk",
+      "author": "Swedger",
+      "page": "https://freesound.org/people/Swedger/sounds/170633/",
+      "preview": "https://cdn.freesound.org/previews/170/170633_1352880-hq.mp3",
+      "license": "CC0 1.0"
+    },
+    {
+      "name": "air",
+      "author": "davidlay1",
+      "page": "https://freesound.org/people/davidlay1/sounds/416080/",
+      "preview": "https://cdn.freesound.org/previews/416/416080_7175960-hq.mp3",
+      "license": "CC0 1.0"
+    },
+    {
+      "name": "ratchet",
+      "author": "strikingtwice",
+      "page": "https://freesound.org/people/strikingtwice/sounds/260208/",
+      "preview": "https://cdn.freesound.org/previews/260/260208_171542-hq.mp3",
+      "license": "CC0 1.0"
+    }
+  ]
+}

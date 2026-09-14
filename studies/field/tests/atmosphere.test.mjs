@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {Atmosphere} from '../dist/atmosphere.js';
+const nodes=[];const param=()=>({value:0,setTargetAtTime(v){assert.ok(Number.isFinite(v));this.value=v},setValueAtTime(v){this.value=v},linearRampToValueAtTime(v){this.value=v},exponentialRampToValueAtTime(v){assert.ok(v>0);this.value=v}});
+const node=()=>{const n={gain:param(),frequency:param(),Q:param(),pan:param(),connect(){},disconnect(){this.disconnected=true},start(){},stop(){this.stopped=true}};nodes.push(n);return n};
+const c={currentTime:0,sampleRate:8000,createBuffer:()=>({getChannelData:()=>new Float32Array(32000)}),createBufferSource:node,createGain:node,createBiquadFilter:node,createOscillator:node,createStereoPanner:node};
+const a=new Atmosphere(c,node());const initial=nodes.length;
+a.update({stage:5,anomaly:30,depth:3,index:1,time:4,active:false});assert.equal(nodes.length,initial);assert.equal(a.air.gain.value,0);
+c.currentTime=10;a.update({stage:5,anomaly:30,depth:3,index:1,time:10,active:true});assert.ok(nodes.length>initial);const after=nodes.length;a.impact();assert.equal(nodes.length,after,'Impact cooldown');
+for(const n of nodes.filter(n=>n.stopped))n.onended();assert.ok(nodes.slice(initial).every(n=>n.disconnected),'Finished impacts release every node');
+console.log('PASS: muted atmosphere, finite levels, irregular impacts, cooldown and node cleanup.');
+const {wallMusicMix}=await import('../dist/atmosphere.js');
+const model={offset:{x:12},worldZ:i=>-42-i*64,chunks:new Map([[1,{room:{kind:'chairs',w:10}}]])};
+const near=wallMusicMix(model,{x:16,z:-105},0),far=wallMusicMix(model,{x:0,z:-105},0),turned=wallMusicMix(model,{x:16,z:-105},Math.PI);
+assert.ok(near.gain>.6&&near.gain<.8);assert.equal(far.gain,0);assert.ok(near.pan>0&&turned.pan<0);assert.ok(near.cutoff>3000&&near.cutoff<4500);
+assert.equal(wallMusicMix(null,{x:0,z:0},0).gain,0);
+console.log('PASS: wall music fades by distance, follows head direction, respects world offsets and stays muffled.');
