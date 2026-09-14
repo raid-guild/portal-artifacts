@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {SecondLook,secondLookEligible} from '../dist/second-look.js';
 import {recipe,findFacility,MazeTopology} from '../dist/maze-core.js';
 for(let seed=0;seed<60;seed++){
- const i=findFacility(seed,0,'secondLook');assert.ok(i>=7&&i<256);const room=recipe(i,seed);assert.ok(secondLookEligible(room,seed));
+ const i=findFacility(seed,0,'secondLook');assert.ok(i>=7&&i<=9,'First offer no later than facility 10');const room=recipe(i,seed);assert.ok(secondLookEligible(room,seed));
  for(let j=0;j<7;j++)assert.equal(secondLookEligible(recipe(j,seed),seed),false);
  const m=new MazeTopology(seed);m.ensure(i);for(const z of [-24,-36,-12])assert.ok(m.canWalk(room.turn+1,m.worldZ(i)+z),'Full-height traversable hallway');
  const encounter=new SecondLook();const step=(z,yaw,active=true)=>encounter.update({room,seed,x:room.turn+1,z,yaw,active});
@@ -17,7 +17,7 @@ const {lookBackPoster}=await import('../dist/second-look.js');
 const {supportsWall}=await import('../dist/maze-core.js');
 let silent=0,audible=0,ordinary=0;
 for(let seed=0;seed<60;seed++){
- const i=findFacility(seed,0,'secondLook'),room=recipe(i,seed),e=new SecondLook();e.prime(room);
+ const i=findFacility(seed,0,'secondLook'),room=recipe(i,seed),e=new SecondLook();e.lastDepth=0;e.prime(room);
  const args={room,seed,x:room.turn+1,z:-36,yaw:0};
  assert.equal(e.update({...args,active:false}),null);
  const first=e.update(args);if(first.cue)audible++;else silent++;
@@ -29,3 +29,18 @@ for(let seed=0;seed<60;seed++){
 }
 assert.ok(silent>0&&audible>0&&ordinary>0);
 console.log('PASS: one-shot optional cue, map pause, ordinary hallway posters and supported placement.');
+
+// Walk/run through real topology mutations, then turn back. Test side entry too.
+for(let seed=0;seed<60;seed++)for(const start of [-10,-39]){
+ const m=new MazeTopology(seed),i=9;m.ensure(i);const e=new SecondLook();let waiting=false;
+ for(let z=start;z>=-43;z-=.35){
+  const room=m.chunks.get(i).room,player={x:room.turn+1,z:m.worldZ(i)+z};m.update(player);
+  const sample=m.sample(player.x,player.z),sight=e.update({room:sample.chunk.room,seed,x:sample.x,z:sample.z,yaw:0});
+  if(sight?.phase==='waiting')waiting=true;
+ }
+ assert.ok(waiting,'Running and annex entry both arm after topology mutations');
+ const room=m.chunks.get(i).room;
+ assert.equal(e.lastDepth,-Infinity,'Unseen offer does not consume sighting cooldown');
+ const sight=e.update({room,seed,x:room.turn+1,z:-43,yaw:Math.PI});assert.equal(sight.phase,'seen');assert.ok(sight.opacity>0);assert.equal(e.lastDepth,9);
+}
+console.log('PASS: first offer by facility 10, real mutation path, running, annex entry and cooldown only on actual sighting.');

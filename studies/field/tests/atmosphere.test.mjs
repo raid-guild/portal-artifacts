@@ -29,7 +29,7 @@ globalThis.Audio=originalAudio;
 console.log('PASS: correct nursery track, room-specific mixing, looping, distance fade and shared mute/pause.');
 const {positionClunk}=await import('../dist/atmosphere.js');
 c.createPanner=()=>Object.assign(node(),{positionX:param(),positionY:param(),positionZ:param()});
-c.currentTime=30;const beforeCue=nodes.length;
+c.currentTime=30;a.lastImpact=29;const beforeCue=nodes.length;
 a.impact({source:{x:0,z:20},player:{x:0,z:0},yaw:0});
 const cue=a.rearCue;assert.equal(cue.pan.panningModel,'HRTF');assert.ok(cue.pan.positionZ.value>0,'Source starts behind listener');
 a.update({stage:5,anomaly:30,depth:3,index:1,time:30,active:true,player:{x:0,z:0},yaw:Math.PI});

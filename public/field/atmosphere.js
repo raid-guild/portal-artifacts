@@ -54,7 +54,7 @@ export class Atmosphere {
   if(stage>=4&&t>=this.nextImpact){this.impact();this.nextImpact=t+12+Math.random()*22;}
  }
  impact(cue=null){
-  const c=this.ctx,t=c.currentTime;if(t-this.lastImpact<4)return;this.lastImpact=t;
+  const c=this.ctx,t=c.currentTime;if(!cue&&t-this.lastImpact<4)return;this.lastImpact=t;
   const pan=cue?c.createPanner():c.createStereoPanner(),level=c.createGain();level.gain.value=cue?.32:1;
   if(cue){pan.panningModel='HRTF';pan.rolloffFactor=0;positionClunk(pan,cue.source,cue.player,cue.yaw);this.rearCue={pan,level,source:{...cue.source}};this.nextImpact=t+10;}
   else pan.pan.value=(Math.random()>.5?1:-1)*(.35+Math.random()*.5);
