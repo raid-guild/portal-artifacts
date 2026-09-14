@@ -14,7 +14,7 @@ for(let seed=0;seed<80;seed++){
   for(let x=0;x<=2.4;x+=.2)for(const zz of[-4.3,4.3])assert.ok(m.canWalk(x,z+zz),'Entry and exit turnarounds');
   assert.ok(m.canWalk(0,z-5));assert.ok(m.canWalk(0,z+5));
  }
- const galleryIndex=findFacility(seed,0,'gallery'),m=new MazeTopology(seed);m.ensure(galleryIndex);const c=m.chunks.get(galleryIndex),posters=galleryPosters(c.room);assert.equal(posters.length,4);
- for(const p of posters)assert.ok(supportsWall(c.cells,p.x,p.z,p.rotation,p.asset==='ExcellencePoster'?.74:.59),'New gallery art is backed by wall');
+ const galleryIndex=findFacility(seed,0,'gallery'),m=new MazeTopology(seed);m.ensure(galleryIndex);const c=m.chunks.get(galleryIndex),posters=galleryPosters(c.room);assert.equal(posters.length,5);
+ for(const p of posters)assert.ok(supportsWall(c.cells,p.x,p.z,p.rotation,p.asset==='BoardroomPoster'?1.28:p.asset==='ExcellencePoster'?.74:.59),'New gallery art is backed by wall');
 }
 console.log('PASS: meeting rooms from facility 5, recurring later rooms, nursery preserved, 8 solid chairs, passable aisles, gallery posters clear of doors.');

@@ -52,6 +52,13 @@ d=bpy.data.meshes.new('Excellence_print');d.from_pydata([(-w/2,-.018,-h/2),(w/2,
 uv=d.uv_layers.new()
 for loop,coord in zip(d.loops,[(0,0),(1,0),(1,1),(0,1)]):uv.data[loop.index].uv=coord
 m=mat('Excellence_portrait',(1,1,1));image=bpy.data.images.load(root+'/references/excellence-portrait.png');image.pack();t=m.node_tree.nodes.new('ShaderNodeTexImage');t.image=image;m.node_tree.links.new(t.outputs['Color'],m.node_tree.nodes.get('Principled BSDF').inputs['Base Color']);d.materials.append(m);o=bpy.data.objects.new('Framed_excellence',d);scene.collection.objects.link(o);o.parent=g
+# Landscape boardroom photograph supplied by the user, mounted as a gallery print.
+g=group('BoardroomPoster');w,h=2.40,2.40*1152/1712
+box('Boardroom_back',(0,.015,0),(w+.07,.055,h+.07),edge,g,.005)
+d=bpy.data.meshes.new('Boardroom_print');d.from_pydata([(-w/2,-.018,-h/2),(w/2,-.018,-h/2),(w/2,-.018,h/2),(-w/2,-.018,h/2)],[],[(0,1,2,3)])
+uv=d.uv_layers.new()
+for loop,coord in zip(d.loops,[(0,0),(1,0),(1,1),(0,1)]):uv.data[loop.index].uv=coord
+m=mat('Boardroom_photo',(1,1,1));image=bpy.data.images.load(root+'/references/boardroom-poster.png');image.pack();t=m.node_tree.nodes.new('ShaderNodeTexImage');t.image=image;m.node_tree.links.new(t.outputs['Color'],m.node_tree.nodes.get('Principled BSDF').inputs['Base Color']);d.materials.append(m);o=bpy.data.objects.new('Boardroom_photograph',d);scene.collection.objects.link(o);o.parent=g
 # Merge table parts by material while preserving their world transforms.
 parts=[o for o in scene.objects if o.type=='MESH' and (o.parent==table or o.parent and o.parent.parent==table)]
 bpy.context.view_layer.update();batches={}
@@ -63,7 +70,7 @@ for batch in batches.values():
  bpy.context.view_layer.objects.active=batch[0];bpy.ops.object.join()
 bpy.ops.export_scene.gltf(filepath=root+'/dist/assets/meeting-kit.glb',export_format='GLB',use_active_scene=True,export_animations=False)
 # Simple staged study; runtime uses existing office chairs around this table.
-for name,x in [('ExcellencePoster',0),('ObservationPoster',-2.4),('AttendancePoster',2.4),('LegacyPoster',4.0),('NeverLookBackPoster',-4.0)]:bpy.data.objects[name].location=(x,4,1.6)
+for name,x in [('ExcellencePoster',0),('ObservationPoster',-2.4),('AttendancePoster',2.4),('LegacyPoster',4.0),('NeverLookBackPoster',-4.0),('BoardroomPoster',6.1)]:bpy.data.objects[name].location=(x,4,1.6)
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 bpy.ops.object.camera_add(location=(5,-7,5));scene.camera=bpy.context.object;aim(scene.camera,(0,0,.8));scene.camera.data.type='ORTHO';scene.camera.data.ortho_scale=7.8
 for p,power in [((0,0,5),1000),((-4,-3,4),850)]:
