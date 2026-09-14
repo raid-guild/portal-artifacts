@@ -51,7 +51,7 @@ export class Atmosphere {
   this.buzz.gain.setTargetAtTime(active&&occupied?(room==='empty'?.003:.012)*flicker*(1-musicPresence*.5):0,t,.04);
   this.hiss.gain.setTargetAtTime(active&&occupied?(.004+tension*.009)*(1-musicPresence*.65):0,t,.3);
   if(!active){this.nextImpact=t+8;return;}
-  if(stage>=4&&t>=this.nextImpact){this.impact();this.nextImpact=t+12+Math.random()*22;}
+  if(stage>=4&&room!=='recognition'&&t>=this.nextImpact){this.impact();this.nextImpact=t+12+Math.random()*22;}
  }
  impact(cue=null){
   const c=this.ctx,t=c.currentTime;if(!cue&&t-this.lastImpact<4)return;this.lastImpact=t;
