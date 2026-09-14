@@ -54,3 +54,18 @@ The GLB contains four material groups and embedded textures; the runtime clones
 these materials, preserves the textures and eye emission, and applies the same
 faint encounter opacity/fade to all groups. The original `create_goatman.py`
 remains the untextured base model generator, not the approved revision exporter.
+
+## Camera room
+
+Seeded camera rooms can appear after facility 7, among the regular office rooms.
+They contain one central CCTV stand or three corner stands. The camera heads pan
+and tilt slowly toward the player while they are in the room; tiny red indicators
+blink independently. These are simulated props, with no device camera access.
+
+GOD → **Camera room** → **Go to facility / find room** jumps to one for testing.
+The Blender source is `outputs/FIELD-surveillance-camera.blend`; reproduce it with
+`tools/create_camera.py`. The runtime asset is `public/field/assets/surveillance-camera.glb`.
+
+Run `node tests/surveillance.test.mjs` and `node tests/camera-asset.test.mjs`
+from this directory to check layouts, stand collisions, tracking, blinking,
+exported lens direction, world offsets, crouching and material cleanup.
