@@ -24,15 +24,16 @@ export class Recognition{
  label(['OBSERVATION'],0,2.8,-5.90,1.85,.44);label(['CONTINUITY','EXEMPLARY SERVICE'],-2.6,.68,-.44,.95,.4);
  const doorMat=material(0x58614c,.3);this.pivot=new THREE.Group();this.pivot.position.set(-1,0,-6);this.root.add(this.pivot);const door=box(0,1.2,0,2,2.4,.11,doorMat);this.root.remove(door);door.position.set(1,1.2,0);this.pivot.add(door);const handle=box(0,0,0,.06,.25,.06,brass);this.root.remove(handle);handle.position.set(1.8,1.1,.1);this.pivot.add(handle);
  this.light=new THREE.PointLight(0xe3d6a3,16,15,1.6);this.light.position.set(0,3,0);this.root.add(this.light);
- const black=new THREE.MeshBasicMaterial({color:0x02030a,side:THREE.BackSide,fog:false});this.owned.push(black);const sky=mesh(new THREE.SphereGeometry(95,24,16),black,0,0,-40);sky.castShadow=false;sky.receiveShadow=false;
+ this.voidRoot=new THREE.Group();this.voidRoot.name='ObservationVoid';this.voidRoot.visible=false;this.root.add(this.voidRoot);
+ const black=new THREE.MeshBasicMaterial({color:0x02030a,side:THREE.BackSide,fog:false});this.owned.push(black);const sky=mesh(new THREE.SphereGeometry(95,24,16),black,0,0,-40);sky.castShadow=false;sky.receiveShadow=false;this.voidRoot.add(sky);
  for(let i=0;i<18;i++){
-  const g=new THREE.Group();g.position.set(Math.sin(i*2.4)*(10+i*.65),Math.cos(i*1.7)*9-2,-26-i*2.6);this.root.add(g);
+  const g=new THREE.Group();g.position.set(Math.sin(i*2.4)*(10+i*.65),Math.cos(i*1.7)*9-2,-26-i*2.6);this.voidRoot.add(g);
   const m=new THREE.LineBasicMaterial({color:new THREE.Color().setHSL(.47+i*.019,.45,.38),transparent:true,opacity:.45,fog:false});this.owned.push(m);
   for(let j=0;j<3;j++){const base=new THREE.BoxGeometry(4+j*3,3+j*2,5+j*3),geometry=new THREE.EdgesGeometry(base);base.dispose();this.owned.push(geometry);const frame=new THREE.LineSegments(geometry,m);frame.rotation.z=j*.14;g.add(frame);}
   this.forms.push({g,m,i});
  }
- const treadGeometry=new THREE.BoxGeometry(2.4,.08,.65),treadMaterial=new THREE.MeshBasicMaterial({color:0x647689,fog:false,transparent:true,opacity:.40});this.owned.push(treadGeometry,treadMaterial);const stairs=new THREE.InstancedMesh(treadGeometry,treadMaterial,160),dummy=new THREE.Object3D();for(let i=0;i<160;i++){const a=i*.13;dummy.position.set(Math.cos(a)*8,-16+i*.18,-42+Math.sin(a)*8);dummy.rotation.y=-a;dummy.updateMatrix();stairs.setMatrixAt(i,dummy.matrix);}this.root.add(stairs);this.stairs=stairs;
+ const treadGeometry=new THREE.BoxGeometry(2.4,.08,.65),treadMaterial=new THREE.MeshBasicMaterial({color:0x647689,fog:false,transparent:true,opacity:.40});this.owned.push(treadGeometry,treadMaterial);const stairs=new THREE.InstancedMesh(treadGeometry,treadMaterial,160),dummy=new THREE.Object3D();for(let i=0;i<160;i++){const a=i*.13;dummy.position.set(Math.cos(a)*8,-16+i*.18,-42+Math.sin(a)*8);dummy.rotation.y=-a;dummy.updateMatrix();stairs.setMatrixAt(i,dummy.matrix);}this.voidRoot.add(stairs);this.stairs=stairs;
  }
- update(time){for(const {g,m,i} of this.forms){g.rotation.x=Math.sin(time*.035+i)*.35;g.rotation.y=time*.018*(i%2?1:-1)+i;g.scale.y=1+Math.sin(time*.045+i)*.3;m.color.setHSL(.59+Math.sin(time*.025+i*.3)*.20,.48,.38);m.opacity=.3+.12*Math.sin(time*.08+i);}this.stairs.rotation.y=Math.sin(time*.022)*.15;}
+ update(time,occupied=false,doorOpen=false){this.voidRoot.visible=occupied&&doorOpen;if(!this.voidRoot.visible)return;for(const {g,m,i} of this.forms){g.rotation.x=Math.sin(time*.035+i)*.35;g.rotation.y=time*.018*(i%2?1:-1)+i;g.scale.y=1+Math.sin(time*.045+i)*.3;m.color.setHSL(.59+Math.sin(time*.025+i*.3)*.20,.48,.38);m.opacity=.3+.12*Math.sin(time*.08+i);}this.stairs.rotation.y=Math.sin(time*.022)*.15;}
  dispose(){this.stairs.dispose();for(const o of this.owned)o.dispose();this.root.removeFromParent();}
 }
