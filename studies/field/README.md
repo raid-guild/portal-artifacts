@@ -43,3 +43,14 @@ behind five quick taps on SURVEY CONTROLS in Menu.
 
 Run `node tests/second-look.test.mjs` from this directory for seeded eligibility,
 visibility, distance fade, revisits and corridor clearance checks.
+
+### Fur and recessed-eye revision
+
+The approved editable revision is `outputs/FIELD-goatman-fur.blend`, scene
+`Goatman_GLB_Inspection`. It includes the slender shape keys, rounded shoulders,
+recessed sockets and red emissive eyes. `tools/export_goatman_fur.py` evaluates
+those edits in an isolated export scene and bakes the fur color/normal atlas.
+The GLB contains four material groups and embedded textures; the runtime clones
+these materials, preserves the textures and eye emission, and applies the same
+faint encounter opacity/fade to all groups. The original `create_goatman.py`
+remains the untextured base model generator, not the approved revision exporter.
