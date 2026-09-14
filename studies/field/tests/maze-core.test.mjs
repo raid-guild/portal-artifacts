@@ -27,7 +27,7 @@ for(let seed=0;seed<40;seed++){
  const token=c.token;maze.update({x:branchX(c.room)+1,z:-22});assert.equal(maze.chunks.get(0).token,token,'Occupied annex must not regenerate');
 }
 console.log('PASS: 40 side-office loops bypass a blocked main exit; side and annex doors open; occupied branches remain stable.');
-const progress=new MazeTopology(4);for(const [index,count] of [[0,1],[1,2],[2,3],[1,3],[0,3],[-1,4],[0,4]]){progress.ensure(index);assert.equal(progress.summary().facilities,count);}
+const progress=new MazeTopology(4);for(const [index,count] of [[0,1],[1,2],[2,3],[1,3],[0,4],[-1,5],[0,5]]){progress.ensure(index);assert.equal(progress.summary().facilities,count);}
 const {supportsWall}=await import('../dist/maze-core.js');
 for(let seed=0;seed<20;seed++){const c=new MazeTopology(seed).chunks.get(0),b=branchX(c.room);assert.equal(supportsWall(c.cells,b+1,-25.92,0,.65),false,'Art cannot span annex doorway');assert.ok(supportsWall(c.cells,b-1,-25.92,0,.65),'Relocated art has solid wall');}
 console.log('PASS: progress never decreases on revisits; annex artwork requires solid wall backing.');
