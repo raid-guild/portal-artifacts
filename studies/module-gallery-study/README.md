@@ -1,6 +1,7 @@
 # Module Gallery Study
 
-An accessible static study comparing editorial and restrained Three.js gallery treatments.
+An accessible elastic editorial mosaic with in-grid detail expansion and a
+directionally navigable spatial arrangement.
 
 ## Build
 
