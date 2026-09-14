@@ -13,3 +13,19 @@ for(let seed=0;seed<60;seed++){
  second.update({room:{...room,index:i+1},seed,x:0,z:0,yaw:0});assert.equal(second.update({room,seed,x:room.turn+1,z:-24,yaw:0}),null,'Revisit never rearms');
 }
 console.log('PASS: 60 seeds, post-facility-7 eligibility, safe floor, behind-view arming, approach fade, look-away removal, map pause and no repeat.');
+const {lookBackPoster}=await import('../dist/second-look.js');
+const {supportsWall}=await import('../dist/maze-core.js');
+let silent=0,audible=0,ordinary=0;
+for(let seed=0;seed<60;seed++){
+ const i=findFacility(seed,0,'secondLook'),room=recipe(i,seed),e=new SecondLook();e.prime(room);
+ const args={room,seed,x:room.turn+1,z:-36,yaw:0};
+ assert.equal(e.update({...args,active:false}),null);
+ const first=e.update(args);if(first.cue)audible++;else silent++;
+ assert.equal(e.update(args).cue,false,'Cue only on transition, never every frame');
+ assert.equal(e.update({...args,yaw:Math.PI}).cue,false,'Turning back does not replay cue');
+ assert.ok(lookBackPoster(room,seed));
+ const m=new MazeTopology(seed);
+ for(let j=4;j<35;j++){m.ensure(j);const c=m.chunks.get(j);if(lookBackPoster(c.room,seed)){assert.ok(supportsWall(c.cells,c.room.turn+.08,-30,Math.PI/2,.59),'Poster backed by solid wall');if(!secondLookEligible(c.room,seed))ordinary++;}}
+}
+assert.ok(silent>0&&audible>0&&ordinary>0);
+console.log('PASS: one-shot optional cue, map pause, ordinary hallway posters and supported placement.');

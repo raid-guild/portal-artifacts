@@ -124,6 +124,7 @@ function updateMaze(dt){
  const low=s.chunk?.room.kind==='crawl'&&s.z<4&&s.z> -6;
  $('viewHint').textContent=isTouch?(low&&!crouched?'Tap Crouch to continue':'Left thumb: move · drag view to look'):low&&!crouched?'LOW CLEARANCE · C TO CROUCH':state.view==='plan'?'M RETURN · SCROLL TO ZOOM · DRAG TO PAN':'W A S D MOVE · SHIFT RUN · E DOOR · C CROUCH · M MAP · V SOUND';
  if(s.index!==lastMazeRoom){lastMazeRoom=s.index;$('mazeDepth').textContent=`FACILITIES ${String(maze.model.summary().facilities).padStart(3,'0')}`;}
+ if(sound&&changed.secondLookCue)ambience?.impact({source:changed.secondLookCue,player:state.player,yaw:state.yaw});
  if(sound&&changed.mutated!==null&&changed.mutated!==undefined)ambience?.impact();
  const ground=maze.model.height(state.player.x,state.player.z),target=ground+(crouched?.67:1.65);eyeHeight+=(target-eyeHeight)*Math.min(1,dt*12);
  for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){const x=Math.floor(state.player.x)+dx,z=Math.floor(state.player.z)+dz,p=maze.model.sample(x,z);if(p.chunk?.cells.has(key(Math.floor(p.x),Math.floor(p.z))))state.visited.set(key(x,z),nowTime);}

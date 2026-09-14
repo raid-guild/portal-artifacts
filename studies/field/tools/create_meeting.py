@@ -38,6 +38,7 @@ bpy.ops.mesh.primitive_cylinder_add(vertices=28,radius=.059,depth=.002,location=
 bpy.ops.mesh.primitive_torus_add(major_segments=20,minor_segments=8,location=(cx+.078,cy,.913),rotation=(math.pi/2,0,0),major_radius=.043,minor_radius=.011);o=bpy.context.object;o.name='Cup_handle';o.data.materials.append(ceramic);o.parent=table
 # Additional corporate posters: real mesh lettering, no font or image requests.
 for name,lines in [
+ ('NeverLookBackPoster',[('CONTINUITY',.49,.115),('CAREER DEVELOPMENT',.32,.048),('NEVER LOOK',.08,.12),('BACK.',-.12,.18),('YOUR FUTURE REQUIRES',-.36,.045),('YOUR FULL ATTENTION.',-.44,.045)]),
  ('ObservationPoster',[('CONTINUITY',.49,.115),('QUALITY ASSURANCE',.32,.053),('EXCELLENCE',.10,.105),('IS OBSERVED.',-.045,.095),('PLEASE REMAIN VISIBLE.',-.40,.052)]),
  ('AttendancePoster',[('CONTINUITY',.49,.115),('PERSONNEL SERVICES',.32,.050),('ALL SEATS',.10,.13),('ACCOUNTED FOR.',-.065,.085),('ABSENCE IS A DISCREPANCY.',-.40,.042)]),
  ('LegacyPoster',[('CONTINUITY',.49,.115),('LONG-TERM PLANNING',.32,.048),('YOUR WORK',.10,.12),('OUTLIVES YOU.',-.065,.095),('THANK YOU FOR YOUR SERVICE.',-.40,.038)])]:
@@ -62,7 +63,7 @@ for batch in batches.values():
  bpy.context.view_layer.objects.active=batch[0];bpy.ops.object.join()
 bpy.ops.export_scene.gltf(filepath=root+'/dist/assets/meeting-kit.glb',export_format='GLB',use_active_scene=True,export_animations=False)
 # Simple staged study; runtime uses existing office chairs around this table.
-for name,x in [('ExcellencePoster',0),('ObservationPoster',-2.4),('AttendancePoster',2.4),('LegacyPoster',4.0)]:bpy.data.objects[name].location=(x,4,1.6)
+for name,x in [('ExcellencePoster',0),('ObservationPoster',-2.4),('AttendancePoster',2.4),('LegacyPoster',4.0),('NeverLookBackPoster',-4.0)]:bpy.data.objects[name].location=(x,4,1.6)
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 bpy.ops.object.camera_add(location=(5,-7,5));scene.camera=bpy.context.object;aim(scene.camera,(0,0,.8));scene.camera.data.type='ORTHO';scene.camera.data.ortho_scale=7.8
 for p,power in [((0,0,5),1000),((-4,-3,4),850)]:

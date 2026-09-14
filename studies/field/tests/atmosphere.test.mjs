@@ -27,3 +27,13 @@ a.update({stage:7,anomaly:53,depth:8,index:8,time:12,active:true,model:nurseryMo
 a.setMusicActive(false);a.update({stage:7,anomaly:53,depth:8,index:8,time:13,active:false,model:nurseryModel,player:position});assert.ok(a.musicLayers.every(l=>l.music.paused&&l.gain.gain.value===0));
 globalThis.Audio=originalAudio;
 console.log('PASS: correct nursery track, room-specific mixing, looping, distance fade and shared mute/pause.');
+const {positionClunk}=await import('../dist/atmosphere.js');
+c.createPanner=()=>Object.assign(node(),{positionX:param(),positionY:param(),positionZ:param()});
+c.currentTime=30;const beforeCue=nodes.length;
+a.impact({source:{x:0,z:20},player:{x:0,z:0},yaw:0});
+const cue=a.rearCue;assert.equal(cue.pan.panningModel,'HRTF');assert.ok(cue.pan.positionZ.value>0,'Source starts behind listener');
+a.update({stage:5,anomaly:30,depth:3,index:1,time:30,active:true,player:{x:0,z:0},yaw:Math.PI});
+assert.ok(cue.pan.positionZ.value<0,'Turning around places fixed sound ahead');assert.equal(cue.level.gain.value,.32);
+a.update({stage:5,anomaly:30,depth:3,index:1,time:30,active:false,player:{x:0,z:0},yaw:0});assert.equal(cue.level.gain.value,0,'Pause silences cue');
+for(const n of nodes.slice(beforeCue).filter(n=>n.stopped))n.onended();assert.equal(a.rearCue,null);assert.ok(nodes.slice(beforeCue).every(n=>n.disconnected));
+console.log('PASS: quiet rear HRTF clunk tracks turn, mutes and releases nodes.');
