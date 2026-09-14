@@ -30,10 +30,23 @@ export class Recognition{
   const g=new THREE.Group();g.position.set(Math.sin(i*2.4)*(10+i*.65),Math.cos(i*1.7)*9-2,-26-i*2.6);this.voidRoot.add(g);
   const m=new THREE.LineBasicMaterial({color:new THREE.Color().setHSL(.47+i*.019,.45,.38),transparent:true,opacity:.45,fog:false});this.owned.push(m);
   for(let j=0;j<3;j++){const base=new THREE.BoxGeometry(4+j*3,3+j*2,5+j*3),geometry=new THREE.EdgesGeometry(base);base.dispose();this.owned.push(geometry);const frame=new THREE.LineSegments(geometry,m);frame.rotation.z=j*.14;g.add(frame);}
-  this.forms.push({g,m,i});
+  this.forms.push({g,m,i,origin:g.position.clone()});
  }
- const treadGeometry=new THREE.BoxGeometry(2.4,.08,.65),treadMaterial=new THREE.MeshBasicMaterial({color:0x647689,fog:false,transparent:true,opacity:.40});this.owned.push(treadGeometry,treadMaterial);const stairs=new THREE.InstancedMesh(treadGeometry,treadMaterial,160),dummy=new THREE.Object3D();for(let i=0;i<160;i++){const a=i*.13;dummy.position.set(Math.cos(a)*8,-16+i*.18,-42+Math.sin(a)*8);dummy.rotation.y=-a;dummy.updateMatrix();stairs.setMatrixAt(i,dummy.matrix);}this.voidRoot.add(stairs);this.stairs=stairs;
+ const treadGeometry=new THREE.BoxGeometry(2.4,.08,.65),treadMaterial=new THREE.MeshBasicMaterial({color:0x647689,fog:false,transparent:true,opacity:.40});this.owned.push(treadGeometry,treadMaterial);const stairs=new THREE.InstancedMesh(treadGeometry,treadMaterial,160),dummy=new THREE.Object3D();for(let i=0;i<160;i++){const a=i*.13;dummy.position.set(Math.cos(a)*8,-16+i*.18,Math.sin(a)*8);dummy.rotation.y=-a;dummy.updateMatrix();stairs.setMatrixAt(i,dummy.matrix);}stairs.position.z=-42;this.voidRoot.add(stairs);this.stairs=stairs;
  }
- update(time,occupied=false,doorOpen=false){this.voidRoot.visible=occupied&&doorOpen;if(!this.voidRoot.visible)return;for(const {g,m,i} of this.forms){g.rotation.x=Math.sin(time*.035+i)*.35;g.rotation.y=time*.018*(i%2?1:-1)+i;g.scale.y=1+Math.sin(time*.045+i)*.3;m.color.setHSL(.59+Math.sin(time*.025+i*.3)*.20,.48,.38);m.opacity=.3+.12*Math.sin(time*.08+i);}this.stairs.rotation.y=Math.sin(time*.022)*.15;}
+ update(time,occupied=false,doorOpen=false){
+  this.voidRoot.visible=occupied&&doorOpen;if(!this.voidRoot.visible)return;
+  for(const {g,m,i,origin} of this.forms){
+   const direction=i%2?1:-1;
+   g.rotation.set(Math.sin(time*.32+i)*.65,time*(.14+(i%4)*.025)*direction+i,Math.sin(time*.23+i*.7)*.3);
+   g.position.set(origin.x+Math.sin(time*.29+i)*3.5,origin.y+Math.cos(time*.37+i*.8)*2.5,origin.z+Math.sin(time*.24+i)*3);
+   g.scale.set(1+Math.sin(time*.43+i)*.16,1+Math.sin(time*.56+i)*.36,1+Math.cos(time*.39+i)*.18);
+   for(let j=0;j<g.children.length;j++){const frame=g.children[j];frame.rotation.y=time*.11*(j-1);frame.rotation.z=j*.14+time*.17*(j%2?-1:1);}
+   m.color.setHSL(.59+Math.sin(time*.19+i*.3)*.20,.55,.42);m.opacity=.36+.12*Math.sin(time*.65+i);
+  }
+  this.stairs.rotation.set(Math.sin(time*.27)*.12,time*.24,Math.sin(time*.21)*.1);
+  this.stairs.position.y=Math.sin(time*.42)*2;
+ }
+
  dispose(){this.stairs.dispose();for(const o of this.owned)o.dispose();this.root.removeFromParent();}
 }
