@@ -1,7 +1,7 @@
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import * as THREE from '../dist/vendor/three.module.js';
 const elements=new Map();const noop=()=>{};const context2d=new Proxy({},{get:(o,k)=>o[k]??noop,set:(o,k,v)=>(o[k]=v,true)});
 function element(id){if(!elements.has(id))elements.set(id,{hidden:false,style:{},classList:{toggle:noop,add:noop},setAttribute:noop,addEventListener:noop,getBoundingClientRect:()=>({width:1280,height:800,left:0,top:0}),getContext:()=>context2d,appendChild:noop});return elements.get(id)}
-const box={THREE,console,assert,document:{getElementById:element,querySelectorAll:()=>[],addEventListener:noop,exitPointerLock:noop,hidden:false},window:{addEventListener:noop},matchMedia:()=>({matches:false}),devicePixelRatio:1,performance:{now:()=>100},ResizeObserver:class{observe(){}},requestAnimationFrame:noop,location:{reload:noop},AbortController};vm.createContext(box);
+const box={readCheckpoint:()=>null,writeCheckpoint:()=>false,THREE,console,assert,document:{getElementById:element,querySelectorAll:()=>[],addEventListener:noop,exitPointerLock:noop,hidden:false},window:{addEventListener:noop},matchMedia:()=>({matches:false}),devicePixelRatio:1,performance:{now:()=>100},ResizeObserver:class{observe(){}},requestAnimationFrame:noop,location:{reload:noop},AbortController};vm.createContext(box);
 let code=fs.readFileSync('dist/app.js','utf8').replace(/^import .*;$/mg,'').replace('resize();setup3D();','resize();');
 code+=`
 ready=true;scene=new THREE.Scene();kit=new THREE.Group();for(const name of ['Wall','Floor','Ceiling','Fixture','DoorFrame','Outlet']){const o=new THREE.Group();o.name=name;kit.add(o);}renderer={domElement:{}};

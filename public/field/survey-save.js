@@ -1,0 +1,11 @@
+export const SAVE_KEY='field.survey.v1';
+export function validCheckpoint(value){
+ if(!value||value.version!==1||![1,-1].includes(value.floor))return null;
+ const integer=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;
+ if(!integer(value.seed,0,4294967295)||!integer(value.index,-9999,9999)||!integer(value.minVisited,-9999,value.index)||!integer(value.maxVisited,value.index,9999))return null;
+ if(value.facilities!==undefined&&!integer(value.facilities,1,10000000))return null;
+ if(value.milestones!==undefined&&(!Array.isArray(value.milestones)||value.milestones.length>2||value.milestones.some(p=>!Array.isArray(p)||p.length!==2||!integer(p[0],-10000,10000)||typeof p[1]!=="boolean")))return null;
+ return{...(value.facilities!==undefined?{facilities:value.facilities}:{}),...(value.milestones?{milestones:value.milestones}:{}),version:1,seed:value.seed,floor:value.floor,index:value.index,minVisited:value.minVisited,maxVisited:value.maxVisited,flashlight:value.flashlight!==false,complete:value.complete===true};
+}
+export function readCheckpoint(storage){try{storage??=globalThis.localStorage;const raw=storage?.getItem(SAVE_KEY);return raw?validCheckpoint(JSON.parse(raw)):null;}catch{return null;}}
+export function writeCheckpoint(value,storage){try{const clean=validCheckpoint(value);if(!clean)return false;storage??=globalThis.localStorage;if(!storage)return false;storage.setItem(SAVE_KEY,JSON.stringify(clean));return true;}catch{return false;}}
