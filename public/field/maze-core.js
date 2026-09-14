@@ -23,19 +23,20 @@ export function recipe(index,seed,revision=0){
 export function floorHeight(room,z){if(room.kind!=='stairs')return 0;if(z>=6)return 0;if(z>=-6)return Math.floor((6-z)*4)*.045;if(z>=-10)return 2.16;return Math.max(0,2.16-Math.floor((-10-z)*4)*.045);}
 export function crawlProfile(room,z){if(room.kind!=='crawl'||z>6||z< -6)return{width:Infinity,height:3};const t=clamp((6-z)/12,0,1);return{width:2.8-1.8*t,height:2.9-1.95*t};}
 export function branchX(room){return room.turn>0?-14:12;}
-export function roomDoors(room){const doors=room.kind==='crawl'?[]:[{id:'exit',x:0,z:-room.d/2,axis:'z',open:false}];if(room.branch){doors.push({id:'side',x:Math.sign(branchX(room))*room.w/2,z:1,axis:'x',open:false},{id:'annex',x:branchX(room)+1,z:-26,axis:'z',open:false});}return doors;}
+export function roomDoors(room){if(room.kind==='elevator')return[];const doors=room.kind==='crawl'?[]:[{id:'exit',x:0,z:-room.d/2,axis:'z',open:false}];if(room.branch){doors.push({id:'side',x:Math.sign(branchX(room))*room.w/2,z:1,axis:'x',open:false},{id:'annex',x:branchX(room)+1,z:-26,axis:'z',open:false});}return doors;}
 export function isDoorOpen(chunk,door){return door.id==='exit'?chunk.doorOpen:door.open;}
 export function roomCells(room){const cells=new Set();const rect=(x0,z0,x1,z1)=>{for(let x=x0;x<x1;x++)for(let z=z0;z<z1;z++)cells.add(cellKey(x,z));};rect(-room.w/2,-room.d/2,room.w/2,room.d/2);rect(-1,-10,1,6);rect(Math.min(-1,room.turn),-10,Math.max(1,room.turn+2),-8);rect(room.turn,-52,room.turn+2,-8);rect(Math.min(-1,room.turn),-52,Math.max(1,room.turn+2),-50);rect(-1,-58,1,-50);
  if(room.branch){const b=branchX(room);rect(Math.min(b,0),0,Math.max(b+2,0),2);rect(b,-40,b+2,2);rect(b-2,-26,b+4,-18);rect(Math.min(b,room.turn),-40,Math.max(b+2,room.turn+2),-38);const spur=b<0?b-8:b+8;rect(Math.min(b,spur),-16,Math.max(b+2,spur+2),-14);rect(spur-1,-18,spur+3,-12);}
+ if(room.kind==='elevator'&&!room.arrival){cells.clear();rect(-6,-6,6,6);return cells;}
  if(room.narrow)for(let z=-48;z< -27;z++){if(z>=-40&&z< -38)continue;cells.delete(cellKey(room.turn+1,z));}
  if(room.deadEnd)for(const k of [...cells]){const [x,z]=k.split(',').map(Number);if(z< (room.pitEnd?-31:-33)&&(!room.branch||(x>=room.turn&&x<room.turn+2&&z>=-38)))cells.delete(k);}
  if(room.kind==='pit')for(let x=-2;x<2;x++)for(let z=-2;z<2;z++)cells.delete(cellKey(x,z));return cells;}
 function obstacles(room){if(room.kind==='meeting')return meetingFurniture(room).map(({x,z,w,d})=>({x,z,w,d}));if(room.kind==='nursery')return nurseryFurniture(room).map(({x,z,w,d})=>({x,z,w,d}));if(room.kind==='camera')return cameraPositions(room).map(p=>({x:p.x,z:p.z,w:.65,d:.65}));if(room.kind==='desk')return[{x:0,z:0,w:1.8,d:1}];if(room.kind==='chairs')return[{x:room.w/2-1.7,z:0,w:1.5,d:2.2}];if(room.kind==='archive')return[{x:-room.w/2+1,z:0,w:1.4,d:4}];return[];}
 export class MazeTopology{
- constructor(seed=Date.now(),offset={x:0,z:0}){this.offset=offset;this.seed=seed>>>0;this.origin=0;this.current=0;this.chunks=new Map();this.serial=0;this.discovered=0;this.mutations=0;this.maxDepth=0;this.minVisited=0;this.maxVisited=0;this.minMade=Infinity;this.maxMade=-Infinity;this.ensure(0);}
+ constructor(seed=Date.now(),offset={x:0,z:0},floor=null){this.floor=floor;this.offset=offset;this.seed=seed>>>0;this.origin=0;this.current=0;this.chunks=new Map();this.serial=0;this.discovered=0;this.mutations=0;this.maxDepth=0;this.minVisited=0;this.maxVisited=0;this.minMade=Infinity;this.maxMade=-Infinity;this.ensure(0);}
  worldZ(index){return this.offset.z+(this.origin-index)*SPAN;}
  indexAt(z){return this.origin+Math.floor((6-(z-this.offset.z))/SPAN);}
- make(index,revision=0){const room=recipe(index,this.seed,revision);return{room,cells:roomCells(room),obstacles:[...obstacles(room),...(room.branch?[{x:branchX(room)+2.8,z:-22,w:.8,d:2.8}]:[])],doors:roomDoors(room),doorOpen:room.kind==='crawl',changed:false,token:++this.serial};}
+ make(index,revision=0){const room=recipe(index,this.seed,revision);if((this.floor===1&&index===13)||(this.floor===-1&&index===0))Object.assign(room,{kind:"elevator",arrival:this.floor===-1,w:12,d:12,branch:false,narrow:false,deadEnd:false,ceiling:3});return{room,cells:roomCells(room),obstacles:[...obstacles(room),...(room.branch?[{x:branchX(room)+2.8,z:-22,w:.8,d:2.8}]:[])],doors:roomDoors(room),doorOpen:room.kind==='crawl',changed:false,token:++this.serial};}
  ensure(index){const added=[],removed=[];for(let i=index-1;i<=index+1;i++){if(!this.chunks.has(i)){const recycled=i>=this.minMade&&i<=this.maxMade;const c=this.make(i,recycled?1+Math.floor(this.serial/6):0);this.minMade=Math.min(this.minMade,i);this.maxMade=Math.max(this.maxMade,i);this.chunks.set(i,c);added.push(i);}}
  for(const i of this.chunks.keys())if(Math.abs(i-index)>1){this.chunks.delete(i);removed.push(i);}if(index!==this.current){this.discovered++;this.maxDepth=Math.max(this.maxDepth,Math.abs(index));}this.minVisited=Math.min(this.minVisited,index);this.maxVisited=Math.max(this.maxVisited,index);this.current=index;return{added,removed};}
  sample(x,z){const index=this.indexAt(z),chunk=this.chunks.get(index);return{chunk,index,x:x-this.offset.x,z:z-this.worldZ(index)};}
@@ -53,7 +54,7 @@ export class MazeTopology{
  if(s.chunk?.reachedEnd&&s.z> -9&&Math.abs(s.x)<2){const old=s.chunk;const next={...old,room:{...old.room,deadEnd:false},token:++this.serial};this.refresh(next);next.reachedEnd=false;this.chunks.set(index,next);this.mutations++;mutated=index;}
 
  // At this point the room is behind TWO solid corridor walls, independent of camera angle.
- if(s.chunk&&!s.chunk.changed&&!s.chunk.room.deadEnd&&s.z< -15&&s.z> -24&&Math.abs(s.x-(s.chunk.room.turn+1))<.85){const old=s.chunk;const next=this.make(index,old.room.revision+1);next.room.turn=old.room.turn;next.ghostGone=old.ghostGone;this.refresh(next);next.changed=true;next.doorOpen=old.doorOpen;this.chunks.set(index,next);this.mutations++;mutated=index;}
+ if(s.chunk&&!s.chunk.changed&&s.chunk.room.kind!=='elevator'&&!s.chunk.room.deadEnd&&s.z< -15&&s.z> -24&&Math.abs(s.x-(s.chunk.room.turn+1))<.85){const old=s.chunk;const next=this.make(index,old.room.revision+1);next.room.turn=old.room.turn;next.ghostGone=old.ghostGone;this.refresh(next);next.changed=true;next.doorOpen=old.doorOpen;this.chunks.set(index,next);this.mutations++;mutated=index;}
  let expired=null;const pending=this.pendingExpiry;
  if(pending&&s.chunk){const onMain=Math.abs(s.x-(s.chunk.room.turn+.5))<1.2;
  const hidden=onMain&&(pending.direction>0?s.z< -16&&s.z> -25:s.z> -45&&s.z< -35);
