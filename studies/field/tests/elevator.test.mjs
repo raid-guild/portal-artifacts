@@ -25,3 +25,12 @@ const lift=new Elevator(props);assert.equal(lift.goat.visible,false);
 lift.state.interact(0,3);for(let i=0;i<120;i++)lift.update(1/60);assert.ok(lift.left.position.x< -1.3&&lift.right.position.x>1.3,'Door meshes retract');
 lift.state.interact(0,0);while(lift.state.open>.35)lift.update(1/60);assert.ok(lift.goat.visible);while(lift.state.phase==='closing')lift.update(1/60);assert.equal(lift.goat.visible,false);assert.equal(lift.left.position.x,-.46);lift.dispose();assert.equal(goat.material.opacity,1,'Reveal does not modify shared creature material');
 console.log('PASS: actual elevator meshes retract, reveal timing matches panels, shared assets remain unchanged.');
+const {facesLiftDoors}=await import('../dist/elevator-state.js');
+const facing=new ElevatorState();facing.phase='open';facing.open=1;
+for(const yaw of [0,Math.PI/2,-Math.PI/2]){assert.equal(facing.prompt(0,0,facesLiftDoors(yaw)),null);assert.equal(facing.interact(0,0,facesLiftDoors(yaw)),false);}
+assert.equal(facing.interact(0,0,facesLiftDoors(Math.PI,1)),false,'Cannot descend looking at ceiling');
+assert.ok(facing.interact(0,0,facesLiftDoors(Math.PI,0)));assert.equal(facing.phase,'ready');
+console.log('PASS: descent requires facing the doors, with no camera rotation.');
+const {createFlashlight}=await import('../dist/flashlight.js');
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(),torch=createFlashlight(scene);camera.position.set(5,1.6,7);camera.rotation.set(.25,1.2,0,'YXZ');camera.updateMatrixWorld();torch.update(camera,true);assert.ok(torch.light.visible&&torch.light.castShadow);const expected=camera.getWorldDirection(new THREE.Vector3()),actual=torch.light.target.position.clone().sub(camera.position).normalize();assert.ok(expected.dot(actual)>.9999);torch.update(camera,false);assert.equal(torch.light.visible,false);
+console.log('PASS: flashlight follows yaw/pitch, casts shadows and toggles off.');
