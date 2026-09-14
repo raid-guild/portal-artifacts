@@ -41,7 +41,7 @@ function saveSurvey(){if(!maze)return;const m=maze.model,value={version:1,seed:m
 function continueSurvey(){
  if(!ready||!savedSurvey)return;const checkpoint={...savedSurvey};enterMaze(false);
  maze.dispose();maze=new EndlessMaze(scene,kit,props,checkpoint.seed,{x:0,z:0},checkpoint.floor);maze.entranceAttached=false;
- maze.model.milestones=new Map(checkpoint.milestones||[]);maze.model.chunks.clear();maze.model.ensure(checkpoint.index);maze.model.minVisited=checkpoint.minVisited;maze.model.maxVisited=checkpoint.maxVisited;maze.model.facilities=checkpoint.facilities??(checkpoint.maxVisited-checkpoint.minVisited+1);maze.model.maxDepth=Math.max(Math.abs(checkpoint.minVisited),Math.abs(checkpoint.maxVisited));maze.sync();
+ maze.model.milestones=new Map(checkpoint.milestones||[]);maze.model.chunks.clear();maze.model.ensure(checkpoint.index);maze.model.minVisited=checkpoint.minVisited;maze.model.maxVisited=checkpoint.maxVisited;maze.model.facilities=checkpoint.facilities??(checkpoint.maxVisited-checkpoint.minVisited+1);if(checkpoint.floor===-1&&maze.model.facilities>1&&maze.model.chunks.get(0)?.room.arrival)maze.model.chunks.set(0,maze.model.make(0,1));maze.model.maxDepth=Math.max(Math.abs(checkpoint.minVisited),Math.abs(checkpoint.maxVisited));maze.sync();
  const reverse=maze.model.chunks.get(checkpoint.index).room.reverse;state.player={x:0,z:maze.model.worldZ(checkpoint.index)+(reverse?-57.2:5.2)};state.yaw=reverse?Math.PI:0;state.pitch=0;state.visited.clear();state.pan={x:0,y:0};lastMazeRoom=null;surveyComplete=checkpoint.complete;flashlightOn=checkpoint.floor===-1&&checkpoint.flashlight;floorLighting(checkpoint.floor);flashlightUI();
  $('systemStatus').textContent=surveyComplete?'SURVEY COMPLETE':`SURVEY RESTORED · FLOOR ${checkpoint.floor===1?'01':'−01'}`;setView('walk');updateMaze(0);saveSurvey();
 }
@@ -86,7 +86,7 @@ $('debugJump').onclick=()=>{
  const room=maze.model.chunks.get(target).room,z=maze.model.worldZ(target),x=maze.model.offset.x;
  state.player={x,z:z+5.2};state.yaw=0;state.pitch=0;
  if(type==='ghost'){const seat=ghostRoom(room);state.player={x:x+branchX(room)+1,z:z+seat.z};state.yaw=branchX(room)<0?Math.PI/2:-Math.PI/2;}
- if(type==='secondLook'){maze.secondLook.prime(room);state.player={x:x+room.turn+1,z:z-36};state.yaw=0;}
+ if(type==='secondLook'){maze.secondLook.prime(room,maze.model.facilities);state.player={x:x+room.turn+1,z:z-36};state.yaw=0;}
  if(type==='music')state.player={x:x+room.w/2-1,z:z+3};
  running=false;crouched=false;eyeHeight=maze.model.height(state.player.x,state.player.z)+1.65;state.visited.clear();lastMazeRoom=null;
  $('debugFacility').value=target+1;$('debugInfo').textContent=type==='secondLook'?'Second look armed. Turn around and look down the hallway.':`Floor ${floor===1?'01':'-01'} · Facility ${target+1} · ${room.kind}`;setView('walk');toggleDebug(false);updateMaze(.016);

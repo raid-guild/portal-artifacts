@@ -3,22 +3,22 @@
 export function secondLookEligible(room,seed){
  const depth=Math.abs(room.index);
  let n=(seed^Math.imul(depth+1,2246822519))>>>0;n=Math.imul(n^(n>>>16),3266489917)>>>0;
- return depth>=7&&!room.deadEnd&&!room.narrow&&room.kind!=='stairs'&&(depth===9||n%3!==0);
+ return (room.floor===-1||depth>=7)&&!room.deadEnd&&!room.narrow&&!['stairs','elevator','recognition'].includes(room.kind)&&(room.floor===-1||depth===9||n%3!==0);
 }
 // Corporate advice also appears in ordinary corridors; it is not a sighting marker.
 export function lookBackPoster(room,seed){
  const n=(Math.imul(seed^Math.abs(room.index),1597334677)>>>0);
- return Math.abs(room.index)>=4&&!room.narrow&&!room.deadEnd&&room.kind!=='stairs'&&(secondLookEligible(room,seed)||n%4===0);
+ return (room.floor===-1||Math.abs(room.index)>=4)&&!room.narrow&&!room.deadEnd&&room.kind!=='stairs'&&(secondLookEligible(room,seed)||n%4===0);
 }
 export class SecondLook{
  constructor(){this.encounter=null;this.offeredThrough=-1;this.lastDepth=-Infinity;}
- prime(room){this.encounter={index:room.index,phase:'armed',opacity:0};this.offeredThrough=Math.max(this.offeredThrough,Math.abs(room.index));}
- update({room,seed,x,z,yaw,active=true}){
+ prime(room,progress=Math.abs(room.index)){this.encounter={index:room.index,progress,phase:'armed',opacity:0};this.offeredThrough=Math.max(this.offeredThrough,progress);}
+ update({room,seed,x,z,yaw,active=true,progress=Math.abs(room.index)}){
   if(!active)return null;
-  const depth=Math.abs(room.index),onHall=Math.abs(x-(room.turn+1))<=.83;
+  const depth=progress,onHall=Math.abs(x-(room.turn+1))<=.83;
   let e=this.encounter;
-  if(e&&e.index!==room.index){this.encounter=null;e=null;}
-  if(!e&&depth>this.offeredThrough&&depth-this.lastDepth>=5&&secondLookEligible(room,seed)&&onHall&&z< -23&&z>= -48){this.prime(room);e=this.encounter;}
+  if(e&&(e.index!==room.index||e.progress!==depth)){this.encounter=null;e=null;}
+  if(!e&&depth>this.offeredThrough&&depth-this.lastDepth>=(room.floor===-1?2:5)&&secondLookEligible(room,seed)&&onHall&&z< -23&&z>= -48){this.prime(room,depth);e=this.encounter;}
   if(!e)return null;
   let cue=false;
   const distance=Math.hypot(x-room.turn-1,z+12),facing=(-Math.sin(yaw)*(room.turn+1-x)-Math.cos(yaw)*(-12-z))/Math.max(distance,.001);

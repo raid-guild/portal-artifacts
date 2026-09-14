@@ -53,3 +53,10 @@ for(const reverse of [false,true]){
  const origin=e.root.localToWorld(new THREE.Vector3(1.15,1.65,1.1)),target=e.control.getWorldPosition(new THREE.Vector3());
  const ray=new THREE.Raycaster(origin,target.clone().sub(origin).normalize());assert.ok(ray.intersectObject(e.control).length,'Physical panel hit target works near the button in either orientation');e.dispose();
 }
+const retired=new ElevatorState(true);for(let i=0;i<240;i++)retired.update(1/60);retired.retire();assert.equal(retired.locked,false);let extraDescent=false;for(let i=0;i<300;i++)extraDescent ||= retired.update(1/60);assert.equal(retired.phase,'sealed');assert.equal(retired.open,0);assert.equal(retired.interact(0,2.6),false);assert.equal(extraDescent,false);
+for(let seed=0;seed<40;seed++){
+ const m=new MazeTopology(seed,{x:0,z:0},-1);assert.ok(m.chunks.get(0).room.arrival);
+ assert.notEqual(m.make(0,1).room.kind,'elevator','Expiry removes the arrival shaft');
+ m.ensure(2);m.ensure(0);assert.notEqual(m.chunks.get(0).room.kind,'elevator','Unloaded arrival never regenerates');
+}
+console.log('PASS: arrival seals without locking movement or descending; no call/reopening; expiry removes it across 40 seeds.');

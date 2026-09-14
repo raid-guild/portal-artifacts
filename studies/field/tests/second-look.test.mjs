@@ -44,3 +44,18 @@ for(let seed=0;seed<60;seed++)for(const start of [-10,-39]){
  const sight=e.update({room,seed,x:room.turn+1,z:-43,yaw:Math.PI});assert.equal(sight.phase,'seen');assert.ok(sight.opacity>0);assert.equal(e.lastDepth,9);
 }
 console.log('PASS: first offer by facility 10, real mutation path, running, annex entry and cooldown only on actual sighting.');
+let upstairs=0,downstairs=0;
+for(let seed=0;seed<60;seed++){
+ const upper=new MazeTopology(seed,{x:0,z:0},1),lower=new MazeTopology(seed,{x:0,z:0},-1);
+ for(let index=1;index<13;index++){const a=upper.make(index).room,b=lower.make(index).room;if(a.branch&&a.ghost)upstairs++;if(b.branch&&b.ghost)downstairs++;}
+ const room=lower.make(0,1).room;room.deadEnd=false;room.narrow=false;
+ assert.ok(secondLookEligible(room,seed),'Lower floor sightings do not wait until facility 7');
+ const encounter=new SecondLook(),args={room,seed,x:room.turn+1,z:-36};
+ encounter.update({...args,yaw:0,progress:2});assert.equal(encounter.update({...args,yaw:Math.PI,progress:2}).phase,'seen');
+ encounter.update({...args,yaw:0,progress:2});assert.equal(encounter.update({...args,yaw:0,progress:3}),null,'One-facility breathing room');
+ assert.equal(encounter.update({...args,yaw:0,progress:4}).phase,'waiting','A new generation at the same index can offer another sighting');
+ assert.equal(encounter.update({...args,yaw:Math.PI,progress:4}).phase,'seen');
+ for(const kind of ['elevator','recognition','stairs'])assert.equal(secondLookEligible({...room,kind},seed),false);
+}
+assert.ok(downstairs>upstairs*2,`${downstairs} lower chair figures vs ${upstairs} upstairs`);
+console.log(`PASS: ${downstairs} lower-floor chair offers vs ${upstairs} upstairs; early Goatman, two-facility cooldown, regenerated-room rearming, safe exclusions.`);
