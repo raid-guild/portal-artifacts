@@ -1,9 +1,9 @@
 import {isMusicRoom} from './maze-core.js';
 // Original user track leaks from a fixed point just behind selected room walls.
-export function wallMusicMix(model,player,yaw){
+export function wallMusicMix(model,player,yaw,track='office'){
  let best={gain:0,pan:0,cutoff:420};if(!model)return best;
  for(const [index,chunk] of model.chunks){
-  if(!isMusicRoom(index,chunk.room))continue;
+  if(track==='nursery'?chunk.room.kind!=='nursery':chunk.room.kind==='nursery'||!isMusicRoom(index,chunk.room))continue;
   const dx=model.offset.x+chunk.room.w/2+.35-player.x,dz=model.worldZ(index)+1-player.z,d=Math.hypot(dx,dz);
   const gain=.8*Math.pow(Math.max(0,1-d/16),1.25);
   if(gain>best.gain)best={gain,pan:Math.max(-.9,Math.min(.9,(dx*Math.cos(yaw)-dz*Math.sin(yaw))/Math.max(1,d))),cutoff:1000+3200*Math.max(0,1-d/12)};
@@ -24,17 +24,20 @@ export class Atmosphere {
   this.hiss=c.createGain();this.hiss.gain.value=.007;source.connect(hiss);hiss.connect(this.hiss);this.hiss.connect(output);
  }
  initMusic(){
-  if(this.music)return;const c=this.ctx;
-  this.music=new Audio('./assets/office-doom.mp3');this.music.loop=true;this.music.preload='none';
-  const source=c.createMediaElementSource(this.music);this.musicLow=c.createBiquadFilter();this.musicLow.type='lowpass';this.musicLow.frequency.value=420;
-  const high=c.createBiquadFilter();high.type='highpass';high.frequency.value=45;
-  this.musicPan=c.createStereoPanner();this.musicGain=c.createGain();this.musicGain.gain.value=0;
-  source.connect(high);high.connect(this.musicLow);this.musicLow.connect(this.musicPan);this.musicPan.connect(this.musicGain);this.musicGain.connect(this.output);
+  if(this.musicLayers)return;const c=this.ctx;
+  this.musicLayers=['office','nursery'].map(track=>{
+   const music=new Audio(`./assets/${track}-doom.mp3`);music.loop=true;music.preload='none';
+   const source=c.createMediaElementSource(music),low=c.createBiquadFilter();low.type='lowpass';low.frequency.value=420;
+   const high=c.createBiquadFilter();high.type='highpass';high.frequency.value=45;
+   const pan=c.createStereoPanner(),gain=c.createGain();gain.gain.value=0;
+   source.connect(high);high.connect(low);low.connect(pan);pan.connect(gain);gain.connect(this.output);
+   return{track,music,low,pan,gain,blocked:false};
+  });
  }
- setMusicActive(active){if(!this.music)return;if(active)this.music.play().then(()=>{this.musicBlocked=false;}).catch(()=>{this.musicBlocked=true;});else this.music.pause();}
+ setMusicActive(active){for(const layer of this.musicLayers||[]){if(active)layer.music.play().then(()=>{layer.blocked=false;this.musicBlocked=this.musicLayers.some(l=>l.blocked);}).catch(()=>{layer.blocked=true;this.musicBlocked=true;});else layer.music.pause();}}
  update({stage,anomaly,depth,room,index,time,active,model,player,yaw=0}){
   const c=this.ctx,t=c.currentTime;let musicPresence=0;
-  if(this.musicGain){const mix=active&&player?wallMusicMix(model,player,yaw):{gain:0,pan:0,cutoff:420};musicPresence=Math.min(1,mix.gain/.5);this.musicGain.gain.setTargetAtTime(mix.gain,t,.6);this.musicPan.pan.setTargetAtTime(mix.pan,t,.12);this.musicLow.frequency.setTargetAtTime(mix.cutoff,t,.4);}
+  for(const layer of this.musicLayers||[]){const mix=active&&player?wallMusicMix(model,player,yaw,layer.track):{gain:0,pan:0,cutoff:420};musicPresence=Math.max(musicPresence,Math.min(1,mix.gain/.5));layer.gain.gain.setTargetAtTime(mix.gain,t,.6);layer.pan.pan.setTargetAtTime(mix.pan,t,.12);layer.low.frequency.setTargetAtTime(mix.cutoff,t,.4);}
   const tension=Math.min(1,anomaly/48),occupied=stage>=2;
   this.air.gain.setTargetAtTime(active?((occupied?.04:.015)+tension*.025)*(1-musicPresence*.65):0,t,.7);
   const flicker=depth>=2&&Math.sin(time*.65+index*1.7)>.87?(Math.sin(time*8.3+index)>.2?.18:.75):1;

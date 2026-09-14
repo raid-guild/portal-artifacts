@@ -14,3 +14,16 @@ const near=wallMusicMix(model,{x:16,z:-105},0),far=wallMusicMix(model,{x:0,z:-10
 assert.ok(near.gain>.6&&near.gain<.8);assert.equal(far.gain,0);assert.ok(near.pan>0&&turned.pan<0);assert.ok(near.cutoff>3000&&near.cutoff<4500);
 assert.equal(wallMusicMix(null,{x:0,z:0},0).gain,0);
 console.log('PASS: wall music fades by distance, follows head direction, respects world offsets and stays muffled.');
+const nurseryModel={offset:{x:0},worldZ:i=>-i*64,chunks:new Map([[8,{room:{kind:'nursery',w:10}}]])},position={x:2,z:-511};
+assert.ok(wallMusicMix(nurseryModel,position,0,'nursery').gain>.4);
+assert.equal(wallMusicMix(nurseryModel,position,0,'office').gain,0,'Nursery never uses office track');
+assert.equal(wallMusicMix(model,{x:16,z:-105},0,'nursery').gain,0,'Office never uses nursery track');
+assert.equal(wallMusicMix(nurseryModel,{x:2,z:-490},0,'nursery').gain,0,'Nursery fades out beyond the room');
+const originalAudio=globalThis.Audio;
+globalThis.Audio=class{constructor(src){this.src=src;this.paused=true;}play(){this.paused=false;return Promise.resolve();}pause(){this.paused=true;}};
+c.createMediaElementSource=node;a.initMusic();assert.equal(a.musicLayers.length,2);assert.ok(a.musicLayers[1].music.src.endsWith('nursery-doom.mp3'));assert.equal(a.musicLayers[1].music.loop,true);
+a.setMusicActive(true);await Promise.resolve();assert.ok(a.musicLayers.every(l=>!l.music.paused));
+a.update({stage:7,anomaly:53,depth:8,index:8,time:12,active:true,model:nurseryModel,player:position});assert.equal(a.musicLayers[0].gain.gain.value,0);assert.ok(a.musicLayers[1].gain.gain.value>.4);
+a.setMusicActive(false);a.update({stage:7,anomaly:53,depth:8,index:8,time:13,active:false,model:nurseryModel,player:position});assert.ok(a.musicLayers.every(l=>l.music.paused&&l.gain.gain.value===0));
+globalThis.Audio=originalAudio;
+console.log('PASS: correct nursery track, room-specific mixing, looping, distance fade and shared mute/pause.');

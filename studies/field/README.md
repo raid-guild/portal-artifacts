@@ -86,3 +86,9 @@ Blender study at `outputs/FIELD-nursery.blend`.
 Run `node tests/nursery.test.mjs` and `node tests/nursery-asset.test.mjs` from this
 directory. The latter checks exported geometry and runtime assembly without
 image decoding; the photographs were visually checked in the Blender render.
+
+The nursery loops the user-provided `nursery-doom.wav`, encoded as
+`public/field/assets/nursery-doom.mp3` for browser playback. It has its own wall
+music channel, with the existing distance falloff, low-pass muffling and stereo
+positioning. Office rooms continue to use `office-doom.mp3`; both follow the
+shared sound toggle and pause state. `tests/atmosphere.test.mjs` covers routing.
