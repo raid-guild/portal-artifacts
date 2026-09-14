@@ -69,3 +69,20 @@ The Blender source is `outputs/FIELD-surveillance-camera.blend`; reproduce it wi
 Run `node tests/surveillance.test.mjs` and `node tests/camera-asset.test.mjs`
 from this directory to check layouts, stand collisions, tracking, blinking,
 exported lens direction, world offsets, crouching and material cleanup.
+
+## Nursery / Facility 009
+
+Facility index 8 is always a 10 × 10 m nursery, including after hidden revisions.
+Two cream cribs, a moss-green recliner and scattered blocks sit on a whole-room
+vertex-colored grass floor with dirt patches. Three framed photographs use UV
+windows into the supplied reference, preserved in `references/nursery-family.png`.
+The photograph is packed into the GLB; no external image request is required.
+
+GOD → **Nursery / Facility 009** jumps directly to this room regardless of the
+search-from field. Furniture collision preserves a clear central path and the
+exit doorway. `tools/create_nursery.py` generates the asset library and a staged
+Blender study at `outputs/FIELD-nursery.blend`.
+
+Run `node tests/nursery.test.mjs` and `node tests/nursery-asset.test.mjs` from this
+directory. The latter checks exported geometry and runtime assembly without
+image decoding; the photographs were visually checked in the Blender render.

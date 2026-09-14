@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {nurseryFurniture} from './nursery.js';
 import {cameraPositions,trackAngle,cameraBlink} from './surveillance.js';
 import {SecondLook,secondLookEligible} from './second-look.js';
 import {MazeTopology,cellKey,floorHeight,crawlProfile,flickerLevel,branchX,isDoorOpen,supportsWall,ceilingHeight,ghostRoom,enteredGhostRoom} from './maze-core.js';
@@ -10,12 +11,12 @@ export class EndlessMaze{
  batch(group){group.updateMatrixWorld(true);const batches=new Map();group.traverse(o=>{if(!o.isMesh||o.userData.dynamic)return;const id=o.geometry.uuid+o.material.uuid;let b=batches.get(id);if(!b){b={geometry:o.geometry,material:o.material,matrices:[]};batches.set(id,b);}b.matrices.push(o.matrixWorld.clone());});const out=new THREE.Group();const glows=[];for(const b of batches.values()){const mesh=new THREE.InstancedMesh(b.geometry,b.material.emissiveIntensity>0?b.material.clone():b.material,b.matrices.length);b.matrices.forEach((m,i)=>mesh.setMatrixAt(i,m));if(mesh.material!==b.material){mesh.material.userData.mazeOwned=true;glows.push({material:mesh.material,base:mesh.material.emissiveIntensity});}mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();out.add(mesh);}out.userData.glows=glows;return out;}
  build(chunk){const r=chunk.room,raw=new THREE.Group(),doorGroup=new THREE.Group(),fixtures=[],doors=[],cameras=[];let ghost=null;
  const add=(name,x,z,y=0,rot=0,scale)=>{
- if(name==='Portrait'||name.endsWith('Poster')){const source=this.props.getObjectByName(name),size=new THREE.Box3().setFromObject(source).getSize(new THREE.Vector3());if(!supportsWall(chunk.cells,x,z,rot,size.x*(scale?.[0]||1)/2+.04))return null;}
+ if(name==='Portrait'||name.startsWith('NurseryPicture')||name.endsWith('Poster')){const source=this.props.getObjectByName(name),size=new THREE.Box3().setFromObject(source).getSize(new THREE.Vector3());if(!supportsWall(chunk.cells,x,z,rot,size.x*(scale?.[0]||1)/2+.04))return null;}
  return this.addAsset(raw,name,x,z,y,rot,scale);
  };
  const has=(x,z)=>chunk.cells.has(cellKey(x,z))||(z===6&&x>=-1&&x<1)||(z===-59&&x>=-1&&x<1);
  for(const cell of chunk.cells){const[x,z]=cell.split(',').map(Number),f=floorHeight(r,z+.5),height=ceilingHeight(r,x+.5,z+.5),crawl=r.kind==='crawl'&&z>=-6&&z<6;
- if(!crawl){if(!(r.kind==='stairs'&&(z>=-6||z< -10&&z>=-22)))add('Floor',x+.5,z+.5,f);add('Ceiling',x+.5,z+.5,f+height-3);}
+ if(!crawl){if(!(r.kind==='stairs'&&(z>=-6||z< -10&&z>=-22))&&!(r.kind==='nursery'&&x>=-5&&x<5&&z>=-5&&z<5))add('Floor',x+.5,z+.5,f);add('Ceiling',x+.5,z+.5,f+height-3);}
  if(((x%3===1&&z%3===1&&z>=-6)||(x===r.turn&&z%7===0)||(x===0&&z===-31)||(r.branch&&x===branchX(r)&&z%7===0)||(r.branch&&z===-39&&x%7===0))&&! (secondLookEligible({...r,deadEnd:false},this.model.seed)&&x===r.turn&&z> -23&&z< -8)){const suspended=r.hanging&&height>3,drop=suspended?height-3.5:0;
  add('Fixture',x+.5,z+.5,f+height-3-drop);
  if(suspended)for(const dz of[-.32,.32])this.box(raw,x+.5,f+height-drop/2,z+.5+dz,.022,drop,.022,rail);
@@ -29,12 +30,13 @@ export class EndlessMaze{
  if(r.kind==='crawl'){for(let z=-6;z<6;z++){const p=crawlProfile(r,z+.5);for(const sign of[-1,1]){add('Floor',sign*p.width/4,z+.5,0,0,[p.width/2,1,1]);add('Ceiling',sign*p.width/4,z+.5,0,0,[p.width/2,p.height/3,1]);add('Wall',sign*(p.width/2+.05),z+.5,0,sign<0?Math.PI/2:-Math.PI/2,[1,p.height/3,1]);}if(z%4===0)add('Fixture',0,z+.5,p.height-3,0,[.7,1,.7]);}}
  if(r.kind==='stairs'){// Four risers per meter: actual treads, with a matching continuous eye-height profile.
  for(let z=6;z> -22;z-=.25){const x=z>=-10?0:r.turn+1;const y=floorHeight(r,z-.125);if(y<=0)continue;this.box(raw,x,y-.06,z-.125,z>=-6?r.w:1.98,.12,.25,rail);}}
+ if(r.kind==='nursery'){add('NurseryGround',0,0);for(const p of nurseryFurniture(r))add(p.asset,p.x,p.z,0,p.rotation);add('NurseryBlocks',.6,-.8);add('NurseryPictureBlocks',4.91,1.3,1.8,-Math.PI/2);add('NurseryPictureReading',-2.6,-4.91,1.85);add('NurseryPictureLab',2.6,-4.91,1.85);}
  if(r.kind==='pit')this.box(raw,0,-24,0,4,.1,4,shaft);
  if(r.kind==='desk'){add('Desk',0,0);add('Chair',0,1.05,0,Math.PI);}
  if(r.kind==='chairs'){for(let i=0;i<8;i++){const o=add('Chair',r.w/2-1.7+(i%2)*.22,-.5+Math.floor(i/4)*.55,(i%4)*.31,(i%2?-.16:.12));if(i===7)o.rotation.z=.3;}}
  if(r.kind==='archive')for(let i=0;i<5;i++)add('Cabinet',-r.w/2+.85,-1.6+i*.8,0,Math.PI/2);
  if(r.kind==='gallery'){for(let i=0;i<3;i++)add('Portrait',-r.w/2+.085,-2+i*2,1,Math.PI/2);}
- if(r.kind!=='crawl'){add(r.poster,r.w/2-.09,-1,1, -Math.PI/2);add('Portrait',-r.w/4,-r.d/2+.08,.9);}
+ if(!['crawl','nursery'].includes(r.kind)){add(r.poster,r.w/2-.09,-1,1, -Math.PI/2);add('Portrait',-r.w/4,-r.d/2+.08,.9);}
  add('DirectionPoster',r.turn+(r.turn>0?1.92:.08),-18,1,r.turn>0?-Math.PI/2:Math.PI/2);
  if(r.branch){const b=branchX(r);for(let i=0;i<3;i++)add('Cabinet',b+2.8,-23+i*.85,0,-Math.PI/2);add('WellnessPoster',b-1.92,-22,1,Math.PI/2);add('Portrait',b-1,-25.92,.9);const seat=ghostRoom(r);add('Chair',seat.x,seat.z,0,seat.rotation);
  if(r.ghost&&!chunk.ghostGone&&this.props.getObjectByName('SeatedShadow')){ghost=this.props.getObjectByName('SeatedShadow').clone();ghost.position.set(seat.x,0,seat.z);ghost.rotation.y=seat.rotation;
