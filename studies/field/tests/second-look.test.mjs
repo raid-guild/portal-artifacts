@@ -8,7 +8,7 @@ for(let seed=0;seed<60;seed++){
  const encounter=new SecondLook();const step=(z,yaw,active=true)=>encounter.update({room,seed,x:room.turn+1,z,yaw,active});
  assert.equal(step(-24,Math.PI).opacity,0);assert.equal(step(-36,Math.PI).opacity,0,'Never materialize in an already watched corridor');
  assert.equal(step(-36,0).phase,'waiting');assert.equal(step(-36,Math.PI,false),null,'Map view cannot trigger');
- assert.equal(step(-36,Math.PI).phase,'seen');assert.ok(step(-26,Math.PI).opacity<.48);assert.equal(step(-22,Math.PI).opacity,0);assert.equal(step(-36,Math.PI).opacity,0,'No repeated sighting');
+ const seen=step(-36,Math.PI);assert.equal(seen.phase,'seen');assert.ok(step(-26,Math.PI).opacity<seen.opacity);assert.equal(step(-22,Math.PI).opacity,0);assert.equal(step(-36,Math.PI).opacity,0,'No repeated sighting');
  const second=new SecondLook();second.prime(room);second.update({room,seed,x:room.turn+1,z:-36,yaw:0});assert.ok(second.update({room,seed,x:room.turn+1,z:-36,yaw:Math.PI}).opacity>0);assert.equal(second.update({room,seed,x:room.turn+1,z:-36,yaw:0}).opacity,0,'Looking away removes it');
  second.update({room:{...room,index:i+1},seed,x:0,z:0,yaw:0});assert.equal(second.update({room,seed,x:room.turn+1,z:-24,yaw:0}),null,'Revisit never rearms');
 }
