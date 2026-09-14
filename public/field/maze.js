@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {meetingFurniture,galleryPosters} from './meeting.js';
 import {nurseryFurniture} from './nursery.js';
 import {cameraPositions,trackAngle,cameraBlink} from './surveillance.js';
 import {SecondLook,secondLookEligible} from './second-look.js';
@@ -35,8 +36,9 @@ export class EndlessMaze{
  if(r.kind==='desk'){add('Desk',0,0);add('Chair',0,1.05,0,Math.PI);}
  if(r.kind==='chairs'){for(let i=0;i<8;i++){const o=add('Chair',r.w/2-1.7+(i%2)*.22,-.5+Math.floor(i/4)*.55,(i%4)*.31,(i%2?-.16:.12));if(i===7)o.rotation.z=.3;}}
  if(r.kind==='archive')for(let i=0;i<5;i++)add('Cabinet',-r.w/2+.85,-1.6+i*.8,0,Math.PI/2);
- if(r.kind==='gallery'){for(let i=0;i<3;i++)add('Portrait',-r.w/2+.085,-2+i*2,1,Math.PI/2);}
- if(!['crawl','nursery'].includes(r.kind)){add(r.poster,r.w/2-.09,-1,1, -Math.PI/2);add('Portrait',-r.w/4,-r.d/2+.08,.9);}
+ if(r.kind==='gallery'){for(let i=0;i<3;i++)add('Portrait',-r.w/2+.085,-2+i*2,1,Math.PI/2);for(const p of galleryPosters(r))add(p.asset,p.x,p.z,p.y,p.rotation);}
+ if(r.kind==='meeting'){for(const p of meetingFurniture(r))add(p.asset,p.x,p.z,0,p.rotation);add('ExcellencePoster',-2.6,-r.d/2+.09,1.65);add('AttendancePoster',r.w/2-.09,-2.7,1.55,-Math.PI/2);}
+ if(!['crawl','nursery','gallery','meeting'].includes(r.kind)){add(r.poster,r.w/2-.09,-1,1, -Math.PI/2);add('Portrait',-r.w/4,-r.d/2+.08,.9);}
  add('DirectionPoster',r.turn+(r.turn>0?1.92:.08),-18,1,r.turn>0?-Math.PI/2:Math.PI/2);
  if(r.branch){const b=branchX(r);for(let i=0;i<3;i++)add('Cabinet',b+2.8,-23+i*.85,0,-Math.PI/2);add('WellnessPoster',b-1.92,-22,1,Math.PI/2);add('Portrait',b-1,-25.92,.9);const seat=ghostRoom(r);add('Chair',seat.x,seat.z,0,seat.rotation);
  if(r.ghost&&!chunk.ghostGone&&this.props.getObjectByName('SeatedShadow')){ghost=this.props.getObjectByName('SeatedShadow').clone();ghost.position.set(seat.x,0,seat.z);ghost.rotation.y=seat.rotation;

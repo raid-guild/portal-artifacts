@@ -1,3 +1,4 @@
+import {meetingFurniture} from './meeting.js';
 import {nurseryFurniture} from './nursery.js';
 import {cameraPositions} from './surveillance.js';
 import {secondLookEligible} from './second-look.js';
@@ -11,10 +12,11 @@ export function recipe(index,seed,revision=0){
  const first=['desk','chairs','gallery','crawl','empty','stairs','archive','pit'];
  let kind=depth<8?first[depth]:depth%4===3?['crawl','stairs','pit'][Math.floor(r()*3)]:['desk','empty','chairs','archive','gallery','empty'][Math.floor(r()*6)];
  if(depth>=7&&!['crawl','stairs','pit'].includes(kind)&&rng(seed^Math.imul(index+39,1597334677))()<.24)kind='camera';
+ if(depth>=4&&!['crawl','stairs','pit','camera'].includes(kind)&&(depth===4||rng(seed^Math.imul(index+71,2246822519))()<.22))kind='meeting';
  // Mutations retain special-room profiles, keeping floor levels and clearance stable.
- if(revision){const base=recipe(index,seed,0).kind;kind=['crawl','stairs','pit','camera'].includes(base)?base:['empty','desk','chairs','archive','gallery'][Math.floor(r()*5)];}
+ if(revision){const base=recipe(index,seed,0).kind;kind=['crawl','stairs','pit','camera','meeting'].includes(base)?base:['empty','desk','chairs','archive','gallery'][Math.floor(r()*5)];}
  if(depth===8)kind='nursery';
- const w=kind==='nursery'?10:kind==='crawl'?4:kind==='pit'?12:8+Math.floor(r()*3)*2,d=kind==='nursery'?10:kind==='crawl'||kind==='stairs'?12:8+Math.floor(r()*3)*2;
+ const w=['nursery','meeting'].includes(kind)?10:kind==='crawl'?4:kind==='pit'?12:8+Math.floor(r()*3)*2,d=['nursery','meeting'].includes(kind)?10:kind==='crawl'||kind==='stairs'?12:8+Math.floor(r()*3)*2;
  const turn=r()>.5?8:-10,poster=['IncidentPoster','WellnessPoster','DirectionPoster'][Math.floor(r()*3)];
  return{index,revision,kind,w,d,turn,narrow:depth>=2&&depth%3===2,ceiling:!['crawl','stairs'].includes(kind)&&depth>=2&&depth%4===2?7+(depth%3):3,hanging:depth>=6&&depth%3===0,branch:!['crawl','stairs','nursery'].includes(kind)&&depth%4!==2,deadEnd:depth>0&&depth%3===1&&revision===0,pitEnd:depth%2===1,poster,ghost:depth>=7&&r()<.42,scatter:r(),light:.7+r()*.3};
 }
@@ -28,7 +30,7 @@ export function roomCells(room){const cells=new Set();const rect=(x0,z0,x1,z1)=>
  if(room.narrow)for(let z=-48;z< -27;z++){if(z>=-40&&z< -38)continue;cells.delete(cellKey(room.turn+1,z));}
  if(room.deadEnd)for(const k of [...cells]){const [x,z]=k.split(',').map(Number);if(z< (room.pitEnd?-31:-33)&&(!room.branch||(x>=room.turn&&x<room.turn+2&&z>=-38)))cells.delete(k);}
  if(room.kind==='pit')for(let x=-2;x<2;x++)for(let z=-2;z<2;z++)cells.delete(cellKey(x,z));return cells;}
-function obstacles(room){if(room.kind==='nursery')return nurseryFurniture(room).map(({x,z,w,d})=>({x,z,w,d}));if(room.kind==='camera')return cameraPositions(room).map(p=>({x:p.x,z:p.z,w:.65,d:.65}));if(room.kind==='desk')return[{x:0,z:0,w:1.8,d:1}];if(room.kind==='chairs')return[{x:room.w/2-1.7,z:0,w:1.5,d:2.2}];if(room.kind==='archive')return[{x:-room.w/2+1,z:0,w:1.4,d:4}];return[];}
+function obstacles(room){if(room.kind==='meeting')return meetingFurniture(room).map(({x,z,w,d})=>({x,z,w,d}));if(room.kind==='nursery')return nurseryFurniture(room).map(({x,z,w,d})=>({x,z,w,d}));if(room.kind==='camera')return cameraPositions(room).map(p=>({x:p.x,z:p.z,w:.65,d:.65}));if(room.kind==='desk')return[{x:0,z:0,w:1.8,d:1}];if(room.kind==='chairs')return[{x:room.w/2-1.7,z:0,w:1.5,d:2.2}];if(room.kind==='archive')return[{x:-room.w/2+1,z:0,w:1.4,d:4}];return[];}
 export class MazeTopology{
  constructor(seed=Date.now(),offset={x:0,z:0}){this.offset=offset;this.seed=seed>>>0;this.origin=0;this.current=0;this.chunks=new Map();this.serial=0;this.discovered=0;this.mutations=0;this.maxDepth=0;this.minVisited=0;this.maxVisited=0;this.minMade=Infinity;this.maxMade=-Infinity;this.ensure(0);}
  worldZ(index){return this.offset.z+(this.origin-index)*SPAN;}

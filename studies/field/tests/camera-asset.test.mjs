@@ -13,7 +13,7 @@ const gltf=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset
 const head=gltf.scene.getObjectByName('CameraHead');assert.ok(head);assert.ok(head.getObjectByName('CameraIndicator'));
 gltf.scene.updateMatrixWorld(true);assert.ok(head.getObjectByName('Lens_glass').getWorldPosition(new THREE.Vector3()).z>.4,'Lens faces exported +Z');
 const kit=new THREE.Group(),props=new THREE.Group();props.add(gltf.scene);
-for(const name of ['NurseryGround','NurseryCrib','NurseryRecliner','NurseryBlocks','NurseryPictureBlocks','NurseryPictureReading','NurseryPictureLab','Wall','Floor','Ceiling','Fixture','DoorFrame','Outlet','Desk','Chair','Cabinet','IncidentPoster','WellnessPoster','DirectionPoster','Portrait','Door']){const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial());mesh.name=name;kit.add(mesh);props.add(mesh.clone());}
+for(const name of ['NurseryGround','NurseryCrib','NurseryRecliner','NurseryBlocks','NurseryPictureBlocks','NurseryPictureReading','NurseryPictureLab','MeetingTable','ExcellencePoster','ObservationPoster','AttendancePoster','LegacyPoster','Wall','Floor','Ceiling','Fixture','DoorFrame','Outlet','Desk','Chair','Cabinet','IncidentPoster','WellnessPoster','DirectionPoster','Portrait','Door']){const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial());mesh.name=name;kit.add(mesh);props.add(mesh.clone());}
 const scene=new THREE.Scene(),maze=new EndlessMaze(scene,kit,props,42,{x:11,z:27});const index=findFacility(42,7,'camera');maze.model.ensure(index);maze.sync();
 const g=maze.groups.get(index),c=g.userData.cameras[0];assert.ok(c);assert.ok(c.yawPivot.parent===g,'Dynamic head stays outside instance batching');
 const player={x:11,z:maze.model.worldZ(index)+2};
