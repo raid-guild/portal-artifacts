@@ -65,7 +65,7 @@ $('crouch').onclick=toggleCrouch;
 $('run').onclick=()=>{running=!running;$('run').textContent=running?(isTouch?'Running':'Run on · Shift'):(isTouch?'Run':'Run · Shift');$('run').setAttribute('aria-pressed',running);};
 function movementSpeed(){return crouched?1.25:(running||keys.has('shift'))?4.5:2.5;}
 
-function interact(){const lift=maze?.elevator();if(lift){const p=maze.model.sample(state.player.x,state.player.z);if(lift.state.interact(p.x,p.z,facesLiftDoors(state.yaw-(p.reverse?Math.PI:0),state.pitch,p.x,p.z))){tone(145,.3,.025);return;}}if(maze&&maze.model.openDoor(state.player.x,state.player.z)){tone(110,.25,.03);$('interact').hidden=true;}}
+function interact(){const lift=maze?.elevator();if(lift){const p=maze.model.sample(state.player.x,state.player.z);if(lift.state.interact(p.x,p.z,facesLiftDoors(state.yaw-(p.reverse?Math.PI:0),state.pitch,p.x,p.z,eyeHeight))){tone(145,.3,.025);return;}}if(maze&&maze.model.openDoor(state.player.x,state.player.z)){tone(110,.25,.03);$('interact').hidden=true;}}
 $('interact').onclick=interact;
 function flashlightUI(){const available=maze?.floor===-1;$('flashlight').hidden=!available||state.view!=='walk';$('flashlight').textContent=`Flashlight ${flashlightOn?'on':'off'}${isTouch?'':' · F'}`;$('flashlight').setAttribute('aria-pressed',String(flashlightOn));if(!available&&flashlight)flashlight.light.visible=false;}
 function toggleFlashlight(){if(maze?.floor!==-1)return;flashlightOn=!flashlightOn;flashlightUI();saveSurvey();}
@@ -118,6 +118,20 @@ document.addEventListener('pointerlockchange',()=>{$('capture').hidden=state.vie
 document.addEventListener('mousemove',e=>{if(document.pointerLockElement&&state.view==='walk'){state.yaw-=e.movementX*.002;state.pitch=clamp(state.pitch-e.movementY*.002,-1.15,1.15)}});
 $('world').addEventListener('pointerdown',e=>{if(!isTouch&&state.view==='walk'&&!document.pointerLockElement){lookDrag={x:e.clientX,y:e.clientY};$('world').setPointerCapture(e.pointerId)}});
 $('world').addEventListener('pointermove',e=>{if(lookDrag){state.yaw-=(e.clientX-lookDrag.x)*.005;state.pitch=clamp(state.pitch-(e.clientY-lookDrag.y)*.005,-1.15,1.15);lookDrag={x:e.clientX,y:e.clientY}}});
+// A short click/tap on the physical panel works like the interaction key.
+let liftTap=null;
+$('world').addEventListener('pointerdown',e=>{liftTap={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};});
+$('world').addEventListener('pointermove',e=>{if(liftTap&&Math.hypot(e.clientX-liftTap.x,e.clientY-liftTap.y)>8)liftTap.moved=true;});
+$('world').addEventListener('pointercancel',()=>liftTap=null);
+$('world').addEventListener('pointerup',e=>{
+ const tap=liftTap;liftTap=null;const lift=maze?.elevator();
+ if(!tap||tap.id!==e.pointerId||tap.moved||state.view!=='walk'||debugOpen||!lift?.control)return;
+ const bounds=$('world').getBoundingClientRect(),pointer=document.pointerLockElement?new THREE.Vector2():new THREE.Vector2((e.clientX-bounds.left)/bounds.width*2-1,1-(e.clientY-bounds.top)/bounds.height*2);
+ camera.updateMatrixWorld();lift.root.updateWorldMatrix(true,true);const ray=new THREE.Raycaster();ray.setFromCamera(pointer,camera);
+ if(!ray.intersectObject(lift.control).length)return;
+ const p=maze.model.sample(state.player.x,state.player.z);
+ if(lift.state.interact(p.x,p.z,true))tone(145,.3,.025);
+});
 $('world').addEventListener('pointerup',()=>lookDrag=null);$('world').addEventListener('pointercancel',()=>lookDrag=null);
 for(const b of document.querySelectorAll('[data-key]')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key);}
 
@@ -151,11 +165,11 @@ function updateMaze(dt){
  const changed=maze.update(state.player,dt,nowTime,state.yaw,state.view==='walk',eyeHeight);const forgotten=new Set([...(changed.removed||[]),...(changed.added||[]),changed.expired]);for(const cell of state.visited.keys()){const z=Number(cell.split(',')[1]);if(forgotten.has(maze.model.indexAt(z)))state.visited.delete(cell);}if(changed.expired!==null&&sound)ambience?.impact();const local=maze.model.sample(state.player.x,state.player.z);if(worldGroup&&local.index>=0&&local.z< -16&&Math.abs(local.x)>6.5){scene.remove(worldGroup);worldGroup=null;lights=[];ceilings=[];maze.entranceAttached=false;maze.sync();}if(changed.rebased){state.visited.clear();state.pan={x:0,y:0};}
  const lift=maze.elevator(),liftPhase=lift?.state.phase;if(lift&&state.view==='walk'&&lift.update(dt)){descendFloor();return;}if(lift?.state.phase==='travel'&&liftPhase!=='travel')tone(48,3,.04);
  const s=maze.model.sample(state.player.x,state.player.z),door=maze.model.nearbyDoor(state.player.x,state.player.z);
- const liftPrompt=lift?.state.prompt(s.x,s.z,facesLiftDoors(state.yaw-(s.reverse?Math.PI:0),state.pitch,s.x,s.z));$('interact').hidden=state.view!=='walk'||(!door&&!liftPrompt);$('interact').textContent=liftPrompt?liftPrompt+(isTouch?'':' · E'):(door?.door.id==='observation'?(isTouch?'Open observation door':'Open observation door · E'):(isTouch?'Open door':'Open door · E'));
+ const liftPrompt=lift?.state.prompt(s.x,s.z,facesLiftDoors(state.yaw-(s.reverse?Math.PI:0),state.pitch,s.x,s.z,eyeHeight));$('interact').hidden=state.view!=='walk'||(!door&&!liftPrompt);$('interact').textContent=liftPrompt?liftPrompt+(isTouch?'':' · E'):(door?.door.id==='observation'?(isTouch?'Open observation door':'Open observation door · E'):(isTouch?'Open door':'Open door · E'));
  if(s.chunk?.room.kind==='recognition'&&s.z< -6.4&&!surveyComplete){surveyComplete=true;saveSurvey();$('systemStatus').textContent='SURVEY COMPLETE · WE THANK YOU FOR YOUR SACRIFICE';}
  const low=s.chunk?.room.kind==='crawl'&&s.z<4&&s.z> -6;
  $('viewHint').textContent=isTouch?(low&&!crouched?'Tap Crouch to continue':'Left thumb: move · drag view to look'):low&&!crouched?'LOW CLEARANCE · C TO CROUCH':state.view==='plan'?'M RETURN · SCROLL TO ZOOM · DRAG TO PAN':'W A S D MOVE · SHIFT RUN · E DOOR · C CROUCH · M MAP · V SOUND';
- if(lift?.state.phase==='open'&&!lift.state.arrival&&Math.abs(s.x)<1.05&&s.z<.65&&s.z> -1.1&&!liftPrompt)$('viewHint').textContent='DESCENT CONTROL · BESIDE THE DOORS';
+ if(lift?.state.phase==='open'&&!lift.state.arrival&&Math.abs(s.x)<=1.24&&s.z<=1.2&&s.z>= -1.24&&!liftPrompt)$('viewHint').textContent='DESCENT CONTROL · BESIDE THE DOORS';
  if(lift?.state.phase==='ready')$('viewHint').textContent='DEPARTURE REQUESTED';
  if(lift?.state.phase==='travel')$('viewHint').textContent='DESCENDING · FLOOR -01';
  if(surveyComplete)$('viewHint').textContent='SURVEY COMPLETE · Stay as long as you like';

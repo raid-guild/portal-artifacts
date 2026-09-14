@@ -13,7 +13,7 @@ export class Elevator{
  const label=(text,x,y,z,rotation=0,w=1.5,h=.34)=>{const c=document.createElement('canvas');c.width=768;c.height=192;const ctx=c.getContext('2d');ctx.fillStyle='#171b16';ctx.fillRect(0,0,768,192);ctx.fillStyle='#c5c5a5';ctx.font='44px monospace';ctx.textAlign='center';ctx.fillText(text,384,114);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const m=new THREE.MeshBasicMaterial({map:t});const g=new THREE.PlaneGeometry(w,h);this.owned.push(t,m,g);const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.rotation.y=rotation;this.root.add(o);};
  label(arrival?'FLOOR -01':'FLOOR 01',0,2.53,1.76);label('DOWN ONLY',0,2.85,1.76,0,1.4,.22);
  box(1.23,1.25,1.79,.17,.28,.07,trim);box(1.23,1.28,1.84,.06,.06,.02,lamp);
- box(1.23,1.2,1.405,.22,.38,.045,trim);label('DESCEND',1.25,1.6,1.37,Math.PI,.46,.18);box(1.23,1.2,1.37,.07,.07,.025,lamp);
+ this.control=box(1.23,1.2,1.405,.22,.38,.045,trim);this.control.name='DescentControl';label('DESCEND',1.25,1.6,1.37,Math.PI,.46,.18);box(1.23,1.2,1.37,.07,.07,.025,lamp);
  this.light=new THREE.PointLight(0xd5d2aa,3,5,1.5);this.light.position.set(0,2.6,0);this.root.add(this.light);
  this.goatMaterials=[];this.goat=props.getObjectByName('Goatman')?.clone();if(this.goat&&!arrival){this.goat.scale.multiplyScalar(.88);this.goat.position.set(0,0,ELEVATOR_REVEAL_Z);this.goat.rotation.y=Math.PI;this.goat.traverse(o=>{if(o.isMesh){const make=m=>{const c=m.clone();c.transparent=true;c.opacity=0;c.depthWrite=false;this.goatMaterials.push(c);this.owned.push(c);return c;};o.material=Array.isArray(o.material)?o.material.map(make):make(o.material);}});this.root.add(this.goat);}else this.goat=null;
  if(this.goat)this.goat.visible=false;

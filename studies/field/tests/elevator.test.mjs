@@ -40,3 +40,16 @@ assert.ok(elevatorReveal('closing',.85,.4).opacity>0);assert.ok(elevatorReveal('
 for(const x of[-1,0,1])for(const z of[-1,.6]){const yaw=Math.atan2(x,-(ELEVATOR_REVEAL_Z-z));assert.ok(facesLiftDoors(yaw,0,x,z));const fraction=(1.62-z)/(ELEVATOR_REVEAL_Z-z),atDoor=x*(1-fraction);assert.ok(Math.abs(atDoor)<.8*.92,'View to figure clears the wider opening, even beside panel');}
 const intensities=Array.from({length:30},(_,i)=>elevatorReveal('closing',.6,i*.02).opacity);assert.ok(Math.max(...intensities)-Math.min(...intensities)>.3,'Uneven flicker');
 console.log('PASS: earlier fade, proximity-aware framing and uneven glitch opacity.');
+for(const x of [-1.2,0,1.2])for(const z of [-1.2,0,1.18])for(const eye of [.67,1.65]){
+ const dx=1.23-x,dz=1.37-z,dy=1.2-eye;
+ const yaw=Math.atan2(-dx,-dz),pitch=Math.atan2(-dy,Math.hypot(dx,dz));
+ const e=new ElevatorState();e.phase='open';e.open=1;
+ assert.ok(e.canWalk(x,z));assert.ok(e.interact(x,z,facesLiftDoors(yaw,pitch,x,z,eye)),'Panel aim works across the safe cabin, standing or crouched');
+}
+for(const [x,z] of [[0,1.3],[0,1.7],[1.3,0],[0,-1.3]]){const e=new ElevatorState();e.phase='open';e.open=1;assert.equal(e.interact(x,z,true),false,'Cannot close from threshold/outside');}
+console.log('PASS: actual panel aim from cabin edges and front, crouching, and doorway safety.');
+for(const reverse of [false,true]){
+ const e=new Elevator(props);e.root.rotation.y=reverse?Math.PI:0;e.root.position.set(4,0,reverse?-52:0);e.root.updateWorldMatrix(true,true);
+ const origin=e.root.localToWorld(new THREE.Vector3(1.15,1.65,1.1)),target=e.control.getWorldPosition(new THREE.Vector3());
+ const ray=new THREE.Raycaster(origin,target.clone().sub(origin).normalize());assert.ok(ray.intersectObject(e.control).length,'Physical panel hit target works near the button in either orientation');e.dispose();
+}
