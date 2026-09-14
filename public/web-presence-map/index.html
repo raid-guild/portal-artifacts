@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="An interactive map of RaidGuild's public, community, knowledge, and specialist web presence."
+    />
+    <title>The RaidGuild Constellation</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#constellation">Skip to constellation</a>
+    <div class="atmosphere" aria-hidden="true">
+      <div class="stars stars-a"></div>
+      <div class="stars stars-b"></div>
+      <div class="planet-glow"></div>
+      <div class="contours"></div>
+      <div class="grain"></div>
+    </div>
+
+    <main class="shell">
+      <header class="masthead">
+        <div class="title-block">
+          <span class="eyebrow">Web presence · field chart 01</span>
+          <h1>The RaidGuild<br /><em>Constellation</em></h1>
+        </div>
+
+        <div class="header-controls" aria-label="Display controls">
+          <div class="segmented" role="group" aria-label="View">
+            <button class="segment is-active" type="button" data-view="map" aria-pressed="true">Map</button>
+            <button class="segment" type="button" data-view="system" aria-pressed="false">System</button>
+          </div>
+          <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch to day chart">
+            <span class="theme-icon" aria-hidden="true">☼</span>
+            <span class="theme-label">Day chart</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="chart-shell" id="constellation" aria-label="RaidGuild web presence constellation">
+        <div class="map-view" id="map-view">
+          <svg class="routes" id="routes" aria-hidden="true"></svg>
+          <div class="node-layer" id="node-layer"></div>
+          <p class="map-note">Select any waypoint to read its field note.</p>
+        </div>
+
+        <div class="system-view" id="system-view" hidden>
+          <div class="system-heading">
+            <span>System index</span>
+            <p>One ecosystem, arranged by relationship rather than orbit.</p>
+          </div>
+          <div class="system-tree" id="system-tree"></div>
+        </div>
+
+        <aside class="field-note" id="field-note" aria-labelledby="detail-title" aria-hidden="true" inert>
+          <button class="close-detail" id="close-detail" type="button" aria-label="Close field note">×</button>
+          <div class="detail-kicker">
+            <span class="detail-index" id="detail-index">RG—00</span>
+            <span class="status" id="detail-status">LIVE</span>
+          </div>
+          <p class="detail-category" id="detail-category">Center of gravity</p>
+          <h2 id="detail-title">RaidGuild</h2>
+          <p class="detail-purpose" id="detail-purpose"></p>
+          <dl class="detail-meta">
+            <div><dt>For</dt><dd id="detail-audience"></dd></div>
+            <div><dt>Relation</dt><dd id="detail-relation"></dd></div>
+          </dl>
+          <div class="detail-destination" id="detail-destination"></div>
+        </aside>
+      </section>
+
+      <footer class="chart-footer">
+        <div class="legend" aria-label="Map legend">
+          <span class="legend-label">Signal</span>
+          <span><i class="dot live"></i>Live</span>
+          <span><i class="dot wip"></i>WIP</span>
+          <span><i class="dot planned"></i>Planned</span>
+        </div>
+
+        <div class="tour" aria-label="Guided journey controls">
+          <button class="tour-button" id="tour-toggle" type="button" aria-pressed="false">
+            <span aria-hidden="true">▶</span>
+            <span class="tour-label">Trace the journey</span>
+          </button>
+          <label class="scrubber-label" for="tour-scrubber">Journey position</label>
+          <input id="tour-scrubber" type="range" min="0" max="11" value="0" step="1" />
+          <span class="tour-count" id="tour-count" aria-hidden="true">01 / 12</span>
+        </div>
+
+        <p class="orientation">Public front door → community world → internal systems → specialist offerings</p>
+      </footer>
+    </main>
+
+    <div class="sr-only" id="announcer" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
