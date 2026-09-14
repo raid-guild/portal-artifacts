@@ -53,8 +53,22 @@ npm run build:railway
 cp -R dist-railway/. ../../public/portal-motion/
 ```
 
+## Sirocco oasis study
+
+Editable Three.js source and the Blender asset library are in
+`studies/sirocco-oasis/`; the published build is in `public/sirocco-oasis/`.
+See the study README for rebuild instructions. All runtime assets are served
+from this origin under the existing Content Security Policy.
+
+## FIELD spatial horror study
+
+`public/field/` is the standalone FIELD demo. Editable Blender assets, scripts and regression checks are in `studies/field/`; its `dist` symlink points to the published source. See the study README for controls and local development.
+
 ## Published artifacts
 
+- `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
+- `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable
+  water, a traveling airship, wind-driven palms, dust, and optional ambient audio.
 - `portal-motion/` — Interactive spark portal with palette mixing, size controls,
   and a blurred mountain destination that reveals on hover.
 - `desert-walker/` — Interactive Three.js vignette featuring a textured
