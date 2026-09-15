@@ -19,3 +19,15 @@ assert.equal(maze.model.current,4);assert.equal(maze.model.chunks.get(4).room.ki
 state.player={x:.2,z:maze.model.worldZ(4)-52};state.yaw=0;descendFloor();assert.equal(maze.floor,-1);assert.equal(state.player.x,-.2);assert.equal(state.player.z,0);assert.equal(state.yaw,-Math.PI);
 `,box);
 console.log('PASS: reverse elevator checkpoint resumes at its entrance; descent preserves cabin-relative position and view.');
+const unlocks=new Map();box.localStorage={getItem:k=>unlocks.get(k)||null,setItem:(k,v)=>unlocks.set(k,v)};
+vm.runInContext(`
+assert.equal(godUnlocked,false);assert.equal($('godButton').hidden,true);
+savedSurvey={version:1,seed:42,floor:-1,index:13,minVisited:0,maxVisited:13,facilities:14,complete:false};continueSurvey();
+assert.equal(godUnlocked,true);assert.equal($('godButton').hidden,false);assert.equal($('godButton').disabled,false);assert.equal($('mobileMenu').textContent,'GOD');
+enterMaze(false);assert.equal(godUnlocked,true);assert.equal($('godButton').hidden,false);
+`,box);
+assert.equal(unlocks.get('field.god-unlocked.v1'),'true');
+const startup=fs.readFileSync('dist/app.js','utf8').replace(/^import .*;$/mg,'').replace('resize();setup3D();','resize();');
+vm.runInNewContext(startup+`\nassert.equal(godUnlocked,true);assert.equal($('godButton').hidden,false);assert.equal($('godButton').disabled,true);`,{...box,readCheckpoint:()=>null});
+unlocks.clear();vm.runInNewContext(startup+`\nassert.equal(godUnlocked,true);`,{...box,readCheckpoint:()=>({...checkpoint,complete:true})});assert.equal(unlocks.get('field.god-unlocked.v1'),'true');
+console.log('PASS: trophy unlock, fresh-run retention, reload persistence, mobile GOD label, asset readiness and migration of completed saves.');
