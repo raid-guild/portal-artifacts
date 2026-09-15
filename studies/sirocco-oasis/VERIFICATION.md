@@ -49,3 +49,10 @@
 - Production build passes. Targeted Chrome test passes for Vista, Ship and Control room: Drift preserves the selected view, moves the exterior camera or seated look target, and stops without switching perspectives. No page errors.
 - The cabin camera stays seated; exterior Drift starts at the current orbit and zoom. Ship/cabin instant cuts remain unchanged.
 - Test: `node studies/sirocco-oasis/tests/drift.test.mjs` from the repository root (local Vite on 5174, or OASIS_TEST_URL). Reduced motion isolates Drift from ambient vessel bob and entry animations.
+
+## RaidGuild credit and social unfurl
+
+- Synced from origin/main at 8be0ec0 before editing. Shared RaidGuild stamp copied from FIELD.
+- Desktop (1200 × 800) and mobile (390 × 844) browser checks pass: stamp loads, link points to raidguild.org, credit fits within viewport and hides with the interface. Screenshots inspected; no page errors.
+- Static Open Graph and Twitter large-image metadata includes absolute canonical/image URLs, image dimensions and descriptive alt text. The 1200 × 630 PNG uses a capture of the real oasis scene.
+- Production build passes. Regenerate the image with `node studies/sirocco-oasis/tools/build-social-card.mjs` while Vite serves on port 5174.
