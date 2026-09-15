@@ -15,7 +15,16 @@ let surveyComplete=false;
 let flashlight=null,flashlightOn=false;
 let maze=null,props=null,crouched=false,eyeHeight=1.65,lastMazeRoom=null,lastAudioBeat=-1,renderer,scene,camera,kit,worldGroup,ceilings=[],lights=[],cells=new Set(),ready=false,keys=new Set(),last=performance.now(),walkDistance=0,stepDistance=0,drag=null,lookDrag=null,viewW=0,viewH=0,nowTime=0,beginSurvey=0,loadError=null;
 let savedSurvey=readCheckpoint();
-const isTouch=matchMedia('(any-pointer:coarse)').matches;
+let godUnlocked=!!savedSurvey?.complete;
+try{godUnlocked=godUnlocked||localStorage.getItem('field.god-unlocked.v1')==='true';}catch{}
+function godUI(){
+ $('godButton').hidden=!godUnlocked;$('godButton').disabled=!ready;
+ $('mobileMenu').textContent=godUnlocked?'GOD':'Menu';
+}
+function unlockGod(){godUnlocked=true;try{localStorage.setItem('field.god-unlocked.v1','true');}catch{}godUI();}
+
+// A touchscreen alongside a mouse/trackpad does not make this a mobile session.
+const isTouch=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-pointer:fine) and (any-hover:hover)').matches;
 let touchInput={x:0,y:0},touchController=null;
 $('app').classList.toggle('touch-mode',isTouch);
 if(isTouch){$('menuTitle').textContent='SURVEY CONTROLS';$('debugClose').textContent='Resume';$('debugClose').setAttribute('aria-label','Resume walkthrough');}
@@ -36,7 +45,7 @@ function tutorial(){
  if(!ready){$('primary').disabled=true;$('primary').hidden=false;$('primary').innerHTML=loadError?'Reload walkthrough':'Preparing walkthrough…';if(loadError){$('primary').disabled=false;$('primary').onclick=reset;}}
  else $('primary').disabled=false;
 }
-function resumeUI(){const button=$('continueSurvey');button.hidden=!savedSurvey||state.stage!==0;button.disabled=!ready;button.textContent=savedSurvey?`Continue survey · Floor ${savedSurvey.floor===1?'01':'−01'} / Facility ${String(savedSurvey.facilities??(savedSurvey.maxVisited-savedSurvey.minVisited+1)).padStart(3,'0')}`:'Continue survey';}
+function resumeUI(){godUI();if(godUnlocked)unlockGod();const button=$('continueSurvey');button.hidden=!savedSurvey||state.stage!==0;button.disabled=!ready;button.textContent=savedSurvey?`Continue survey · Floor ${savedSurvey.floor===1?'01':'−01'} / Facility ${String(savedSurvey.facilities??(savedSurvey.maxVisited-savedSurvey.minVisited+1)).padStart(3,'0')}`:'Continue survey';}
 function saveSurvey(){if(!maze)return;const m=maze.model,value={version:1,seed:m.seed,floor:maze.floor,index:m.current,minVisited:m.minVisited,maxVisited:m.maxVisited,flashlight:flashlightOn,complete:surveyComplete,facilities:m.facilities,milestones:[...m.milestones]};if(writeCheckpoint(value))savedSurvey=value;}
 function continueSurvey(){
  if(!ready||!savedSurvey)return;const checkpoint={...savedSurvey};enterMaze(false);
@@ -50,9 +59,10 @@ window.addEventListener('pagehide',saveSurvey);
 function reset(){location.reload()}
 $('restart').onclick=reset;
 let debugOpen=false,debugSequence='',debugKeyTime=0,godTaps=0,godTapStart=0;
-function toggleDebug(open=!debugOpen,reveal=false){godTaps=0;$('godControls').hidden=isTouch&&!reveal;$('menuTitle').textContent=isTouch&&!reveal?'SURVEY CONTROLS':'DEBUG / FIELD';$('debugPanel').setAttribute('aria-label',isTouch&&!reveal?'Survey controls':'Debug panel');debugOpen=open;$('debugPanel').hidden=!open;keys.clear();touchController?.reset();debugSequence='';audioState();if(open){$('debugFloor').value=String(maze?.floor||1);document.exitPointerLock?.();$('debugClose').focus();}}
+function toggleDebug(open=!debugOpen,reveal=godUnlocked){godTaps=0;$('godControls').hidden=isTouch&&!reveal;$('menuTitle').textContent=isTouch&&!reveal?'SURVEY CONTROLS':'DEBUG / FIELD';$('debugPanel').setAttribute('aria-label',isTouch&&!reveal?'Survey controls':'Debug panel');debugOpen=open;$('debugPanel').hidden=!open;keys.clear();touchController?.reset();debugSequence='';audioState();if(open){$('debugFloor').value=String(maze?.floor||1);document.exitPointerLock?.();$('debugClose').focus();}}
 $('debugClose').onclick=()=>toggleDebug(false);
 $('mobileMenu').onclick=()=>toggleDebug(true);
+$('godButton').onclick=()=>{if(godUnlocked)toggleDebug(true,true);};
 $('menuTitle').onclick=()=>{if(!isTouch||!debugOpen)return;const now=performance.now();if(!godTaps||now-godTapStart>3000){godTaps=0;godTapStart=now;}if(++godTaps===5){$('godControls').hidden=false;$('menuTitle').textContent='DEBUG / FIELD';$('debugPanel').setAttribute('aria-label','Debug panel');godTaps=0;}};
 $('mobileMap').onclick=()=>setView(state.view==='plan'?'walk':'plan');
 $('mobileSound').onclick=()=>setSound(!sound);
@@ -166,6 +176,7 @@ function updateMaze(dt){
  const lift=maze.elevator(),liftPhase=lift?.state.phase;if(lift&&state.view==='walk'&&lift.update(dt)){descendFloor();return;}if(lift?.state.phase==='travel'&&liftPhase!=='travel')tone(48,3,.04);
  const s=maze.model.sample(state.player.x,state.player.z),door=maze.model.nearbyDoor(state.player.x,state.player.z);
  const liftPrompt=lift?.state.prompt(s.x,s.z,facesLiftDoors(state.yaw-(s.reverse?Math.PI:0),state.pitch,s.x,s.z,eyeHeight));$('interact').hidden=state.view!=='walk'||(!door&&!liftPrompt);$('interact').textContent=liftPrompt?liftPrompt+(isTouch?'':' · E'):(door?.door.id==='observation'?(isTouch?'Open observation door':'Open observation door · E'):(isTouch?'Open door':'Open door · E'));
+ if(s.chunk?.room.kind==='recognition'&&!godUnlocked)unlockGod();
  if(s.chunk?.room.kind==='recognition'&&s.z< -6.4&&!surveyComplete){surveyComplete=true;saveSurvey();$('systemStatus').textContent='SURVEY COMPLETE · WE THANK YOU FOR YOUR SACRIFICE';}
  const low=s.chunk?.room.kind==='crawl'&&s.z<4&&s.z> -6;
  $('viewHint').textContent=isTouch?(low&&!crouched?'Tap Crouch to continue':'Left thumb: move · drag view to look'):low&&!crouched?'LOW CLEARANCE · C TO CROUCH':state.view==='plan'?'M RETURN · SCROLL TO ZOOM · DRAG TO PAN':'W A S D MOVE · SHIFT RUN · E DOOR · C CROUCH · M MAP · V SOUND';
