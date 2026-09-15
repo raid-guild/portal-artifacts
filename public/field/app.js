@@ -15,7 +15,8 @@ let surveyComplete=false;
 let flashlight=null,flashlightOn=false;
 let maze=null,props=null,crouched=false,eyeHeight=1.65,lastMazeRoom=null,lastAudioBeat=-1,renderer,scene,camera,kit,worldGroup,ceilings=[],lights=[],cells=new Set(),ready=false,keys=new Set(),last=performance.now(),walkDistance=0,stepDistance=0,drag=null,lookDrag=null,viewW=0,viewH=0,nowTime=0,beginSurvey=0,loadError=null;
 let savedSurvey=readCheckpoint();
-const isTouch=matchMedia('(any-pointer:coarse)').matches;
+// A touchscreen alongside a mouse/trackpad does not make this a mobile session.
+const isTouch=matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-pointer:fine) and (any-hover:hover)').matches;
 let touchInput={x:0,y:0},touchController=null;
 $('app').classList.toggle('touch-mode',isTouch);
 if(isTouch){$('menuTitle').textContent='SURVEY CONTROLS';$('debugClose').textContent='Resume';$('debugClose').setAttribute('aria-label','Resume walkthrough');}
