@@ -80,3 +80,13 @@
 #continueSurvey{display:block;width:100%;margin:10px 0 14px;padding:12px;border:1px solid #859575;background:#263123;color:#d1ddbd;text-align:left;font:12px "IBM Plex Mono",monospace;line-height:1.6}#continueSurvey[hidden]{display:none}#continueSurvey:disabled{opacity:.55}.touch-mode #continueSurvey{min-height:48px;font-size:13px}
 
 .project #headerFloor{color:inherit;margin:0}
+
+/* Shared RaidGuild stamp; quiet attribution outside the walkthrough controls. */
+.builder-credit{display:inline-flex;align-items:center;gap:8px;flex-shrink:0;color:#adb7a5;text-decoration:none;font:10px 'IBM Plex Mono',monospace;white-space:nowrap}
+.builder-credit img{display:block;width:24px;height:23px;object-fit:contain}
+.builder-credit:hover{color:#e3e7df}
+footer>span:first-child{min-width:0;flex:1}
+#systemStatus{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#debugPanel>.builder-credit{margin-top:16px;min-height:44px;border-top:1px solid var(--line);width:100%;justify-content:center}
+@media(max-width:1050px){footer .build-info{display:none}}
+@media(max-width:760px){footer #coordinates,footer #scale{display:none}footer .builder-credit{font-size:9px;gap:6px}footer .builder-credit img{width:20px;height:19px}}
