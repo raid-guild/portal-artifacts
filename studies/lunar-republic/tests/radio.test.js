@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {freshGame,advance,parseSave,missions} from '../dist/game.js';
+import {syncRadio,readTransmission} from '../dist/radio.js';
+const count=(s,key)=>s.radio.messages.filter(m=>m.key===key).length;
+test('reading and repeated synchronization do not unlock or change operations',()=>{const s=freshGame(),before=missions(s,'meridian');assert.equal(count(s,'relief'),1);for(const m of s.radio.messages)readTransmission(s,m.id);for(let i=0;i<5;i++)syncRadio(s);assert.equal(s.radio.messages.length,2);assert.deepEqual(missions(s,'meridian'),before);assert.ok(s.radio.messages.every(m=>m.read));assert.deepEqual(parseSave(JSON.stringify(s)),s)});
+test('blockades recur, but waiting in one blockade does not duplicate traffic',()=>{const s=freshGame();while(s.turn<6)advance(s);assert.equal(count(s,'blockade'),1);advance(s);assert.equal(count(s,'blockade'),1);s.blockade=false;syncRadio(s);assert.equal(count(s,'reopened'),1);s.blockade=true;syncRadio(s);assert.equal(count(s,'blockade'),2)});
+test('disabling mobilization first avoids blockade messages entirely',()=>{const s=freshGame();s.districts.shipyards=0;for(let i=0;i<12;i++)advance(s);assert.equal(count(s,'blockade'),0);assert.equal(count(s,'yards'),1)});
+test('surrender opportunity follows conditions in either order',()=>{for(const order of ['trust','pressure']){const s=freshGame();s[order]=3;syncRadio(s);assert.equal(count(s,'terms'),0);s[order==='trust'?'pressure':'trust']=3;syncRadio(s);assert.equal(count(s,'terms'),1);syncRadio(s);assert.equal(count(s,'terms'),1)}});
+test('old and malformed saves retain campaign progress and gain a current briefing',()=>{const s=freshGame();s.turn=12;s.blockade=true;s.trust=2;delete s.radio;const migrated=parseSave(JSON.stringify(s));assert.equal(migrated.turn,12);assert.equal(count(migrated,'blockade'),1);assert.equal(count(migrated,'alliance'),1);migrated.radio.messages.push({key:'bogus'});const repaired=parseSave(JSON.stringify(migrated));assert.equal(repaired.trust,2);assert.equal(count(repaired,'blockade'),1)});
