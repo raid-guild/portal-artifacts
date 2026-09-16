@@ -64,8 +64,16 @@ from this origin under the existing Content Security Policy.
 
 `public/field/` is the standalone FIELD demo. Editable Blender assets, scripts and regression checks are in `studies/field/`; its `dist` symlink points to the published source. See the study README for controls and local development.
 
+## Lunar Republic game
+
+`public/lunar-republic/` contains the standalone Three.js lunar catapult game.
+Editable Blender assets and campaign tests are in `studies/lunar-republic/`,
+whose `dist` symlink points to the canonical public source. See its README for
+local play, tests, and asset regeneration.
+
 ## Published artifacts
 
+- `lunar-republic/` — Toon-shaded lunar revolution game with freight, allied cities, resource upgrades, enemy operations, and persistent district destruction.
 - `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
 - `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable
   water, a traveling airship, wind-driven palms, dust, and optional ambient audio.
