@@ -51,6 +51,8 @@ export class GameRenderer {
   private readonly models = new Map<ModelName, THREE.Group>();
   private readonly enemyMeshes = new Map<number, THREE.Group>();
   private readonly shotMeshes = new Map<number, THREE.Mesh>();
+  private readonly shotGeometry = new THREE.OctahedronGeometry(0.095, 0);
+  private readonly shotMaterial = new THREE.MeshBasicMaterial({ color: COLORS.cyan });
   private readonly laneLines: THREE.Line[] = [];
   private readonly flashes: Flash[] = [];
   private player: THREE.Group | null = null;
@@ -266,12 +268,13 @@ export class GameRenderer {
       if (!mesh) {
         mesh = this.cloneModel(enemy.kind) ?? undefined;
         if (!mesh) continue;
+        mesh.userData.normalizedScale = mesh.scale.clone();
         this.enemyMeshes.set(enemy.id, mesh);
         this.modelRoot.add(mesh);
       }
       mesh.position.copy(lanePoint(enemy.lane, enemy.depth));
       const pulse = enemy.kind === "jester" && enemy.depth > 0.58 ? 1 + Math.sin(time * 13) * 0.08 : 1;
-      mesh.scale.setScalar(pulse);
+      mesh.scale.copy(mesh.userData.normalizedScale as THREE.Vector3).multiplyScalar(pulse);
       mesh.rotation.z = (enemy.kind === "ribbon" ? time * 2.8 : enemy.kind === "prism" ? time * 1.4 : Math.sin(time * 4) * 0.2);
       mesh.rotation.y = time * (enemy.kind === "jester" ? 1.1 : 2.1);
       mesh.traverse((child) => {
@@ -303,10 +306,7 @@ export class GameRenderer {
     for (const shot of shots) {
       let mesh = this.shotMeshes.get(shot.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.095, 0),
-          new THREE.MeshBasicMaterial({ color: COLORS.cyan }),
-        );
+        mesh = new THREE.Mesh(this.shotGeometry, this.shotMaterial);
         this.shotMeshes.set(shot.id, mesh);
         this.modelRoot.add(mesh);
       }

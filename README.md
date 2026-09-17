@@ -83,6 +83,9 @@ the supplied GLB models, and build instructions are in
 - `cosmic-carnival/` — Twelve-lane arcade shooter using the supplied Crescent,
   Prism, Ribbon, and Jester models, with deterministic waves and a psychedelic
   title reveal.
+- `raid-credits/` — Public, unauthenticated rework of the 2020 Raid Credits
+  audiovisual showcase, with a complete static Portal member roster and
+  explicitly inactive historical Rainbow Warrior NFT context.
 - `lunar-republic/` — Toon-shaded lunar revolution game with freight, allied cities, resource upgrades, enemy operations, and persistent district destruction.
 - `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
 - `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable

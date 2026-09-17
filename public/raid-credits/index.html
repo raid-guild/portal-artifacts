@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#120b18" />
+    <meta
+      name="description"
+      content="Raid Credits: an interactive, public archive of RaidGuild's original audiovisual credits experience."
+    />
+    <title>Raid Credits — RaidGuild Archive</title>
+    <link rel="icon" href="assets/rainbow-warrior.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="members.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to raid console</a>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="page-title">
+        <video
+          class="hero__video"
+          data-archive-video
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-hidden="true"
+        >
+          <source src="assets/raidguild.mp4" type="video/mp4" />
+        </video>
+        <div class="hero__veil" aria-hidden="true"></div>
+        <div class="hero__grid" aria-hidden="true"></div>
+
+        <div class="hero__topline">
+          <p class="eyebrow"><span aria-hidden="true">✦</span> RaidGuild archive / 2020</p>
+          <p class="signal" data-media-status role="status">Loading archive transmission…</p>
+        </div>
+
+        <div class="hero__content">
+          <p class="kicker">A guild is the sum of its raiders.</p>
+          <h1 id="page-title"><span>Raid</span> Credits</h1>
+          <p class="hero__intro">
+            Revisit the playful end-credit energy of the original member showcase, rebuilt as a
+            public Portal module with no account, wallet, or transaction required.
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#member-roster">Meet the raiders</a>
+            <button class="button button--quiet" type="button" data-video-toggle aria-pressed="false">
+              Pause background
+            </button>
+          </div>
+        </div>
+
+        <p class="hero__caption">Original Raid Credits animation · decorative, muted loop</p>
+      </section>
+
+      <section class="roster-shell section" id="member-roster" aria-labelledby="roster-title">
+        <div class="section__heading">
+          <div>
+            <p class="eyebrow">Portal member profiles</p>
+            <h2 id="roster-title">The whole guild gets a credit</h2>
+          </div>
+          <p>
+            Every profile in the Portal’s public member snapshot is here. Search the roster or roll
+            the full credits—nobody is filtered into a smaller cast.
+          </p>
+        </div>
+
+        <div class="roster-layout">
+          <div class="roster-directory">
+            <label class="member-search">
+              <span>Find a raider</span>
+              <input type="search" data-member-search placeholder="Search name or handle" autocomplete="off" />
+            </label>
+            <p class="member-match" data-member-match role="status" aria-live="polite"></p>
+            <div class="member-grid" data-member-grid role="list" aria-label="RaidGuild members"></div>
+          </div>
+
+          <aside class="manifest" aria-labelledby="manifest-title">
+            <div class="manifest__head">
+              <div>
+                <p class="eyebrow">Credits manifest</p>
+                <h3 id="manifest-title">All Portal raiders</h3>
+              </div>
+              <span class="manifest__count" data-roster-count>Loading…</span>
+            </div>
+            <div class="manifest__summary">
+              <span aria-hidden="true">✦</span>
+              <p>
+                The roll uses every record returned by Portal’s anonymous, read-only member profiles
+                collection. Only public display names and handles are preserved.
+              </p>
+            </div>
+            <button class="button button--primary manifest__launch" type="button" data-playback-open disabled>
+              Play all raid credits
+            </button>
+            <p class="manifest__provenance">
+              Static snapshot · <time data-snapshot-date>Loading…</time><br />
+              <a href="https://portal.raidguild.org/members" target="_blank" rel="noopener noreferrer">
+                Open the live Portal directory
+              </a>
+            </p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="soundtrack section" aria-labelledby="soundtrack-title">
+        <div class="soundtrack__art" aria-hidden="true">
+          <span>RG</span>
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="soundtrack__copy">
+          <p class="eyebrow">Original soundtrack</p>
+          <h2 id="soundtrack-title">Press play when you’re ready</h2>
+          <p>
+            “Voyager” returns from the original experience. Audio never autoplays: start the
+            full-screen roll when you are ready to see every raider in the snapshot.
+          </p>
+          <button class="button button--primary soundtrack__play" type="button" data-playback-open disabled>
+            Play raid credits
+          </button>
+          <audio preload="metadata" data-archive-audio>
+            <source src="assets/voyager.ogg" type="audio/ogg" />
+            Your browser does not support the audio element. The rest of Raid Credits remains fully
+            usable.
+          </audio>
+          <p class="audio-status" data-audio-status role="status"></p>
+        </div>
+      </section>
+
+      <section class="archive section" aria-labelledby="archive-title">
+        <div class="archive__image-wrap">
+          <img
+            src="assets/rainbow-warrior.png"
+            width="512"
+            height="512"
+            alt="Pixel-art Rainbow Warrior in bright armor against a rainbow field"
+          />
+          <span class="archive__stamp">Archive only</span>
+        </div>
+        <div class="archive__copy">
+          <p class="eyebrow">Historical NFT context</p>
+          <h2 id="archive-title">Rainbow Warrior</h2>
+          <p class="archive__lead">Lord of Love and Support · original level 1 badge</p>
+          <div class="inactive-note">
+            <strong>Minting is no longer active.</strong>
+            <p>
+              The Rainbow Warrior NFT was an optional part of the original 2020 experience. This
+              public archive cannot connect a wallet, request funds, mint tokens, or submit a
+              transaction.
+            </p>
+          </div>
+          <details>
+            <summary>About this archive</summary>
+            <p>
+              The artwork, animation, and soundtrack are preserved from the original Raid Credits
+              project. The live member service and blockchain features were intentionally removed
+              for this Portal edition.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <div
+      class="playback"
+      data-playback
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="playback-title"
+      aria-describedby="playback-description"
+      tabindex="-1"
+      hidden
+    >
+      <video
+        class="playback__video"
+        data-playback-video
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        aria-hidden="true"
+      >
+        <source src="assets/raidguild.mp4" type="video/mp4" />
+      </video>
+      <div class="playback__veil" aria-hidden="true"></div>
+      <div class="playback__grid" aria-hidden="true"></div>
+      <button class="playback__close" type="button" data-playback-close>
+        <span aria-hidden="true">■</span>
+        Close / Stop
+      </button>
+      <div class="playback__stage">
+        <div class="playback__roll" data-playback-roll>
+          <p class="eyebrow">RaidGuild presents</p>
+          <h2 id="playback-title">RaidGuild credits</h2>
+          <p class="playback__intro" id="playback-description">
+            Every public member profile in the Portal snapshot, in alphabetical order.
+          </p>
+          <ol class="playback__credits" data-playback-credits></ol>
+          <div class="playback__finale">
+            <p>A guild is the sum of its raiders.</p>
+            <strong>RAID CREDITS</strong>
+            <small>Archive transmission · 2020 / forever</small>
+          </div>
+        </div>
+      </div>
+      <p class="playback__status" data-playback-status role="status" aria-live="polite"></p>
+    </div>
+
+    <footer>
+      <p><span>Raid Credits</span> · preserved from 2020, rebuilt for the public Portal.</p>
+      <a href="#main">Return to top <span aria-hidden="true">↑</span></a>
+    </footer>
+
+    <noscript>
+      <p class="noscript">
+        JavaScript is unavailable. The archive media and historical context still work, but the
+        member roster and full-screen credits require JavaScript.
+      </p>
+    </noscript>
+  </body>
+</html>
