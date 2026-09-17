@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#120b18" />
+    <meta
+      name="description"
+      content="Raid Credits: an interactive, public archive of RaidGuild's original audiovisual credits experience."
+    />
+    <title>Raid Credits — RaidGuild Archive</title>
+    <link rel="icon" href="assets/rainbow-warrior.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to raid console</a>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="page-title">
+        <video
+          class="hero__video"
+          data-archive-video
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-hidden="true"
+        >
+          <source src="assets/raidguild.mp4" type="video/mp4" />
+        </video>
+        <div class="hero__veil" aria-hidden="true"></div>
+        <div class="hero__grid" aria-hidden="true"></div>
+
+        <div class="hero__topline">
+          <p class="eyebrow"><span aria-hidden="true">✦</span> RaidGuild archive / 2020</p>
+          <p class="signal" data-media-status role="status">Loading archive transmission…</p>
+        </div>
+
+        <div class="hero__content">
+          <p class="kicker">A guild is the sum of its raiders.</p>
+          <h1 id="page-title"><span>Raid</span> Credits</h1>
+          <p class="hero__intro">
+            Revisit the playful end-credit energy of the original member showcase, rebuilt as a
+            public Portal module with no account, wallet, or transaction required.
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#party-builder">Assemble a party</a>
+            <button class="button button--quiet" type="button" data-video-toggle aria-pressed="false">
+              Pause background
+            </button>
+          </div>
+        </div>
+
+        <p class="hero__caption">Original Raid Credits animation · decorative, muted loop</p>
+      </section>
+
+      <section class="party-shell section" id="party-builder" aria-labelledby="party-title">
+        <div class="section__heading">
+          <div>
+            <p class="eyebrow">Local party builder</p>
+            <h2 id="party-title">Choose your raid disciplines</h2>
+          </div>
+          <p>
+            The legacy live roster is retired. This resilient local deck celebrates the disciplines
+            that turn a brief into a launch—without fetching member data.
+          </p>
+        </div>
+
+        <div class="party-layout">
+          <div class="discipline-grid" data-discipline-grid aria-label="Available disciplines"></div>
+
+          <aside class="manifest" aria-labelledby="manifest-title">
+            <div class="manifest__head">
+              <div>
+                <p class="eyebrow">Current manifest</p>
+                <h3 id="manifest-title">Your raid party</h3>
+              </div>
+              <span class="manifest__count" data-party-count>0 / 4</span>
+            </div>
+            <div class="manifest__empty" data-party-empty>
+              <span aria-hidden="true">＋</span>
+              <p>Select up to four disciplines to form a crew.</p>
+            </div>
+            <ol class="manifest__list" data-party-list aria-live="polite"></ol>
+            <div class="manifest__actions">
+              <button class="text-button" type="button" data-share-party disabled>
+                Copy party link
+              </button>
+              <button class="text-button" type="button" data-clear-party disabled>
+                Clear roster
+              </button>
+            </div>
+            <p class="manifest__notice" data-party-notice role="status" aria-live="polite"></p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="soundtrack section" aria-labelledby="soundtrack-title">
+        <div class="soundtrack__art" aria-hidden="true">
+          <span>RG</span>
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="soundtrack__copy">
+          <p class="eyebrow">Original soundtrack</p>
+          <h2 id="soundtrack-title">Press play when you’re ready</h2>
+          <p>
+            “Voyager” returns from the original experience. Audio never autoplays, and the browser’s
+            native controls remain available for volume, seeking, and pause.
+          </p>
+          <audio controls preload="metadata" data-archive-audio>
+            <source src="assets/voyager.ogg" type="audio/ogg" />
+            Your browser does not support the audio element. The rest of Raid Credits remains fully
+            usable.
+          </audio>
+          <p class="audio-status" data-audio-status role="status"></p>
+        </div>
+      </section>
+
+      <section class="archive section" aria-labelledby="archive-title">
+        <div class="archive__image-wrap">
+          <img
+            src="assets/rainbow-warrior.png"
+            width="512"
+            height="512"
+            alt="Pixel-art Rainbow Warrior in bright armor against a rainbow field"
+          />
+          <span class="archive__stamp">Archive only</span>
+        </div>
+        <div class="archive__copy">
+          <p class="eyebrow">Historical NFT context</p>
+          <h2 id="archive-title">Rainbow Warrior</h2>
+          <p class="archive__lead">Lord of Love and Support · original level 1 badge</p>
+          <div class="inactive-note">
+            <strong>Minting is no longer active.</strong>
+            <p>
+              The Rainbow Warrior NFT was an optional part of the original 2020 experience. This
+              public archive cannot connect a wallet, request funds, mint tokens, or submit a
+              transaction.
+            </p>
+          </div>
+          <details>
+            <summary>About this archive</summary>
+            <p>
+              The artwork, animation, and soundtrack are preserved from the original Raid Credits
+              project. The live member service and blockchain features were intentionally removed
+              for this Portal edition.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p><span>Raid Credits</span> · preserved from 2020, rebuilt for the public Portal.</p>
+      <a href="#main">Return to top <span aria-hidden="true">↑</span></a>
+    </footer>
+
+    <noscript>
+      <p class="noscript">
+        JavaScript is unavailable. The archive media and historical context still work, but the local
+        party builder requires JavaScript.
+      </p>
+    </noscript>
+  </body>
+</html>
