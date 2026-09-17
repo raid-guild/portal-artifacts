@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090716" />
+    <meta name="description" content="Cosmic Carnival — a pastel alien lane shooter." />
+    <link rel="icon" href="/cosmic-carnival/favicon.svg" type="image/svg+xml" />
+    <title>Cosmic Carnival</title>
+    <script type="module" crossorigin src="/cosmic-carnival/assets/index-DWkLeIZd.js"></script>
+    <link rel="stylesheet" crossorigin href="/cosmic-carnival/assets/index-jPopwwb1.css">
+  </head>
+  <body>
+    <main id="app" aria-label="Cosmic Carnival arcade game">
+      <canvas id="game" tabindex="0" aria-label="Cosmic Carnival game surface"></canvas>
+
+      <section id="loading" class="screen screen--active" aria-live="polite">
+        <p class="eyebrow">CALIBRATING THE SPIRAL</p>
+        <div class="loader"><span id="load-bar"></span></div>
+        <p id="load-status">Loading carnival sculptures… 0%</p>
+        <button id="retry" class="hidden" type="button">RETRY LOAD</button>
+      </section>
+
+      <section id="title" class="screen title-screen hidden" aria-labelledby="title-face">
+        <div class="title-lockup" aria-hidden="true">
+          <div class="title-echo echo-a">COSMIC<br />CARNIVAL</div>
+          <div class="title-echo echo-b">COSMIC<br />CARNIVAL</div>
+          <div class="title-echo echo-c">COSMIC<br />CARNIVAL</div>
+          <h1 id="title-face">COSMIC<br /><span>CARNIVAL</span></h1>
+        </div>
+        <p class="subtitle">ENTER THE SPIRAL</p>
+        <button id="start" class="primary" type="button">PRESS ENTER / CLICK TO START</button>
+        <p class="hint">← → / A D MOVE · SPACE FIRE · ESC PAUSE · M MUTE</p>
+        <div class="title-actions">
+          <button id="title-mute" class="quiet" type="button" aria-pressed="false">SOUND ON</button>
+          <button id="effects" class="quiet" type="button" aria-pressed="false">FULL FX</button>
+          <button id="help-open" class="quiet" type="button">HOW TO PLAY</button>
+        </div>
+      </section>
+
+      <section id="hud" class="hud hidden" aria-label="Game status">
+        <div><span class="hud-label">SCORE</span><strong id="score">000000</strong></div>
+        <div><span class="hud-label">WAVE</span><strong id="wave">01</strong></div>
+        <div><span class="hud-label">LIVES</span><strong id="lives">◆ ◆ ◆</strong></div>
+        <div><span class="hud-label">BEST</span><strong id="best">000000</strong></div>
+        <button id="hud-mute" class="icon-button" type="button" aria-label="Mute sound">♪</button>
+      </section>
+
+      <div id="message" class="message hidden" aria-live="assertive"></div>
+
+      <section id="pause" class="screen panel-screen hidden" aria-labelledby="pause-title">
+        <p class="eyebrow">SIGNAL SUSPENDED</p>
+        <h2 id="pause-title">PAUSED</h2>
+        <button id="resume" class="primary" type="button">RESUME</button>
+        <p class="hint">ESC TO RETURN TO THE RIM</p>
+      </section>
+
+      <section id="game-over" class="screen panel-screen hidden" aria-labelledby="over-title">
+        <p class="eyebrow">THE CARNIVAL CONTINUES</p>
+        <h2 id="over-title">GAME OVER</h2>
+        <div class="results">
+          <p>SCORE <strong id="final-score">0</strong></p>
+          <p>BEST <strong id="final-best">0</strong></p>
+          <p>WAVE <strong id="final-wave">1</strong></p>
+        </div>
+        <button id="restart" class="primary" type="button">PLAY AGAIN</button>
+        <p class="hint">ENTER / CLICK TO RESTART</p>
+      </section>
+
+      <dialog id="help">
+        <button id="help-close" class="dialog-close" type="button" aria-label="Close help">×</button>
+        <p class="eyebrow">RIM RUNNER MANUAL</p>
+        <h2>KEEP THE GATE CLOSED</h2>
+        <p>Move the Crescent around twelve lanes and fire inward. Every alien that reaches your rim costs one life. A short shield prevents stacked damage.</p>
+        <dl>
+          <div><dt>PRISM</dt><dd>One hit · 100</dd></div>
+          <div><dt>RIBBON</dt><dd>Changes lane · 200</dd></div>
+          <div><dt>JESTER</dt><dd>Two hits, then surges · 300</dd></div>
+        </dl>
+        <p class="help-controls">KEYS: ← → / A D · SPACE · ESC · M<br />FOCUSED MOUSE WHEEL: CHANGE LANE</p>
+      </dialog>
+
+      <nav id="touch-controls" class="touch-controls hidden" aria-label="Touch controls">
+        <button data-touch="left" type="button" aria-label="Move left">◀</button>
+        <button data-touch="fire" class="fire" type="button" aria-label="Fire">●</button>
+        <button data-touch="right" type="button" aria-label="Move right">▶</button>
+      </nav>
+
+      <div class="scanlines" aria-hidden="true"></div>
+    </main>
+  </body>
+</html>

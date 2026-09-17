@@ -71,8 +71,18 @@ Editable Blender assets and campaign tests are in `studies/lunar-republic/`,
 whose `dist` symlink points to the canonical public source. See its README for
 local play, tests, and asset regeneration.
 
+## Cosmic Carnival game
+
+`public/cosmic-carnival/` contains the production build of the pastel alien
+lane shooter. Editable Three.js/TypeScript source, focused simulation tests,
+the supplied GLB models, and build instructions are in
+`studies/cosmic-carnival/`.
+
 ## Published artifacts
 
+- `cosmic-carnival/` — Twelve-lane arcade shooter using the supplied Crescent,
+  Prism, Ribbon, and Jester models, with deterministic waves and a psychedelic
+  title reveal.
 - `lunar-republic/` — Toon-shaded lunar revolution game with freight, allied cities, resource upgrades, enemy operations, and persistent district destruction.
 - `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
 - `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable
