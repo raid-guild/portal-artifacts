@@ -73,6 +73,9 @@ local play, tests, and asset regeneration.
 
 ## Published artifacts
 
+- `raid-credits/` — Public, unauthenticated rework of the 2020 Raid Credits
+  audiovisual member showcase, with a local party builder and explicitly
+  inactive historical Rainbow Warrior NFT context.
 - `lunar-republic/` — Toon-shaded lunar revolution game with freight, allied cities, resource upgrades, enemy operations, and persistent district destruction.
 - `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
 - `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable
