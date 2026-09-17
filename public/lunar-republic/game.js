@@ -26,17 +26,20 @@ export function missionCost(m,speed){return {power:Math.ceil(m.power*(speed/3.2)
 export function canLaunch(s,city,id,bearing,speed,departure=0){if(!Object.hasOwn(CITIES,city))return 'Unknown destination.';const m=missions(s,city).find(m=>m.id===id);if(!m)return 'That operation is no longer available.';if(!validateAim(bearing,speed,departure))return 'Launch settings are outside the rail limits.';const c=missionCost(m,speed);if(s.power<c.power)return 'Not enough power. Wait for charge or expand the solar field.';if(s.material<c.material)return 'Not enough material. Wait for excavation.';if(s.supplies<c.supplies)return 'Not enough supplies. Complete an ore exchange.';return null}
 function log(s,title,text){s.log.unshift({turn:s.turn,title,text});s.log=s.log.slice(0,70)}
 function checkWin(s){if(!s.won&&s.deliveries>0&&!s.blockade&&(s.surrendered||(s.districts.command===0&&s.districts.shipyards===0))){s.won=true;log(s,'The first free lunar territory.','The trade route is open and Vesper can no longer threaten this station. The republic survives. You can keep building after the chapter ends.')}}
-export function advance(s){s.clock=epoch(s)+21600;s.turn++;const p=production(s);s.power=Math.min(capacity(s),s.power+p.power);s.material=Math.min(999,s.material+p.material);s.supplies=Math.min(999,Math.max(0,s.supplies-1)+p.supplies);
- if(enemyActive(s)&&s.turn>=s.nextThreat){if(s.threatType==='blockade'){s.blockade=true;log(s,'Azure is blockaded.','The Authority fleet is holding incoming shuttles. Launch a blockade-breaking strike from Port Azure’s operations list.');s.threatType='raid'}else{s.raidDamage=1;log(s,'Raid on the solar field.','Solar output is reduced to 55%. Repair the field from Station controls.');s.threatType='blockade'}s.nextThreat=s.turn+4}
- const pending=[];for(const ship of s.shipments){if(ship.arrives<=s.turn&&(!s.blockade||ship.city!=='azure')){s.supplies=Math.min(999,s.supplies+ship.amount);log(s,'Return shuttle received.',`${CITIES[ship.city].name} delivered ${ship.amount} supply crates.`)}else pending.push(ship)}s.shipments=pending;checkWin(s);syncRadio(s);return p}
+export function advance(s,onEvent=()=>{}){s.clock=epoch(s)+21600;s.turn++;const p=production(s);s.power=Math.min(capacity(s),s.power+p.power);s.material=Math.min(999,s.material+p.material);s.supplies=Math.min(999,Math.max(0,s.supplies-1)+p.supplies);
+ if(enemyActive(s)&&s.turn>=s.nextThreat){if(s.threatType==='blockade'){onEvent({lane:'Vesper',title:s.blockade?'Blockade reinforced':'Blockade begins',turn:s.turn});s.blockade=true;log(s,'Azure is blockaded.','The Authority fleet is holding incoming shuttles. Launch a blockade-breaking strike from Port Azure’s operations list.');s.threatType='raid'}else{s.raidDamage=1;onEvent({lane:'Vesper',title:'Solar raid',turn:s.turn});log(s,'Raid on the solar field.','Solar output is reduced to 55%. Repair the field from Station controls.');s.threatType='blockade'}s.nextThreat=s.turn+4}
+ const pending=[];for(const ship of s.shipments){if(ship.arrives<=s.turn&&(!s.blockade||ship.city!=='azure')){s.supplies=Math.min(999,s.supplies+ship.amount);onEvent({lane:'Shuttles',title:CITIES[ship.city].name+' returns '+ship.amount+' supplies',turn:s.turn});log(s,'Return shuttle received.',`${CITIES[ship.city].name} delivered ${ship.amount} supply crates.`)}else pending.push(ship)}s.shipments=pending;checkWin(s);syncRadio(s);return p}
 export function launch(s,city,id,bearing,speed,departure=0){
  const error=canLaunch(s,city,id,bearing,speed,departure);if(error)throw Error(error);
- const m=missions(s,city).find(m=>m.id===id),cost=missionCost(m,speed);
  const p=id==='ultimatum'?null:predict(s,city,id,bearing,speed,departure);
+ return resolveLaunch(s,city,id,bearing,speed,departure,p);
+}
+function resolveLaunch(s,city,id,bearing,speed,departure,p,onEvent=()=>{}){
+ const m=missions(s,city).find(m=>m.id===id),cost=missionCost(m,speed);
  s.power-=cost.power;s.material-=cost.material;s.supplies-=cost.supplies;
  const shifts=p?flightShifts(p,departure):1;
  // Mobilization, production and shipments continue during preparation and flight.
- for(let i=0;i<shifts;i++)advance(s);
+ for(let i=0;i<shifts;i++)advance(s,onEvent);
  if(p){s.lastShot={...p,city,mission:id,bearing,speed,delay:departure};s.launches++;}
  const hit=!p||p.hit;if(p&&hit)s.hits++;
  let title,text;
@@ -52,3 +55,26 @@ export function upgrade(s,id){const u=UPGRADES[id];if(!u)throw Error('Unknown up
 export function repair(s){if(!s.raidDamage)throw Error('No repairs needed.');if(s.material<15||s.supplies<6)throw Error('Repair requires 15 material and 6 supplies.');s.material-=15;s.supplies-=6;s.raidDamage=0;log(s,'Solar field repaired.','Full daylight output is restored.');syncRadio(s)}
 export function objective(s){if(s.won)return 'Chapter complete · Your republic is free';if(s.blockade)return 'Clear the blockade to release allied shipments';if(s.deliveries===0)return 'Establish a supply route with Port Azure';if(s.trust<2)return 'Win Meridian’s support with two relief drops';if(s.pressure<3)return 'Build leverage over Vesper · '+s.pressure+'/3 pressure';return 'Secure surrender, or destroy the shipyards and command'}
 export function parseSave(raw){try{const s=JSON.parse(raw);if(s.version!==1||!Number.isInteger(s.turn)||s.turn<1)return null;for(const k of ['power','material','supplies','trust','pressure','deliveries','launches','hits','nextThreat'])if(!Number.isFinite(s[k])||s[k]<0)return null;for(const k in UPGRADES)if(!Number.isInteger(s.levels?.[k])||s.levels[k]<0||s.levels[k]>UPGRADES[k].max)return null;for(const k of ['shipyards','command','harbor'])if(!Number.isFinite(s.districts?.[k])||s.districts[k]<0||s.districts[k]>100)return null;if(!Array.isArray(s.shipments)||!Array.isArray(s.scars)||!Array.isArray(s.log))return null;if(s.clock!==undefined&&(!Number.isFinite(s.clock)||s.clock<0))return null;if(s.lastShot&&(!Array.isArray(s.lastShot.trail)||s.lastShot.trail.length>2000||!s.lastShot.trail.every(p=>[p.x,p.y,p.t].every(Number.isFinite))))s.lastShot=null;restoreRadio(s);return s}catch{return null}}
+
+// Preview and commit share the same shift progression and arrival effects.
+export function previewLaunch(s,city,id,bearing,speed,departure=0,flight){
+ const error=canLaunch(s,city,id,bearing,speed,departure);if(error)return {error};
+ const p=id==='ultimatum'?null:flight??predict(s,city,id,bearing,speed,departure);
+ const copy=structuredClone(s),events=[],seenHeld=new Set();
+ const result=resolveLaunch(copy,city,id,bearing,speed,departure,p,event=>events.push({...event,offset:event.turn-s.turn}));
+ // Determine when existing Azure shuttles first encounter a blockade using the
+ // same shift engine; only a handful of shifts are simulated (no physics rerun).
+ const transit=structuredClone(s);
+ const shifts=result.shifts;
+ for(const ship of transit.shipments)if(ship.city==='azure'&&transit.blockade&&ship.arrives<=transit.turn){seenHeld.add(ship);events.push({lane:'Shuttles',title:'Azure shuttle already held ('+ship.amount+' supplies)',offset:0,turn:transit.turn});}
+ for(let i=1;i<=shifts;i++){
+  advance(transit);
+  for(const ship of transit.shipments)if(ship.arrives<=transit.turn&&ship.city==='azure'&&transit.blockade&&!seenHeld.has(ship)){
+   seenHeld.add(ship);events.push({lane:'Shuttles',title:'Azure shuttle held ('+ship.amount+' supplies)',offset:i,turn:transit.turn});
+  }
+ }
+ events.sort((a,b)=>a.offset-b.offset);
+ const resources=['power','material','supplies'].map(key=>({key,before:s[key],after:copy[key],delta:copy[key]-s[key]}));
+ const returned=copy.shipments.filter(ship=>ship.arrives===copy.turn+2);
+ return {shifts,start:s.turn,end:copy.turn,delay:id==='ultimatum'?0:departure,flightHours:p?p.duration/3600:0,outcome:p?.outcome??'agreement',hit:result.hit,cost:missionCost(missions(s,city).find(m=>m.id===id),speed),resources,events,blockade:copy.blockade,raidDamage:copy.raidDamage,returnShipment:result.hit&&['freight','relief','rebuild'].includes(id)?returned.at(-1):null,resultTitle:result.title};
+}
