@@ -3,7 +3,7 @@ const raidCreditsSnapshot = {
   "schemaVersion": 1,
   "collection": "profiles",
   "source": "https://portal.raidguild.org/api/profiles",
-  "capturedAt": "2026-09-17T16:15:48.916Z",
+  "capturedAt": "2026-09-17T17:08:44.841Z",
   "total": 158,
   "fields": [
     "id",
