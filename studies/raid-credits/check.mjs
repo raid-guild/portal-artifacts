@@ -20,11 +20,32 @@ const requiredHtml = [
   'src="assets/raidguild.mp4"',
   'src="assets/voyager.ogg"',
   'src="assets/rainbow-warrior.png"',
+  "data-playback-open",
+  "data-playback-close",
+  'role="dialog"',
+  'aria-modal="true"',
   "Minting is no longer active.",
 ];
 
 for (const token of requiredHtml) {
   if (!content["index.html"].includes(token)) failures.push(`index.html is missing ${token}`);
+}
+
+const requiredBehavior = [
+  'event.key === "Escape"',
+  'audio.pause()',
+  'playbackVideo.pause()',
+  'playbackTrigger?.focus()',
+  'document.body.classList.add("playback-open")',
+  'document.body.classList.remove("playback-open")',
+];
+
+for (const token of requiredBehavior) {
+  if (!content["app.js"].includes(token)) failures.push(`app.js is missing ${token}`);
+}
+
+if (!content["styles.css"].includes("height: 100dvh")) {
+  failures.push("styles.css is missing the dynamic full-viewport takeover height");
 }
 
 const forbidden = [

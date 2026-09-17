@@ -51,6 +51,7 @@ const partyCount = document.querySelector("[data-party-count]");
 const partyNotice = document.querySelector("[data-party-notice]");
 const shareButton = document.querySelector("[data-share-party]");
 const clearButton = document.querySelector("[data-clear-party]");
+const playbackButtons = [...document.querySelectorAll("[data-playback-open]")];
 const selected = new Set();
 
 function safePartyFromUrl() {
@@ -73,7 +74,11 @@ function updateUrl() {
   } else {
     url.searchParams.delete("party");
   }
-  window.history.replaceState({}, "", url);
+  try {
+    window.history.replaceState({}, "", url);
+  } catch {
+    // A sandboxed iframe without same-origin permission can reject URL updates.
+  }
   return url;
 }
 
@@ -99,6 +104,9 @@ function renderParty() {
   partyEmpty.hidden = selected.size > 0;
   shareButton.disabled = selected.size === 0;
   clearButton.disabled = selected.size === 0;
+  playbackButtons.forEach((button) => {
+    button.disabled = selected.size === 0;
+  });
   updateUrl();
 }
 
@@ -203,6 +211,123 @@ if (video.readyState >= 3) startVideo();
 
 const audio = document.querySelector("[data-archive-audio]");
 const audioStatus = document.querySelector("[data-audio-status]");
+const playback = document.querySelector("[data-playback]");
+const playbackVideo = document.querySelector("[data-playback-video]");
+const playbackClose = document.querySelector("[data-playback-close]");
+const playbackCredits = document.querySelector("[data-playback-credits]");
+const playbackStatus = document.querySelector("[data-playback-status]");
+const backgroundContent = [...document.body.children].filter(
+  (element) => !element.matches(".playback, script, noscript"),
+);
+let playbackTrigger = null;
+let lockedScrollY = 0;
+let resumeBackgroundVideo = false;
+
+function renderPlaybackCredits() {
+  playbackCredits.replaceChildren();
+  disciplines.forEach((discipline) => {
+    if (!selected.has(discipline.id)) return;
+    const item = document.createElement("li");
+    item.style.setProperty("--credit-color", discipline.color);
+    item.innerHTML = `
+      <span aria-hidden="true">${discipline.sigil}</span>
+      <div>
+        <strong>${discipline.name}</strong>
+        <small>${discipline.description}</small>
+      </div>
+    `;
+    playbackCredits.append(item);
+  });
+}
+
+function lockPageScroll() {
+  lockedScrollY = window.scrollY;
+  document.body.style.top = `-${lockedScrollY}px`;
+  document.body.classList.add("playback-open");
+}
+
+function unlockPageScroll() {
+  const scrollBehavior = document.documentElement.style.scrollBehavior;
+  document.documentElement.style.scrollBehavior = "auto";
+  document.body.classList.remove("playback-open");
+  document.body.style.top = "";
+  window.scrollTo(0, lockedScrollY);
+  window.requestAnimationFrame(() => {
+    document.documentElement.style.scrollBehavior = scrollBehavior;
+  });
+}
+
+async function openPlayback(trigger) {
+  if (!selected.size || !playback.hidden) return;
+
+  playbackTrigger = trigger;
+  resumeBackgroundVideo = !video.paused;
+  video.pause();
+  renderPlaybackCredits();
+  lockPageScroll();
+  playback.hidden = false;
+  backgroundContent.forEach((element) => {
+    element.inert = true;
+  });
+  playback.classList.remove("is-playing");
+  void playback.offsetWidth;
+  playback.classList.add("is-playing");
+  playbackClose.focus();
+
+  audio.currentTime = 0;
+  playbackVideo.currentTime = 0;
+  const playbackAttempts = [audio.play()];
+  if (!reducedMotion.matches) playbackAttempts.push(playbackVideo.play());
+  const results = await Promise.allSettled(playbackAttempts);
+  const audioStarted = results[0]?.status === "fulfilled";
+  playbackStatus.textContent = audioStarted
+    ? reducedMotion.matches
+      ? "Reduced motion mode · credits are stationary"
+      : "Voyager playing · close or press Escape to stop"
+    : "Audio unavailable · visual credits continue";
+}
+
+function closePlayback() {
+  if (playback.hidden) return;
+
+  audio.pause();
+  audio.currentTime = 0;
+  playbackVideo.pause();
+  playbackVideo.currentTime = 0;
+  playback.classList.remove("is-playing");
+  playback.hidden = true;
+  backgroundContent.forEach((element) => {
+    element.inert = false;
+  });
+  playbackStatus.textContent = "";
+  unlockPageScroll();
+
+  if (resumeBackgroundVideo && !reducedMotion.matches) {
+    video.play().catch(() => {});
+  }
+  playbackTrigger?.focus();
+  playbackTrigger = null;
+}
+
+playbackButtons.forEach((button) => {
+  button.addEventListener("click", () => openPlayback(button));
+});
+
+playbackClose.addEventListener("click", closePlayback);
+
+document.addEventListener("keydown", (event) => {
+  if (playback.hidden) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePlayback();
+  } else if (event.key === "Tab") {
+    event.preventDefault();
+    playbackClose.focus();
+  }
+});
+
+audio.addEventListener("ended", closePlayback);
 audio.addEventListener("error", () => {
   audioStatus.textContent = "The archive track could not be loaded. All other features remain available.";
+  if (!playback.hidden) playbackStatus.textContent = "Audio unavailable · visual credits continue";
 });

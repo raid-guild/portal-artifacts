@@ -83,6 +83,9 @@
               <p>Select up to four disciplines to form a crew.</p>
             </div>
             <ol class="manifest__list" data-party-list aria-live="polite"></ol>
+            <button class="button button--primary manifest__launch" type="button" data-playback-open disabled>
+              Play raid credits
+            </button>
             <div class="manifest__actions">
               <button class="text-button" type="button" data-share-party disabled>
                 Copy party link
@@ -105,10 +108,13 @@
           <p class="eyebrow">Original soundtrack</p>
           <h2 id="soundtrack-title">Press play when you’re ready</h2>
           <p>
-            “Voyager” returns from the original experience. Audio never autoplays, and the browser’s
-            native controls remain available for volume, seeking, and pause.
+            “Voyager” returns from the original experience. Audio never autoplays: assemble a party,
+            then start the full-screen credits when you are ready.
           </p>
-          <audio controls preload="metadata" data-archive-audio>
+          <button class="button button--primary soundtrack__play" type="button" data-playback-open disabled>
+            Play raid credits
+          </button>
+          <audio preload="metadata" data-archive-audio>
             <source src="assets/voyager.ogg" type="audio/ogg" />
             Your browser does not support the audio element. The rest of Raid Credits remains fully
             usable.
@@ -150,6 +156,51 @@
         </div>
       </section>
     </main>
+
+    <div
+      class="playback"
+      data-playback
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="playback-title"
+      aria-describedby="playback-description"
+      tabindex="-1"
+      hidden
+    >
+      <video
+        class="playback__video"
+        data-playback-video
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        aria-hidden="true"
+      >
+        <source src="assets/raidguild.mp4" type="video/mp4" />
+      </video>
+      <div class="playback__veil" aria-hidden="true"></div>
+      <div class="playback__grid" aria-hidden="true"></div>
+      <button class="playback__close" type="button" data-playback-close>
+        <span aria-hidden="true">■</span>
+        Close / Stop
+      </button>
+      <div class="playback__stage">
+        <div class="playback__roll" data-playback-roll>
+          <p class="eyebrow">RaidGuild presents</p>
+          <h2 id="playback-title">Your raid party</h2>
+          <p class="playback__intro" id="playback-description">
+            Built from the disciplines you assembled for this raid.
+          </p>
+          <ol class="playback__credits" data-playback-credits></ol>
+          <div class="playback__finale">
+            <p>A guild is the sum of its raiders.</p>
+            <strong>RAID CREDITS</strong>
+            <small>Archive transmission · 2020 / forever</small>
+          </div>
+        </div>
+      </div>
+      <p class="playback__status" data-playback-status role="status" aria-live="polite"></p>
+    </div>
 
     <footer>
       <p><span>Raid Credits</span> · preserved from 2020, rebuilt for the public Portal.</p>
