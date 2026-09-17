@@ -8,13 +8,23 @@ lives at `public/raid-credits/`.
 From the repository root:
 
 ```sh
+node studies/raid-credits/refresh-members.mjs
 node studies/raid-credits/build.mjs
 node studies/raid-credits/check.mjs
 ```
 
-The module is intentionally static and unauthenticated. Party selections are
-local URL state only; no member endpoint, wallet library, contract integration,
-transaction path, Portal credential, or private API is used.
+The module is intentionally static and unauthenticated. `members.js` is a
+build-time snapshot of every record returned by Portal's anonymous, read-only
+`profiles` collection endpoint. The refresh script paginates the complete
+response and keeps only `id`, `displayName`, and `handle`; the snapshot records
+its source, capture time, field list, and total. Collection access rules remain
+Portal-owned, and there is no runtime cross-origin fetch.
+
+Refresh the snapshot immediately before verification when Portal membership
+changes, then run the build and check commands. Never add claim email, contact,
+wallet, account, or other private profile fields to the snapshot. No wallet
+library, contract integration, transaction path, Portal credential, or private
+API is used.
 
 ## Source assets
 

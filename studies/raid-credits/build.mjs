@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const outputDirectory = join(sourceDirectory, "..", "..", "public", "raid-credits");
-const publicFiles = ["index.html", "styles.css", "app.js"];
+const publicFiles = ["index.html", "styles.css", "members.js", "app.js"];
 
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });

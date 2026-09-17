@@ -11,6 +11,7 @@
     <title>Raid Credits — RaidGuild Archive</title>
     <link rel="icon" href="assets/rainbow-warrior.png" type="image/png" />
     <link rel="stylesheet" href="styles.css" />
+    <script src="members.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -45,7 +46,7 @@
             public Portal module with no account, wallet, or transaction required.
           </p>
           <div class="hero__actions">
-            <a class="button button--primary" href="#party-builder">Assemble a party</a>
+            <a class="button button--primary" href="#member-roster">Meet the raiders</a>
             <button class="button button--quiet" type="button" data-video-toggle aria-pressed="false">
               Pause background
             </button>
@@ -55,46 +56,52 @@
         <p class="hero__caption">Original Raid Credits animation · decorative, muted loop</p>
       </section>
 
-      <section class="party-shell section" id="party-builder" aria-labelledby="party-title">
+      <section class="roster-shell section" id="member-roster" aria-labelledby="roster-title">
         <div class="section__heading">
           <div>
-            <p class="eyebrow">Local party builder</p>
-            <h2 id="party-title">Choose your raid disciplines</h2>
+            <p class="eyebrow">Portal member profiles</p>
+            <h2 id="roster-title">The whole guild gets a credit</h2>
           </div>
           <p>
-            The legacy live roster is retired. This resilient local deck celebrates the disciplines
-            that turn a brief into a launch—without fetching member data.
+            Every profile in the Portal’s public member snapshot is here. Search the roster or roll
+            the full credits—nobody is filtered into a smaller cast.
           </p>
         </div>
 
-        <div class="party-layout">
-          <div class="discipline-grid" data-discipline-grid aria-label="Available disciplines"></div>
+        <div class="roster-layout">
+          <div class="roster-directory">
+            <label class="member-search">
+              <span>Find a raider</span>
+              <input type="search" data-member-search placeholder="Search name or handle" autocomplete="off" />
+            </label>
+            <p class="member-match" data-member-match role="status" aria-live="polite"></p>
+            <div class="member-grid" data-member-grid role="list" aria-label="RaidGuild members"></div>
+          </div>
 
           <aside class="manifest" aria-labelledby="manifest-title">
             <div class="manifest__head">
               <div>
-                <p class="eyebrow">Current manifest</p>
-                <h3 id="manifest-title">Your raid party</h3>
+                <p class="eyebrow">Credits manifest</p>
+                <h3 id="manifest-title">All Portal raiders</h3>
               </div>
-              <span class="manifest__count" data-party-count>0 / 4</span>
+              <span class="manifest__count" data-roster-count>Loading…</span>
             </div>
-            <div class="manifest__empty" data-party-empty>
-              <span aria-hidden="true">＋</span>
-              <p>Select up to four disciplines to form a crew.</p>
+            <div class="manifest__summary">
+              <span aria-hidden="true">✦</span>
+              <p>
+                The roll uses every record returned by Portal’s anonymous, read-only member profiles
+                collection. Only public display names and handles are preserved.
+              </p>
             </div>
-            <ol class="manifest__list" data-party-list aria-live="polite"></ol>
             <button class="button button--primary manifest__launch" type="button" data-playback-open disabled>
-              Play raid credits
+              Play all raid credits
             </button>
-            <div class="manifest__actions">
-              <button class="text-button" type="button" data-share-party disabled>
-                Copy party link
-              </button>
-              <button class="text-button" type="button" data-clear-party disabled>
-                Clear roster
-              </button>
-            </div>
-            <p class="manifest__notice" data-party-notice role="status" aria-live="polite"></p>
+            <p class="manifest__provenance">
+              Static snapshot · <time data-snapshot-date>Loading…</time><br />
+              <a href="https://portal.raidguild.org/members" target="_blank" rel="noopener noreferrer">
+                Open the live Portal directory
+              </a>
+            </p>
           </aside>
         </div>
       </section>
@@ -108,8 +115,8 @@
           <p class="eyebrow">Original soundtrack</p>
           <h2 id="soundtrack-title">Press play when you’re ready</h2>
           <p>
-            “Voyager” returns from the original experience. Audio never autoplays: assemble a party,
-            then start the full-screen credits when you are ready.
+            “Voyager” returns from the original experience. Audio never autoplays: start the
+            full-screen roll when you are ready to see every raider in the snapshot.
           </p>
           <button class="button button--primary soundtrack__play" type="button" data-playback-open disabled>
             Play raid credits
@@ -187,9 +194,9 @@
       <div class="playback__stage">
         <div class="playback__roll" data-playback-roll>
           <p class="eyebrow">RaidGuild presents</p>
-          <h2 id="playback-title">Your raid party</h2>
+          <h2 id="playback-title">RaidGuild credits</h2>
           <p class="playback__intro" id="playback-description">
-            Built from the disciplines you assembled for this raid.
+            Every public member profile in the Portal snapshot, in alphabetical order.
           </p>
           <ol class="playback__credits" data-playback-credits></ol>
           <div class="playback__finale">
@@ -209,8 +216,8 @@
 
     <noscript>
       <p class="noscript">
-        JavaScript is unavailable. The archive media and historical context still work, but the local
-        party builder requires JavaScript.
+        JavaScript is unavailable. The archive media and historical context still work, but the
+        member roster and full-screen credits require JavaScript.
       </p>
     </noscript>
   </body>

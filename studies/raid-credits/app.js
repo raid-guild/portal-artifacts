@@ -1,161 +1,68 @@
-const disciplines = [
-  {
-    id: "summoner",
-    name: "Summoner",
-    sigil: "S",
-    color: "#ff6b8c",
-    description: "Calls the crew together and turns a promising signal into a clear quest.",
-  },
-  {
-    id: "cleric",
-    name: "Cleric",
-    sigil: "C",
-    color: "#ffc857",
-    description: "Protects the party, tends the process, and keeps collaboration healthy.",
-  },
-  {
-    id: "monk",
-    name: "Monk",
-    sigil: "M",
-    color: "#64d6c4",
-    description: "Finds focus in the noise and shapes complexity into a usable system.",
-  },
-  {
-    id: "ranger",
-    name: "Ranger",
-    sigil: "R",
-    color: "#89e36b",
-    description: "Maps the terrain, tracks the edge cases, and tests the path ahead.",
-  },
-  {
-    id: "warrior",
-    name: "Warrior",
-    sigil: "W",
-    color: "#ff815f",
-    description: "Builds with conviction and carries the implementation across the finish line.",
-  },
-  {
-    id: "paladin",
-    name: "Paladin",
-    sigil: "P",
-    color: "#b28aff",
-    description: "Aligns purpose, product, and delivery so the whole raid lands together.",
-  },
-];
+const snapshot = window.RAID_CREDITS_SNAPSHOT;
+const members = Array.isArray(snapshot?.members) ? snapshot.members : [];
+const creditColors = ["#ff6b8c", "#ffc857", "#64d6c4", "#89e36b", "#ff815f", "#b28aff"];
 
-const maxPartySize = 4;
-const grid = document.querySelector("[data-discipline-grid]");
-const partyList = document.querySelector("[data-party-list]");
-const partyEmpty = document.querySelector("[data-party-empty]");
-const partyCount = document.querySelector("[data-party-count]");
-const partyNotice = document.querySelector("[data-party-notice]");
-const shareButton = document.querySelector("[data-share-party]");
-const clearButton = document.querySelector("[data-clear-party]");
+const memberGrid = document.querySelector("[data-member-grid]");
+const memberSearch = document.querySelector("[data-member-search]");
+const memberMatch = document.querySelector("[data-member-match]");
+const rosterCount = document.querySelector("[data-roster-count]");
+const snapshotDate = document.querySelector("[data-snapshot-date]");
 const playbackButtons = [...document.querySelectorAll("[data-playback-open]")];
-const selected = new Set();
 
-function safePartyFromUrl() {
-  const requested = new URLSearchParams(window.location.search)
-    .get("party")
-    ?.split(",")
-    .map((id) => id.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (!requested) return [];
-
-  const known = new Set(disciplines.map(({ id }) => id));
-  return [...new Set(requested)].filter((id) => known.has(id)).slice(0, maxPartySize);
+function memberInitials(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words.at(-1)[0]}` : words[0]?.slice(0, 2) || "RG")
+    .toUpperCase();
 }
 
-function updateUrl() {
-  const url = new URL(window.location.href);
-  if (selected.size) {
-    url.searchParams.set("party", [...selected].join(","));
-  } else {
-    url.searchParams.delete("party");
-  }
-  try {
-    window.history.replaceState({}, "", url);
-  } catch {
-    // A sandboxed iframe without same-origin permission can reject URL updates.
-  }
-  return url;
+function renderMemberGrid(query = "") {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleMembers = normalizedQuery
+    ? members.filter(({ displayName, handle }) =>
+        `${displayName} ${handle}`.toLocaleLowerCase().includes(normalizedQuery),
+      )
+    : members;
+  const fragment = document.createDocumentFragment();
+
+  visibleMembers.forEach((member, index) => {
+    const card = document.createElement("article");
+    card.className = "member-card";
+    card.setAttribute("role", "listitem");
+    card.style.setProperty("--member-color", creditColors[index % creditColors.length]);
+
+    const sigil = document.createElement("span");
+    sigil.className = "member-card__sigil";
+    sigil.setAttribute("aria-hidden", "true");
+    sigil.textContent = memberInitials(member.displayName);
+
+    const identity = document.createElement("div");
+    const name = document.createElement("strong");
+    const handle = document.createElement("small");
+    name.textContent = member.displayName;
+    handle.textContent = `@${member.handle}`;
+    identity.append(name, handle);
+    card.append(sigil, identity);
+    fragment.append(card);
+  });
+
+  memberGrid.replaceChildren(fragment);
+  memberMatch.textContent = normalizedQuery
+    ? `${visibleMembers.length} of ${members.length} raiders shown`
+    : `${members.length} raiders shown`;
 }
 
-function renderParty() {
-  const atLimit = selected.size >= maxPartySize;
-  partyList.replaceChildren();
-
-  disciplines.forEach((discipline) => {
-    const button = grid.querySelector(`[data-discipline="${discipline.id}"]`);
-    const isSelected = selected.has(discipline.id);
-    button.setAttribute("aria-pressed", String(isSelected));
-    button.disabled = atLimit && !isSelected;
-    button.querySelector("[data-action]").textContent = isSelected ? "−" : "+";
-
-    if (!isSelected) return;
-
-    const item = document.createElement("li");
-    item.innerHTML = `<span style="color: ${discipline.color}" aria-hidden="true">${discipline.sigil}</span><strong>${discipline.name}</strong>`;
-    partyList.append(item);
-  });
-
-  partyCount.textContent = `${selected.size} / ${maxPartySize}`;
-  partyEmpty.hidden = selected.size > 0;
-  shareButton.disabled = selected.size === 0;
-  clearButton.disabled = selected.size === 0;
-  playbackButtons.forEach((button) => {
-    button.disabled = selected.size === 0;
-  });
-  updateUrl();
-}
-
-disciplines.forEach((discipline) => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "discipline";
-  button.dataset.discipline = discipline.id;
-  button.style.setProperty("--role-color", discipline.color);
-  button.setAttribute("aria-pressed", "false");
-  button.innerHTML = `
-    <span class="discipline__sigil" aria-hidden="true">${discipline.sigil}</span>
-    <span>
-      <strong>${discipline.name}</strong>
-      <small>${discipline.description}</small>
-    </span>
-    <span class="discipline__action" data-action aria-hidden="true">+</span>
-  `;
-  button.addEventListener("click", () => {
-    partyNotice.textContent = "";
-    if (selected.has(discipline.id)) {
-      selected.delete(discipline.id);
-    } else if (selected.size < maxPartySize) {
-      selected.add(discipline.id);
-    }
-    renderParty();
-  });
-  grid.append(button);
+rosterCount.textContent = `${members.length} raiders`;
+snapshotDate.textContent = snapshot?.capturedAt
+  ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(
+      new Date(snapshot.capturedAt),
+    )
+  : "Unavailable";
+playbackButtons.forEach((button) => {
+  button.disabled = members.length === 0;
 });
+renderMemberGrid();
 
-safePartyFromUrl().forEach((id) => selected.add(id));
-renderParty();
-
-clearButton.addEventListener("click", () => {
-  selected.clear();
-  partyNotice.textContent = "Roster cleared.";
-  renderParty();
-  grid.querySelector("button")?.focus();
-});
-
-shareButton.addEventListener("click", async () => {
-  const url = updateUrl();
-  try {
-    await navigator.clipboard.writeText(url.href);
-    partyNotice.textContent = "Party link copied.";
-  } catch {
-    partyNotice.textContent = "Party link is ready in the address bar.";
-  }
-});
+memberSearch.addEventListener("input", () => renderMemberGrid(memberSearch.value));
 
 const video = document.querySelector("[data-archive-video]");
 const videoButton = document.querySelector("[data-video-toggle]");
@@ -215,6 +122,7 @@ const playback = document.querySelector("[data-playback]");
 const playbackVideo = document.querySelector("[data-playback-video]");
 const playbackClose = document.querySelector("[data-playback-close]");
 const playbackCredits = document.querySelector("[data-playback-credits]");
+const playbackRoll = document.querySelector("[data-playback-roll]");
 const playbackStatus = document.querySelector("[data-playback-status]");
 const backgroundContent = [...document.body.children].filter(
   (element) => !element.matches(".playback, script, noscript"),
@@ -224,20 +132,26 @@ let lockedScrollY = 0;
 let resumeBackgroundVideo = false;
 
 function renderPlaybackCredits() {
-  playbackCredits.replaceChildren();
-  disciplines.forEach((discipline) => {
-    if (!selected.has(discipline.id)) return;
+  const fragment = document.createDocumentFragment();
+  members.forEach((member, index) => {
     const item = document.createElement("li");
-    item.style.setProperty("--credit-color", discipline.color);
-    item.innerHTML = `
-      <span aria-hidden="true">${discipline.sigil}</span>
-      <div>
-        <strong>${discipline.name}</strong>
-        <small>${discipline.description}</small>
-      </div>
-    `;
-    playbackCredits.append(item);
+    item.style.setProperty("--credit-color", creditColors[index % creditColors.length]);
+
+    const sigil = document.createElement("span");
+    sigil.setAttribute("aria-hidden", "true");
+    sigil.textContent = memberInitials(member.displayName);
+
+    const identity = document.createElement("div");
+    const name = document.createElement("strong");
+    const handle = document.createElement("small");
+    name.textContent = member.displayName;
+    handle.textContent = `@${member.handle}`;
+    identity.append(name, handle);
+    item.append(sigil, identity);
+    fragment.append(item);
   });
+  playbackCredits.replaceChildren(fragment);
+  playbackRoll.style.setProperty("--credit-duration", `${Math.max(96, members.length * 0.75)}s`);
 }
 
 function lockPageScroll() {
@@ -258,7 +172,7 @@ function unlockPageScroll() {
 }
 
 async function openPlayback(trigger) {
-  if (!selected.size || !playback.hidden) return;
+  if (!members.length || !playback.hidden) return;
 
   playbackTrigger = trigger;
   resumeBackgroundVideo = !video.paused;
@@ -283,7 +197,7 @@ async function openPlayback(trigger) {
   playbackStatus.textContent = audioStarted
     ? reducedMotion.matches
       ? "Reduced motion mode · credits are stationary"
-      : "Voyager playing · close or press Escape to stop"
+      : `${members.length} raiders · close or press Escape to stop`
     : "Audio unavailable · visual credits continue";
 }
 
