@@ -48,6 +48,10 @@ for (const token of requiredBehavior) {
   if (!content["app.js"].includes(token)) failures.push(`app.js is missing ${token}`);
 }
 
+if (content["app.js"].includes('audio.addEventListener("ended", closePlayback)')) {
+  failures.push("app.js closes playback before the full roster roll completes");
+}
+
 if (!content["styles.css"].includes("height: 100dvh")) {
   failures.push("styles.css is missing the dynamic full-viewport takeover height");
 }

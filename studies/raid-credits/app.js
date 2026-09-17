@@ -240,7 +240,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-audio.addEventListener("ended", closePlayback);
+audio.addEventListener("ended", () => {
+  if (!playback.hidden) playbackStatus.textContent = "Soundtrack complete · credits continue";
+});
 audio.addEventListener("error", () => {
   audioStatus.textContent = "The archive track could not be loaded. All other features remain available.";
   if (!playback.hidden) playbackStatus.textContent = "Audio unavailable · visual credits continue";
