@@ -118,3 +118,7 @@ The service exposes a narrow, read-only subset of the public Veydrift API below
 `/veydrift-api/`. Only explicitly allowlisted `GET` and `HEAD` routes are
 forwarded. Keep this allowlist limited to routes consumed by the artifact; do
 not turn it into a general API proxy or forward browser credentials.
+
+## Optional game leaderboards
+
+`services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival remains playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
