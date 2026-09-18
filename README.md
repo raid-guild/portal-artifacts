@@ -73,6 +73,8 @@ local play, tests, and asset regeneration.
 
 ## Published artifacts
 
+- `jev-memory-lab/` — Offline JEV classification demo: all 85 recorded memory candidates stream through an 18-second batch visualizer, with accumulating classifications, abstentions, and ownership relationships. No live key or API calls. See `studies/jev-memory-lab/README.md`.
+
 - `lunar-republic/` — Toon-shaded lunar revolution game with freight, allied cities, resource upgrades, enemy operations, and persistent district destruction.
 - `field/` — CAD tutorial that descends into a procedural office maze, with spatial changes, wall music and fleeting seated shadows.
 - `sirocco-oasis/` — Stylized interactive desert vista with reflective rippleable
