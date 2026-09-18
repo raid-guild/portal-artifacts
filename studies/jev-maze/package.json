@@ -1,0 +1,8 @@
+{
+  "name": "jev-maze-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev": "node --env-file=.env server.mjs", "start": "node --env-file=.env server.mjs", "test": "node --test", "check": "node --check server.mjs && node --check public/app.js && node --check public/engine.js"},
+  "engines": {"node": ">=20.12"}
+}
