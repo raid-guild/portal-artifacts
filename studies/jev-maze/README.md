@@ -62,3 +62,20 @@ Changing construction settings now disables Run and Step until Generate applies 
 ## Personal API keys
 
 Expand **Use your own Jev API key**, paste a key, and click **Use & test key**. Testing sends one small inference request to TypeSafe and may incur usage. A successfully checked key is held only in this tab's JavaScript memory and is sent via a request header through the local server to TypeSafe. It is never written to `.env`, local/session storage, or exports. Keys are request-scoped on the server, so one tab cannot replace another tab's key. Failed checks keep the previous active key. Clear or refresh restores the server's `.env` key when present; the connection badge identifies which source is active. The server remains local-only.
+
+
+## Published artifact
+
+Run `npm run build:artifact` to sync the explicit public asset allowlist to
+`../../public/jev-maze/`. The hosted page sets `data-hosted="true"`, uses relative
+asset URLs, constructs typed questions in the browser, and sends authenticated
+inference requests to `/jev-api/systemone`. Caddy forwards only POSTs at that
+exact path with a Bearer header to TypeSafe's fixed inference endpoint. Request
+bodies are capped at 100 KB, cookies are stripped, and responses are no-store.
+No server key or `.env` fallback exists in hosted mode. Visitor keys traverse the
+artifact proxy to TypeSafe and remain in tab memory only. Normal API usage charges
+apply to the visitor's account. No model provider response bodies are shown on
+HTTP failures. Existing local mode remains available with `npm run dev`.
+
+Publishing follows this repository's normal branch/PR/main Railway process;
+pushing a feature branch alone does not establish a live public deployment.

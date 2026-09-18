@@ -80,6 +80,8 @@ the supplied GLB models, and build instructions are in
 
 ## Published artifacts
 
+- `jev-maze/` — Live Jev maze and semantic-navigation experiment, with visitor-owned keys and three algorithmic baselines.
+
 - `jev-memory-lab/` — Offline JEV classification demo: all 85 recorded memory candidates stream through an 18-second batch visualizer, with accumulating classifications, abstentions, and ownership relationships. No live key or API calls. See `studies/jev-memory-lab/README.md`.
 
 - `cosmic-carnival/` — Twelve-lane arcade shooter using the supplied Crescent,
@@ -121,10 +123,15 @@ The service exposes a narrow, read-only subset of the public Veydrift API below
 forwarded. Keep this allowlist limited to routes consumed by the artifact; do
 not turn it into a general API proxy or forward browser credentials.
 
-## Jev maze experiment (local only)
+## Jev maze experiment
 
-`studies/jev-maze/` contains the editable maze and semantic-navigation experiment,
-including its local Node API proxy. Run `npm run dev` from that directory and open
-<http://127.0.0.1:4317>. See its README for API-key setup, experiments, and tests.
-The `.env` file is ignored by Git. This study is not part of the static published
-artifacts and requires its own local server for live Jev requests.
+`public/jev-maze/` is the separate, publishable navigation experiment at
+`/jev-maze/`. It compares Jev with fixed, random, and keyword DFS, with maze
+editing, symbol learning, and semantic room descriptions. Visitors bring their
+own TypeSafe API keys, held only in tab memory. Live inference uses the narrow
+`POST /jev-api/systemone` proxy; no server API key is deployed.
+
+Editable source and local Node-server support remain in `studies/jev-maze/`.
+Rebuild the artifact with `cd studies/jev-maze && npm run build:artifact`.
+The existing Caddy/Railway deployment serves the built artifact after merge to
+main. The local `.env` is Git-ignored and outside the Docker build's copied assets.
