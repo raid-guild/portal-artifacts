@@ -107,3 +107,11 @@ The service exposes a narrow, read-only subset of the public Veydrift API below
 `/veydrift-api/`. Only explicitly allowlisted `GET` and `HEAD` routes are
 forwarded. Keep this allowlist limited to routes consumed by the artifact; do
 not turn it into a general API proxy or forward browser credentials.
+
+## Jev maze experiment (local only)
+
+`studies/jev-maze/` contains the editable maze and semantic-navigation experiment,
+including its local Node API proxy. Run `npm run dev` from that directory and open
+<http://127.0.0.1:4317>. See its README for API-key setup, experiments, and tests.
+The `.env` file is ignored by Git. This study is not part of the static published
+artifacts and requires its own local server for live Jev requests.
