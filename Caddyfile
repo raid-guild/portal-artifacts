@@ -21,6 +21,33 @@
 	}
 
 	route {
+		# Visitor-owned TypeSafe keys only. Fixed upstream and endpoint; no env key.
+		@jev_inference {
+			method POST
+			path /jev-api/systemone
+			header Authorization "Bearer *"
+		}
+		handle @jev_inference {
+			request_body {
+				max_size 100KB
+			}
+			header Cache-Control "no-store"
+			rewrite * /v1/systemone
+			reverse_proxy https://api.typesafe.ai {
+				header_up Host api.typesafe.ai
+				header_up -Cookie
+				header_up -X-Jev-Key
+				header_down -Set-Cookie
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 30s
+				}
+			}
+		}
+		handle /jev-api/* {
+			respond "Jev API route or authorization not allowed" 404
+		}
+
 		@veydrift_mission_explorer path_regexp mission_explorer ^/veydrift-mission-explorer/mission/[0-9]+/?$
 		rewrite @veydrift_mission_explorer /veydrift-mission-explorer/index.html
 

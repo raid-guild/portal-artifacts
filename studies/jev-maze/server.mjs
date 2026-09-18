@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { buildQuestions } from './public/engine.js';
 const defaultPort = Number(process.env.PORT || 4317);
 const root = new URL('./public/', import.meta.url);
-const files = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/engine.js', ['engine.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/favicon.svg', ['favicon.svg', 'image/svg+xml']]]);
+const files = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/api.js', ['api.js', 'text/javascript']], ['/engine.js', ['engine.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/favicon.svg', ['favicon.svg', 'image/svg+xml']]]);
 
 function json(res, status, data) { res.writeHead(status, {'Content-Type':'application/json', 'Cache-Control':'no-store'}); res.end(JSON.stringify(data)); }
 export function createApp({apiKey=process.env.TYPESAFE_API_KEY,model=process.env.TYPESAFE_MODEL||'jev-latest',fetchImpl=fetch}={}) {
