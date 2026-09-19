@@ -1,0 +1,22 @@
+diff --git a/src/style.css b/src/style.css
+index ec2f1ce..c0d7b69 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -1,5 +1,3 @@
+-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap');
+-
+ :root{font-family:'DM Sans',sans-serif;color:#193639;background:#f3eee3;font-synthesis:none;font-weight:400;--ink:#173b3e;--cream:#f3eee3;--coral:#eea27f;--quiet:#789190;--line:rgba(34,66,64,.18)}
+ *{box-sizing:border-box}body{margin:0}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:pointer}button:disabled{cursor:wait;opacity:.5}button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid #dc9a52;outline-offset:4px}button{border:0}a{color:inherit}svg{width:24px;height:24px}p,h1,h2{margin:0}[hidden]{display:none!important}
+ .masthead{height:94px;margin:0 4.5%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-weight:700;letter-spacing:.13em;font-size:14px}.brand-mark{display:grid;place-items:center;border:1px solid #183b3a;width:42px;height:42px;border-radius:50%}.brand-mark svg{width:35px;height:35px}.brand-sub{display:block;font-size:8px;letter-spacing:.32em;margin-top:5px;font-weight:500}.edition{font-size:12px;text-align:right;color:#49635f}.edition span{display:block;font-size:8px;letter-spacing:.23em;margin-top:6px;color:#6a7b73}
+diff --git a/index.html b/index.html
+index e4f8c35..35452ef 100644
+--- a/index.html
++++ b/index.html
+@@ -6,6 +6,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1" />
+     <meta name="theme-color" content="#152e30" />
+     <meta name="description" content="A small adventure about finding your way to Raid Guild. Explore a desert waystation, meet a maker, and mend a stranded walker." />
++    <link rel="icon" type="image/png" href="%BASE_URL%art/sprites/traveler-front-v1.png" />
+     <title>The Last Mile — A Raid Guild adventure</title>
+   </head>
+   <body>
