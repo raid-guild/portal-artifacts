@@ -9,7 +9,7 @@ function filtered(){const v=$('filter').value;return data.cases.filter(c=>v==='a
 function renderList(){const cs=filtered();$('cases').innerHTML=cs.map(c=>`<button class="case ${c.id===selected.id?'active':''}" data-id="${c.id}" aria-pressed="${c.id===selected.id}"><small><span>${esc(c.feature||c.kind)}</span><span>${Math.round(c.probability*100)}%</span></small><p>${esc(c.quote)}</p></button>`).join('');$('list-count').textContent=cs.length+' evidence candidates · select to inspect';$('cases').querySelectorAll('button').forEach(b=>b.onclick=()=>{cancelReplay();selected=data.cases.find(c=>c.id===b.dataset.id);render()})}
 function node(x,y,w,title,sub,muted=false){return `<g class="${muted?'muted-node':''}"><rect x="${x}" y="${y}" width="${w}" height="49" rx="8"/><text x="${x+w/2}" y="${y+21}" text-anchor="middle">${esc(title)}</text><text class="sublabel" x="${x+w/2}" y="${y+37}" text-anchor="middle">${esc(sub)}</text></g>`}
 function renderGraph(){const c=selected,keep=allowed(c),own=hasOwner(c);let g=`<path class="edge" d="M156 78 H260"/><text class="sublabel" x="207" y="69" text-anchor="middle">has candidate</text>`;
-g+=node(6,54,150,'Meeting',c.date);g+=node(260,54,170,'Evidence candidate','exact quote + revision');
+g+=node(6,54,150,'Meeting',c.date);g+=node(260,54,170,'Evidence candidate','redacted evidence');
 if(keep)g+='<path class="edge classedge" d="M430 78 C477 78 487 29 548 29"/><text class="sublabel" x="487" y="39" text-anchor="middle">classified as</text>';
 g+=node(548,5,188,keep?c.kind.toUpperCase():'NO CLASS EDGE',keep?Math.round(c.probability*100)+'% probability':'below threshold',!keep);
 if(own)g+='<path class="edge owneredge" d="M548 119 C480 119 480 92 430 92"/><text class="sublabel" x="489" y="131" text-anchor="middle">assigned to action</text>';
@@ -17,7 +17,7 @@ g+=node(548,94,188,own?c.owner_candidate:'NO OWNER EDGE',own?'meeting-local iden
 if(innerWidth<=750){
  document.querySelector('.graph').setAttribute('viewBox','0 0 360 280');
  g='<path class="edge" d="M180 50 V91"/><text class="sublabel" x="191" y="73">has candidate</text>';
- g+=node(100,1,160,'Meeting',c.date)+node(95,91,170,'Evidence candidate','exact quote + revision');
+ g+=node(100,1,160,'Meeting',c.date)+node(95,91,170,'Evidence candidate','redacted evidence');
  if(keep)g+='<path class="edge classedge" d="M135 140 C135 175 83 175 83 211"/><text class="sublabel" x="15" y="178">classified as</text>';
  if(own)g+='<path class="edge owneredge" d="M278 211 C278 175 225 175 225 140"/><text class="sublabel" x="241" y="178">assigned to</text>';
  g+=node(3,211,164,keep?c.kind.toUpperCase():'NO CLASS EDGE',keep?Math.round(c.probability*100)+'% probability':'below threshold',!keep);
@@ -27,15 +27,15 @@ if(innerWidth<=750){
 $('graph-title').textContent=`${c.title}: ${keep?'classified as '+c.kind:'classification withheld'}; ${own?'owner '+c.owner_candidate:'no ownership relationship'}`;
 }
 function render(){const c=selected;renderList();$('meeting-title').textContent=c.title;$('meeting-date').textContent=c.date+' / '+c.source;$('quote').textContent=c.quote;$('evidence-meta').textContent='RECORD '+c.record_id.slice(0,12)+'…  /  CHARACTERS '+c.start+'–'+c.end;
-$('provenance').textContent='Record '+c.record_id+' · Revision '+c.revision+' · '+(c.upstream_baseline?'Upstream already identified an action'+(c.upstream_baseline.owner?' and owner '+c.upstream_baseline.owner:' without an owner')+'. JEV checks the summary, not the transcript.':'Candidate selected from summary prose. No upstream action assignment was used.');
+$('provenance').textContent='Source excerpts, record identifiers, revisions, and participant labels are [redacted]. This static replay preserves the recorded classification structure and aggregate outcomes; it does not expose source meeting content.';
 $('verdict').textContent=allowed(c)?c.kind:'abstain';$('verdict').className='pill'+(allowed(c)?'':' abstain');
 $('bars').innerHTML=types.map(t=>`<div class="barrow ${t===c.kind?'winner':''}"><span class="label">${t[0].toUpperCase()+t.slice(1)}</span><div class="track"><div class="fill" style="width:${c.probabilities[t]*100}%"></div></div><span class="value">${Math.round(c.probabilities[t]*100)}%</span></div>`).join('');
 $('owner').innerHTML=c.owner_candidate?`Proposed owner: <strong>${esc(c.owner_candidate)}</strong><br>Explicit responsibility? <strong>${Math.round(c.owner_probability*100)}% yes</strong> · ${hasOwner(c)?'ownership edge retained':'no ownership edge'}`:'No owner proposed by the candidate generator.<br><strong>Ownership is not inferred.</strong>';
 $('threshold-value').textContent=Math.round(threshold*100)+'%';const keep=data.cases.filter(allowed).length,owners=data.cases.filter(hasOwner).length;$('threshold-summary').innerHTML=`Across this pilot: <b>${keep} class edges</b>, <b>${owners} ownership edges</b>, <b>${data.cases.length-keep} abstentions</b>.<br>Threshold simulation · model results stay fixed.`;
-$('question').textContent=c.question;renderGraph()}
+$('question').textContent='[redacted]';renderGraph()}
 function cancelReplay(){replayToken++;$('replay').disabled=false;[0,1,2].forEach(i=>$('s'+i).classList.toggle('active',i===2));[0,1].forEach(i=>$('con'+i).classList.remove('flow'));$('status').textContent='Recorded results · explore freely, no API calls'}
 $('filter').onchange=()=>{cancelReplay();const cs=filtered();if(cs.length&&!cs.some(c=>c.id===selected.id))selected=cs[0];render()};$('threshold').oninput=e=>{cancelReplay();threshold=Number(e.target.value)/100;render()};
-$('replay').onclick=async()=>{const token=++replayToken;$('replay').disabled=true;const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;for(let i=0;i<3;i++){if(token!==replayToken)return;[0,1,2].forEach(n=>$('s'+n).classList.toggle('active',n===i));[0,1].forEach(n=>$('con'+n).classList.toggle('flow',n===i));$('status').textContent=['Reading the exact retained quote and meeting context…','Replaying the recorded Choice + ownership judgments…','Applying your threshold and retaining only supported relationships.'][i];await new Promise(r=>setTimeout(r,reduce?150:850))}if(token!==replayToken)return;[0,1].forEach(n=>$('con'+n).classList.remove('flow'));$('status').textContent=`Replay complete · actual provider response for this meeting: ${selected.latency_ms} ms · no new API call`;$('replay').disabled=false};
+$('replay').onclick=async()=>{const token=++replayToken;$('replay').disabled=true;const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;for(let i=0;i<3;i++){if(token!==replayToken)return;[0,1,2].forEach(n=>$('s'+n).classList.toggle('active',n===i));[0,1].forEach(n=>$('con'+n).classList.toggle('flow',n===i));$('status').textContent=['Reading a redacted evidence candidate…','Replaying the recorded Choice + ownership judgments…','Applying your threshold and retaining only supported relationships.'][i];await new Promise(r=>setTimeout(r,reduce?150:850))}if(token!==replayToken)return;[0,1].forEach(n=>$('con'+n).classList.remove('flow'));$('status').textContent=`Replay complete · recorded provider response: ${selected.latency_ms} ms · no new API call`;$('replay').disabled=false};
 $('how').onclick=()=>$('help').showModal();$('close-help').onclick=()=>$('help').close();$('help').addEventListener('click',e=>{if(e.target===$('help'))$('help').close()});
 $('export').onclick=()=>{const payload={...selected,simulated_threshold:threshold,class_edge_retained:allowed(selected),ownership_edge_retained:hasOwner(selected),notice:'Recorded experimental summary-backed evidence; not a live classification.'};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='jev-evidence-'+selected.id.slice(0,8)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
@@ -70,4 +70,3 @@ addEventListener('resize',()=>{if(!$('film').hidden)drawStream()});
 if(new URLSearchParams(location.search).get('demo')!=='0')startFilm();
 addEventListener("resize",renderGraph);
 render();
-
