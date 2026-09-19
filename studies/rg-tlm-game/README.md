@@ -1,7 +1,7 @@
-# RaidGuild: The Last Mile build provenance
+# RaidGuild: The Last Mile source and build provenance
 
-The checked-in production build at `public/rg-tlm-game/` comes from the
-canonical source repository:
+This directory is the editable source for the checked-in production build at
+`../../public/rg-tlm-game/`. It was imported from the canonical source repository:
 
 - Repository: <https://github.com/raid-guild/rg-tlm-game>
 - Source commit: `e40e2acd5315db9ceed5517be7eff494874143be`
@@ -9,27 +9,36 @@ canonical source repository:
 - Package: `raid-guild-the-last-mile@0.1.0`
 - Runtime: Node.js 22
 
-Rebuild from a clean checkout of that exact commit:
+The imported source retains the original package lock, tests, gameplay modules,
+and production documentation. The generated PNG masters are preserved byte for
+byte in `original-art/`; exact prompts and source records are in
+`source-records/art/`. The production directory uses reviewed WebP derivatives.
+
+Read [SCENE_GENERATION_GUIDE.md](SCENE_GENERATION_GUIDE.md) before proposing a
+new scene or chapter. Optimization measurements and derivative settings are in
+[OPTIMIZATION.md](OPTIMIZATION.md).
+
+Install, test, and rebuild:
 
 ```sh
-npm ci --include=dev
+npm ci
 npm test
-git apply /path/to/portal-artifacts/studies/rg-tlm-game/portal-artifacts.patch
 npm run build -- \
   --base=/rg-tlm-game/ \
-  --outDir=/path/to/portal-artifacts/public/rg-tlm-game \
+  --outDir=dist-railway \
   --emptyOutDir
 ```
 
-The explicit Vite base keeps scripts, styles, and artwork under the durable
-`/rg-tlm-game/` host path. Do not build with the source repository's default
-root base for publication here.
+The `public/art` symlink points to the checked-in optimized artwork, so the build
+copies the same reviewed derivatives. After a successful build, copy the two
+HTML files and generated `assets/` directory from `dist-railway/` to
+`../../public/rg-tlm-game/`. Do not replace the deployed path with a root-base
+build.
 
-The small distribution patch removes the Google Fonts import so the game uses
-its declared system fallbacks and remains fully compatible with the shared
-host's restrictive CSP. It also points the favicon at existing approved game
-art so browsers do not request a missing host-root icon. It does not alter game
-behavior or introduce new assets.
+The hosted source removes the Google Fonts import so it remains compatible with
+the shared CSP, points the favicon at approved game art, loads WebP artwork, and
+defers the inactive scene backgrounds until play begins. Gameplay and the
+version-2 save key/schema are unchanged.
 
 The game is static and browser-local. It does not use Portal credentials,
 cookies, private APIs, wallet access, a backend, or a database.

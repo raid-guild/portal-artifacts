@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-railway/
+test-results/
+playwright-report/
+art/qa/
+.env
+.env.*
+!.env.example
+.DS_Store
