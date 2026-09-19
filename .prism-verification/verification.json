@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "status": "passed",
+  "baseSha": "37a92895bc84e65b4d6f4be2386cbb9f81b708d5",
+  "headSha": "942df30a0a4df76ae5fb7d35a5061c411563a0f0",
+  "agentRunId": "b031395c-7db0-43b9-bd0a-a62c9379adbb",
+  "runtime": {
+    "key": "codex-default",
+    "features": [
+      "repository",
+      "shell",
+      "browser-automation"
+    ]
+  },
+  "checks": [
+    {
+      "key": "target-integrity",
+      "name": "Pinned target integrity and scope",
+      "status": "passed",
+      "command": "git rev-parse HEAD HEAD^{tree}; git diff --check 37a92895bc84e65b4d6f4be2386cbb9f81b708d5..HEAD",
+      "evidence": "HEAD is 942df30a0a4df76ae5fb7d35a5061c411563a0f0 and tree is 9c8bc4d498e2bbe2a59308acbc9e9fa4ac7bff9e, exactly matching implementation.md. Diff check passed; Caddyfile, Dockerfile, railway.json, and public/field are unchanged from the implementation base."
+    },
+    {
+      "key": "unit",
+      "name": "Unit tests",
+      "status": "passed",
+      "command": "npm test",
+      "evidence": "Vitest 4.1.11: 3 files and 20 tests passed."
+    },
+    {
+      "key": "build",
+      "name": "Type check and production build",
+      "status": "passed",
+      "command": "npm run build -- --base=/rg-tlm-game/ --outDir=dist-verify --emptyOutDir",
+      "evidence": "TypeScript no-emit check and Vite 8.3.0 production build passed; 22 modules transformed. Recursive comparison found generated dist-verify byte-identical to public/rg-tlm-game."
+    },
+    {
+      "key": "asset-manifest",
+      "name": "Optimized asset and provenance hashes",
+      "status": "passed",
+      "command": "sha256sum -c studies/rg-tlm-game/ASSET_MANIFEST.sha256",
+      "evidence": "All 46 checked optimized WebP, original PNG, exact prompt, production-note, and source-record entries matched."
+    },
+    {
+      "key": "guide-acceptance",
+      "name": "Scene-generation guide acceptance",
+      "status": "passed",
+      "command": "Manual acceptance audit of SCENE_GENERATION_GUIDE.md and templates against app-spec.md",
+      "evidence": "The guide covers all 12 approved requirement groups, includes copy-ready scene brief, image prompt, and chapter acceptance templates, performance/save/QA gates, exact provenance workflow, and explicitly leaves the Workshop unimplemented."
+    },
+    {
+      "key": "browser-suite",
+      "name": "Repository Playwright suite",
+      "status": "passed",
+      "command": "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$PRISM_CHROMIUM_EXECUTABLE npm run test:e2e -- --workers=1",
+      "evidence": "11 of 11 serial browser tests passed in 44.3 seconds, covering migration, save/continue, complete room and crossing flows, wrong-route recovery, invalid/unavailable storage, mobile, keyboard, reduced motion, NPC behavior, and directional animation."
+    },
+    {
+      "key": "launcher-plan",
+      "name": "Staged launcher and hosting contract",
+      "status": "passed",
+      "command": "Inspect launcher-plan.json and shared Caddyfile; exercise local destination under shared CSP",
+      "evidence": "The existing /rg-tlm-game/ destination is preserved, registrationRequired is false, shared frame-ancestors includes the Portal origin, no shared-host files changed, and the route returned HTTP 200 locally."
+    }
+  ],
+  "browserJourneys": [
+    {
+      "name": "Last Mile desktop startup and performance budget",
+      "status": "passed",
+      "url": "http://127.0.0.1:4185/rg-tlm-game/",
+      "evidence": "At 1440x900 under shared CSP: HTTP 200, 2,725,474 initial artwork bytes, 11 requests, no inactive crossing/repaired art before Begin, no horizontal overflow, and no console, page, network, or HTTP errors.",
+      "evidenceArtifacts": []
+    },
+    {
+      "name": "Last Mile mobile accessibility smoke",
+      "status": "passed",
+      "url": "http://127.0.0.1:4185/rg-tlm-game/",
+      "evidence": "At 390x844 with reduced motion: no horizontal overflow, reduced-motion preference observed, Rook hotspot opened from keyboard focus, and no runtime/network errors. Visual inspection found no material crop, readability, or composition regression.",
+      "evidenceArtifacts": []
+    },
+    {
+      "name": "Portal-style sandboxed iframe",
+      "status": "passed",
+      "url": "http://127.0.0.1:4185/rg-tlm-game/",
+      "evidence": "Loaded inside an iframe sandboxed with allow-scripts allow-same-origin under the shared CSP; the Begin control became enabled and visible with no child-frame errors.",
+      "evidenceArtifacts": []
+    },
+    {
+      "name": "Unchanged FIELD shared-host smoke",
+      "status": "passed",
+      "url": "http://127.0.0.1:4185/field/",
+      "evidence": "HTTP 200; local import map and modules initialized, the primary control enabled, the blueprint canvas rendered, and no console, page, network, or HTTP errors occurred.",
+      "evidenceArtifacts": []
+    }
+  ],
+  "unexpectedTrackedChanges": [],
+  "limitations": [
+    "Live Railway deployment and Portal CMS registration were intentionally not exercised in this staged pre-deployment verification."
+  ],
+  "summary": "Passed: exact candidate 942df30a0a4df76ae5fb7d35a5061c411563a0f0 satisfies the approved optimization and scene-guide criteria with clean unit, build, hash, browser, iframe/CSP, mobile, and shared-host evidence."
+}

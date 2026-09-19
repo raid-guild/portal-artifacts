@@ -1,0 +1,17 @@
+Use case: identity-preserve, game sprite animation.
+Edit the supplied traveler character into a production walk-cycle sprite atlas. Preserve this exact adult male character: brown skin, short wavy dark hair, faded coral short cape, cream rolled-sleeve tunic, dark teal cargo trousers, ochre crossbody satchel, belt, and brown hiking boots. Preserve the illustrated fine dark contour lines, restrained surface detail, warm light from upper left, proportions and costume.
+
+OUTPUT LAYOUT IS CRITICAL: one SQUARE 2048 x 2048 PNG with genuine transparency, divided invisibly into exactly FOUR equal columns and TWO equal rows. Eight separate full-body poses, one in each cell, read left-to-right top row then bottom row. Each cell is a 512 x 1024 portrait area. No visible grid, no labels, no text, no ground, no scenery, no shadows, no drawn checkerboard. Keep every complete figure inside its cell with generous clear separation. Each figure's head should start about 80 pixels from its cell top, planted boot soles end at local y=940, body center at local x=256. Consistent scale across all eight poses. Both full boots visible in every frame; no cropping.
+
+ALL EIGHT POSES FACE SCREEN RIGHT in a clear side profile with only a slight three-quarter angle, appropriate for a fixed-camera 2D adventure. Nose, chest and boot toes point right throughout. Do not turn the camera or character between cells. Keep head and torso almost identical; animate primarily hips, knees, boots and opposing arm swing, with small natural cape movement. The legs must change substantially between contact and passing frames: do not repeat the standing pose.
+
+Cell 1 (top left): neutral standing idle, both feet planted beneath hips, arms relaxed.
+Cell 2: walk contact A, near leg extended forward to the right with heel down, far leg extended behind to the left with toe down; opposite arm forward.
+Cell 3: walk down A, weight over bent forward near knee, back far heel lifting, torso only slightly lower.
+Cell 4: walk passing A, near leg supports body, far knee bent moving through beneath hip, far boot visibly lifted.
+Cell 5 (bottom left): walk contact B, far leg extended forward to the right, near leg extended behind, reversed arm swing.
+Cell 6: walk down B, weight over bent forward far knee, near heel lifting.
+Cell 7: walk passing B, far leg supports body, near knee bent moving through beneath hip, near boot visibly lifted.
+Cell 8: repeat the neutral standing idle from cell 1.
+
+This is one continuous in-place walking cycle plus idle, not eight different characters. No changes to face, hair, age, garment colors, satchel shape or side, body height, camera distance, or lighting. Do not draw motion trails, extra limbs, props, ground or cast shadows. True transparent alpha around every pose. Favor clear leg silhouettes and clean separation over tiny decorative details.

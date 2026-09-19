@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "status": "approved",
+  "reviewMode": "initial",
+  "baseSha": "94c908dffcd4370848e7d7c3dee289e21816eb09",
+  "headSha": "942df30a0a4df76ae5fb7d35a5061c411563a0f0",
+  "previousHeadSha": null,
+  "repositoryPolicy": [
+    "README.md",
+    "studies/rg-tlm-game/README.md",
+    "studies/rg-tlm-game/package.json",
+    "No AGENTS.md or CONTRIBUTING.md present"
+  ],
+  "checks": [
+    {
+      "name": "candidate integrity and full PR diff",
+      "status": "passed",
+      "evidence": "HEAD/tree matched implementation.md at 942df30a0a4df76ae5fb7d35a5061c411563a0f0 / 9c8bc4d498e2bbe2a59308acbc9e9fa4ac7bff9e; PR #33 matched the same head; reviewed base 94c908dffcd4370848e7d7c3dee289e21816eb09...head and git diff --check passed."
+    },
+    {
+      "name": "exact-head verification evidence",
+      "status": "passed",
+      "evidence": "verification.json for head 942df30a0a4df76ae5fb7d35a5061c411563a0f0 reports unit, build, 46-file provenance manifest, scene-guide audit, 11/11 serial browser tests, iframe/CSP, mobile, and shared-host checks passed."
+    },
+    {
+      "name": "unit tests",
+      "status": "passed",
+      "evidence": "Executed npm test in studies/rg-tlm-game: 3 files and 20 tests passed."
+    },
+    {
+      "name": "typecheck and production build",
+      "status": "passed",
+      "evidence": "Executed npm run build -- --base=/rg-tlm-game/ --outDir=/tmp/cr-2858-review-build --emptyOutDir: TypeScript and Vite build passed; diff -qr confirmed generated output is byte-identical to public/rg-tlm-game."
+    },
+    {
+      "name": "asset and provenance integrity",
+      "status": "passed",
+      "evidence": "Executed sha256sum -c studies/rg-tlm-game/ASSET_MANIFEST.sha256 from the repository root: all 46 entries passed."
+    },
+    {
+      "name": "acceptance and compatibility audit",
+      "status": "passed",
+      "evidence": "Reviewed state/save migration, deferred artwork loading, editable/public synchronization, optimization measurements, all scene-guide requirement groups and templates, launcher-plan.json, and unchanged shared hosting configuration; no blocking or high issue found."
+    }
+  ],
+  "findings": [],
+  "summary": "Approved: the exact candidate satisfies the optimization and scene-generation-guide acceptance criteria, preserves current behavior, saves, public path, launcher contract, and shared-host configuration, and has sufficient current verification evidence."
+}
