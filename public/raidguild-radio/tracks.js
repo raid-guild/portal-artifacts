@@ -1,0 +1,1 @@
+window.WALKER_TRACKS=[{"title": "Desolate Negative Space", "src": "audio/6.mp3"}, {"title": "Desolate West", "src": "audio/5.mp3"}, {"title": "Dusty Frontier", "src": "audio/4.mp3"}, {"title": "Dusty Corridor", "src": "audio/3.mp3"}, {"title": "Dust and Glitch", "src": "audio/1.mp3"}, {"title": "Hanging Space", "src": "audio/2.mp3"}];
