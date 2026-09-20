@@ -1,0 +1,10 @@
+{
+  "status": "complete",
+  "agent_run_id": "4a3d3248-19d6-44a6-be1e-7f040ae0e036",
+  "commitSha": "f49b9260b03b2e087b09296e90e73bcee55e9557",
+  "treeSha": "6f4b23bff26b3d90d81c137b8ab0f557474b8d94",
+  "branch": "codex/cr-2891-restore-raidguild-the-last-mile-public-r",
+  "pullRequestUrl": "https://github.com/raid-guild/portal-artifacts/pull/35",
+  "verified": "2026-09-20T07:04:00Z",
+  "notes": "Exact scoped source is present on the request branch and linked PR; no merge or redeploy performed."
+}
