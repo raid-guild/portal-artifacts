@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "status": "passed",
+  "agent_run_id": "53aa1d99-b71f-4221-bb7e-e8eb454ef19e",
+  "baseSha": "942df30a0a4df76ae5fb7d35a5061c411563a0f0",
+  "headSha": "154e8150176a227967df04ce0a39543574bef6ad",
+  "treeSha": "f0ffaff8083734c3825b959a3be7c30b8d631f53",
+  "runtime": {
+    "key": "codex-default",
+    "features": [
+      "repository",
+      "shell",
+      "browser-automation"
+    ]
+  },
+  "checks": [
+    {
+      "key": "target-integrity",
+      "name": "Pinned target integrity",
+      "status": "passed",
+      "command": "git rev-parse HEAD && git rev-parse HEAD^{tree}",
+      "evidence": "Repository HEAD was 154e8150176a227967df04ce0a39543574bef6ad and tree was f0ffaff8083734c3825b959a3be7c30b8d631f53, exactly matching implementation.md; no deployment-candidate.json superseded it."
+    },
+    {
+      "key": "diff-hygiene",
+      "name": "Diff hygiene",
+      "status": "passed",
+      "command": "git diff --check 942df30a0a4df76ae5fb7d35a5061c411563a0f0..HEAD",
+      "evidence": "Exited 0 with no whitespace errors."
+    },
+    {
+      "key": "unit-tests",
+      "name": "Unit tests",
+      "status": "passed",
+      "command": "npm test",
+      "evidence": "Vitest passed 4 files and 26 tests, including Workshop puzzle state, recoverable mistakes, hint/objective progression, completion, and v2 migration."
+    },
+    {
+      "key": "production-build",
+      "name": "Type check, production build, and published-output parity",
+      "status": "passed",
+      "command": "npm run build -- --base=/rg-tlm-game/ --outDir=dist-verify --emptyOutDir && diff -qr studies/rg-tlm-game/dist-verify public/rg-tlm-game",
+      "evidence": "TypeScript emitted no errors; Vite 8.3.0 built 24 modules; the fresh production build matched the checked-in public/rg-tlm-game output byte-for-byte."
+    },
+    {
+      "key": "asset-integrity",
+      "name": "Asset manifest integrity",
+      "status": "passed",
+      "command": "sha256sum -c studies/rg-tlm-game/ASSET_MANIFEST.sha256",
+      "evidence": "All 51 runtime assets, source masters, prompts, notes, and source records matched their recorded hashes."
+    },
+    {
+      "key": "browser-suite",
+      "name": "End-to-end browser regression suite",
+      "status": "passed",
+      "command": "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$PRISM_CHROMIUM_EXECUTABLE npm run test:e2e -- --workers=1",
+      "evidence": "Playwright 1.63.0 passed all 14 scenarios in 1.1 minutes using the runtime-provided Chromium, covering prior chapters, migration, storage recovery, Workshop desktop/mobile, keyboard, reduced motion, save/resume, and sandboxed iframe behavior."
+    },
+    {
+      "key": "initial-loading",
+      "name": "Optimized initial loading",
+      "status": "passed",
+      "command": "Runtime Playwright request inspection against http://127.0.0.1:4186/rg-tlm-game/",
+      "evidence": "Fresh chapter-one load made 10 unique requests and did not request workshop-background-v2.webp; after Begin, the crossing background was requested while the Workshop background remained deferred."
+    },
+    {
+      "key": "shared-hosting",
+      "name": "Shared hosting configuration preservation",
+      "status": "passed",
+      "command": "git diff --exit-code 942df30a0a4df76ae5fb7d35a5061c411563a0f0..HEAD -- Caddyfile Dockerfile railway.json",
+      "evidence": "Shared Caddy, Docker, and Railway configuration was unchanged; Chromium also loaded the Workshop in a sandboxed iframe while enforcing the exact configured CSP header, with no console, page, response, or request failures."
+    }
+  ],
+  "browserJourneys": [
+    {
+      "name": "Desktop Workshop golden path and recovery",
+      "status": "passed",
+      "url": "http://127.0.0.1:4186/rg-tlm-game/",
+      "evidence": "At 1440x900, the production artifact resumed directly into the Workshop with HTTP 200, no horizontal overflow, no console/page errors, and no failed requests. The automated journey met all three original NPCs, preserved an item after a wrong pairing, assembled the raid across reload, earned the open chair, persisted joined=true, and displayed The First Raid hook. The arrival and assembled screenshots were visually inspected with no material composition or readability defect."
+    },
+    {
+      "name": "Mobile reduced-motion and keyboard Workshop",
+      "status": "passed",
+      "url": "http://127.0.0.1:4186/rg-tlm-game/",
+      "evidence": "At 390x844 with reduced motion, scrollWidth equaled innerWidth (390), the Workshop remained fully visible, arrow-key facing and Enter activation worked, and the role reward entered inventory. The screenshot was visually inspected with no material crop, overlap, or readability defect."
+    },
+    {
+      "name": "Portal-style sandboxed iframe with CSP",
+      "status": "passed",
+      "url": "http://localhost:4187/host",
+      "evidence": "A sandbox=allow-scripts allow-same-origin iframe loaded /rg-tlm-game/ under the configured Caddy CSP, continued into data-room=workshop, and reported no console errors, page errors, HTTP failures, or failed requests."
+    }
+  ],
+  "unexpectedTrackedChanges": [],
+  "limitations": [
+    "An initial five-worker E2E attempt encountered runtime Chromium target crashes and navigation timeouts (9/14 passed); the complete suite was rerun serially in the same browser runtime and all 14/14 scenarios passed.",
+    "Docker and Caddy executables were unavailable, so CSP behavior was exercised with a local static harness applying the exact Caddyfile policy; the shared hosting files themselves are unchanged from the verified base."
+  ],
+  "summary": "Passed: the pinned candidate adds a complete, recoverable, autosaving Workshop chapter with three original role NPCs, an explicit place-at-the-table ending and The First Raid hook, while preserving prior chapters, published output parity, initial-load deferral, iframe/CSP compatibility, and shared hosting configuration."
+}

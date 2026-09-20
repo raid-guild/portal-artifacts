@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "status": "approved",
+  "reviewMode": "initial",
+  "baseSha": "94c908dffcd4370848e7d7c3dee289e21816eb09",
+  "headSha": "154e8150176a227967df04ce0a39543574bef6ad",
+  "previousHeadSha": null,
+  "repositoryPolicy": [
+    "README.md",
+    "studies/rg-tlm-game/README.md",
+    "studies/rg-tlm-game/package.json",
+    "studies/rg-tlm-game/SCENE_GENERATION_GUIDE.md"
+  ],
+  "checks": [
+    {
+      "name": "Pinned target and pull-request integrity",
+      "status": "passed",
+      "evidence": "PR #34 was open with base 94c908dffcd4370848e7d7c3dee289e21816eb09 and head 154e8150176a227967df04ce0a39543574bef6ad; local HEAD and tree f0ffaff8083734c3825b959a3be7c30b8d631f53 matched implementation.md and verification.json exactly."
+    },
+    {
+      "name": "Current verification evidence",
+      "status": "passed",
+      "evidence": "verification.json for head 154e8150176a227967df04ce0a39543574bef6ad reports passed, including 26 unit tests, 14 serial browser scenarios, direct/mobile/sandboxed-iframe journeys, reduced motion, save migration, CSP behavior, loading deferral, and no unexpected tracked changes."
+    },
+    {
+      "name": "Complete diff review",
+      "status": "passed",
+      "evidence": "Reviewed the complete GitHub base...head diff 94c908dffcd4370848e7d7c3dee289e21816eb09...154e8150176a227967df04ce0a39543574bef6ad and the focused Workshop delta 942df30a0a4df76ae5fb7d35a5061c411563a0f0...154e8150176a227967df04ce0a39543574bef6ad against request #2866 acceptance criteria."
+    },
+    {
+      "name": "Unit tests",
+      "status": "passed",
+      "evidence": "Reviewer executed npm test in studies/rg-tlm-game: 4 files and 26 tests passed."
+    },
+    {
+      "name": "Type check, production build, and published parity",
+      "status": "passed",
+      "evidence": "Reviewer executed npm run build -- --base=/rg-tlm-game/ with output in a temporary directory; TypeScript and Vite completed successfully, and diff -qr found no difference from public/rg-tlm-game."
+    },
+    {
+      "name": "Asset manifest integrity",
+      "status": "passed",
+      "evidence": "Reviewer executed sha256sum -c studies/rg-tlm-game/ASSET_MANIFEST.sha256 from the repository root; all 51 entries passed."
+    },
+    {
+      "name": "Diff hygiene and shared hosting boundary",
+      "status": "passed",
+      "evidence": "Reviewer executed git diff --check for the complete PR diff and confirmed Caddyfile, Dockerfile, and railway.json are unchanged from the optimized source base."
+    }
+  ],
+  "findings": [],
+  "githubDelivery": {
+    "summaryCommentId": 5746810086,
+    "summaryCommentUrl": "https://github.com/raid-guild/portal-artifacts/pull/34#issuecomment-5746810086",
+    "inlineCommentIds": []
+  },
+  "summary": "Approved for workflow progression: the exact reviewed head adds the complete Workshop chapter, preserves prior chapters and deployment boundaries, and has sufficient current verification evidence with no blocking, high, medium, or low findings."
+}
