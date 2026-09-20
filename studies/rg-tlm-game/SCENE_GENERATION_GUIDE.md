@@ -2,8 +2,9 @@
 
 Use this workflow for every future scene. It is a production contract: a scene
 is not ready to build until its brief, state transitions, walkthrough, visual
-records, budgets, and acceptance checks agree. This request does **not** approve
-or implement the Workshop chapter.
+records, budgets, and acceptance checks agree. The guide itself grants no scope;
+the Workshop is separately authorized by request #2866 and specified in
+[`docs/WORKSHOP.md`](docs/WORKSHOP.md).
 
 ## 1. Staged discovery
 

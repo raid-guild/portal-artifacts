@@ -31,3 +31,18 @@ silhouette, transparency, or readability regression.
 The exact source PNGs and canonical prompt records were moved out of the served
 `public/` snapshot but remain tracked in this study. No gameplay, storage key,
 schema, public path, or shared-host policy changed.
+
+## Workshop addition — September 20, 2026
+
+The production Workshop master is 1672×941 and 2,869,481 bytes. Its browser-
+native WebP derivative uses quality 86 and is 427,880 bytes, below the 450 KB
+chapter-background target. It is not assigned a `src` until the Workshop is the
+active room or the player connects the crossing, so chapter three does not add
+bytes or a request to a fresh chapter-one load. The earlier recovered draft is
+preserved only as a source master and is not served.
+
+A fresh production-build smoke run at 1440×900 loaded 10 subresources and
+2,268,962 image bytes at network idle, with no Workshop request. After Begin,
+the likely crossing background was prepared while the Workshop remained
+unrequested. The production bundles are 22.40 KB gzip for game JS, 14.79 KB for
+the shared traveler module, and 6.39 KB for game CSS, within the guide budgets.

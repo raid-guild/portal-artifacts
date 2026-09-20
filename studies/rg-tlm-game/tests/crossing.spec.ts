@@ -49,12 +49,12 @@ test('old ending migrates, wrong route is safe, notebook solves crossing across 
   await page.screenshot({ path: 'art/qa/crossing-active.png' });
   await page.getByRole('button', { name: 'Transit arch', exact: true }).click();
   await page.getByRole('button', { name: 'Step through the arch', exact: true }).click();
-  await expect(page.locator('#ending-dialog')).toContainText('CHAPTER TWO COMPLETE');
-  await expect(page.locator('#ending-dialog')).toContainText('next chapter being built');
-  await page.getByRole('button', { name: /Keep exploring the landing/ }).click();
+  await expect(page.locator('#scene')).toHaveAttribute('data-room', 'workshop');
+  await expect(page.locator('.workshop-art')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keeper Orin', exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: /Continue the journey/ }).click();
-  await expect(page.locator('#crossing-active')).toHaveClass(/visible/);
+  await expect(page.locator('#scene')).toHaveAttribute('data-room', 'workshop');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('raidguild:last-mile:room-one')!).transit.completed)).toBe(true);
   expect(errors).toEqual([]);
 });
@@ -82,5 +82,6 @@ test('mobile notebook and keyboard rings remain reachable', async ({ page }) => 
   await page.getByRole('button', { name: /Back to landing/ }).click();
   await page.getByRole('button', { name: 'Transit arch', exact: true }).click();
   await page.getByRole('button', { name: 'Step through the arch', exact: true }).click();
-  await expect(page.locator('#ending-dialog')).toBeVisible();
+  await expect(page.locator('#scene')).toHaveAttribute('data-room', 'workshop');
+  await expect(page.getByRole('button', { name: 'Keeper Orin', exact: true })).toBeVisible();
 });

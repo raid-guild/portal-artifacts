@@ -18,4 +18,14 @@ export const roomTargets: Record<Room, Partial<Record<Target, SceneTarget>>> = {
     walker: { label: 'Docked walker', x: 82, y: 59, stand: 75 },
     arch: { label: 'Transit arch', x: 91, y: 42, stand: 87 },
   },
+  workshop: {
+    window: { label: 'Citadel window', x: 18, y: 29, stand: 19 },
+    sable: { label: 'Sable · Strategist', x: 41, y: 45, stand: 39 },
+    orin: { label: 'Keeper Orin', x: 65, y: 43, stand: 62 },
+    mica: { label: 'Mica · Builder', x: 89, y: 42, stand: 84 },
+    ledger: { label: 'Open ledger', x: 58, y: 60, stand: 55 },
+    frame: { label: 'Signal frame', x: 72, y: 60, stand: 69 },
+    routeboard: { label: 'Route board', x: 83, y: 59, stand: 80 },
+    table: { label: 'Shared raid table', x: 70, y: 70, stand: 67 },
+  },
 };

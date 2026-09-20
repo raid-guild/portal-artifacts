@@ -28,15 +28,28 @@ A traveler has crossed the salt flats looking for Raid Guild. They carry a noteb
 
 At the last waystation, they find a stranded walking machine and its increasingly annoyed pilot. Helping her get home brings them to the Guild—and gives them the beginnings of a place there.
 
-Target: 10–15 minutes, three scenes, two speaking NPCs, two small puzzles, one ending. There is no combat or time limit. The journey moves from an empty landscape to a crowded worktable.
+Target: 10–15 minutes, three scenes, four speaking NPCs, three small puzzles,
+one ending. There is no combat or time limit. The journey moves from an empty
+landscape to a crowded worktable.
 
 ## People
 
-**The traveler — player character.** Curious, observant, and accustomed to working alone. They have followed rumors of a place where someone might help finish the ideas in their notebook. Their name is chosen at the end. Keep their appearance adaptable to the assets we receive.
+**The traveler — player character.** Curious, observant, and accustomed to
+working alone. They have followed rumors of a place where someone might help
+finish the ideas in their notebook.
 
 **Rook — Guild mechanic and walker pilot.** Returning with workshop supplies. Competent, blunt, and presently lying beneath a machine that refuses to cooperate. She accepts help readily and remembers it. Her name and role are placeholders; this can become a community-created character later.
 
-**The keeper — host of the Guild's common workshop.** In the middle of sorting tools when the traveler arrives. Warm, busy, and interested in the notebook. They invite the traveler to join and make the ending explicit.
+**Keeper Orin — host of the Guild's common workshop.** Warm, busy, and
+interested in the promise behind the work. Orin gives the traveler a raid brief
+and keeps the shared need visible.
+
+**Mica — builder.** Careful, practical, and delighted by an imperfect invention.
+Mica provides the continuity key and makes the handoff durable.
+
+**Sable — strategist.** A route-maker who connects working things to people and
+place. Sable provides the route thread and keeps the path through the world in
+view.
 
 ## Scene 1: The stranded walker
 
@@ -88,23 +101,22 @@ The arch fills with light. The traveler and walker pass through.
 
 ## Scene 3: A place at the table
 
-The Guild's common workshop overlooks the same landscape from above. Maps, plants, strange instruments, patched furniture, and unfinished work fill the room. Several chairs imply a larger community without requiring additional speaking characters.
+The Guild's common workshop overlooks the same landscape from above. Maps,
+plants, strange instruments, patched furniture, and unfinished work fill the
+room. Orin, Mica, and Sable each hold one part of a small raid: context, build,
+and route.
 
-Rook unloads her cargo. The keeper greets the traveler, who asks about joining. Rook mentions the repair on the road; the keeper asks what the traveler would like to work on.
+The player meets all three roles, then places the raid brief in the open ledger,
+the continuity key in the signal frame, and the route thread on the route board.
+Wrong pairings give a useful correction and preserve the item. When the three
+contributions hold together, the far beacon answers.
 
-The player places the notebook on the shared table. It opens to a little walking lantern whose legs never worked properly.
+Orin turns an open chair toward the traveler. Mica makes room for the notebook,
+and Sable adds the new route to the map. The unfinished walking lantern becomes
+the hook for **The First Raid**.
 
-> **Traveler:** It falls over whenever it turns.
->
-> **Rook:** Leave that page open. I know someone who's made that mistake.
-
-The keeper offers a place in the Guild. The player accepts by entering a name in the workshop ledger and receives the crossed-swords badge.
-
-> **Keeper:** Welcome to Raid Guild, [name]. There's a clear bench by the window.
-
-Final image: the notebook lies open beside another person's tools. The traveler sits down. Beyond the window, a second walker approaches along the road.
-
-The ending completes membership in the story. Any later link to the real community belongs after the credits and should be separate from fictional membership.
+The ending gives the traveler a fictional place at the table. It is not a
+real-world Guild membership flow.
 
 ## What the player does
 
@@ -113,16 +125,25 @@ The ending completes membership in the story. Any later link to the real communi
 | Arrive | Explore the waystation and talk to Rook | Find a person who can help reach the Guild |
 | Collaborate | Place the plate, use the jack, let Rook fix the linkage | Earn trust through a shared repair |
 | Find the route | Read the sketch, match the transit address, send the signal | Reach the Guild together |
-| Join | Share the notebook, accept the invitation, sign the ledger | Become a member and begin a new project |
+| Assemble | Meet the three roles and connect brief, key, and route | Turn complementary contributions into one raid |
+| Join | Take the open chair at the shared table | Earn a place at the table and begin The First Raid |
 
-Portable objects: notebook, cargo plate, jack. The badge is an ending reward. The player needs at most three inventory slots; both tools are returned to the walker after the repair.
+Portable objects: notebook, cargo plate, jack, raid brief, continuity key, and
+route thread. The road tools return to the walker after the repair; the three
+Workshop contributions move from inventory to their matching stations.
 
 ## Tone and production boundaries
 
 Let the environments carry the wonder. Keep conversation specific, brief, and lightly funny. Reveal the Guild through the way people treat the traveler and their work. The broken walker is an ordinary mishap, not a concealed admission test.
 
-The story requires three backgrounds, one player character, Rook, the keeper, a mostly static walker, the transit arch, and a few item icons. The walker needs only stranded and standing poses; transit can use light and a fade. Background community activity can be suggested through sound and props. These are scene needs, not final asset requests.
+The story requires three backgrounds, one player character, Rook, three original
+Workshop roles, a mostly static walker, the transit arch, and a few item icons.
+The walker needs only stranded and standing poses; transit can use light and a
+fade. These are scene needs, not a description of real Guild people.
 
-There are no real-time deadlines, branching routes, combat systems, mandatory brand-knowledge quizzes, or technical prerequisites for the player. The two puzzles should be solvable from information inside the game.
+There are no real-time deadlines, branching routes, combat systems, mandatory
+brand-knowledge quizzes, or technical prerequisites for the player. All three
+puzzles are solvable from information inside the game.
 
-The next writing pass should settle the traveler’s personality and make the notebook invention distinctive. Then write the inspect responses and short dialogue trees for these three scenes. The assets can shape the staging afterward.
+The implemented Workshop adaptation, state contract, dialogue, and walkthrough
+are recorded in [Chapter three: The Workshop](WORKSHOP.md).

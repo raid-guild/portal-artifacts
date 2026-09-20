@@ -2,6 +2,7 @@ import './style.css';
 import './layout.css';
 import './room-art.css';
 import './crossing.css';
+import './workshop.css';
 import { act, clampPosition, hint, initialState, inventory, labels, objective, parseSave, SAVE_KEY, type Action, type Item, type Reply, type State, type Target } from './game';
 import { icon } from './icons';
 import { TravelerSprite, facingForDelta } from './traveler';
@@ -29,7 +30,7 @@ let reveal = false;
 let reply: Reply = { speaker: 'The waystation', text: 'The map ends here. Someone has written “ask for the Guild” in the margin. You were hoping for an address.' };
 
 const targets = () => roomTargets[state.room];
-const allTargets = { ...roomTargets.waystation, ...roomTargets.crossing };
+const allTargets = { ...roomTargets.waystation, ...roomTargets.crossing, ...roomTargets.workshop };
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <main>
@@ -41,6 +42,7 @@ app.innerHTML = `
         <img class="background repaired waystation-art" id="repaired-art" data-src="${art}room-01-repaired-v2.webp" alt="" draggable="false" />
         <img class="background crossing-art" data-src="${art}crossing-background-v1.webp" alt="A stone transit landing overlooking the floating coral citadel, with Rook docked beneath an old arch." draggable="false" />
         <img class="background crossing-art" id="crossing-active" data-src="${art}crossing-active-v1.webp" alt="" draggable="false" />
+        <img class="background workshop-art" data-src="${art}workshop-background-v2.webp" alt="A sunlit common workshop inside the floating citadel, where three guild roles wait around a shared raid table." draggable="false" />
         <div class="scene-content" id="scene-content" inert>
           <div id="destination" class="destination" aria-hidden="true"></div>
           <div id="rook" class="rook" aria-hidden="true"><span class="rook-shadow"></span><canvas id="rook-sprite"></canvas></div>
@@ -69,8 +71,8 @@ app.innerHTML = `
       <footer class="page-footer"><span id="chapter-label">The Last Mile / Chapter one</span><span id="save-status">Progress stays in this browser.</span></footer>
     </section>
   </main>
-  <dialog id="restart-dialog"><p class="eyebrow">BACK TO THE WAYSTATION</p><h2>Start the journey again?</h2><p>Your progress in both rooms will be cleared. You will return to the stranded walker.</p><div class="modal-actions"><button id="keep-playing">Keep exploring</button><button class="primary" id="confirm-restart">Start again</button></div></dialog>
-  <dialog id="ending-dialog" aria-labelledby="ending-title"><span class="ending-icon">${icon('compass')}</span><p class="eyebrow">CHAPTER TWO COMPLETE</p><h2 id="ending-title">They’ve put<br>another cup out.</h2><p>You step into the light beside the walker. Somewhere beyond it, a workbench waits by a window. This time, you have an address—and someone expecting you.</p><div class="ending-note">You’ve completed the crossing. The workshop and joining the Guild are the next chapter being built. Your progress is saved.</div><button class="primary" id="back-to-room">Keep exploring the landing ${icon('arrow')}</button></dialog>
+  <dialog id="restart-dialog"><p class="eyebrow">BACK TO THE WAYSTATION</p><h2>Start the journey again?</h2><p>Your progress in all three chapters will be cleared. You will return to the stranded walker.</p><div class="modal-actions"><button id="keep-playing">Keep exploring</button><button class="primary" id="confirm-restart">Start again</button></div></dialog>
+  <dialog id="ending-dialog" aria-labelledby="ending-title"><span class="ending-icon">${icon('compass')}</span><p class="eyebrow">CHAPTER THREE COMPLETE</p><h2 id="ending-title">A place<br>at the table.</h2><p>Your brief, build, and route hold together. Orin turns the open chair toward you while Mica makes room for your notebook and Sable adds your path to the map.</p><div class="ending-note">Welcome to RaidGuild. Your Workshop progress is saved. Next: <strong>The First Raid</strong>—and perhaps a walking lantern that finally stays upright.</div><button class="primary" id="back-to-room">Stay at the table ${icon('arrow')}</button></dialog>
   ${crossingDialogs}
 `;
 function el<T extends HTMLElement = HTMLElement>(id: string) { return document.getElementById(id) as T; }
@@ -96,27 +98,33 @@ function setReply(r: Reply) { reply = r; renderPanel(); }
 function renderPosition() {
   player.style.left = `${state.position.x}%`;
   player.style.top = `${state.position.y}%`;
-  player.style.height = `${state.room === 'crossing' ? 39 + (state.position.y - 91) * .5 : 45 + (state.position.y - 85) * .8}%`;
+  player.style.height = `${state.room === 'crossing' ? 39 + (state.position.y - 91) * .5 : state.room === 'workshop' ? 40 + (state.position.y - 82) * .55 : 45 + (state.position.y - 85) * .8}%`;
 }
-function loadSceneArt(atCrossing: boolean, includeAlternate = false) {
-  const selector = atCrossing
+function loadSceneArt(room: State['room'], includeAlternate = false) {
+  const selector = room === 'workshop' ? '.workshop-art' : room === 'crossing'
     ? includeAlternate ? '.crossing-art' : state.transit.active ? '#crossing-active' : '.crossing-art:not(#crossing-active)'
     : includeAlternate ? '.waystation-art' : state.repaired ? '#repaired-art' : '.waystation-art:not(#repaired-art)';
   document.querySelectorAll<HTMLImageElement>(selector).forEach(img => {
     if (!img.hasAttribute('src')) img.src = img.dataset.src!;
   });
 }
+function itemArt(item: Item) {
+  return item === 'plate' || item === 'jack' ? paintedItem(item) : icon(item);
+}
 function render() {
   const atCrossing = state.room === 'crossing';
-  loadSceneArt(atCrossing, playing);
+  const atWorkshop = state.room === 'workshop';
+  loadSceneArt(state.room, playing);
   scene.classList.toggle('room-crossing', atCrossing);
+  scene.classList.toggle('room-workshop', atWorkshop);
   scene.dataset.room = state.room;
-  scene.setAttribute('aria-label', `${atCrossing ? 'Crossing. Click the stone landing' : 'Waystation. Click the foreground'} to walk, or use the arrow keys. Tab to discover objects.`);
-  el('place-caption').textContent = atCrossing ? 'THE CROSSING' : 'THE SALT ROAD';
-  el('chapter-label').textContent = `The Last Mile / Chapter ${atCrossing ? 'two' : 'one'}`;
-  el('opening-chapter').textContent = atCrossing ? 'CHAPTER TWO — THE CROSSING' : 'CHAPTER ONE — THE STRANDED WALKER';
-  el('opening-title').innerHTML = atCrossing ? 'A little further.<br>Together.' : 'A long road.<br>A little company.';
-  el('opening-description').textContent = atCrossing ? 'The Guild is in sight. Rook is waiting at the crossing, and your notebook holds the way forward.' : 'You have a notebook full of unfinished ideas and a map that ends somewhere around here.';
+  const place = atWorkshop ? 'Workshop. Click the open stone floor' : atCrossing ? 'Crossing. Click the stone landing' : 'Waystation. Click the foreground';
+  scene.setAttribute('aria-label', `${place} to walk, or use the arrow keys. Tab to discover people and objects.`);
+  el('place-caption').textContent = atWorkshop ? 'THE WORKSHOP' : atCrossing ? 'THE CROSSING' : 'THE SALT ROAD';
+  el('chapter-label').textContent = `The Last Mile / Chapter ${atWorkshop ? 'three' : atCrossing ? 'two' : 'one'}`;
+  el('opening-chapter').textContent = atWorkshop ? 'CHAPTER THREE — THE WORKSHOP' : atCrossing ? 'CHAPTER TWO — THE CROSSING' : 'CHAPTER ONE — THE STRANDED WALKER';
+  el('opening-title').innerHTML = atWorkshop ? 'A shared table.<br>An open chair.' : atCrossing ? 'A little further.<br>Together.' : 'A long road.<br>A little company.';
+  el('opening-description').textContent = atWorkshop ? 'The Guild is not a destination. It is people with different skills choosing to build together.' : atCrossing ? 'The Guild is in sight. Rook is waiting at the crossing, and your notebook holds the way forward.' : 'You have a notebook full of unfinished ideas and a map that ends somewhere around here.';
   el('crossing-active').classList.toggle('visible', state.transit.active);
   el('scene-destination').innerHTML = routeSymbol(destinations[state.transit.destination]);
   el('scene-beacon').innerHTML = routeSymbol(beacons[state.transit.beacon]);
@@ -145,9 +153,13 @@ function render() {
   }
   const inv = inventory(state);
   if (selected && !inv.includes(selected)) selected = null;
-  el('inventory').innerHTML = inv.map(item => `<button class="inventory-item ${selected === item ? 'selected' : ''}" data-item="${item}" aria-label="Select ${labels[item]}" aria-pressed="${selected === item}">${item === 'notebook' ? icon(item) : paintedItem(item)}<span>${labels[item]}</span></button>`).join('');
+  el('inventory').innerHTML = inv.map(item => `<button class="inventory-item ${selected === item ? 'selected' : ''}" data-item="${item}" aria-label="Select ${labels[item]}" aria-pressed="${selected === item}">${itemArt(item)}<span>${labels[item]}</span></button>`).join('');
   el('item-count').textContent = String(inv.length).padStart(2, '0');
-  el('selection').innerHTML = selected ? `<span>Use <b>${labels[selected]}</b> on a target.</span><button id="cancel-item" aria-label="Cancel selected item">Cancel ×</button>` : atCrossing ? 'Open your notebook to read the route sketch.' : 'Select an item, then something in the scene.';
+  el('selection').innerHTML = selected ? `<span>Use <b>${labels[selected]}</b> on a target.</span><button id="cancel-item" aria-label="Cancel selected item">Cancel ×</button>` : atWorkshop ? 'Talk with each role, then connect their contribution at the table.' : atCrossing ? 'Open your notebook to read the route sketch.' : 'Select an item, then something in the scene.';
+  for (const [id, item] of [['ledger', 'brief'], ['frame', 'key'], ['routeboard', 'thread']] as const) {
+    el(`hotspot-${id}`).classList.toggle('station-complete', state.workshop[item] === 'placed');
+  }
+  scene.classList.toggle('workshop-assembled', state.workshop.assembled);
   scene.classList.toggle('using-item', !!selected);
   renderPanel();
 }
@@ -172,13 +184,16 @@ function renderPanel() {
         actions.push(button('How can I help?', 'help'));
       }
       if (state.repaired && state.room === 'waystation') actions.push(button('Accept the ride', 'leave', true));
+    } else if (state.room === 'workshop' && (target === 'orin' || target === 'mica' || target === 'sable')) {
+      actions.push(button(`Talk to ${targets()[target]?.label.split(' · ')[0]}`, 'talk', true));
     } else if ((target === 'plate' || target === 'jack') && state[target] === 'ground') actions.push(button(`Take ${labels[target].toLowerCase()}`, 'take', true));
     else if (target === 'repair' && state.jack === 'placed' && !state.repaired) actions.push(button('Turn the crank', 'operate', true));
     else if (target === 'exit') actions.push(button(state.repaired ? 'Accept the ride' : 'Follow the road', 'leave', true));
     else if (target === 'pedestal') actions.push(button(state.transit.active ? 'View route' : 'Set the route', 'route', true));
     else if (target === 'arch') actions.push(button(state.transit.active ? 'Step through the arch' : 'Try the crossing', 'cross', true));
+    else if (target === 'table' && state.room === 'workshop') actions.push(button(state.workshop.assembled ? 'Take your place at the table' : 'Review the raid', 'complete-raid', state.workshop.assembled));
   }
-  if (!target && !selected) actions.push('<span class="quiet-instruction">The road can wait. Have a look around.</span>');
+  if (!target && !selected) actions.push(`<span class="quiet-instruction">${state.room === 'workshop' ? 'No one builds alone. Start with a conversation.' : 'The road can wait. Have a look around.'}</span>`);
   el('actions').innerHTML = actions.join('');
 }
 
@@ -194,12 +209,15 @@ function perform(action: Action) {
     traveler.stand('right'); crossing.close(); el('destination').classList.remove('visible');
     el('scene-world').classList.remove('room-arrival');
     requestAnimationFrame(() => el('scene-world').classList.add('room-arrival'));
-    el('walk-cue').innerHTML = 'Click the stone landing to walk <span>·</span> Inspect the route pedestal';
+    el('walk-cue').innerHTML = state.room === 'workshop'
+      ? 'Click the open floor to walk <span>·</span> Meet the people around the table'
+      : 'Click the stone landing to walk <span>·</span> Inspect the route pedestal';
     el('walk-cue').classList.remove('faded');
     scene.focus({ preventScroll: true });
   }
   save(); render();
-  if (action.type === 'cross' && state.transit.completed && !endingDialog.open) endingDialog.showModal();
+  if (action.type === 'transmit' && state.transit.active) loadSceneArt('workshop');
+  if (action.type === 'complete-raid' && state.workshop.joined && !endingDialog.open) endingDialog.showModal();
   syncRook();
 }
 
@@ -238,11 +256,15 @@ async function chooseTarget(id: Target) {
   if (!info) return;
   target = id; conversation = false;
   const item = selected;
-  const arrived = await walk(info.stand, state.room === 'crossing' ? 93 : 88);
+  const arrived = await walk(info.stand, state.room === 'crossing' ? 93 : state.room === 'workshop' ? 88 : 88);
   if (!arrived || !playing) return;
   traveler.stand(facingForDelta(info.x - state.position.x, info.y - state.position.y, traveler.facing));
   if (item && selected === item) perform({ type: 'use', item, target: id });
   else if (state.room === 'crossing') perform({ type: 'inspect', target: id });
+  else if (state.room === 'workshop') setReply({
+    speaker: info.label,
+    text: id === 'orin' ? 'Orin closes the ledger and gives you their full attention.' : id === 'mica' ? 'Mica steadies the brass frame and looks up from the workbench.' : id === 'sable' ? 'Sable tucks the route map beneath one arm.' : 'You take a closer look at this part of the shared raid.',
+  });
   else setReply({ speaker: info.label, text: id === 'rook' ? 'Rook wipes the sand from her hands and looks your way.' : id === 'repair' ? 'The damaged linkage sits just above the sand. A little leverage would help.' : 'You take a closer look.' });
   if (id === 'pedestal') { selected = null; render(); crossing.open(false, item === 'notebook'); syncRook(); return; }
   el<HTMLButtonElement>('actions').querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
@@ -255,7 +277,14 @@ scene.addEventListener('click', event => {
   const bounds = el('scene-world').getBoundingClientRect();
   const x = (event.clientX - bounds.left) / bounds.width * 100;
   const y = (event.clientY - bounds.top) / bounds.height * 100;
-  if (y < (state.room === 'crossing' ? 86 : 78)) { setReply({ speaker: state.room === 'crossing' ? 'The crossing' : 'The salt road', text: state.room === 'crossing' ? 'The broad stone landing is safe underfoot. Click a person or object to approach it.' : 'The open sand in front of the walker makes a good path. Click a person or an object to approach it.' }); return; }
+  const walkBoundary = state.room === 'crossing' ? 86 : state.room === 'workshop' ? 76 : 78;
+  if (y < walkBoundary) {
+    setReply({
+      speaker: state.room === 'workshop' ? 'The Workshop' : state.room === 'crossing' ? 'The crossing' : 'The salt road',
+      text: state.room === 'workshop' ? 'The open stone floor leads to every person and station. Click a person or object to approach it.' : state.room === 'crossing' ? 'The broad stone landing is safe underfoot. Click a person or object to approach it.' : 'The open sand in front of the walker makes a good path. Click a person or an object to approach it.',
+    });
+    return;
+  }
   target = null; conversation = false;
   void walk(x, y);
 });
@@ -281,7 +310,7 @@ el('actions').addEventListener('click', e => {
   if (!action || moving) return;
   if (action === 'notebook') { perform({ type: 'inspect', target: 'notebook' }); if (state.room === 'crossing') crossing.open(true); }
   else if (action === 'inspect' && target) perform({ type: 'inspect', target });
-  else if (action === 'talk') perform({ type: 'talk' });
+  else if (action === 'talk') perform({ type: 'talk', target: state.room === 'workshop' && (target === 'orin' || target === 'mica' || target === 'sable') ? target : undefined });
   else if (action === 'guild' || action === 'help') perform({ type: 'talk', topic: action });
   else if (action === 'take' && (target === 'plate' || target === 'jack')) perform({ type: 'take', item: target });
   else if (action === 'use' && selected && target) perform({ type: 'use', item: selected, target });
@@ -289,6 +318,7 @@ el('actions').addEventListener('click', e => {
   else if (action === 'leave') perform({ type: 'leave' });
   else if (action === 'route') { crossing.open(); syncRook(); }
   else if (action === 'cross') perform({ type: 'cross' });
+  else if (action === 'complete-raid') perform({ type: 'complete-raid' });
 });
 
 el('begin').addEventListener('click', event => {
@@ -298,9 +328,16 @@ el('begin').addEventListener('click', event => {
     setReply({ speaker: 'The crossing', text: state.transit.active ? 'The Guild’s beacon still holds the route open. Rook is ready when you are.' : 'Across the gap, the Guild hangs in the evening light. Rook holds the walker steady. “You set the route. I’ll keep us connected.”' });
     el('walk-cue').innerHTML = 'Click the stone landing to walk <span>·</span> Inspect the route pedestal';
   }
+  else if (state.room === 'workshop') {
+    setReply({ speaker: 'The Workshop', text: state.workshop.assembled ? 'The small raid is assembled. An open chair waits at the shared table.' : 'Orin, Mica, and Sable each hold a different part of the work. Start with the people; the pieces will follow.' });
+    el('walk-cue').innerHTML = 'Click the open floor to walk <span>·</span> Meet the people around the table';
+  }
   else if (state.repaired) setReply({ speaker: 'Rook', text: 'Welcome back. The walker is ready, and so is your seat. Shall we?' });
   else if (saved?.started) setReply({ speaker: 'The waystation', text: 'The road is right where you left it. So are your ideas. Pick up where you stopped.' });
-  window.setTimeout(() => loadSceneArt(state.room !== 'crossing', true), 1000);
+  window.setTimeout(() => {
+    loadSceneArt(state.room, true);
+    if (state.room === 'waystation') loadSceneArt('crossing');
+  }, 1000);
   syncRook();
 });
 el('reveal').addEventListener('click', () => {

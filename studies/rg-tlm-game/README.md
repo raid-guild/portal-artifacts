@@ -38,7 +38,13 @@ build.
 The hosted source removes the Google Fonts import so it remains compatible with
 the shared CSP, points the favicon at approved game art, loads WebP artwork, and
 defers the inactive scene backgrounds until play begins. Gameplay and the
-version-2 save key/schema are unchanged.
+save key remain stable; version-1 and version-2 saves migrate into the validated
+version-3 schema without losing prior chapter progress.
+
+The Workshop added for request #2866 is specified in
+[`docs/WORKSHOP.md`](docs/WORKSHOP.md). Its production master, exact edit prompt,
+runtime derivative, migration notes, interaction map, and QA contract are kept
+beside the earlier chapter records.
 
 The game is static and browser-local. It does not use Portal credentials,
 cookies, private APIs, wallet access, a backend, or a database.

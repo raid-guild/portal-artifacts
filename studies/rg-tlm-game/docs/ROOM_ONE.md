@@ -1,6 +1,8 @@
 # First playable room
 
-The waystation is the first playable chapter. Repairing the walker and accepting Rook's ride now transfers to [the crossing](CROSSING.md), preserving the notebook and repair progress. The workshop remains to be built.
+The waystation is the first playable chapter. Repairing the walker and accepting
+Rook's ride transfers to [the crossing](CROSSING.md), preserving the notebook and
+repair progress; completing the route then opens [the Workshop](WORKSHOP.md).
 
 ## Controls
 
@@ -47,7 +49,13 @@ Tools can be collected in either order. Trying the jack first gives feedback and
 | `tests/npc.spec.ts` | NPC activity, attention, pauses, reduced motion, painted props, repair completion |
 | `public/art/` | Runtime scene and traveler images |
 
-Save key: `raidguild:last-mile:room-one`; format version 2, including room and transit state. Version-1 saves migrate automatically: unfinished repairs stay here; accepted rides enter the crossing. Unknown, broken, or contradictory saves are rejected and a fresh start is offered. Item locations are the source of truth for inventory. Selected items and open dialogue are transient; puzzle progress and position persist.
+Save key: `raidguild:last-mile:room-one`; current format version 3, including
+room, transit, and Workshop state. Version-1 and version-2 saves migrate
+automatically: unfinished repairs stay here, accepted rides enter the crossing,
+and completed crossings enter the Workshop. Unknown, broken, or contradictory
+saves are rejected and a fresh start is offered. Item locations are the source
+of truth for inventory. Selected items and open dialogue are transient; puzzle
+progress and position persist.
 
 ## Current visual limits
 
@@ -56,8 +64,9 @@ Save key: `raidguild:last-mile:room-one`; format version 2, including room and t
 - Plate and jack use transparent painted artwork in the scene and inventory. The repair target has a brass-colored wrench marker. See [Rook and tools](../art/prompts/rook-and-tools-notes.md).
 - Ground movement uses an authored foreground band, not general navigation or obstacle routing.
 - No sound yet. External web fonts have local serif/sans-serif fallbacks.
-- This is a first-room prototype, not a complete game or real-world Guild membership workflow.
+- The ending is fictional and is not a real-world Guild membership workflow.
 
-## Next implementation task
+## Continuation
 
-The crossing and save migration are implemented; see [its walkthrough and handoff](CROSSING.md). Review user feedback on the two-room journey before building the workshop and membership ending. Use [NPC notes](NPC_BEHAVIOR.md) when expanding character activity.
+The crossing, Workshop, and save migrations are implemented. See the linked
+chapter briefs for their walkthroughs and acceptance contracts.

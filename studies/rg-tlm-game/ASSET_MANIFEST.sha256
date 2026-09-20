@@ -1,5 +1,6 @@
 c7298cf7de41e71734567f3ee7c5d77d559489ca64138487be3563df580e20a2  public/rg-tlm-game/art/crossing-active-v1.webp
 14047b8d5d8966cebe55123dbf7a0d36ba7deb6ecf3b3c7b095c5366cf27ec16  public/rg-tlm-game/art/crossing-background-v1.webp
+469636a530454e72fc2cac514c231cae4819a2fc505961a48b238657d1314b06  public/rg-tlm-game/art/workshop-background-v2.webp
 8b4882997e550f750a7fd3518c1d50feae3d197e1a7e4fb560bd934d41c777dd  public/rg-tlm-game/art/room-01-background-v1.webp
 340a004deb936f315826fe4645f5ac9e2885fd18cfdea4058374c2f9aaea1b39  public/rg-tlm-game/art/room-01-background-v2.webp
 a19d5f8af157543832b02423b937d05b8d1cc16b9466a9d392e243f58a3b65e3  public/rg-tlm-game/art/room-01-repaired-v1.webp
@@ -22,6 +23,8 @@ c8c375f69314f756d48249cda088dfa6aecc6358dfb1551434a035677e3a086d  studies/rg-tlm
 249d3270988d5737fdab8e81ea5b6af28b2650524689be5b0e01517477ac6664  studies/rg-tlm-game/original-art/sprites/traveler-right-v1.png
 170ef8a63571b777b1e9dec286d393a8d3abf946121b5a512ffa380e2bd1673d  studies/rg-tlm-game/original-art/sprites/waystation-tools-v1.png
 32b33b2606539f51ba20967b6c4cf671578469c458b94e30adf0e40e1f3be98d  studies/rg-tlm-game/original-art/traveler-idle-v1.png
+2cceb5fec355fddf75a8042f8f4dba4d3cae2ce72c37f37d8cc85ed7bfa0156c  studies/rg-tlm-game/original-art/workshop-background-v1.png
+3d1d5b15325786b31589f7c1b3a60a3312279b203b7d1eda38865ebe14bb23a7  studies/rg-tlm-game/original-art/workshop-background-v2.png
 66cc304b0418330b54f06443cbf1487ce62adbd1b73b79ca84e5455fc41dcb37  studies/rg-tlm-game/source-records/art/prompts/crossing-active-v1.txt
 caecc9beda8dd537ebbb16e250d0aa5f8425970f54d34830fe8630a94a7de3a3  studies/rg-tlm-game/source-records/art/prompts/crossing-background-v1.txt
 ea5d9295b4146e20cfb7b5374549cc97c924baa9171f2925f7f0187de43e4218  studies/rg-tlm-game/source-records/art/prompts/crossing-production-notes.md
@@ -43,4 +46,6 @@ fa409ab0c28cd6426238773ea6356f8802648b346201b1b3167df29f656ac26b  studies/rg-tlm
 b8e2fd15748d7c798fff97ccba49f9044758b0280c9671205f430ac1e733c455  studies/rg-tlm-game/source-records/art/prompts/traveler-walk-front-v1.txt
 e5996730d9bdbcf20d5c59ac93d0d097fecd349fb4cf8a34cd13216292ac50d3  studies/rg-tlm-game/source-records/art/prompts/traveler-walk-right-v1.txt
 2689f53769f5f4c77f8002c9396490c6b4def8430a25051a4bf4b38459104cdc  studies/rg-tlm-game/source-records/art/prompts/waystation-tools-v1.txt
-28d568b2250b17d1273fb5a14a0c8b621d7c6cd5582834b31573bdadc6c4c6d1  studies/rg-tlm-game/source-records/art/sources.json
+4d4d0a80b3f6421609ad3cef2729ca909e20bb903802e76f63d976b62414f102  studies/rg-tlm-game/source-records/art/prompts/workshop-background-v2.txt
+56fac1f0a9d19a3ad1d612c89f6701ec3f7e6198bc737ff1ed15971c2f799ed8  studies/rg-tlm-game/source-records/art/prompts/workshop-production-notes.md
+446ee5cfd90d90480699f43b530663781b10b8c50d8b8b85c5c8cdfa4a03e5ec  studies/rg-tlm-game/source-records/art/sources.json
