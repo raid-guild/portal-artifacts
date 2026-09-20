@@ -41,8 +41,11 @@
     "file": "original-art/cypherpunk-archive-props-v1.png",
     "source": "Prism request #2929 artifact c10fb6b8-bdfd-4a6e-9856-475d5a5eaba5; built-in image generation",
     "role": "Approved transparent Archive prop-sheet master",
-    "prompt": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
+    "promptRecord": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
+    "exactPromptAvailable": false,
     "provenance": "source-records/art/cypherpunk-archive-props-v1.json",
+    "generator": "ChatGPT gpt-image via OpenAI Media Service API",
+    "generatedAt": "2026-09-20T20:48:37.494605414Z",
     "dimensions": "1774x887",
     "sha256": "7f9bd3e0e9f588cdfb4342c979853dd39a1a6e0f9ced819303dfb361976b7473"
   },

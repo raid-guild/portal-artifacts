@@ -5,7 +5,12 @@
 - Fast-forwarded the request branch to the exact deployed/reviewed Archive
   source commit `19b972a941c9c39a82d3f9023c71997da02fd5d1` before implementation.
 - Preserved the approved generated 1774×887 transparent prop sheet, its request
-  artifact provenance, approved prompt metadata, and SHA-256 source hash.
+  artifact provenance, approved prompt summary, and SHA-256 source hash. The
+  exact submitted prompt was not retained in the artifact or indexed memory, so
+  the source record marks it unavailable instead of presenting the summary as
+  exact. The PNG's signed C2PA manifest records ChatGPT `gpt-image`, OpenAI Media
+  Service API, generation time, manifest ID, and instance ID; unavailable seed,
+  job, reference-image, and pre-approval edit fields are explicit.
 - Replaced only the code-authored history shelves, ROT decoder desk, and signal
   lantern visuals with three tight quality-90 transparent WebP crops totaling
   285,424 bytes. The established wall/floor composition, traveler layering,

@@ -5,11 +5,33 @@
   "artifactName": "cypherpunk-archive-props-v1.png",
   "source": "built-in-imagegen",
   "approvedBySourceMessageId": "1551334978531360829",
-  "prompt": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
-  "promptSource": "Request artifact metadata.promptSummary",
+  "promptRecord": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
+  "exactPromptAvailable": false,
+  "promptRecovery": {
+    "status": "unavailable",
+    "reason": "The source tool-call payload was not retained in the request artifact, and the source session was absent from the retained Prism memory snapshot queried on 2026-09-20.",
+    "approvedArtifactSummary": "Transparent prop sheet with history shelves, brass ROT decoder desk, and amber wall lantern, matched to the live Cypherpunk Archive room.",
+    "summarySource": "Prism request artifact metadata.promptSummary",
+    "warning": "The approved artifact summary is not the exact submitted generation prompt."
+  },
+  "generation": {
+    "classification": "generated",
+    "tool": "ChatGPT",
+    "model": "gpt-image",
+    "claimGenerator": "OpenAI Media Service API",
+    "generatedAt": "2026-09-20T20:48:37.494605414Z",
+    "c2paManifestId": "urn:c2pa:80f7bf42-3d57-41fc-bc2a-5006c41b0a35",
+    "c2paInstanceId": "xmp:iid:ce3cad37-9122-47e0-a627-369747929f82",
+    "seed": null,
+    "providerJobId": null,
+    "referencedImages": null,
+    "operatorEditsBeforeApproval": null,
+    "metadataSource": "Signed C2PA manifest embedded in the approved PNG master"
+  },
   "dimensions": "1774x887",
   "sha256": "7f9bd3e0e9f588cdfb4342c979853dd39a1a6e0f9ced819303dfb361976b7473",
   "role": "Approved transparent source prop sheet. Runtime crops do not redraw or materially alter the props.",
+  "postApprovalEdits": "Three pixel crop regions from the unchanged PNG master were encoded as quality-90 transparent WebP runtime derivatives; no redraw or compositional edit was applied.",
   "runtimeDerivatives": [
     {
       "file": "public/rg-tlm-game/art/archive-history-shelves-v1.webp",

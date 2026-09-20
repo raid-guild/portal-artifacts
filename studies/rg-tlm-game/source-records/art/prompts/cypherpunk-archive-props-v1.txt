@@ -1,1 +1,14 @@
+Generation prompt record for request #2929
+
+Exact submitted prompt: unavailable. The source image-generation tool-call payload
+was not retained in the request artifact, and the source session is not present in
+the retained Prism memory snapshot. Do not treat the summary below as the exact
+submitted prompt.
+
+Approved request-artifact prompt summary (verbatim):
 Transparent prop sheet with history shelves, brass ROT decoder desk, and amber wall lantern, matched to the live Cypherpunk Archive room.
+
+Recoverable generation metadata is recorded in the adjacent
+cypherpunk-archive-props-v1.json file and was read from the source PNG's signed
+C2PA manifest. Seed, provider job ID, submitted reference-image list, and
+pre-approval operator edits are unavailable.
