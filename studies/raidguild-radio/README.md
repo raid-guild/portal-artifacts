@@ -23,3 +23,18 @@ with the existing self-only media CSP; do not replace MP3 URLs with data URLs.
 Browser background throttling or device sleep may interrupt crossfades.
 For Portal embeds, permit scripts and same-origin media access in the sandbox;
 fullscreen additionally requires the iframe fullscreen permission.
+
+## Ambient motion
+
+`scene.js` draws in the artwork's 1672 × 941 coordinates. Camera motion,
+canopy masking, weather, and the dashboard light use the same transform,
+including in portrait layouts. Flying creatures and slow cloud layers move
+independently. Clear nights show stars and a brief meteor about every 43
+seconds. `cockpit-clear.png` is the background with the original static
+creatures removed; `cockpit.png` retains the original artwork.
+
+Pause motion freezes the scene clock, including the day/night cycle. Reduced
+motion starts paused, and hidden tabs stop requesting animation frames.
+
+Run `node studies/raidguild-radio/scene.test.cjs` from the repository root for
+camera continuity, meteor timing, and responsive renderer checks.
