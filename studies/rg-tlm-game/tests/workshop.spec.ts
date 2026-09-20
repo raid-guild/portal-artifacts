@@ -66,8 +66,9 @@ test('desktop Workshop assembles a collaborative raid, recovers mistakes, saves,
   await page.getByRole('button', { name: 'Shared raid table', exact: true }).click();
   await page.getByRole('button', { name: 'Take your place at the table', exact: true }).click();
   await expect(page.locator('#ending-dialog')).toContainText('CHAPTER THREE COMPLETE');
-  await expect(page.locator('#ending-dialog')).toContainText('The First Raid');
-  await page.getByRole('button', { name: /Stay at the table/ }).click();
+  await expect(page.locator('#ending-dialog')).toContainText('archive door');
+  await page.getByRole('button', { name: /Enter the Archive/ }).click();
+  await expect(page.locator('#scene')).toHaveAttribute('data-room', 'archive');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('raidguild:last-mile:room-one')!).workshop.joined)).toBe(true);
   expect(errors).toEqual([]);
   expect(failed).toEqual([]);

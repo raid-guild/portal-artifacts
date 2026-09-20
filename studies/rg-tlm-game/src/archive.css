@@ -1,0 +1,70 @@
+.archive-art { display: none; position: absolute; inset: 0; overflow: hidden; background: linear-gradient(#173a3b 0 11%, #255150 11% 68%, #684c3b 68% 72%, #9a7656 72%); }
+.room-archive .archive-art { display: block; }
+.archive-art::before { content: ''; position: absolute; inset: 12% 5% 29%; border: 7px solid #d7aa6a; border-radius: 90px 90px 8px 8px; box-shadow: inset 0 0 0 6px #173b3e, inset 0 0 70px #10292d, 0 12px 30px #10262988; background: radial-gradient(circle at 63% 50%, #e8b86d44, transparent 20%), repeating-linear-gradient(90deg, transparent 0 12%, #162f32 12% 13%), linear-gradient(#183638, #214749); }
+.archive-art::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 31%; background: repeating-linear-gradient(105deg, #8a654b 0 2px, #6f513e 2px 14px, #7c5b45 14px 16px); clip-path: polygon(0 37%, 100% 0, 100% 100%, 0 100%); }
+.archive-shelves { position: absolute; left: 9%; top: 23%; width: 31%; height: 41%; z-index: 1; border: 8px solid #704e36; background: repeating-linear-gradient(0deg, #563d30 0 5px, transparent 5px 29%), repeating-linear-gradient(90deg, #b37c57 0 5px, #d0a06c 5px 12px, #5c8a83 12px 17px, #85543f 17px 25px); box-shadow: 8px 10px #142e2f66; }
+.archive-shelves::after { content: '1993  ·  PRIVACY  ·  SYSTEMS  ·  CODE'; position: absolute; left: 6%; right: 6%; bottom: 7%; padding: 7px 5px; color: #f3dfbd; background: #17383ae8; border: 1px solid #d8b482; font-size: clamp(5px,.55vw,9px); letter-spacing: .1em; text-align: center; }
+.archive-desk-art { position: absolute; z-index: 2; left: 45%; top: 51%; width: 35%; height: 23%; background: linear-gradient(9deg,#6b4630,#b17a50 50%,#70452f); border: 4px solid #d19a60; transform: perspective(250px) rotateX(8deg) skewX(-3deg); box-shadow: 0 18px 0 #3b2c27, 0 24px 22px #10252899; }
+.archive-desk-art::before { content: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; position: absolute; left: 10%; top: 17%; width: 40%; aspect-ratio: 1; border: 9px double #d8ad68; border-radius: 50%; display: grid; place-items: center; color: #efd49d; background: radial-gradient(circle,#224a49 0 33%,#a47143 34% 38%,#264d49 39% 56%,#8b5d3b 57%); font: 600 clamp(4px,.42vw,7px)/1 monospace; letter-spacing: .05em; overflow: hidden; }
+.archive-desk-art::after { content: 'ZLUK AOL SHUALYU'; position: absolute; right: 7%; top: 30%; padding: 8% 5%; color: #2a4240; background: #e8d7ae; border: 2px solid #b58c5e; font: 700 clamp(7px,.8vw,13px)/1.5 monospace; box-shadow: 2px 3px #2d332d55; }
+.archive-lantern-art { position: absolute; z-index: 2; right: 10%; top: 31%; width: 8%; height: 20%; border: 5px solid #926342; border-radius: 50% 50% 12% 12%; background: radial-gradient(circle,#f6d179 0 12%,#c2804a99 35%,#183b3e 67%); box-shadow: 0 0 28px #e8a65a55, inset 0 0 0 4px #dfbd78; }
+.archive-lantern-art::before { content: ''; position: absolute; left: 25%; right: 25%; top: -20%; height: 23%; border: 4px solid #a5774c; border-bottom: 0; border-radius: 20px 20px 0 0; }
+.room-archive .waystation-art, .room-archive .crossing-art, .room-archive .workshop-art, .room-archive #rook, .room-archive .ground-prop, .room-archive .scene-ring { display: none; }
+.room-archive .player-shadow { background: #382a2466; }
+.room-archive .hotspot-dot { border-color: #f3d49e; background: #6d4c36d9; }
+.room-archive.archive-solved #hotspot-archiveLantern .hotspot-dot { color: #173b3e; background: #efc873; box-shadow: 0 0 0 8px #efc87333; }
+.room-workshop #hotspot-archiveDoor .hotspot-dot { color: #173b3e; background: #efc873; }
+
+.archive-dialog { max-width: 900px; width: calc(100% - 32px); max-height: calc(100dvh - 32px); padding: 0; overflow-y: auto; border-color: #b08a5c; background: #eee3c9; }
+.archive-header { display: flex; justify-content: space-between; gap: 20px; padding: 24px 30px 20px; border-bottom: 1px solid #9b815d66; }
+.archive-header h2 { font-size: 34px; margin: 10px 0 0; }
+.archive-close { flex: none; width: 44px; height: 44px; color: #31534f; background: transparent; font-size: 28px; }
+.archive-spread { display: grid; grid-template-columns: 1fr 1.05fr; }
+.archive-record { padding: 28px 30px; color: #344d49; background: #f4ebd7; box-shadow: inset -9px 0 14px -12px #6e553e; }
+.archive-file { font-size: 8px; letter-spacing: .14em; color: #8b765d; }
+.archive-record h3 { margin: 19px 0 16px; font: 28px/1.18 Georgia,serif; }
+.archive-record p:not(.archive-file) { font-size: 12px; line-height: 1.75; }
+.archive-record .archive-context { margin-top: 14px; color: #6b756a; }
+.sealed-message { margin-top: 25px; padding: 16px; border: 1px solid #9f866333; background: #ebe0c7; }
+.sealed-message span, .archive-preview span { display: block; margin-bottom: 10px; font-size: 8px; letter-spacing: .13em; }
+.sealed-message code, .archive-preview code { font: 700 clamp(15px,2vw,21px)/1.35 monospace; letter-spacing: .07em; }
+.decoder-machine { padding: 28px 30px 22px; color: #ecdec1; background: #1d4140; }
+.decoder-machine > .eyebrow { color: #dcb582; }
+.decoder-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 22px 0; }
+.ring-step { width: 44px; height: 44px; border: 1px solid #bea16e; color: #f0d6a5; background: #315653; font-size: 24px; }
+.archive-ring { --ring-turn:0deg; position: relative; width: 150px; height: 150px; border-radius: 50%; border: 9px double #8d613c; color: #173b3e; background: radial-gradient(circle,#efcf8e 0 28%,#b8864d 29% 36%,#ebc978 37% 55%,#795137 56% 61%,#c99755 62%); box-shadow: inset 0 0 0 3px #f7e3ab77, 0 5px 0 #102b2c, 0 0 0 2px #cfb078; }
+.archive-ring::before { content: '▲'; position: absolute; top: -19px; left: 50%; transform: translateX(-50%); color: #efb477; font-size: 18px; }
+.archive-ring .ring-letters { position: absolute; inset: 12px; display: grid; place-items: center; border: 1px dashed #6c4a32; border-radius: 50%; font: 600 7px monospace; transform: rotate(var(--ring-turn)); transition: transform .15s; }
+.archive-ring strong { position: relative; z-index: 1; display: block; font: 700 18px monospace; }
+.archive-ring small { position: relative; z-index: 1; display: block; margin-top: 5px; font-size: 7px; letter-spacing: .17em; }
+.archive-preview { min-height: 79px; padding: 13px 15px; color: #183b3d; background: #ead6a8; border: 2px solid #a77a4d; }
+.archive-preview span { color: #746047; }
+.archive-feedback { min-height: 45px; margin-top: 14px; color: #d5d7c4; font-size: 11px; line-height: 1.6; }
+.decoder-machine .signal-lever { margin-top: 15px; }
+.archive-bottom { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 26px; border-top: 1px solid #9b815d66; }
+#archive-status { font-size: 8px; letter-spacing: .1em; color: #786c55; }
+.archive-dialog.solved #archive-status { color: #286b58; }
+
+@media (max-width:640px) {
+  .archive-art::before { inset: 13% 3% 27%; }
+  .archive-shelves { left: 7%; top: 24%; width: 34%; }
+  .archive-desk-art { left: 43%; top: 50%; width: 39%; }
+  .room-archive #hotspot-archiveShelves { --x:24%!important; --y:47%!important; }
+  .room-archive #hotspot-archiveDesk { --x:62%!important; --y:65%!important; }
+  .room-archive #hotspot-archiveLantern { --x:88%!important; --y:48%!important; }
+  .archive-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .archive-header { padding: 18px; }
+  .archive-header h2 { font-size: 27px; }
+  .archive-spread { grid-template-columns: 1fr; }
+  .archive-record, .decoder-machine { padding: 21px; }
+  .archive-record h3 { font-size: 22px; margin: 12px 0; }
+  .archive-record .archive-context { display: none; }
+  .sealed-message { margin-top: 15px; padding: 12px; }
+  .decoder-controls { margin: 17px 0; }
+  .archive-ring { width: 126px; height: 126px; }
+  .archive-bottom { padding: 13px 18px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .archive-ring .ring-letters { transition: none; }
+}

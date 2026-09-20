@@ -73,16 +73,17 @@ describe('Workshop raid assembly', () => {
     expect(objective(assembled)).toBe('Take your place at the table');
     expect(hint(assembled).text).toContain('open chair');
     const joined = act(assembled, { type: 'complete-raid' }).state;
-    expect(objective(joined)).toBe('The First Raid awaits');
+    expect(objective(joined)).toBe('Follow the lantern signal into the Archive');
   });
 
   it('migrates completed v2 saves into the Workshop without losing prior progress', () => {
     const current = workshop();
     const { workshop: _workshop, ...v2 } = current;
     const migrated = parseSave(JSON.stringify({ ...v2, version: 2, room: 'crossing', position: { x: 88, y: 93 } }));
-    expect(migrated).toMatchObject({ version: 3, room: 'workshop', repaired: true, departed: true, transit: current.transit });
+    expect(migrated).toMatchObject({ version: 4, room: 'workshop', repaired: true, departed: true, transit: current.transit });
     expect(migrated?.position).toEqual({ x: 12, y: 91 });
     expect(migrated?.workshop).toMatchObject({ assembled: false, joined: false });
+    expect(migrated?.archive).toMatchObject({ shift: 0, attempts: 0, solved: false });
   });
 
   it('rejects impossible Workshop saves', () => {

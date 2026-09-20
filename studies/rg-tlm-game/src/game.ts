@@ -1,19 +1,22 @@
 import { actAtCrossing, crossingEntrance, crossingHint, initialTransit, routeMatches, type Transit } from './transit';
 import { actAtWorkshop, initialWorkshop, workshopEntrance, workshopHint, type WorkshopState } from './workshop';
+import { actAtArchive, archiveHint, initialArchive, type ArchiveState } from './archive';
 
 export type Item = 'notebook' | 'plate' | 'jack' | 'brief' | 'key' | 'thread';
 export type WorkshopNpc = 'orin' | 'mica' | 'sable';
 export type Target =
   | 'rook' | 'walker' | 'plate' | 'jack' | 'repair' | 'shelter' | 'exit'
   | 'citadel' | 'inscription' | 'pedestal' | 'arch'
-  | WorkshopNpc | 'ledger' | 'frame' | 'routeboard' | 'table' | 'window';
-export type Room = 'waystation' | 'crossing' | 'workshop';
+  | WorkshopNpc | 'ledger' | 'frame' | 'routeboard' | 'table' | 'window'
+  | 'archiveDoor' | 'archiveDesk' | 'archiveShelves' | 'archiveLantern';
+export type Room = 'waystation' | 'crossing' | 'workshop' | 'archive';
 export type Location = 'ground' | 'inventory' | 'placed' | 'packed';
 export interface State {
-  version: 3;
+  version: 4;
   room: Room;
   transit: Transit;
   workshop: WorkshopState;
+  archive: ArchiveState;
   started: boolean;
   metRook: boolean;
   plate: Location;
@@ -34,14 +37,18 @@ export type Action =
   | { type: 'turn-ring'; ring: 'destination' | 'beacon'; direction: 1 | -1 }
   | { type: 'transmit' }
   | { type: 'cross' }
-  | { type: 'complete-raid' };
+  | { type: 'complete-raid' }
+  | { type: 'enter-archive' }
+  | { type: 'leave-archive' }
+  | { type: 'turn-archive-ring'; direction: 1 | -1 }
+  | { type: 'confirm-archive' };
 
 export const SAVE_KEY = 'raidguild:last-mile:room-one';
 export const labels: Record<Item, string> = {
   notebook: 'Notebook', plate: 'Cargo plate', jack: 'Screw jack', brief: 'Raid brief', key: 'Continuity key', thread: 'Route thread',
 };
 export const initialState = (): State => ({
-  version: 3, room: 'waystation', transit: initialTransit(), workshop: initialWorkshop(), started: false, metRook: false,
+  version: 4, room: 'waystation', transit: initialTransit(), workshop: initialWorkshop(), archive: initialArchive(), started: false, metRook: false,
   plate: 'ground', jack: 'ground', repaired: false, departed: false, position: { x: 20, y: 91 },
 });
 export const inventory = (s: State): Item[] => [
@@ -50,12 +57,13 @@ export const inventory = (s: State): Item[] => [
   ...(['brief', 'key', 'thread'] as const).filter(i => s.workshop[i] === 'inventory'),
 ];
 export const clampPosition = (x: number, y: number, room: Room = 'waystation') => ({
-  x: Math.max(room === 'crossing' ? 12 : room === 'workshop' ? 8 : 9, Math.min(room === 'workshop' ? 94 : 91, x)),
-  y: Math.max(room === 'crossing' ? 91 : room === 'workshop' ? 82 : 85, Math.min(room === 'crossing' ? 96 : room === 'workshop' ? 95 : 94, y)),
+  x: Math.max(room === 'crossing' ? 12 : room === 'workshop' || room === 'archive' ? 8 : 9, Math.min(room === 'workshop' || room === 'archive' ? 94 : 91, x)),
+  y: Math.max(room === 'crossing' ? 91 : room === 'workshop' || room === 'archive' ? 82 : 85, Math.min(room === 'crossing' ? 96 : room === 'workshop' || room === 'archive' ? 95 : 94, y)),
 });
 export const objective = (s: State) => {
+  if (s.room === 'archive') return s.archive.solved ? 'The First Raid awaits' : 'Decode the sealed lantern signal';
   if (s.room === 'workshop') {
-    if (s.workshop.joined) return 'The First Raid awaits';
+    if (s.workshop.joined) return 'Follow the lantern signal into the Archive';
     if (s.workshop.assembled) return 'Take your place at the table';
     const placed = [s.workshop.brief, s.workshop.key, s.workshop.thread].filter(value => value === 'placed').length;
     return placed ? `Assemble the raid · ${placed}/3 roles connected` : 'Meet the crew and assemble a raid';
@@ -65,6 +73,7 @@ export const objective = (s: State) => {
 };
 
 export function hint(s: State): Reply {
+  if (s.room === 'archive') return archiveHint(s);
   if (s.room === 'workshop') return workshopHint(s);
   if (s.room === 'crossing') return crossingHint(s);
   if (s.repaired) return { speaker: 'A way forward', text: 'Rook promised you a ride. Talk to her, or choose the road ahead when you are ready.' };
@@ -75,6 +84,7 @@ export function hint(s: State): Reply {
 
 export function act(state: State, action: Action): Result {
   const s = structuredClone(state);
+  if (s.room === 'archive') return actAtArchive(s, action);
   if (s.room === 'workshop') return actAtWorkshop(s, action);
   if (s.room === 'crossing') {
     const result = actAtCrossing(s, action);
@@ -155,11 +165,20 @@ function validWorkshop(w: unknown): w is WorkshopState {
   return Boolean(value.assembled) === assembled && (!value.joined || assembled);
 }
 
+function validArchive(a: unknown): a is ArchiveState {
+  if (!a || typeof a !== 'object') return false;
+  const value = a as Record<string, unknown>;
+  return Number.isInteger(value.shift) && Number(value.shift) >= 0 && Number(value.shift) < 26
+    && Number.isInteger(value.attempts) && Number(value.attempts) >= 0 && Number(value.attempts) <= 25
+    && typeof value.solved === 'boolean'
+    && (!value.solved || value.shift === 7);
+}
+
 export function parseSave(raw: string | null): State | null {
   if (!raw) return null;
   try {
     const s = JSON.parse(raw);
-    if (!s || ![1, 2, 3].includes(s.version) || !['started', 'metRook', 'repaired', 'departed'].every(k => typeof s[k] === 'boolean')) return null;
+    if (!s || ![1, 2, 3, 4].includes(s.version) || !['started', 'metRook', 'repaired', 'departed'].every(k => typeof s[k] === 'boolean')) return null;
     if (!['ground', 'inventory', 'placed', 'packed'].includes(s.plate) || !['ground', 'inventory', 'placed', 'packed'].includes(s.jack)) return null;
     if (!s.position || !Number.isFinite(s.position.x) || !Number.isFinite(s.position.y)) return null;
     if (s.jack === 'placed' && s.plate !== 'placed') return null;
@@ -169,18 +188,22 @@ export function parseSave(raw: string | null): State | null {
     if (!s.started && (s.metRook || s.repaired || s.plate !== 'ground' || s.jack !== 'ground')) return null;
     const transit = s.version === 1 ? initialTransit() : s.transit;
     if (!validTransit(transit) || (transit.completed && !transit.active) || (transit.active && !routeMatches(transit))) return null;
-    const workshop = s.version === 3 ? s.workshop : initialWorkshop();
+    const workshop = s.version >= 3 ? s.workshop : initialWorkshop();
     if (!validWorkshop(workshop)) return null;
+    const archive = s.version === 4 ? s.archive : initialArchive();
+    if (!validArchive(archive)) return null;
     let room: Room = s.version === 1 ? s.departed ? 'crossing' : 'waystation' : s.room;
     if (s.version < 3 && transit.completed) room = 'workshop';
-    if (!['waystation', 'crossing', 'workshop'].includes(room)) return null;
+    if (!['waystation', 'crossing', 'workshop', 'archive'].includes(room)) return null;
     if (room === 'waystation' && (s.departed || transit.destination !== 0 || transit.beacon !== 0 || transit.notebookRead || transit.active || transit.completed)) return null;
     if (room === 'crossing' && (!s.departed || transit.completed)) return null;
     if (room === 'workshop' && (!s.departed || !transit.completed)) return null;
+    if (room === 'archive' && (!s.departed || !transit.completed || !workshop.joined || s.version < 4)) return null;
     const position = room === 'workshop' ? (s.version < 3 ? workshopEntrance() : clampPosition(s.position.x, s.position.y, room))
+      : room === 'archive' ? clampPosition(s.position.x, s.position.y, room)
       : s.version === 1 && s.departed ? crossingEntrance() : clampPosition(s.position.x, s.position.y, room);
     return {
-      version: 3, room, transit: { ...transit }, workshop: { ...workshop }, started: s.started, metRook: s.metRook,
+      version: 4, room, transit: { ...transit }, workshop: { ...workshop }, archive: { ...archive }, started: s.started, metRook: s.metRook,
       plate: s.plate, jack: s.jack, repaired: s.repaired, departed: s.departed, position,
     };
   } catch { return null; }

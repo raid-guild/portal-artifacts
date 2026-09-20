@@ -27,5 +27,12 @@ export const roomTargets: Record<Room, Partial<Record<Target, SceneTarget>>> = {
     frame: { label: 'Signal frame', x: 72, y: 60, stand: 69 },
     routeboard: { label: 'Route board', x: 83, y: 59, stand: 80 },
     table: { label: 'Shared raid table', x: 70, y: 70, stand: 67 },
+    archiveDoor: { label: 'Archive door', x: 28, y: 58, stand: 31 },
+  },
+  archive: {
+    archiveDoor: { label: 'Workshop door', x: 10, y: 63, stand: 14 },
+    archiveShelves: { label: 'History shelves', x: 25, y: 43, stand: 30 },
+    archiveDesk: { label: 'ROT decoder desk', x: 62, y: 61, stand: 59 },
+    archiveLantern: { label: 'Signal lantern', x: 86, y: 43, stand: 81 },
   },
 };

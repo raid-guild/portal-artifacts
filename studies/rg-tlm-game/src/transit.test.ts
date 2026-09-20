@@ -52,7 +52,7 @@ describe('save migration and crossing validation', () => {
   it('migrates unfinished v1 saves without resetting tools or position', () => {
     const { room, transit, ...s } = { ...initialState(), started: true, plate: 'inventory' };
     const migrated = parseSave(JSON.stringify({ ...s, version: 1 }));
-    expect(migrated).toMatchObject({ version: 3, room: 'waystation', plate: 'inventory', position: s.position });
+    expect(migrated).toMatchObject({ version: 4, room: 'waystation', plate: 'inventory', position: s.position });
   });
   it('migrates departed v1 saves directly to the crossing entrance', () => {
     const { room, transit, ...s } = repaired();
