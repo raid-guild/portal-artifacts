@@ -1,5 +1,26 @@
 # Portal optimization work log
 
+## September 20, 2026 — request #2929
+
+- Fast-forwarded the request branch to the exact deployed/reviewed Archive
+  source commit `19b972a941c9c39a82d3f9023c71997da02fd5d1` before implementation.
+- Preserved the approved generated 1774×887 transparent prop sheet, its request
+  artifact provenance, approved prompt metadata, and SHA-256 source hash.
+- Replaced only the code-authored history shelves, ROT decoder desk, and signal
+  lantern visuals with three tight quality-90 transparent WebP crops totaling
+  285,424 bytes. The established wall/floor composition, traveler layering,
+  hotspot semantics, story, decoder modal, and puzzle behavior are unchanged.
+- Kept Archive art deferred until the room becomes active and synchronized the
+  editable source, generated Vite output, public runtime assets, source records,
+  and asset manifest.
+- Implementation validation: `npm test` passed 33 tests; TypeScript and the
+  production `/rg-tlm-game/` build passed; Playwright passed all 17 scenarios
+  serially, including desktop/mobile Archive, reduced motion, keyboard/touch,
+  save/reload, and sandboxed iframe coverage. Browser checks confirmed all three
+  prop images decoded and desktop/mobile captures were visually reviewed.
+- No puzzle state, save schema, public path, backend, credential, shared host
+  policy, Portal launcher, deployment, or unrelated artifact was changed.
+
 ## September 20, 2026 — request #2914
 
 - Based the Archive revision on current main commit

@@ -66,6 +66,9 @@ invariants remain validated.
 ## Acceptance checklist
 
 - [x] Exact plaintext and ROT behavior have focused unit coverage.
+- [x] Approved generated shelves, ROT decoder desk, and signal lantern replace
+  the three code-authored placeholders; source PNG, prompt, crop records,
+  optimized transparent WebPs, and public output are synchronized.
 - [x] Wrong checks, progressive hints, wraparound, completion, repeat actions,
   room return, save round-trip, v3 migration, and impossible saves are covered.
 - [x] Desktop, portrait mobile, reduced motion, keyboard, pointer/touch-sized

@@ -1,0 +1,33 @@
+{
+  "file": "original-art/cypherpunk-archive-props-v1.png",
+  "request": 2929,
+  "artifactId": "c10fb6b8-bdfd-4a6e-9856-475d5a5eaba5",
+  "artifactName": "cypherpunk-archive-props-v1.png",
+  "source": "built-in-imagegen",
+  "approvedBySourceMessageId": "1551334978531360829",
+  "prompt": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
+  "promptSource": "Request artifact metadata.promptSummary",
+  "dimensions": "1774x887",
+  "sha256": "7f9bd3e0e9f588cdfb4342c979853dd39a1a6e0f9ced819303dfb361976b7473",
+  "role": "Approved transparent source prop sheet. Runtime crops do not redraw or materially alter the props.",
+  "runtimeDerivatives": [
+    {
+      "file": "public/rg-tlm-game/art/archive-history-shelves-v1.webp",
+      "crop": { "x": 42, "y": 32, "width": 600, "height": 814 },
+      "quality": 90,
+      "sha256": "d358ba68bfda6348a9646b3972a675fafeb15b9f5bbcfdda818f75a62cb04093"
+    },
+    {
+      "file": "public/rg-tlm-game/art/archive-rot-decoder-v1.webp",
+      "crop": { "x": 647, "y": 312, "width": 768, "height": 491 },
+      "quality": 90,
+      "sha256": "b1760470f4cda14d3c91db2be73855153d3c274142a1531b7e0f234b7d16ed6c"
+    },
+    {
+      "file": "public/rg-tlm-game/art/archive-signal-lantern-v1.webp",
+      "crop": { "x": 1455, "y": 161, "width": 284, "height": 518 },
+      "quality": 90,
+      "sha256": "f168a4a90c56ba78b0bfc107838c4a9510eb644b31b8c2b2730dee9036db9729"
+    }
+  ]
+}

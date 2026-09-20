@@ -31,6 +31,8 @@ test('desktop Archive decodes the lantern signal, gives progressive help, and sa
   page.on('response', response => { if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`); });
   await startArchive(page);
   await expect(page.locator('.archive-art')).toBeVisible();
+  await expect(page.locator('.archive-prop')).toHaveCount(3);
+  expect(await page.locator('.archive-prop').evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
   await expect(page.getByRole('button', { name: 'History shelves', exact: true })).toBeVisible();
   await page.screenshot({ path: 'art/qa/archive-desktop-arrival.png', fullPage: true });
 
@@ -64,6 +66,8 @@ test('desktop Archive decodes the lantern signal, gives progressive help, and sa
 test('mobile reduced-motion Archive supports touch-sized controls without overflow', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await startArchive(page, { width: 390, height: 844 });
+  await expect(page.locator('.archive-prop')).toHaveCount(3);
+  await page.screenshot({ path: 'art/qa/archive-mobile-arrival.png', fullPage: true });
   await page.getByRole('button', { name: 'ROT decoder desk', exact: true }).click();
   await page.getByRole('button', { name: 'Use the decoder ring', exact: true }).click();
   await page.getByRole('button', { name: 'Turn decoder ring forward', exact: true }).click();

@@ -45,7 +45,11 @@ app.innerHTML = `
         <img class="background crossing-art" data-src="${art}crossing-background-v1.webp" alt="A stone transit landing overlooking the floating coral citadel, with Rook docked beneath an old arch." draggable="false" />
         <img class="background crossing-art" id="crossing-active" data-src="${art}crossing-active-v1.webp" alt="" draggable="false" />
         <img class="background workshop-art" data-src="${art}workshop-background-v2.webp" alt="A sunlit common workshop inside the floating citadel, where three guild roles wait around a shared raid table." draggable="false" />
-        <div class="archive-art" aria-hidden="true"><div class="archive-shelves"></div><div class="archive-desk-art"></div><div class="archive-lantern-art"></div></div>
+        <div class="archive-art" aria-hidden="true">
+          <img class="archive-prop archive-shelves" data-src="${art}archive-history-shelves-v1.webp" alt="" draggable="false" />
+          <img class="archive-prop archive-desk-art" data-src="${art}archive-rot-decoder-v1.webp" alt="" draggable="false" />
+          <img class="archive-prop archive-lantern-art" data-src="${art}archive-signal-lantern-v1.webp" alt="" draggable="false" />
+        </div>
         <div class="scene-content" id="scene-content" inert>
           <div id="destination" class="destination" aria-hidden="true"></div>
           <div id="rook" class="rook" aria-hidden="true"><span class="rook-shadow"></span><canvas id="rook-sprite"></canvas></div>
@@ -108,10 +112,9 @@ function renderPosition() {
   player.style.height = `${state.room === 'crossing' ? 39 + (state.position.y - 91) * .5 : state.room === 'workshop' || state.room === 'archive' ? 40 + (state.position.y - 82) * .55 : 45 + (state.position.y - 85) * .8}%`;
 }
 function loadSceneArt(room: State['room'], includeAlternate = false) {
-  const selector = room === 'archive' ? '' : room === 'workshop' ? '.workshop-art' : room === 'crossing'
+  const selector = room === 'archive' ? '.archive-prop' : room === 'workshop' ? '.workshop-art' : room === 'crossing'
     ? includeAlternate ? '.crossing-art' : state.transit.active ? '#crossing-active' : '.crossing-art:not(#crossing-active)'
     : includeAlternate ? '.waystation-art' : state.repaired ? '#repaired-art' : '.waystation-art:not(#repaired-art)';
-  if (!selector) return;
   document.querySelectorAll<HTMLImageElement>(selector).forEach(img => {
     if (!img.hasAttribute('src')) img.src = img.dataset.src!;
   });
@@ -394,6 +397,6 @@ archiveEndingDialog.addEventListener('close', syncRook);
 
 render();
 if (!saveAvailable) el('save-status').textContent = 'Saving unavailable. Progress lasts for this visit.';
-Promise.all([traveler.ready, rookSprite.ready, toolsReady.decode(), ...Array.from(document.querySelectorAll<HTMLImageElement>('.background[src]')).map(img => img.decode())])
+Promise.all([traveler.ready, rookSprite.ready, toolsReady.decode(), ...Array.from(document.querySelectorAll<HTMLImageElement>('.background[src], .archive-prop[src]')).map(img => img.decode())])
   .then(() => { el<HTMLButtonElement>('begin').disabled = false; el('loading-note').textContent = recovery ? 'An older or unreadable save was found. A fresh journey is ready.' : 'Point, click, and take your time. Your progress is saved here.'; })
   .catch(() => { el('loading-note').textContent = 'The scene artwork could not load. Refresh the page to try again.'; });
