@@ -1,5 +1,34 @@
 # Portal optimization work log
 
+## September 20, 2026 — request #2914
+
+- Based the Archive revision on current main commit
+  `ff959f8bc0459b0134527e266668745021504e49`, which contains the exact preserved
+  Last Mile source restored by request #2891 / PR #35.
+- Added one code-authored Cypherpunk Archive annex after the Workshop and before
+  The First Raid, with one encrypted message, one 26-position ROT ring, live
+  preview, progressive hints, and the plaintext **SEND THE LANTERN**.
+- Embedded a concise note about Eric Hughes’s 1993 *A Cypherpunk’s Manifesto*
+  and its practical “Cypherpunks write code” emphasis. Adapted only Caesar
+  encode/decode and live-preview ideas from `forge-Cypherpunk-Archive` commit
+  `b031494b5c0e81cca1c56d082f70d366ca5670d6`; no backend, auth, database,
+  leaderboard, daily challenge, multi-station flow, or extra cipher was copied.
+- Kept `raidguild:last-mile:room-one` stable while adding validated save version
+  4. Versions 1–3 migrate without losing prior chapter progress.
+- Added focused unit and browser coverage for ring wraparound, wrong-answer
+  recovery, hints, save/reload, direct desktop/mobile, keyboard, touch-sized
+  controls, reduced motion, and a sandboxed Portal-style iframe.
+- Implementation validation: `npm test` passed 33 tests; TypeScript and the
+  production `/rg-tlm-game/` build passed; all 17 Playwright scenarios passed
+  serially. Direct and sandboxed production-output smokes loaded the exact
+  `game-DONGaaFd.js` and `game-DQuhsilD.css` bundles with no console errors,
+  failed requests, or horizontal overflow. Existing artwork hashes, generated
+  source/output byte comparisons, representative artifact route responses, and
+  `git diff --check` passed.
+- No new runtime image, backend, account, wallet, service, database, Portal
+  credential, private API, shared host policy, launcher, deployment, or unrelated
+  artifact was added or changed.
+
 ## September 19, 2026 — request #2858
 
 - Based the revision on deployed source commit `37a92895bc84e65b4d6f4be2386cbb9f81b708d5`

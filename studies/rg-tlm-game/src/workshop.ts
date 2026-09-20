@@ -1,4 +1,5 @@
 import type { Action, Item, Result, State, Target, WorkshopNpc } from './game';
+import { archiveEntrance } from './archive';
 
 export type WorkshopItemLocation = 'locked' | 'inventory' | 'placed';
 export interface WorkshopState {
@@ -40,7 +41,7 @@ const itemNames: Record<'brief' | 'key' | 'thread', string> = { brief: 'raid bri
 
 export function workshopHint(s: State) {
   const w = s.workshop;
-  if (w.joined) return { speaker: 'The next page', text: 'Your place is here. When you are ready, The First Raid begins beyond the workshop door.' };
+  if (w.joined) return { speaker: 'The next page', text: 'A lantern mark now glows above the archive door. Follow it before The First Raid begins.' };
   if (w.assembled) return { speaker: 'A place at the table', text: 'The raid is assembled. Return to the shared table and take the open chair.' };
   if (!w.metOrin || !w.metMica || !w.metSable) {
     const missing = !w.metOrin ? 'Keeper Orin' : !w.metMica ? 'Mica at the workbench' : 'Sable by the map shelves';
@@ -97,9 +98,15 @@ export function actAtWorkshop(s: State, action: Action): Result {
   }
   if (action.type === 'complete-raid') {
     if (!w.assembled) return say('The chair can wait. Connect the context, build, and route first—no one joins by pretending the work is done.', 'Keeper Orin');
-    if (w.joined) return say('Your cup, notebook, and chair are still here. The First Raid is waiting whenever you are.', 'The Workshop');
+    if (w.joined) return say('Your cup, notebook, and chair are still here. A lantern mark glows over the archive door.', 'The Workshop');
     w.joined = true;
-    return say('Orin turns the open chair toward you. Mica makes room for your notebook; Sable adds your route to the map. “Welcome,” Orin says. “Now—about that walking lantern.”', 'A place at the table');
+    return say('Orin turns the open chair toward you. Mica makes room for your notebook; Sable adds your route to the map. A lantern mark wakes above the archive door. “One message before your first raid,” Orin says.', 'A place at the table');
+  }
+  if (action.type === 'enter-archive') {
+    if (!w.joined) return say('The archive opens to Guild members. Finish assembling the raid and take your place first.', 'Archive door');
+    s.room = 'archive';
+    s.position = archiveEntrance();
+    return say('The archive is cool and quiet. One brass decoder waits beneath a sealed message; beyond it, an unlit lantern.', 'The Cypherpunk Archive');
   }
   return say('Listen to the crew, gather what each role knows, and connect their work at the shared table.', 'The Workshop');
 }

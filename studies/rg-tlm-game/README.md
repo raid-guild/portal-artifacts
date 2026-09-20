@@ -46,5 +46,10 @@ The Workshop added for request #2866 is specified in
 runtime derivative, migration notes, interaction map, and QA contract are kept
 beside the earlier chapter records.
 
+The focused Cypherpunk Archive ROT room added for request #2914 is specified in
+[`docs/ARCHIVE.md`](docs/ARCHIVE.md). It preserves the existing art and runtime,
+adds a code-authored Archive annex and one decoder, and records the exact
+upstream inspiration commit used for its Caesar logic and interaction pattern.
+
 The game is static and browser-local. It does not use Portal credentials,
 cookies, private APIs, wallet access, a backend, or a database.
