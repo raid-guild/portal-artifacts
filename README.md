@@ -78,10 +78,20 @@ lane shooter. Editable Three.js/TypeScript source, focused simulation tests,
 the supplied GLB models, and build instructions are in
 `studies/cosmic-carnival/`.
 
+## RaidGuild: The Last Mile
+
+`public/rg-tlm-game/` contains the pinned production build of the three-chapter
+point-and-click adventure. The canonical editable source remains in
+[`raid-guild/rg-tlm-game`](https://github.com/raid-guild/rg-tlm-game); build
+provenance and the reproducible subpath build command are recorded in
+`studies/rg-tlm-game/README.md`.
+
 ## Published artifacts
 
 - `raidguild-radio/` — Ambient desert-walker cockpit with a looping six-song playlist, crossfades, weather, and day/night controls. Opens at night; click Start listening to enable audio. All media is served locally.
 
+- `rg-tlm-game/` — **RaidGuild: The Last Mile**, a three-chapter point-and-click
+  adventure through a desert waystation, transit crossing, and shared Workshop.
 - `jev-maze/` — Live Jev maze and semantic-navigation experiment, with visitor-owned keys and three algorithmic baselines.
 
 - `jev-memory-lab/` — Offline JEV classification demo: all 85 recorded memory candidates stream through an 18-second batch visualizer, with accumulating classifications, abstentions, and ownership relationships. No live key or API calls. See `studies/jev-memory-lab/README.md`.

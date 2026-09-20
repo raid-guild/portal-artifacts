@@ -1,0 +1,32 @@
+.workshop-art { display: none; }
+.inventory { flex-wrap: wrap; }
+.room-workshop .workshop-art { display: block; }
+.room-workshop .waystation-art,
+.room-workshop .crossing-art,
+.room-workshop #rook,
+.room-workshop .ground-prop,
+.room-workshop .scene-ring { display: none; }
+.room-workshop .player-shadow { background: #493a3066; }
+.room-workshop .hotspot-dot { border-color: #ffe7bc; background: #234d4bbd; }
+.room-workshop .hotspot.station-complete .hotspot-dot { color: #173b3e; background: #f0c986; border-color: #fff1c9; font-size: 0; }
+.room-workshop .hotspot.station-complete .hotspot-dot::after { content: '✓'; font-size: 14px; font-weight: 700; }
+.room-workshop.workshop-assembled #hotspot-table .hotspot-dot { animation: table-ready 1.8s ease-in-out infinite; background: #e6a477; color: #173b3e; }
+.room-workshop #hotspot-window .hotspot-label { left: 4px; }
+.room-workshop #hotspot-mica .hotspot-label,
+.room-workshop #hotspot-routeboard .hotspot-label { right: 3px; }
+@keyframes table-ready { 50% { box-shadow: 0 0 0 9px #f2c89338, 0 1px 7px #16262b55; } }
+
+@media (max-width: 640px) {
+  .room-workshop #hotspot-window { --x: 14% !important; --y: 33% !important; }
+  .room-workshop #hotspot-sable { --x: 39% !important; --y: 48% !important; }
+  .room-workshop #hotspot-orin { --x: 64% !important; --y: 46% !important; }
+  .room-workshop #hotspot-mica { --x: 89% !important; --y: 46% !important; }
+  .room-workshop #hotspot-ledger { --y: 64% !important; }
+  .room-workshop #hotspot-frame { --y: 64% !important; }
+  .room-workshop #hotspot-routeboard { --x: 85% !important; --y: 64% !important; }
+  .room-workshop #hotspot-table { --y: 74% !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-workshop.workshop-assembled #hotspot-table .hotspot-dot { animation: none; box-shadow: 0 0 0 5px #f2c89338; }
+}

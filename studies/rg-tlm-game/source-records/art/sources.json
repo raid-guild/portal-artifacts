@@ -1,0 +1,40 @@
+[
+  {
+    "file": "hero-light-poster.png",
+    "source": "https://raidguild-website-redesign-production.up.railway.app/images/neo/hero-light-poster.png",
+    "role": "Brand visual reference; not a generated game asset"
+  },
+  {
+    "file": "guild-builders-v1.png",
+    "source": "https://raidguild-website-redesign-production.up.railway.app/images/neo/guild-builders-v1.png",
+    "role": "Brand visual reference; not a generated game asset"
+  },
+  {
+    "file": "sky-citadel.png",
+    "source": "https://raidguild-website-redesign-production.up.railway.app/images/neo/sky-citadel.png",
+    "role": "Brand visual reference; not a generated game asset"
+  },
+  {
+    "file": "original-art/workshop-background-v1.png",
+    "source": "Recovered request #2866 implementation draft",
+    "role": "Local edit target and composition reference for the production Workshop background",
+    "dimensions": "1672x941",
+    "sha256": "2cceb5fec355fddf75a8042f8f4dba4d3cae2ce72c37f37d8cc85ed7bfa0156c"
+  },
+  {
+    "file": "original-art/workshop-background-v2.png",
+    "source": "Built-in image generation edit, September 20, 2026",
+    "role": "Production Workshop background master",
+    "input": "original-art/workshop-background-v1.png",
+    "prompt": "source-records/art/prompts/workshop-background-v2.txt",
+    "dimensions": "1672x941",
+    "sha256": "3d1d5b15325786b31589f7c1b3a60a3312279b203b7d1eda38865ebe14bb23a7"
+  },
+  {
+    "file": "public/rg-tlm-game/art/workshop-background-v2.webp",
+    "source": "Browser-native WebP derivative of workshop-background-v2.png at quality 86",
+    "role": "Production runtime Workshop background",
+    "dimensions": "1672x941",
+    "sha256": "469636a530454e72fc2cac514c231cae4819a2fc505961a48b238657d1314b06"
+  }
+]
