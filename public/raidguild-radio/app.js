@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id), room=$('room');
 let still=matchMedia('(prefers-reduced-motion: reduce)').matches, focused=false;
-function setMotion(){room.classList.toggle('still',still);$('motion').textContent=still?'Resume motion':'Pause motion';$('motion').setAttribute('aria-pressed',String(still));}
+function setMotion(){room.classList.toggle('still',still);$('motion').textContent=still?'Resume motion':'Pause motion';$('motion').setAttribute('aria-pressed',String(still));if(typeof wakeScene==='function')wakeScene();}
 setMotion();$('motion').onclick=()=>{still=!still;setMotion()};
 function focusRoom(v){focused=v;room.classList.toggle('focused',v);(v?$('restore'):$('focus')).focus()}
 $('focus').onclick=()=>focusRoom(true);$('restore').onclick=()=>focusRoom(false);
@@ -25,11 +25,30 @@ decks.forEach((d,i)=>{d.addEventListener('ended',()=>{if(i===active&&playing){if
 $('play').onclick=async()=>{if(busy)return;busy=true;$('startListening').disabled=true;$('startListening').textContent='Starting…';try{if(!ac)init();if(playing){decks.forEach(d=>d.pause());await ac.suspend();playing=false}else{await ac.resume();await decks[active].play();if(fade)await decks[1-active].play();playing=true;volumes()}$('notice').textContent='';update()}catch{decks.forEach(d=>d.pause());if(ac)await ac.suspend();playing=false;update();$('notice').textContent='Playback could not start. Press Play to try again.'}finally{busy=false}};
 async function choose(n){if(busy)return;busy=true;try{decks.forEach(d=>d.pause());fade=null;index=n;loadDeck(active,index);loadDeck(1-active,(index+1)%tracks.length);if(playing){await ac.resume();await decks[active].play()}volumes();$('notice').textContent='';update()}catch{playing=false;if(ac)await ac.suspend();update();$('notice').textContent='This song could not start. Press Play to retry.'}finally{busy=false}}
 $('next').onclick=()=>choose((index+1)%tracks.length);$('trackSelect').onchange=()=>choose(+$('trackSelect').value);$('music').oninput=volumes;$('weather').oninput=volumes;
-const canvas=$('rain'),g=canvas.getContext('2d');let w=0,h=0,last=0,elapsed=0,cycle=0;
-const particles=Array.from({length:170},()=>({x:Math.random(),y:Math.random(),speed:.06+Math.random()*.16,r:.5+Math.random()*1.5,phase:Math.random()*Math.PI*2}));
-function resize(){w=innerWidth;h=room.clientHeight;const d=Math.min(devicePixelRatio,2);canvas.width=w*d;canvas.height=h*d;g.setTransform(d,0,0,d,0,0)}addEventListener('resize',resize);new ResizeObserver(resize).observe(room);resize();
-function light(){const mode=$('daytime').value;let night=mode==='night'?1:0,dusk=mode==='dusk'?1:0;if(mode==='auto'){night=(1-Math.cos(cycle/360*Math.PI*2))/2;dusk=Math.pow(Math.sin(cycle/360*Math.PI*2),6)*.65}room.style.setProperty('--night',night);room.style.setProperty('--dusk',dusk);room.style.setProperty('--scene-brightness',1-night*.65);room.style.setProperty('--scene-saturation',1-night*.32);room.style.setProperty('--scene-sepia',dusk*.36);$('clock').textContent=mode==='auto'?'DAY / NIGHT · 6 MIN CYCLE':mode.toUpperCase()+' / '+$('conditions').selectedOptions[0].textContent.toUpperCase()}
-$('daytime').onchange=()=>{cycle=0;light()};$('conditions').onchange=()=>{room.dataset.weather=$('conditions').value;volumes();light()};light();
-function draw(t){const dt=Math.min((t-last)/1000,.1);last=t;if(!still&&!document.hidden){elapsed+=dt;cycle=(cycle+dt)%360;if($('daytime').value==='auto')light()}g.clearRect(0,0,w,h);const scale=Math.max(w/1672,h/941)*1.035,ox=(w-1672*scale)/2,oy=(h-941*scale)/2;g.save();g.translate(ox,oy);g.scale(scale,scale);g.beginPath();g.moveTo(130,210);g.quadraticCurveTo(840,30,1530,210);g.lineTo(1560,586);g.quadraticCurveTo(840,510,100,602);g.closePath();g.clip();const weather=$('conditions').value;if(weather==='dust'){g.fillStyle='rgba(216,171,108,.24)';g.fillRect(0,0,1672,941)}if(weather==='rain'){g.fillStyle='rgba(43,72,92,.18)';g.fillRect(0,0,1672,941)}for(let i=0;i<particles.length;i++){if(weather==='clear'&&i>28)break;const p=particles[i],speed=weather==='rain'?p.speed:weather==='dust'?p.speed*.25:p.speed*.025;const x=((p.x+elapsed*speed*(weather==='rain'?.09:1))%1)*1672,y=((p.y+elapsed*speed*(weather==='rain'?1:.02))%1)*620;if(weather==='rain'){g.strokeStyle='rgba(225,241,242,.38)';g.lineWidth=.8;g.beginPath();g.moveTo(x,y);g.lineTo(x-4,y+12+p.r*5);g.stroke()}else{g.fillStyle=`rgba(255,230,166,${weather==='dust'?.45:.2})`;g.beginPath();g.arc(x,y+Math.sin(elapsed*.3+p.phase)*4,p.r,0,Math.PI*2);g.fill()}}g.restore();requestAnimationFrame(draw)}requestAnimationFrame(draw);
+const canvas=$('rain'),g=canvas.getContext('2d');
+let w=0,h=0,last=null,elapsed=0,cycle=0,nightLevel=1,frame=null;
+const art=document.querySelector('.art');
+const scene=WalkerScene.create();
+function resize(){w=innerWidth;h=room.clientHeight;const d=Math.min(devicePixelRatio,2);canvas.width=w*d;canvas.height=h*d;g.setTransform(d,0,0,d,0,0);wakeScene()}
+addEventListener('resize',resize);new ResizeObserver(resize).observe(room);resize();
+function light(){const mode=$('daytime').value;let night=mode==='night'?1:0,dusk=mode==='dusk'?1:0;if(mode==='auto'){night=(1-Math.cos(cycle/360*Math.PI*2))/2;dusk=Math.pow(Math.sin(cycle/360*Math.PI*2),6)*.65}nightLevel=night;room.style.setProperty('--night',night);room.style.setProperty('--dusk',dusk);room.style.setProperty('--scene-brightness',1-night*.65);room.style.setProperty('--scene-saturation',1-night*.32);room.style.setProperty('--scene-sepia',dusk*.36);$('clock').textContent=mode==='auto'?'DAY / NIGHT · 6 MIN CYCLE':mode.toUpperCase()+' / '+$('conditions').selectedOptions[0].textContent.toUpperCase()}
+$('daytime').onchange=()=>{cycle=0;light();wakeScene()};
+$('conditions').onchange=()=>{room.dataset.weather=$('conditions').value;volumes();light();wakeScene()};light();
+function wakeScene(){
+  // setMotion runs before the scene is initialized on first load.
+  if(typeof sceneReady==='undefined'||!sceneReady)return;
+  if(frame===null&&!document.hidden)frame=requestAnimationFrame(draw);
+}
+function draw(t){
+  frame=null;
+  const dt=last===null?0:Math.min((t-last)/1000,.05);last=t;
+  if(!still&&!document.hidden){elapsed+=dt;cycle=(cycle+dt)%360;if($('daytime').value==='auto')light()}
+  scene.render(g,art,{width:w,height:h,time:elapsed,night:nightLevel,weather:$('conditions').value,motion:!still});
+  if(!still&&!document.hidden)frame=requestAnimationFrame(draw);
+}
+var sceneReady=true;
+document.addEventListener('visibilitychange',()=>{last=null;if(document.hidden&&frame!==null){cancelAnimationFrame(frame);frame=null}else wakeScene()});
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',e=>{still=e.matches;setMotion()});
+wakeScene();
 
 $('startListening').onclick=()=> $('play').onclick();
