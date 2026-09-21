@@ -46,6 +46,13 @@ The Workshop added for request #2866 is specified in
 runtime derivative, migration notes, interaction map, and QA contract are kept
 beside the earlier chapter records.
 
+The Archive prop revision for request #2929 preserves its approved transparent
+PNG master in `original-art/` and uses three quality-90 WebP crops in the public
+artifact. The request-artifact provenance, signed C2PA generation metadata,
+prompt-recovery limitation, approved summary, crop rectangles, and hashes are
+recorded in `source-records/art/cypherpunk-archive-props-v1.json`. The exact
+submitted prompt was not retained and is not represented by the summary.
+
 The focused Cypherpunk Archive ROT room added for request #2914 is specified in
 [`docs/ARCHIVE.md`](docs/ARCHIVE.md). It preserves the existing art and runtime,
 adds a code-authored Archive annex and one decoder, and records the exact

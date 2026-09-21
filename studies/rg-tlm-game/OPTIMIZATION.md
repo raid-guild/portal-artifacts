@@ -46,3 +46,19 @@ A fresh production-build smoke run at 1440×900 loaded 10 subresources and
 the likely crossing background was prepared while the Workshop remained
 unrequested. The production bundles are 22.40 KB gzip for game JS, 14.79 KB for
 the shared traveler module, and 6.39 KB for game CSS, within the guide budgets.
+
+## Archive prop integration — September 20, 2026
+
+The approved 1774×887 transparent PNG master is 1,605,043 bytes. Three tight,
+transparent browser-native WebP crops at quality 90 total 285,424 bytes: 132,132
+bytes for the 600×814 shelves, 104,990 bytes for the 768×491 decoder desk, and
+48,302 bytes for the 284×518 lantern (82.2% below the source sheet). Cropping
+uses only transparent separation between the supplied props; no prop was
+redrawn or materially altered. The exact crop rectangles, hashes, prompt, and
+request-artifact provenance are recorded under `source-records/art/`.
+
+The three derivatives remain unloaded during a fresh chapter-one session and
+receive `src` only when the Archive is active. Desktop and mobile Archive
+captures were visually reviewed after browser decode for intact transparent
+edges, full silhouettes, coherent scale, hotspot alignment, and unobstructed
+controls.

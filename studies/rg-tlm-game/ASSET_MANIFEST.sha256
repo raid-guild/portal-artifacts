@@ -1,3 +1,6 @@
+d358ba68bfda6348a9646b3972a675fafeb15b9f5bbcfdda818f75a62cb04093  public/rg-tlm-game/art/archive-history-shelves-v1.webp
+b1760470f4cda14d3c91db2be73855153d3c274142a1531b7e0f234b7d16ed6c  public/rg-tlm-game/art/archive-rot-decoder-v1.webp
+f168a4a90c56ba78b0bfc107838c4a9510eb644b31b8c2b2730dee9036db9729  public/rg-tlm-game/art/archive-signal-lantern-v1.webp
 c7298cf7de41e71734567f3ee7c5d77d559489ca64138487be3563df580e20a2  public/rg-tlm-game/art/crossing-active-v1.webp
 14047b8d5d8966cebe55123dbf7a0d36ba7deb6ecf3b3c7b095c5366cf27ec16  public/rg-tlm-game/art/crossing-background-v1.webp
 469636a530454e72fc2cac514c231cae4819a2fc505961a48b238657d1314b06  public/rg-tlm-game/art/workshop-background-v2.webp
@@ -11,6 +14,7 @@ a2dffe893bfdb55b44093646f5d88e3a0ecfe630e92a752200f2daea4bfd2a2c  public/rg-tlm-
 493f6c059a65a1aa2629524a46685c2f855b8b7b5c96b018b1f8953c39a3087e  public/rg-tlm-game/art/sprites/traveler-right-v1.webp
 5d840e86b962f9c31ae3fe1af07e9fef87ca28f37f2289421d1b8090856b2d62  public/rg-tlm-game/art/sprites/waystation-tools-v1.webp
 3c8e80da8639ec20a5ad073b52c5e571280d7fbf5ddd0dae31bad9f575fc3e72  public/rg-tlm-game/art/traveler-idle-v1.webp
+7f9bd3e0e9f588cdfb4342c979853dd39a1a6e0f9ced819303dfb361976b7473  studies/rg-tlm-game/original-art/cypherpunk-archive-props-v1.png
 b51b6c8a1323b9ed1c5e4e4bca00f38507b08f25ee03e24bfd227d8c8fdc61d1  studies/rg-tlm-game/original-art/crossing-active-v1.png
 eae8778b905bf113fbbbd030c41c8b9f6e68d890ed2707a4ca339e8b41d50183  studies/rg-tlm-game/original-art/crossing-background-v1.png
 9ef9c5ca99705170d7ba68564f7946814e2a87869d19be448626f8fc30c3e3f0  studies/rg-tlm-game/original-art/room-01-background-v1.png
@@ -25,6 +29,7 @@ c8c375f69314f756d48249cda088dfa6aecc6358dfb1551434a035677e3a086d  studies/rg-tlm
 32b33b2606539f51ba20967b6c4cf671578469c458b94e30adf0e40e1f3be98d  studies/rg-tlm-game/original-art/traveler-idle-v1.png
 2cceb5fec355fddf75a8042f8f4dba4d3cae2ce72c37f37d8cc85ed7bfa0156c  studies/rg-tlm-game/original-art/workshop-background-v1.png
 3d1d5b15325786b31589f7c1b3a60a3312279b203b7d1eda38865ebe14bb23a7  studies/rg-tlm-game/original-art/workshop-background-v2.png
+b4152534a5922f24bcb4b4a8dd775f5f15d403ae212f865ef7f853bf441a14f6  studies/rg-tlm-game/source-records/art/prompts/cypherpunk-archive-props-v1.txt
 66cc304b0418330b54f06443cbf1487ce62adbd1b73b79ca84e5455fc41dcb37  studies/rg-tlm-game/source-records/art/prompts/crossing-active-v1.txt
 caecc9beda8dd537ebbb16e250d0aa5f8425970f54d34830fe8630a94a7de3a3  studies/rg-tlm-game/source-records/art/prompts/crossing-background-v1.txt
 ea5d9295b4146e20cfb7b5374549cc97c924baa9171f2925f7f0187de43e4218  studies/rg-tlm-game/source-records/art/prompts/crossing-production-notes.md
@@ -48,4 +53,5 @@ e5996730d9bdbcf20d5c59ac93d0d097fecd349fb4cf8a34cd13216292ac50d3  studies/rg-tlm
 2689f53769f5f4c77f8002c9396490c6b4def8430a25051a4bf4b38459104cdc  studies/rg-tlm-game/source-records/art/prompts/waystation-tools-v1.txt
 4d4d0a80b3f6421609ad3cef2729ca909e20bb903802e76f63d976b62414f102  studies/rg-tlm-game/source-records/art/prompts/workshop-background-v2.txt
 56fac1f0a9d19a3ad1d612c89f6701ec3f7e6198bc737ff1ed15971c2f799ed8  studies/rg-tlm-game/source-records/art/prompts/workshop-production-notes.md
-446ee5cfd90d90480699f43b530663781b10b8c50d8b8b85c5c8cdfa4a03e5ec  studies/rg-tlm-game/source-records/art/sources.json
+7244192da6d355401b0136b04e7e8f46bc5c5244440e26cdec2e0b2439c55795  studies/rg-tlm-game/source-records/art/cypherpunk-archive-props-v1.json
+bed7338d9b1846ed2c11e4da07b15c7b9295526900d6696ce58575d12f4f5212  studies/rg-tlm-game/source-records/art/sources.json

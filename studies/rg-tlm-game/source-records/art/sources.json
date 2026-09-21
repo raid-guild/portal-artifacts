@@ -36,5 +36,38 @@
     "role": "Production runtime Workshop background",
     "dimensions": "1672x941",
     "sha256": "469636a530454e72fc2cac514c231cae4819a2fc505961a48b238657d1314b06"
+  },
+  {
+    "file": "original-art/cypherpunk-archive-props-v1.png",
+    "source": "Prism request #2929 artifact c10fb6b8-bdfd-4a6e-9856-475d5a5eaba5; built-in image generation",
+    "role": "Approved transparent Archive prop-sheet master",
+    "promptRecord": "source-records/art/prompts/cypherpunk-archive-props-v1.txt",
+    "exactPromptAvailable": false,
+    "provenance": "source-records/art/cypherpunk-archive-props-v1.json",
+    "generator": "ChatGPT gpt-image via OpenAI Media Service API",
+    "generatedAt": "2026-09-20T20:48:37.494605414Z",
+    "dimensions": "1774x887",
+    "sha256": "7f9bd3e0e9f588cdfb4342c979853dd39a1a6e0f9ced819303dfb361976b7473"
+  },
+  {
+    "file": "public/rg-tlm-game/art/archive-history-shelves-v1.webp",
+    "source": "Browser-native quality-90 crop of cypherpunk-archive-props-v1.png",
+    "role": "Production runtime Archive history shelves",
+    "dimensions": "600x814",
+    "sha256": "d358ba68bfda6348a9646b3972a675fafeb15b9f5bbcfdda818f75a62cb04093"
+  },
+  {
+    "file": "public/rg-tlm-game/art/archive-rot-decoder-v1.webp",
+    "source": "Browser-native quality-90 crop of cypherpunk-archive-props-v1.png",
+    "role": "Production runtime Archive ROT decoder desk",
+    "dimensions": "768x491",
+    "sha256": "b1760470f4cda14d3c91db2be73855153d3c274142a1531b7e0f234b7d16ed6c"
+  },
+  {
+    "file": "public/rg-tlm-game/art/archive-signal-lantern-v1.webp",
+    "source": "Browser-native quality-90 crop of cypherpunk-archive-props-v1.png",
+    "role": "Production runtime Archive signal lantern",
+    "dimensions": "284x518",
+    "sha256": "f168a4a90c56ba78b0bfc107838c4a9510eb644b31b8c2b2730dee9036db9729"
   }
 ]
