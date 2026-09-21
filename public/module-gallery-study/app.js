@@ -44,6 +44,8 @@
   const columnPreferences = { desktop: 5, mobile: 2 };
   let activeModule = null;
   let peekedModule = null;
+  let hoverZones = [];
+  let activeDetail = null;
   let spatialScene = null;
   let mobileInertElements = [];
 
@@ -134,6 +136,24 @@
   });
 
   const cards = [...gallery.querySelectorAll(".module")];
+  const detailRow = document.createElement("div");
+  detailRow.className = "gallery-detail-row";
+  detailRow.hidden = true;
+  gallery.append(detailRow);
+
+  function syncTracks() {
+    const columns = Number(gallery.dataset.columns || 5);
+    const peekIndex = cards.indexOf(peekedModule);
+    gallery.style.gridTemplateColumns = mobileQuery.matches ? "" : Array.from({ length: columns }, (_, column) =>
+      peekIndex < 0 ? "minmax(0,1fr)" : column === peekIndex % columns ? "minmax(0,1.5fr)" : "minmax(0,.85fr)").join(" ");
+    cards.forEach((card, index) => {
+      card.style.order = mobileQuery.matches ? "" : String(Math.floor(index / columns) * (columns + 1) + index % columns);
+      const row = Math.floor(index / columns);
+      card.style.setProperty("--tile-height", peekIndex < 0 ? "300px" : row === Math.floor(peekIndex / columns) ? "350px" : "290px");
+    });
+    if (activeModule) detailRow.style.order = String(Math.floor(cards.indexOf(activeModule) / columns) * (columns + 1) + columns);
+  }
+
   document.querySelector("#module-count").textContent = String(modules.length).padStart(2, "0");
 
   function columnMode() {
@@ -156,6 +176,7 @@
       clearPeek(false);
       gallery.style.setProperty("--columns", String(columns));
       gallery.dataset.columns = String(columns);
+      syncTracks();
     });
     if (announce) {
       const selected = activeModule ? ` ${modules[Number(activeModule.dataset.moduleIndex)].title} remains open.` : "";
@@ -196,37 +217,39 @@
 
   columnInput.addEventListener("input", () => applyColumns(columnInput.value));
 
-  function clearPeek(animate = true) {
-    if (!peekedModule) return;
-    const mutate = () => {
-      peekedModule?.classList.remove("is-peek");
-      cards.forEach((card) => card.classList.remove("is-neighbor"));
-      peekedModule = null;
-      gallery.classList.remove("has-peek");
-    };
-    animate ? animateLayout(mutate) : mutate();
+  function clearPeek() {
+    peekedModule?.classList.remove("is-peek");
+    peekedModule = null;
+    gallery.classList.remove("has-peek");
+    syncTracks();
   }
 
   function setPeek(card) {
     if (activeModule || card === peekedModule || mobileQuery.matches) return;
-    animateLayout(() => {
-      peekedModule?.classList.remove("is-peek");
-      cards.forEach((item) => item.classList.remove("is-neighbor"));
-      peekedModule = card;
-      const index = cards.indexOf(card);
-      cards.forEach((item, itemIndex) => {
-        if (itemIndex > index && itemIndex <= index + 2) item.classList.add("is-neighbor");
-      });
-      card.classList.add("is-peek");
-      gallery.classList.add("has-peek");
-    });
+    peekedModule?.classList.remove("is-peek");
+    peekedModule = card;
+    card.classList.add("is-peek");
+    gallery.classList.add("has-peek");
+    syncTracks();
   }
 
-  cards.forEach((card) => {
-    card.addEventListener("pointerenter", () => setPeek(card));
-    card.querySelector("[data-module-trigger]").addEventListener("focus", () => setPeek(card));
+  gallery.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "touch" || activeModule) return;
+    // Freeze resting hit regions: animated tiles must not retrigger hover by moving.
+    hoverZones = cards.map(card => {
+      const rect = card.getBoundingClientRect();
+      return { card, left: rect.left + scrollX, right: rect.right + scrollX, top: rect.top + scrollY, bottom: rect.bottom + scrollY };
+    });
   });
-  gallery.addEventListener("pointerleave", () => clearPeek());
+  gallery.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch" || activeModule || mobileQuery.matches) return;
+    const hit = hoverZones.find(zone => event.pageX >= zone.left && event.pageX <= zone.right && event.pageY >= zone.top && event.pageY <= zone.bottom);
+    if (hit) setPeek(hit.card);
+  });
+  cards.forEach(card => card.querySelector("[data-module-trigger]").addEventListener("focus", () => {
+    if (card.querySelector("[data-module-trigger]").matches(":focus-visible")) setPeek(card);
+  }));
+  gallery.addEventListener("pointerleave", clearPeek);
 
   function syncMobileDetailIsolation() {
     mobileInertElements.forEach((element) => { element.inert = false; });
@@ -261,23 +284,29 @@
   }
 
   function openDetail(card) {
-    if (activeModule === card) return;
+    if (activeModule === card) { closeDetail(); return; }
+    const anchorTop = card.getBoundingClientRect().top;
     if (activeModule) closeDetail(false);
-    clearPeek(false);
+    clearPeek();
     const detail = card.querySelector(".module-detail");
-    detail.hidden = false;
     activeModule = card;
-    animateLayout(() => {
+    activeDetail = detail;
+    detail.hidden = false;
+    card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "true");
+    if (mobileQuery.matches) {
       gallery.classList.add("has-open");
       card.classList.add("is-open");
-      card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "true");
       document.body.classList.add("detail-open");
-    });
-    syncMobileDetailIsolation();
-    requestAnimationFrame(() => {
-      card.scrollIntoView({ behavior: motionQuery.matches ? "auto" : "smooth", block: "center" });
-      card.querySelector("[data-close-detail]").focus({ preventScroll: true });
-    });
+      syncMobileDetailIsolation();
+    } else {
+      card.classList.add("is-selected");
+      detailRow.append(detail);
+      detailRow.hidden = false;
+      syncTracks();
+      // Moving a panel between rows must not move the clicked card on screen.
+      window.scrollBy({ top: card.getBoundingClientRect().top - anchorTop, behavior: "instant" });
+    }
+    detail.querySelector("[data-close-detail]").focus({ preventScroll: true });
     viewStatus.textContent = `${modules[Number(card.dataset.moduleIndex)].title} unfolded in the gallery`;
   }
 
@@ -285,18 +314,19 @@
     if (!activeModule) return;
     const card = activeModule;
     const trigger = card.querySelector("[data-module-trigger]");
-    mobileInertElements.forEach((element) => { element.inert = false; });
+    mobileInertElements.forEach(element => { element.inert = false; });
     mobileInertElements = [];
-    animateLayout(() => {
-      card.querySelector(".module-detail").hidden = true;
-      card.classList.remove("is-open");
-      gallery.classList.remove("has-open");
-      trigger.setAttribute("aria-expanded", "false");
-      document.body.classList.remove("detail-open");
-      activeModule = null;
-    });
-    const finish = () => { if (restoreFocus) trigger.focus({ preventScroll: true }); };
-    motionQuery.matches ? finish() : window.setTimeout(finish, 730);
+    activeDetail.hidden = true;
+    card.querySelector(".module-inner").append(activeDetail);
+    detailRow.hidden = true;
+    card.classList.remove("is-open", "is-selected");
+    gallery.classList.remove("has-open");
+    trigger.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("detail-open");
+    activeModule = null;
+    activeDetail = null;
+    clearPeek();
+    if (restoreFocus) trigger.focus({ preventScroll: true });
     viewStatus.textContent = "Returned to the module gallery";
   }
 
@@ -347,7 +377,8 @@
 
   function setView(view, announce = true) {
     const nextView = view === "spatial" ? "spatial" : "editorial";
-    clearPeek(false);
+    if (activeModule) closeDetail(false);
+    clearPeek();
     animateLayout(() => { document.body.dataset.view = nextView; });
     viewButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.viewOption === nextView)));
     if (nextView === "spatial") {
@@ -437,11 +468,9 @@
     }
   });
   mobileQuery.addEventListener?.("change", () => {
+    if (activeModule) closeDetail();
     syncColumnRange(true);
     syncMobileDetailIsolation();
-    if (activeModule && mobileQuery.matches && !activeModule.contains(document.activeElement)) {
-      activeModule.querySelector("[data-close-detail]").focus({ preventScroll: true });
-    }
   });
   syncColumnRange(false);
   setView("editorial", false);
