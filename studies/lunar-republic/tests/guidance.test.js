@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {aimAdvice,lessonSteps} from '../dist/guidance.js';
+import {freshGame,prediction} from '../dist/game.js';
+test('starter path teaches timing and still requires the player to find the window',()=>{const s=freshGame(),p=prediction(s,'azure','freight',-50,3.2,0);assert.equal(p.outcome,'planet');assert.equal(p.entrySafe,true);assert.equal(p.hit,false);assert.match(aimAdvice(p),/Hold direction and speed/);assert.deepEqual(lessonSteps(p).map(x=>x.done),[true,true,false]);const hit=prediction(s,'azure','freight',-50,3.2,1);assert.equal(hit.hit,true);assert.match(aimAdvice(hit),/timeline/)});
+test('guidance prioritizes flight geometry and cargo survival over timing',()=>{assert.match(aimAdvice({outcome:'moon'}),/cannot fix/);assert.match(aimAdvice({outcome:'orbit'}),/timing alone/);assert.match(aimAdvice({outcome:'escape'}),/reduce muzzle speed/);assert.match(aimAdvice({outcome:'planet',cargo:true,entrySafe:false,arrivalSpeed:12,maxSpeed:11.5,locationOK:false}),/too fast/)});
