@@ -279,3 +279,19 @@ body[data-view="spatial"] .module-detail { background:#f8f6ee; color:#171715; te
   *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; transition-duration:.01ms!important; }
   body[data-view="spatial"] .module-inner,body[data-view="spatial"] .module:nth-child(n) .module-inner { transform:none; }
 }
+
+/* Stable tracks preserve row membership while keeping elastic hover movement. */
+.gallery-detail-row[hidden] { display:none; }
+.gallery-detail-row { grid-column:1 / -1; min-width:0; }
+@media (min-width:701px) {
+  body .gallery, body[data-view="spatial"] .gallery {
+    grid-auto-flow:row; grid-auto-rows:auto; align-items:start; overflow-anchor:none;
+    transition:grid-template-columns 440ms var(--ease),perspective 600ms var(--ease);
+  }
+  body .gallery .module, body[data-view="spatial"] .gallery .module:nth-child(n) {
+    grid-column:span 1; grid-row:auto; margin:0;
+    height:var(--tile-height,300px); transition:height 440ms var(--ease);
+  }
+  .module.is-selected .module-inner { outline:3px solid var(--orange); outline-offset:-3px; }
+  .gallery-detail-row .module-detail { height:auto; }
+}
