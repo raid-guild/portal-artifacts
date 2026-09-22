@@ -21,3 +21,9 @@ Vesper's blockade fleet has an exact due shift. A successful light or heavy stri
 The launch forecast runs the same campaign resolution as a committed shot. It shows the priority deadline and result, any disruption at arrival, the new fleet due shift, and the actual return crate amount. The compact mobile aiming notice shows the deadline and threat shift. Radio messages follow offer, fulfillment, expiry, preparation, and disruption; reading them does not change availability.
 
 One no-injected-resource path demonstrates the choice: the first freight arrives at shift 2. A second freight can arrive at shift 5 and earn a 40-crate shuttle, which the blockade at shift 6 holds when it would otherwise return at shift 7. Alternatively, a shipyard strike arriving at shift 5 postpones the shift-6 fleet to shift 8, while the freight bonus expires after shift 6. Both paths remain playable; the player must choose which time pressure to address first.
+
+## Prologue completion
+
+When the campaign first meets either victory route, the final flight report becomes a dedicated Prologue complete screen. It records the completion shift, launches, successful hits and Azure deliveries once, so continued station play does not rewrite the result. The final operation text and elapsed timeline remain available in a collapsed section on that first screen. Continue building opens Station engineering; Start again uses the existing destructive-save confirmation. Dismissing the dialog also leaves a View completion report action in the launch panel.
+
+Winning saves made before this screen was added receive a report on next load. Because their exact completion shift was never stored, the screen labels that number Current shift and marks the statistics as a saved campaign record. Bad optional report metadata is repaired from the existing campaign counters. Fresh and continuing saves keep the same save key and campaign rules.
