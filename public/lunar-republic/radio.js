@@ -5,6 +5,11 @@ export const TRANSMISSIONS={
  welcome:['azure','An open channel','We hear you, Tranquility. Our receiving crews are ready for lunar ore. Put it inside the corridor and we’ll send supplies back. The Authority doesn’t speak for everyone down here.','freight'],
  relief:['meridian','A request from the plateau','We picked up your carrier signal. We need shelter components, and we can offer supplies in exchange. We haven’t chosen a side. Give us a reason to trust yours.','relief'],
  freight:['azure','The first cargo is down','Your ore is on the ground. We’ve allocated supplies to a return shuttle; allow two shifts for departure and transit. Keep an eye on the route.','freight'],
+ preparing:['station','Fleet assembly detected','Vesper’s shipyards are preparing a blockade fleet. A precise strike on the yards before mobilization delays this fleet by two shifts. Destroying the yards stops future mobilization.','strike-shipyards'],
+ disrupted:['station','The fleet is delayed','Your strike halted work on the blockade fleet. Its launch is delayed two shifts. An existing blockade would still need a strike on the anchorage.','strike-shipyards'],
+ priorityOffer:['azure','Priority ore request','We need a second ore delivery by the stated shift, inclusive. Make the window and we can load 40 supply crates instead of 28. A late drop still earns the ordinary exchange.','freight'],
+ priorityComplete:['azure','Priority cargo received','The ore arrived in time. We’re loading 40 supply crates onto the return shuttle; allow two shifts for transit, and watch the blockade.','freight'],
+ priorityExpired:['azure','Priority window closed','Our priority crews have stood down. We can still receive lunar ore and return the ordinary 28 supply crates.','freight'],
  blockade:['azure','Ships at the outer anchorage','Authority ships have closed our departure lanes. We can hold your cargo, Commander. We can’t hold forever. Their remote anchorage is now marked for a blockade-breaking shot.','break-blockade'],
  reopened:['azure','Departure lanes clear','The fleet has withdrawn from our lanes. Held shuttles can complete their approach next shift. Our crews are still here. So is the agreement.','freight'],
  raid:['station','Panels gone dark','The raid damaged the solar field. We’re getting barely half our daylight output. I can restore the array with fifteen tonnes of material and six supply crates.','station'],
@@ -18,13 +23,14 @@ export const TRANSMISSIONS={
  fabrication:['station','Made on Selene','Local fabrication is online. We now produce supplies every shift. Trade can fund expansion, but we have the beginnings of a station that can sustain itself.','station'],
  victory:['station','Keep this frequency','The route is open. The republic can survive here. There’s still a station to build and a world to trade with. I’ll keep the channel open.','station']
 };
-const snapshot=s=>({blockade:!!s.blockade,raid:!!s.raidDamage,freight:s.deliveries>0,alliance:s.trust>=2,demo:!!s.demonstrated,yards:s.districts.shipyards===0,command:s.districts.command===0,terms:!s.surrendered&&s.pressure>=3&&s.trust>=2&&!Object.values(s.districts).every(v=>v===0),surrender:!!s.surrendered,fabrication:s.levels.production>0,victory:!!s.won,relief:true});
+const snapshot=s=>({blockade:!!s.blockade,raid:!!s.raidDamage,freight:s.deliveries>0,preparing:!s.surrendered&&s.threatType==='blockade'&&s.districts.shipyards>0&&s.districts.command>0,disruptions:s.fleetDisruptions??0,priorityOffer:s.priorityFreight?.status==='active',priorityComplete:s.priorityFreight?.status==='completed',priorityExpired:s.priorityFreight?.status==='expired',alliance:s.trust>=2,demo:!!s.demonstrated,yards:s.districts.shipyards===0,command:s.districts.command===0,terms:!s.surrendered&&s.pressure>=3&&s.trust>=2&&!Object.values(s.districts).every(v=>v===0),surrender:!!s.surrendered,fabrication:s.levels.production>0,victory:!!s.won,relief:true});
 function emit(s,key){s.radio.serial++;s.radio.messages.unshift({id:s.radio.serial,key,turn:s.turn,read:false,announced:false});s.radio.messages=s.radio.messages.slice(0,100)}
 export function syncRadio(s){
  const now=snapshot(s);
  if(!s.radio){s.radio={serial:0,messages:[],previous:s.turn>1?{freight:now.freight,demo:now.demo,relief:now.alliance}: {}};emit(s,s.turn>1?'briefing':'welcome')}
  const before=s.radio.previous;
- for(const key of ['relief','freight','blockade','raid','alliance','demo','yards','command','terms','surrender','fabrication','victory'])if(now[key]&&!before[key])emit(s,key);
+ for(const key of ['relief','freight','preparing','priorityOffer','priorityComplete','priorityExpired','blockade','raid','alliance','demo','yards','command','terms','surrender','fabrication','victory'])if(now[key]&&!before[key])emit(s,key);
+ if(now.disruptions>(before.disruptions??0))emit(s,'disrupted');
  if(before.blockade&&!now.blockade&&!now.surrender)emit(s,'reopened');
  if(before.raid&&!now.raid)emit(s,'repaired');
  s.radio.previous=now;
