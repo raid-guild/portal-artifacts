@@ -160,6 +160,7 @@
       clearPeek(false);
       gallery.style.setProperty("--columns", String(columns));
       gallery.dataset.columns = String(columns);
+      if (!activeModule) arrangeRows();
       updateTracks();
     });
     if (announce) {
@@ -201,11 +202,29 @@
 
   columnInput.addEventListener("input", () => applyColumns(columnInput.value));
 
+  function arrangeRows() {
+    const columns = Number(gallery.dataset.columns) || 5;
+    const rows = [];
+    for (let start = 0; start < cards.length; start += columns) {
+      const row = document.createElement("div");
+      row.className = "gallery-row";
+      row.append(...cards.slice(start, start + columns));
+      rows.push(row);
+    }
+    gallery.replaceChildren(...rows);
+  }
+
   function updateTracks() {
     const columns = Number(gallery.dataset.columns) || 5;
-    const column = cards.indexOf(peekedModule) % columns;
-    gallery.style.gridTemplateColumns = activeModule ? "minmax(0, 1fr)" :
-      Array.from({ length: columns }, (_, index) => !peekedModule ? "1fr" : index === column ? "1.5fr" : ".75fr").join(" ");
+    gallery.style.gridTemplateColumns = "minmax(0, 1fr)";
+    gallery.querySelectorAll(".gallery-row").forEach(row => {
+      const activeColumn = [...row.children].indexOf(peekedModule);
+      row.style.gridTemplateColumns = Array.from({ length: columns }, (_, index) => activeColumn < 0 ? "1fr" : index === activeColumn ? "1.5fr" : ".75fr").join(" ");
+    });
+    const siblings = cards.filter(card => card !== activeModule);
+    cards.forEach(card => {
+      card.style.flexBasis = activeModule && card !== activeModule ? `${peekedModule ? card === peekedModule ? 210 : Math.max(90, 140 - 70 / Math.max(1, siblings.length - 1)) : 140}px` : "";
+    });
   }
 
   function clearPeek() {
@@ -216,7 +235,7 @@
   }
 
   function setPeek(card) {
-    if (activeModule || card === peekedModule || mobileQuery.matches) return;
+    if (card === activeModule || card === peekedModule || mobileQuery.matches) return;
     clearPeek();
     peekedModule = card;
     card?.classList.add("is-peek");
@@ -224,11 +243,14 @@
     updateTracks();
   }
 
-  gallery.addEventListener("pointerenter", () => {
-    if (!activeModule) hoverZones = cards.map(card => ({ card, rect: card.getBoundingClientRect() }));
-  });
+  function rememberHoverZones() {
+    hoverZones = cards.filter(card => card !== activeModule).map(card => ({ card, rect: card.getBoundingClientRect() }));
+  }
+  gallery.addEventListener("pointerenter", rememberHoverZones);
+  thumbnails.addEventListener("pointerenter", rememberHoverZones);
+  thumbnails.addEventListener("scroll", rememberHoverZones, { passive: true });
   gallery.addEventListener("pointermove", event => {
-    if (activeModule || event.pointerType === "touch") return;
+    if (event.pointerType === "touch" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const hit = hoverZones.find(({ rect }) => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
     setPeek(hit?.card ?? null);
   });
@@ -252,6 +274,7 @@
       gallery.classList.add("has-open");
       gallery.append(card, thumbnails);
       cards.filter(item => item !== card).forEach(item => thumbnails.append(item));
+      gallery.querySelectorAll(".gallery-row").forEach(row => row.remove());
       updateTracks();
       window.scrollBy({ top: card.getBoundingClientRect().top - anchorTop, behavior: "instant" });
     });
@@ -269,7 +292,7 @@
       card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "false");
       activeModule = null;
       gallery.classList.remove("has-open");
-      cards.forEach(item => gallery.append(item));
+      arrangeRows();
       thumbnails.remove();
       clearPeek();
       window.scrollBy({ top: card.getBoundingClientRect().top - anchorTop, behavior: "instant" });
