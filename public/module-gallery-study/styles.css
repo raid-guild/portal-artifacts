@@ -297,3 +297,9 @@ body[data-view] .gallery.has-open .module-inner { transform: none !important; }
   body[data-view] .gallery .module.is-open { height: auto; }
   body[data-view] .gallery .module.is-open .module-detail { height: auto; }
 }
+
+/* Hover changes only the current row; thumbnails use the same width emphasis. */
+.gallery-row { display: grid; gap: var(--gap); min-width: 0; transition: grid-template-columns 440ms var(--ease); }
+body[data-view] .gallery .gallery-thumbnails .module { transition: flex-basis 440ms var(--ease); }
+body[data-view] .gallery .module.is-peek .module-trigger { outline: 2px solid var(--ink, #151515); outline-offset: -2px; }
+body[data-view] .gallery.has-peek .module:not(.is-peek) .module-inner { filter: none; }
