@@ -45,7 +45,11 @@
   let activeModule = null;
   let peekedModule = null;
   let spatialScene = null;
-  let mobileInertElements = [];
+  let hoverZones = [];
+  const thumbnails = document.createElement("div");
+  thumbnails.className = "gallery-thumbnails";
+  thumbnails.setAttribute("role", "group");
+  thumbnails.setAttribute("aria-label", "Other modules");
 
   function artwork(module) {
     const art = document.createElement("span");
@@ -156,6 +160,7 @@
       clearPeek(false);
       gallery.style.setProperty("--columns", String(columns));
       gallery.dataset.columns = String(columns);
+      updateTracks();
     });
     if (announce) {
       const selected = activeModule ? ` ${modules[Number(activeModule.dataset.moduleIndex)].title} remains open.` : "";
@@ -188,7 +193,7 @@
             { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, transformOrigin: "top left" },
             { transform: "none", transformOrigin: "top left" },
           ],
-          { duration: activeModule ? 720 : 520, easing: "cubic-bezier(.2,.82,.2,1)" },
+          { duration: 350, easing: "cubic-bezier(.2,.82,.2,1)" },
         );
       });
     });
@@ -196,107 +201,81 @@
 
   columnInput.addEventListener("input", () => applyColumns(columnInput.value));
 
-  function clearPeek(animate = true) {
-    if (!peekedModule) return;
-    const mutate = () => {
-      peekedModule?.classList.remove("is-peek");
-      cards.forEach((card) => card.classList.remove("is-neighbor"));
-      peekedModule = null;
-      gallery.classList.remove("has-peek");
-    };
-    animate ? animateLayout(mutate) : mutate();
+  function updateTracks() {
+    const columns = Number(gallery.dataset.columns) || 5;
+    const column = cards.indexOf(peekedModule) % columns;
+    gallery.style.gridTemplateColumns = activeModule ? "minmax(0, 1fr)" :
+      Array.from({ length: columns }, (_, index) => !peekedModule ? "1fr" : index === column ? "1.5fr" : ".75fr").join(" ");
+  }
+
+  function clearPeek() {
+    peekedModule?.classList.remove("is-peek");
+    peekedModule = null;
+    gallery.classList.remove("has-peek");
+    updateTracks();
   }
 
   function setPeek(card) {
     if (activeModule || card === peekedModule || mobileQuery.matches) return;
-    animateLayout(() => {
-      peekedModule?.classList.remove("is-peek");
-      cards.forEach((item) => item.classList.remove("is-neighbor"));
-      peekedModule = card;
-      const index = cards.indexOf(card);
-      cards.forEach((item, itemIndex) => {
-        if (itemIndex > index && itemIndex <= index + 2) item.classList.add("is-neighbor");
-      });
-      card.classList.add("is-peek");
-      gallery.classList.add("has-peek");
-    });
+    clearPeek();
+    peekedModule = card;
+    card?.classList.add("is-peek");
+    gallery.classList.toggle("has-peek", Boolean(card));
+    updateTracks();
   }
 
-  cards.forEach((card) => {
-    card.addEventListener("pointerenter", () => setPeek(card));
-    card.querySelector("[data-module-trigger]").addEventListener("focus", () => setPeek(card));
+  gallery.addEventListener("pointerenter", () => {
+    if (!activeModule) hoverZones = cards.map(card => ({ card, rect: card.getBoundingClientRect() }));
   });
-  gallery.addEventListener("pointerleave", () => clearPeek());
-
-  function syncMobileDetailIsolation() {
-    mobileInertElements.forEach((element) => { element.inert = false; });
-    mobileInertElements = [];
-    if (!activeModule || !mobileQuery.matches) return;
-
-    const background = document.querySelectorAll(
-      ".skip-link, .masthead, .intro, .section-heading, .gallery-help, footer, .module:not(.is-open)",
-    );
-    background.forEach((element) => {
-      if (!element.inert) {
-        element.inert = true;
-        mobileInertElements.push(element);
-      }
-    });
-  }
-
-  function containMobileDetailFocus(event) {
-    if (event.key !== "Tab" || !activeModule || !mobileQuery.matches) return;
-    const detail = activeModule.querySelector(".module-detail");
-    const focusable = [...detail.querySelectorAll("a[href], button:not([disabled]), [tabindex]:not([tabindex='-1'])")]
-      .filter((element) => !element.hidden && element.offsetParent !== null);
-    if (!focusable.length) return;
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    const focused = document.activeElement;
-    if (!detail.contains(focused) || (!event.shiftKey && focused === last) || (event.shiftKey && focused === first)) {
-      event.preventDefault();
-      (event.shiftKey ? last : first).focus();
-    }
-  }
+  gallery.addEventListener("pointermove", event => {
+    if (activeModule || event.pointerType === "touch") return;
+    const hit = hoverZones.find(({ rect }) => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+    setPeek(hit?.card ?? null);
+  });
+  gallery.addEventListener("pointerleave", clearPeek);
+  cards.forEach(card => card.querySelector("[data-module-trigger]").addEventListener("focus", () => setPeek(card)));
 
   function openDetail(card) {
     if (activeModule === card) return;
-    if (activeModule) closeDetail(false);
-    clearPeek(false);
-    const detail = card.querySelector(".module-detail");
-    detail.hidden = false;
-    activeModule = card;
+    const anchorTop = (activeModule || card).getBoundingClientRect().top;
     animateLayout(() => {
-      gallery.classList.add("has-open");
+      clearPeek();
+      if (activeModule) {
+        activeModule.classList.remove("is-open");
+        activeModule.querySelector(".module-detail").hidden = true;
+        activeModule.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "false");
+      }
+      activeModule = card;
       card.classList.add("is-open");
+      card.querySelector(".module-detail").hidden = false;
       card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "true");
-      document.body.classList.add("detail-open");
+      gallery.classList.add("has-open");
+      gallery.append(card, thumbnails);
+      cards.filter(item => item !== card).forEach(item => thumbnails.append(item));
+      updateTracks();
+      window.scrollBy({ top: card.getBoundingClientRect().top - anchorTop, behavior: "instant" });
     });
-    syncMobileDetailIsolation();
-    requestAnimationFrame(() => {
-      card.scrollIntoView({ behavior: motionQuery.matches ? "auto" : "smooth", block: "center" });
-      card.querySelector("[data-close-detail]").focus({ preventScroll: true });
-    });
-    viewStatus.textContent = `${modules[Number(card.dataset.moduleIndex)].title} unfolded in the gallery`;
+    card.querySelector("[data-close-detail]").focus({ preventScroll: true });
+    viewStatus.textContent = `${modules[Number(card.dataset.moduleIndex)].title} expanded. Select a thumbnail to switch.`;
   }
 
-  function closeDetail(restoreFocus = true) {
+  function closeDetail() {
     if (!activeModule) return;
     const card = activeModule;
-    const trigger = card.querySelector("[data-module-trigger]");
-    mobileInertElements.forEach((element) => { element.inert = false; });
-    mobileInertElements = [];
+    const anchorTop = card.getBoundingClientRect().top;
     animateLayout(() => {
       card.querySelector(".module-detail").hidden = true;
       card.classList.remove("is-open");
-      gallery.classList.remove("has-open");
-      trigger.setAttribute("aria-expanded", "false");
-      document.body.classList.remove("detail-open");
+      card.querySelector("[data-module-trigger]").setAttribute("aria-expanded", "false");
       activeModule = null;
+      gallery.classList.remove("has-open");
+      cards.forEach(item => gallery.append(item));
+      thumbnails.remove();
+      clearPeek();
+      window.scrollBy({ top: card.getBoundingClientRect().top - anchorTop, behavior: "instant" });
     });
-    const finish = () => { if (restoreFocus) trigger.focus({ preventScroll: true }); };
-    motionQuery.matches ? finish() : window.setTimeout(finish, 730);
+    card.querySelector("[data-module-trigger]").focus({ preventScroll: true });
+    clearPeek();
     viewStatus.textContent = "Returned to the module gallery";
   }
 
@@ -306,7 +285,6 @@
     if (event.target.closest("[data-close-detail]")) closeDetail();
   });
   document.addEventListener("keydown", (event) => {
-    containMobileDetailFocus(event);
     if (event.key === "Escape" && activeModule) {
       event.preventDefault();
       closeDetail();
@@ -438,7 +416,6 @@
   });
   mobileQuery.addEventListener?.("change", () => {
     syncColumnRange(true);
-    syncMobileDetailIsolation();
     if (activeModule && mobileQuery.matches && !activeModule.contains(document.activeElement)) {
       activeModule.querySelector("[data-close-detail]").focus({ preventScroll: true });
     }
