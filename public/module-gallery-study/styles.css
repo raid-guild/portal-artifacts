@@ -280,18 +280,20 @@ body[data-view="spatial"] .module-detail { background:#f8f6ee; color:#171715; te
   body[data-view="spatial"] .module-inner,body[data-view="spatial"] .module:nth-child(n) .module-inner { transform:none; }
 }
 
-/* Stable tracks preserve row membership while keeping elastic hover movement. */
-.gallery-detail-row[hidden] { display:none; }
-.gallery-detail-row { grid-column:1 / -1; min-width:0; }
-@media (min-width:701px) {
-  body .gallery, body[data-view="spatial"] .gallery {
-    grid-auto-flow:row; grid-auto-rows:auto; align-items:start; overflow-anchor:none;
-    transition:grid-template-columns 440ms var(--ease),perspective 600ms var(--ease);
-  }
-  body .gallery .module, body[data-view="spatial"] .gallery .module:nth-child(n) {
-    grid-column:span 1; grid-row:auto; margin:0;
-    height:var(--tile-height,300px); transition:height 440ms var(--ease);
-  }
-  .module.is-selected .module-inner { outline:3px solid var(--orange); outline-offset:-3px; }
-  .gallery-detail-row .module-detail { height:auto; }
+/* Stable rows stretch horizontally; selection becomes a feature and thumbnail strip. */
+body[data-view] .gallery { grid-auto-flow: row; grid-auto-rows: auto; transition: grid-template-columns 440ms var(--ease); overflow-anchor: none; }
+body[data-view] .gallery .module { grid-column: auto !important; grid-row: auto !important; height: 260px; min-height: 0; margin: 0; }
+body[data-view] .gallery.has-open { grid-template-columns: minmax(0, 1fr); perspective: none; }
+body[data-view] .gallery .module.is-open { grid-column: 1 / -1 !important; height: auto; min-height: 0; position: relative; inset: auto; width: auto; overflow: visible; }
+body[data-view] .gallery .module.is-open .module-inner { height: auto; min-height: 0; transform: none !important; }
+.gallery-thumbnails { display: flex; gap: 12px; overflow-x: auto; min-width: 0; padding: 8px 4px 16px; scroll-snap-type: x proximity; }
+body[data-view] .gallery .gallery-thumbnails .module { display: block; flex: 0 0 150px; height: 125px; scroll-snap-align: start; }
+.gallery-thumbnails .module-number, .gallery-thumbnails .art-caption { display: none; }
+.gallery-thumbnails .module-title { font-size: .9rem; }
+.gallery-thumbnails .module-meta { padding: 8px; }
+body[data-view] .gallery.has-open .module-inner { transform: none !important; }
+@media (max-width: 700px) {
+  body[data-view] .gallery .module { height: 225px; }
+  body[data-view] .gallery .module.is-open { height: auto; }
+  body[data-view] .gallery .module.is-open .module-detail { height: auto; }
 }
