@@ -19,6 +19,22 @@ node studies/module-gallery-study/build.mjs
 The build copies the editable source and checked-in Three.js dependency to
 `public/module-gallery-study/`.
 
+## Hover stability
+
+Hover targets use equal-width resting row slots rather than animated card
+edges. Page/thumbnail scrolling and layout changes invalidate those targets;
+the resize observer responds only to width changes. Caption space stays fixed
+while columns stretch. Detail expansion, spatial mode, and density controls
+retain their existing behavior.
+
+Run the geometry regression tests before rebuilding the published files:
+
+```sh
+node --test studies/module-gallery-study/hover.test.cjs
+node --check studies/module-gallery-study/app.js
+node studies/module-gallery-study/build.mjs
+```
+
 Hover widens just the targeted card and shrinks its row neighbors; other rows
 keep their widths. A dark outline identifies the hovered card. The mini-card
 strip also widens its hovered preview, including keyboard focus.

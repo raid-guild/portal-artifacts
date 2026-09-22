@@ -300,6 +300,15 @@ body[data-view] .gallery.has-open .module-inner { transform: none !important; }
 
 /* Hover changes only the current row; thumbnails use the same width emphasis. */
 .gallery-row { display: grid; gap: var(--gap); min-width: 0; transition: grid-template-columns 440ms var(--ease); }
+/* Reserve caption space so width interpolation cannot squeeze the artwork or
+   change the vertical rhythm. The trigger's aria-label retains the full title. */
+.gallery-row .module { min-width: 0; }
+.gallery-row .module-meta { height: 84px; flex: 0 0 84px; min-width: 0; }
+.module-meta > span:first-child { min-width: 0; }
+.gallery-row .module-meta br, .gallery-thumbnails .module-meta br { display: none; }
+.gallery-row .module-title, .gallery-thumbnails .module-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; height: 2.2em; line-height: 1.1; overflow-wrap: anywhere; }
+.gallery-row .module-type { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-thumbnails .module-meta { height: 53px; flex: 0 0 53px; }
 body[data-view] .gallery .gallery-thumbnails .module { transition: flex-basis 440ms var(--ease); }
 body[data-view] .gallery .module.is-peek .module-trigger { outline: 2px solid var(--ink, #151515); outline-offset: -2px; }
 body[data-view] .gallery.has-peek .module:not(.is-peek) .module-inner { filter: none; }
