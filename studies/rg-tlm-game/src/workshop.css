@@ -18,7 +18,7 @@
 
 @media (max-width: 640px) {
   .room-workshop #hotspot-window { --x: 14% !important; --y: 33% !important; }
-  .room-workshop #hotspot-sable { --x: 39% !important; --y: 48% !important; }
+  .room-workshop #hotspot-sable { --x: 48% !important; --y: 36% !important; }
   .room-workshop #hotspot-orin { --x: 64% !important; --y: 46% !important; }
   .room-workshop #hotspot-mica { --x: 89% !important; --y: 46% !important; }
   .room-workshop #hotspot-ledger { --y: 64% !important; }

@@ -20,7 +20,7 @@ export const roomTargets: Record<Room, Partial<Record<Target, SceneTarget>>> = {
   },
   workshop: {
     window: { label: 'Citadel window', x: 18, y: 29, stand: 19 },
-    sable: { label: 'Sable · Strategist', x: 41, y: 45, stand: 39 },
+    sable: { label: 'Sable · Strategist', x: 48, y: 36, stand: 39 },
     orin: { label: 'Keeper Orin', x: 65, y: 43, stand: 62 },
     mica: { label: 'Mica · Builder', x: 89, y: 42, stand: 84 },
     ledger: { label: 'Open ledger', x: 58, y: 60, stand: 55 },
