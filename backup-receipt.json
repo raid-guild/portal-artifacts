@@ -1,13 +1,15 @@
 {
   "version": 1,
-  "status": "pending",
-  "agent_run_id": "2c44d7c3-b212-4583-a342-0d89ddfade6a",
+  "status": "complete",
+  "agent_run_id": "21bcf310-363b-456c-9bd0-448ca0e95979",
   "commitSha": "c3400c382eea61963c26410c8cba6a2d8680c98c",
   "treeSha": "f9f25b287ea61a5c9e81f688a15832a50592d33e",
   "branch": "codex/cr-3092-move-sable-hotspot-away-from-character-l",
   "pullRequestUrl": null,
+  "remoteBranchVerified": true,
+  "remoteBranchHeadSha": "df74f58a70a2d5b0757b36aacb723e522e8aefdb",
+  "deployedCommitReachableFromRemoteBranch": true,
   "deployedUrl": "https://portal-artifacts-production.up.railway.app/rg-tlm-game/",
   "railwayDeploymentId": "19726354-83d8-49db-8627-a5202af1ad23",
-  "error": "No GitHub HTTPS credentials were available; no remote branch or pull request exists for the exact deployed revision.",
-  "retryInstructions": "Provide GitHub credentials or push the exact reviewed commit/tree to the scoped request branch, then verify the remote commit/tree and linked PR without merging or redeploying."
+  "verification": "Remote scoped branch exists and contains the exact deployed commit c3400c382eea61963c26410c8cba6a2d8680c98c and tree f9f25b287ea61a5c9e81f688a15832a50592d33e; no linked pull request was found. No merge or redeploy performed."
 }

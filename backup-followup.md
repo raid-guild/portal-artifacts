@@ -1,5 +1,5 @@
 # Backup follow-up — request #3092
 
-Backup remains pending because GitHub HTTPS credentials were unavailable and no remote branch or PR exists for the deployed revision.
+Backup reconciliation completed on the retry. The scoped remote branch exists and contains the exact deployed revision and tree. No linked pull request was found.
 
-Bounded follow-up: the original Discord destination already received the deployment receipt and the explicit GitHub-backup-pending warning. Retry after credentials are provisioned; do not merge or redeploy.
+Bounded follow-up: no further action is required for source backup. The original Discord destination already received the deployment receipt. No merge or redeploy was performed.
