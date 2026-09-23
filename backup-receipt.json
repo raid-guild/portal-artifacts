@@ -1,10 +1,13 @@
 {
-  "status": "complete",
-  "agent_run_id": "4a3d3248-19d6-44a6-be1e-7f040ae0e036",
-  "commitSha": "f49b9260b03b2e087b09296e90e73bcee55e9557",
-  "treeSha": "6f4b23bff26b3d90d81c137b8ab0f557474b8d94",
-  "branch": "codex/cr-2891-restore-raidguild-the-last-mile-public-r",
-  "pullRequestUrl": "https://github.com/raid-guild/portal-artifacts/pull/35",
-  "verified": "2026-09-20T07:04:00Z",
-  "notes": "Exact scoped source is present on the request branch and linked PR; no merge or redeploy performed."
+  "version": 1,
+  "status": "pending",
+  "agent_run_id": "2c44d7c3-b212-4583-a342-0d89ddfade6a",
+  "commitSha": "c3400c382eea61963c26410c8cba6a2d8680c98c",
+  "treeSha": "f9f25b287ea61a5c9e81f688a15832a50592d33e",
+  "branch": "codex/cr-3092-move-sable-hotspot-away-from-character-l",
+  "pullRequestUrl": null,
+  "deployedUrl": "https://portal-artifacts-production.up.railway.app/rg-tlm-game/",
+  "railwayDeploymentId": "19726354-83d8-49db-8627-a5202af1ad23",
+  "error": "No GitHub HTTPS credentials were available; no remote branch or pull request exists for the exact deployed revision.",
+  "retryInstructions": "Provide GitHub credentials or push the exact reviewed commit/tree to the scoped request branch, then verify the remote commit/tree and linked PR without merging or redeploying."
 }
