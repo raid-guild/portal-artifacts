@@ -65,3 +65,17 @@
 .builder-credit:hover{color:#8c6336}.builder-credit:focus-visible{outline:2px solid #315443;outline-offset:3px}
 .neighbors-toggle{top:108px}
 @media(max-width:600px){.site-brand{gap:3px}.builder-credit{font-size:10px}.scene-tools{top:78px}.neighbors-toggle{top:122px}}
+
+/* On phones the music keeps playing while its controls are tucked away. */
+.music-disclosure{display:none}
+@media(max-width:600px){
+  .music-disclosure{position:absolute;z-index:13;display:grid;place-items:center;right:11px;top:130px;width:44px;height:44px;padding:0;border:1px solid #a8b69b;border-radius:50%;background:#fbf6e9;color:#315a46;box-shadow:0 3px 12px #29483820}
+  .music-speaker-icon{font-size:21px;line-height:1}
+  .music-playing-dot{display:none;position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;background:#315a46;border:2px solid #fbf6e9}
+  .music-disclosure.is-playing .music-playing-dot{display:block}
+  .stage-player{top:182px;z-index:13;width:250px;box-shadow:0 6px 22px #29483825}
+  .stage-player:not(.is-open){display:none}
+  .stage-player button{min-height:44px;padding:9px 12px}
+  .stage-player label{min-height:44px;font-size:11px}
+  .stage-player input{width:92px;height:28px}
+}

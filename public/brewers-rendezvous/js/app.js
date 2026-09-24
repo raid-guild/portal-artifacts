@@ -1,7 +1,7 @@
 import { stops, breweryStops } from './content.js';
 import { createPark } from './park.js';
 import { neighbors } from './neighbors.js';
-import { createNeighborUI } from './neighbor-ui.js';
+import { createNeighborUI } from './neighbor-ui.js?v=compact-music';
 
 const $ = (id) => document.getElementById(id);
 const state = { index: 0, visited: new Set(['arrival']), tasted: new Set(), park: null, readerOpen: false, labelsVisible: true, sceneStatus: 'loading', boothStatuses: {}, pouring: false };
