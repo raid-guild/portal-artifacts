@@ -175,6 +175,7 @@
   }
 
   function animateLayout(mutate) {
+    hoverZones = [];
     cards.forEach((card) => card.getAnimations().forEach((animation) => animation.cancel()));
     const before = new Map(cards.map((card) => [card, card.getBoundingClientRect()]));
     mutate();
@@ -219,7 +220,7 @@
     gallery.style.gridTemplateColumns = "minmax(0, 1fr)";
     gallery.querySelectorAll(".gallery-row").forEach(row => {
       const activeColumn = [...row.children].indexOf(peekedModule);
-      row.style.gridTemplateColumns = Array.from({ length: columns }, (_, index) => activeColumn < 0 ? "1fr" : index === activeColumn ? "1.5fr" : ".75fr").join(" ");
+      row.style.gridTemplateColumns = Array.from({ length: columns }, (_, index) => `minmax(0, ${index === activeColumn ? 1.5 : 1}fr)`).join(" ");
     });
     const siblings = cards.filter(card => card !== activeModule);
     cards.forEach(card => {
@@ -244,13 +245,41 @@
   }
 
   function rememberHoverZones() {
-    hoverZones = cards.filter(card => card !== activeModule).map(card => ({ card, rect: card.getBoundingClientRect() }));
+    // Resting slots do not move with the animated card edges. Re-entering the
+    // grid halfway through a transition therefore cannot change the target.
+    const columns = Number(gallery.dataset.columns) || 5;
+    hoverZones = [...gallery.querySelectorAll(".gallery-row")].flatMap(row => {
+      const bounds = row.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      const width = (bounds.width - gap * (columns - 1)) / columns;
+      return [...row.children].map((card, index) => ({ card,
+        rect: new DOMRect(bounds.left + index * (width + gap), bounds.top, width, bounds.height),
+      }));
+    });
+    if (activeModule) {
+      const bounds = thumbnails.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(thumbnails).columnGap) || 0;
+      const padding = parseFloat(getComputedStyle(thumbnails).paddingLeft) || 0;
+      hoverZones = [...thumbnails.children].map((card, index) => ({ card,
+        rect: new DOMRect(bounds.left + padding - thumbnails.scrollLeft + index * (140 + gap), bounds.top, 140, bounds.height),
+      }));
+    }
   }
+  function invalidateHoverZones() { hoverZones = []; if (peekedModule) clearPeek(); }
+  // Viewport-relative rectangles become stale on page or nested-strip scroll.
+  window.addEventListener("scroll", invalidateHoverZones, { capture: true, passive: true });
+  window.addEventListener("resize", invalidateHoverZones);
+  let lastGalleryWidth = -1;
+  new ResizeObserver(([entry]) => {
+    if (Math.abs(entry.contentRect.width - lastGalleryWidth) < 1) return;
+    lastGalleryWidth = entry.contentRect.width;
+    invalidateHoverZones();
+  }).observe(gallery);
   gallery.addEventListener("pointerenter", rememberHoverZones);
   thumbnails.addEventListener("pointerenter", rememberHoverZones);
-  thumbnails.addEventListener("scroll", rememberHoverZones, { passive: true });
   gallery.addEventListener("pointermove", event => {
     if (event.pointerType === "touch" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (!hoverZones.length) rememberHoverZones();
     const hit = hoverZones.find(({ rect }) => event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
     setPeek(hit?.card ?? null);
   });
