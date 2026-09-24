@@ -61,3 +61,7 @@ Run the interaction checks with `node --test tests/*.test.mjs` (Node.js required
 This is an independent personal recap, not an official event site or a measured booth map. The animals and layout are an artistic interpretation. The exact Four Noses, Ramblebine and Joyride festival releases remain unconfirmed. The Breckenridge beer/style pairing is also labeled as a recollection from the rough notes. Original event artwork identifies the event; Three.js's MIT license is included in `dist/vendor/LICENSE`.
 
 The editable source is separate from the deployable `dist/` directory, which can also be hosted on a personal website. The canonical browser source lives in `public/brewers-rendezvous/`; this study’s `dist` symlink points there, so edits and model exports update the artifact directly. No build step is required. The artifact is served at `/brewers-rendezvous/` after this branch is merged and deployed. All runtime assets, including music and Three.js, are served from the same origin.
+
+## Link previews
+
+Open Graph and Twitter large-image metadata in `dist/index.html` use the repository’s Railway origin and `/brewers-rendezvous/` path. The 1200 × 630 image at `dist/assets/brewers-rendezvous-social.jpg` is captured from the actual park with a title overlay. If the canonical host changes, update the canonical, Open Graph and Twitter URLs together.
