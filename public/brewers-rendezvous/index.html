@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e8eadc">
+  <meta name="description" content="A personal, playable walk through the 2026 Colorado Brewers Rendezvous in Riverside Park, Salida.">
+  <title>One Taster in Salida · A Brewers Rendezvous Story</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5745'/%3E%3Cpath d='M17 17h27l-4 31H21z' fill='%23f8e9c6'/%3E%3Cpath d='M21 27h19l-2.5 18h-14z' fill='%23d49440'/%3E%3Cpath d='M43 23h5c11 0 8 17-7 16' fill='none' stroke='%23f8e9c6' stroke-width='5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <div class="app-shell" id="app">
+    <main class="experience" id="experience">
+      <div class="park" id="park" aria-label="A miniature of Riverside Park"></div>
+      <div class="park-fallback" id="park-fallback" hidden>
+        <div class="fallback-landscape" aria-hidden="true"><span class="fallback-tree"></span><span class="fallback-river"></span></div>
+        <p>The little park could not open on this device.</p>
+        <button class="primary-button" type="button" data-action="read">Read the story instead <span aria-hidden="true">↗</span></button>
+      </div>
+      <div class="scene-wash" aria-hidden="true"></div>
+      <div class="stop-labels" id="stop-labels" aria-label="Places in the park"></div>
+
+      <header class="site-header">
+        <div class="wordmark"><span class="wordmark-icon" aria-hidden="true">✳</span><span>ONE TASTER<br><strong>IN SALIDA</strong></span></div>
+        <div class="header-meta"><span class="eyebrow">A PERSONAL FIELD NOTE</span><span>Riverside Park <span aria-hidden="true">·</span> 11 July 2026</span></div>
+        <button class="header-read" type="button" data-action="read"><span class="book-icon" aria-hidden="true">▤</span> Read story</button>
+      </header>
+
+      <button type="button" id="neighbors-toggle" class="neighbors-toggle">Meet neighbors</button>
+      <div class="scene-tools" role="group" aria-label="Park view controls">
+        <button type="button" id="follow-toggle" class="follow-toggle" data-action="follow" aria-pressed="false" aria-label="Follow character with camera">Follow character</button>
+        <button type="button" data-action="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" data-action="zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" data-action="overview" aria-label="Show whole park">⌂</button>
+        <button type="button" id="labels-toggle" class="labels-toggle" data-action="labels" aria-label="Map labels" aria-pressed="true">Labels</button>
+      </div>
+
+      <div class="scene-caption" id="scene-caption" aria-hidden="true"><span>ARKANSAS RIVER</span><span class="caption-rule"></span><span>COTTONWOOD SHADE</span></div>
+
+      <section class="story-card is-compact" id="story-card" aria-label="Current stop">
+        <div class="card-topline"><span id="card-eyebrow">01 / RIVERSIDE PARK</span><button class="card-toggle" id="card-toggle" type="button" aria-expanded="false" aria-controls="card-details">Open field note</button><span class="card-stamp" id="card-stamp">FIELD NOTE 01</span></div>
+        <h1 id="card-title">Under the cottonwoods</h1>
+        <div id="card-details" hidden>
+        <p class="card-kicker" id="card-kicker">Salida, Colorado · July 11, 2026</p>
+        <p class="card-body" id="card-body"></p>
+        <div class="beer-detail" id="beer-detail" hidden>
+          <div class="beer-label"><span class="small-label" id="beer-label-caption">ON TAP</span><strong id="beer-name"></strong><span id="beer-style"></span></div>
+          <p class="verdict" id="beer-verdict"></p>
+        </div>
+        <p class="card-note" id="card-note"></p>
+        <div class="tasting-journal" id="tasting-journal" role="group" aria-label="Tasting journal" hidden>
+          <span class="small-label">YOUR TASTING JOURNAL</span>
+          <div class="journal-stamps" id="journal-stamps"></div>
+        </div>
+        <a id="brewery-link" class="text-link" href="#" target="_blank" rel="noopener noreferrer" hidden>Meet the brewery <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="tasting-controls" id="tasting-controls" hidden>
+          <p class="tasting-status" id="tasting-status"></p>
+          <div class="tasting-buttons"><button class="taste-button" id="taste-button" type="button">Fill my taster</button><button class="cancel-tasting" id="cancel-tasting" type="button" hidden>Cancel</button></div>
+          <div class="tasting-stamp" id="tasting-stamp" hidden></div>
+        </div>
+        <div class="card-actions"><button class="next-button" id="next-button" type="button">Begin the walk <span aria-hidden="true">→</span></button></div>
+      </section>
+      <div id="tasting-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <div class="bottom-hud">
+        <div class="walk-help"><span class="key-cluster" aria-hidden="true">W<br>A&nbsp;S&nbsp;D</span><span><strong>Wander the park</strong><small>Drag to rotate · Scroll to zoom</small><span class="sr-only">Use W A S D or arrow keys to walk relative to the view. Press Q or E to rotate the camera.</span></span></div>
+        <div class="tour-progress"><span class="progress-label" id="progress-label">STOP 01 / 09</span><div class="progress-track"><span id="progress-bar"></span></div></div>
+        <div class="taster-hud" aria-label="Taster collection"><div class="glass-wrap"><svg viewBox="0 0 48 62" aria-hidden="true"><defs><clipPath id="glass-clip"><path d="M8 6h32l-4 47H12Z"/></clipPath></defs><path d="M8 6h32l-4 47H12Z" fill="#fbf6e7" stroke="#315443" stroke-width="2"/><g clip-path="url(#glass-clip)"><rect id="glass-fill" x="9" y="53" width="30" height="0" fill="#d79542"/><path id="glass-foam" d="M9 53h30" fill="none" stroke="#fff4d9" stroke-width="3"/></g><path d="M14 56h20" stroke="#315443" stroke-width="2" stroke-linecap="round"/></svg></div><span><strong id="taster-count">0 / 6</strong><small>favorite pours</small></span></div>
+      </div>
+      <button class="mobile-read" type="button" data-action="read">Read all stops <span aria-hidden="true">↗</span></button>
+    </main>
+
+    <div class="reader" id="reader" hidden>
+      <div class="reader-backdrop" data-action="close-reader"></div>
+      <section class="reader-panel" role="dialog" aria-modal="true" aria-labelledby="reader-title" tabindex="-1">
+        <div class="reader-header"><span class="eyebrow">THE FIELD NOTE / 2026</span><button type="button" class="reader-close" data-action="close-reader" aria-label="Close story">×</button></div>
+        <div class="reader-intro"><img class="event-mark" src="./assets/rendezvous-2026.png" width="88" height="106" alt="2026 Colorado Brewers Rendezvous 30th anniversary artwork"><p class="reader-overline">A LITTLE WALK THROUGH RIVERSIDE PARK</p><h2 id="reader-title">One Taster<br><em>in Salida.</em></h2><p>One taster. A shady patch of Salida. A few very good discoveries.</p><p class="reader-context">A personal, playful interpretation of the 30th Colorado Brewers Rendezvous—not an official festival map.</p></div>
+        <div id="reader-stops"></div>
+        <div class="reader-footer"><div><span class="eyebrow">THE REAL EVENT</span><p>Colorado Brewers Rendezvous · Riverside Park · Salida, Colorado</p></div><a href="https://coloradobeer.org/colorado-brewers-rendezvous/" target="_blank" rel="noopener noreferrer">Festival details ↗</a></div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
