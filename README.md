@@ -86,7 +86,19 @@ point-and-click adventure. The canonical editable source remains in
 provenance and the reproducible subpath build command are recorded in
 `studies/rg-tlm-game/README.md`.
 
+## Brewers Rendezvous
+
+`public/brewers-rendezvous/` contains **One Taster in Salida**, an interactive
+miniature of Riverside Park with animal hosts, six tasting booths, local-history
+conversations and user-started looping music. Editable Blender assets, source
+notes and interaction tests are in `studies/brewers-rendezvous/`; its `dist`
+symlink points to the canonical public source. See the study README for controls
+and local preview instructions. No build step or external runtime services are
+required.
+
 ## Published artifacts
+
+- `brewers-rendezvous/` — A personal, playable recap of the 2026 Colorado Brewers Rendezvous, with a miniature park, animal characters, tasting journal and riverside synth music.
 
 - `raidguild-radio/` — Ambient desert-walker cockpit with a looping six-song playlist, crossfades, weather, and day/night controls. Opens at night; click Start listening to enable audio. All media is served locally.
 
