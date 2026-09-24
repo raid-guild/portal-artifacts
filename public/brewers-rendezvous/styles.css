@@ -58,3 +58,10 @@
 .stage-player{position:absolute;z-index:11;right:30px;top:177px;max-width:280px;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:7px;padding:11px;background:rgba(251,246,233,.96);border:1px solid #a8b69b;border-radius:3px}
 .stage-player>div{flex-basis:100%;font-size:12px}.stage-player strong,.stage-player span{display:block}.stage-player span{font-size:10px;color:#64765e;margin-top:4px}.stage-player button{font-size:11px;padding:7px;border:1px solid #a8b69b;color:#315a46;background:#eef0e1;border-radius:2px}.stage-player label{font-size:10px;display:flex;align-items:center;gap:5px}.stage-player input{width:75px;accent-color:#315a46}
 @media(max-width:600px){.neighbors-toggle{top:110px;left:11px;padding:9px 11px;font-size:11px}.neighbor-dock{left:11px;right:11px;bottom:74px;width:auto;gap:7px}.neighbor-dock strong{font-size:17px}.neighbor-dock .primary-button{font-size:11px;padding:9px}.stage-player{right:11px;top:156px;width:220px;max-width:calc(100vw - 22px);padding:8px}.neighbor-dialog{padding:16px}.neighbor-dialog-head{top:-16px}.neighbor-dialog h2{font-size:26px}.neighbor-dialog p{font-size:13px}}
+
+/* Author credit stays with the title, clear of scene controls. */
+.site-brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex-shrink:0}
+.builder-credit{font-size:11px;line-height:1.4;color:#315443;text-decoration-color:#a8b69b;text-underline-offset:3px;padding:3px 0}
+.builder-credit:hover{color:#8c6336}.builder-credit:focus-visible{outline:2px solid #315443;outline-offset:3px}
+.neighbors-toggle{top:108px}
+@media(max-width:600px){.site-brand{gap:3px}.builder-credit{font-size:10px}.scene-tools{top:78px}.neighbors-toggle{top:122px}}
