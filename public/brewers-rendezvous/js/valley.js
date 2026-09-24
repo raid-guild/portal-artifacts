@@ -36,7 +36,9 @@ export function createValley() {
   }
 
   function landmark(baseX){
-    const group=new THREE.Group();scene.add(group);
+    const group=new THREE.Group();
+    group.position.y=.15;group.scale.y=.83;
+    scene.add(group);
     groups.push({group,baseX});
     return group;
   }
