@@ -5,7 +5,7 @@ import { neighbors } from './neighbors.js';
 import { neighborStatus } from './neighbor-state.js';
 import { localToWorld, parkBlocked, routeIsClear } from './layout.js';
 import { createAmbience } from './ambience.js';
-import { createValley } from './valley.js';
+import { createValley } from './valley.js?v=raised-landscape';
 import { visitorRoutes } from './crowd-routes.js';
 import { projectLabels } from './label-projection.js';
 import { createPointerGesture } from './pointer-gesture.js';
@@ -539,28 +539,25 @@ export async function createPark(host, onInteract, onReady, onFailure) {
     camera.lookAt(focus);
     const followDistance=9/followZoom;
     const followTarget=new THREE.Vector3(playerPos.x-Math.sin(yaw)*.5,1.55,playerPos.z-Math.cos(yaw)*.5);
-    const followDesired=new THREE.Vector3(playerPos.x+Math.sin(yaw)*followDistance,6.1+(elevation-homeElevation)*5.5,playerPos.z+Math.cos(yaw)*followDistance);
-    // Keep the entire avatar visible, including feet, when the opposite tent
-    // row lies between the follow camera and the character.
-    if(viewMode==='follow'&&!serviceView){
-      for(let clearance=0;clearance<9;clearance++){
-        let roofInFront=false;
-        for(const bodyHeight of [.1,.8,1.5]){
-          const from=new THREE.Vector3(playerPos.x,bodyHeight,playerPos.z);
-          const direction=followDesired.clone().sub(from),distance=direction.length();direction.normalize();
-          raycaster.set(from,direction);raycaster.far=distance-.25;
-          if(raycaster.intersectObjects(roofObstacles,false).length){roofInFront=true;break;}
-        }
-        if(!roofInFront)break;
-        followDesired.y+=1.15;
-      }
-    }
-    raycaster.far=Infinity;
-    if(reduced)followCamera.position.copy(followDesired);else{
-      followCamera.position.lerp(followDesired,Math.min(1,dt*6));
-      if(followCamera.position.y<followDesired.y)followCamera.position.y=followDesired.y;
-    }
+    const followPitch=THREE.MathUtils.clamp(THREE.MathUtils.degToRad(14)+elevation-homeElevation,THREE.MathUtils.degToRad(8),THREE.MathUtils.degToRad(35));
+    const followDesired=new THREE.Vector3(playerPos.x+Math.sin(yaw)*followDistance,followTarget.y+followDistance*Math.tan(followPitch),playerPos.z+Math.cos(yaw)*followDistance);
+    if(reduced)followCamera.position.copy(followDesired);
+    else followCamera.position.lerp(followDesired,Math.min(1,dt*6));
     followCamera.lookAt(followTarget);
+    // A nearby booth roof may cross the low follow camera's view of the fox.
+    // Cut away only those roof meshes; the roof returns in other views.
+    roofObstacles.forEach(roof=>{roof.visible=true;});
+    if(viewMode==='follow'&&!serviceView){
+      const obstructingRoofs=new Set();
+      for(const bodyHeight of [.1,.8,1.5]){
+        const to=new THREE.Vector3(playerPos.x,bodyHeight,playerPos.z);
+        const direction=to.sub(followCamera.position),distance=direction.length();
+        raycaster.set(followCamera.position,direction.normalize());raycaster.far=distance-.2;
+        for(const hit of raycaster.intersectObjects(roofObstacles,false))obstructingRoofs.add(hit.object);
+      }
+      for(const roof of obstructingRoofs)roof.visible=false;
+      raycaster.far=Infinity;
+    }
     // Cut away only a cottonwood that sits directly between the close camera
     // and the fox. Whole-park and pour views always retain every tree.
     trees.forEach(tree=>{tree.visible=true;});

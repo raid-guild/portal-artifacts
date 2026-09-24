@@ -58,3 +58,24 @@
 .stage-player{position:absolute;z-index:11;right:30px;top:177px;max-width:280px;box-sizing:border-box;display:flex;flex-wrap:wrap;gap:7px;padding:11px;background:rgba(251,246,233,.96);border:1px solid #a8b69b;border-radius:3px}
 .stage-player>div{flex-basis:100%;font-size:12px}.stage-player strong,.stage-player span{display:block}.stage-player span{font-size:10px;color:#64765e;margin-top:4px}.stage-player button{font-size:11px;padding:7px;border:1px solid #a8b69b;color:#315a46;background:#eef0e1;border-radius:2px}.stage-player label{font-size:10px;display:flex;align-items:center;gap:5px}.stage-player input{width:75px;accent-color:#315a46}
 @media(max-width:600px){.neighbors-toggle{top:110px;left:11px;padding:9px 11px;font-size:11px}.neighbor-dock{left:11px;right:11px;bottom:74px;width:auto;gap:7px}.neighbor-dock strong{font-size:17px}.neighbor-dock .primary-button{font-size:11px;padding:9px}.stage-player{right:11px;top:156px;width:220px;max-width:calc(100vw - 22px);padding:8px}.neighbor-dialog{padding:16px}.neighbor-dialog-head{top:-16px}.neighbor-dialog h2{font-size:26px}.neighbor-dialog p{font-size:13px}}
+
+/* Author credit stays with the title, clear of scene controls. */
+.site-brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px;flex-shrink:0}
+.builder-credit{font-size:11px;line-height:1.4;color:#315443;text-decoration-color:#a8b69b;text-underline-offset:3px;padding:3px 0}
+.builder-credit:hover{color:#8c6336}.builder-credit:focus-visible{outline:2px solid #315443;outline-offset:3px}
+.neighbors-toggle{top:108px}
+@media(max-width:600px){.site-brand{gap:3px}.builder-credit{font-size:10px}.scene-tools{top:78px}.neighbors-toggle{top:122px}}
+
+/* On phones the music keeps playing while its controls are tucked away. */
+.music-disclosure{display:none}
+@media(max-width:600px){
+  .music-disclosure{position:absolute;z-index:13;display:grid;place-items:center;right:11px;top:130px;width:44px;height:44px;padding:0;border:1px solid #a8b69b;border-radius:50%;background:#fbf6e9;color:#315a46;box-shadow:0 3px 12px #29483820}
+  .music-speaker-icon{font-size:21px;line-height:1}
+  .music-playing-dot{display:none;position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;background:#315a46;border:2px solid #fbf6e9}
+  .music-disclosure.is-playing .music-playing-dot{display:block}
+  .stage-player{top:182px;z-index:13;width:250px;box-shadow:0 6px 22px #29483825}
+  .stage-player:not(.is-open){display:none}
+  .stage-player button{min-height:44px;padding:9px 12px}
+  .stage-player label{min-height:44px;font-size:11px}
+  .stage-player input{width:92px;height:28px}
+}

@@ -10,13 +10,41 @@ export function createNeighborUI({getPark,beforeVisit,isFallback}) {
   const dock=document.createElement('section');dock.className='neighbor-dock';dock.hidden=true;dock.setAttribute('aria-label','Meet a neighbor');
   dock.innerHTML='<div><strong id="neighbor-dock-name"></strong><p id="neighbor-status" role="status"></p></div><button id="neighbor-talk" class="primary-button" type="button"></button><button id="neighbor-cancel" type="button" aria-label="Cancel visit">×</button>';
   $('experience').append(dock);
-  const musicPanel=document.createElement('section');musicPanel.className='stage-player';musicPanel.hidden=true;musicPanel.setAttribute('aria-label','Stage music');
+  const musicPanel=document.createElement('section');musicPanel.className='stage-player';musicPanel.id='stage-music-controls';musicPanel.hidden=true;musicPanel.setAttribute('aria-label','Stage music');
   musicPanel.innerHTML='<div><strong>♫ Beer Crossing</strong><span id="music-status" role="status"></span></div><button id="music-toggle" type="button">Start</button><button id="music-mute" type="button" aria-pressed="false">Mute</button><label>Volume <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.55"></label>';
-  $('experience').append(musicPanel);
+  const musicDisclosure=document.createElement('button');
+  musicDisclosure.type='button';musicDisclosure.className='music-disclosure';musicDisclosure.hidden=true;
+  musicDisclosure.setAttribute('aria-controls',musicPanel.id);
+  musicDisclosure.innerHTML='<span class="music-speaker-icon" aria-hidden="true">🔊</span><span class="music-playing-dot" aria-hidden="true"></span>';
+  function setMusicExpanded(expanded){
+    musicPanel.classList.toggle('is-open',expanded);
+    musicDisclosure.setAttribute('aria-expanded',String(expanded));
+    musicDisclosure.setAttribute('aria-label',expanded?'Hide music controls':'Show music controls');
+  }
+  setMusicExpanded(false);
+  musicDisclosure.addEventListener('click',()=>setMusicExpanded(!musicPanel.classList.contains('is-open')));
+  function dismissMusic(event){
+    if(!musicPanel.contains(event.target)&&!musicDisclosure.contains(event.target))setMusicExpanded(false);
+  }
+  function escapeMusic(event){
+    if(event.key==='Escape'&&musicPanel.classList.contains('is-open')&&window.matchMedia('(max-width:600px)').matches){
+      setMusicExpanded(false);musicDisclosure.focus();event.stopPropagation();event.preventDefault();
+    }
+  }
+  musicPanel.addEventListener('keydown',escapeMusic);musicDisclosure.addEventListener('keydown',escapeMusic);
+  document.addEventListener('pointerdown',dismissMusic);
+  $('experience').append(musicDisclosure,musicPanel);
+  let previousMusicError='';
   const audio=new Audio(stageTrack.src);audio.preload='none';audio.volume=.55;
   let selected=null,previousFocus=null,dialogMode=null;
   function renderMusic(state){
     musicPanel.hidden=!(state.started||state.pending||state.error);
+    musicDisclosure.hidden=musicPanel.hidden;
+    musicDisclosure.querySelector('.music-speaker-icon').textContent=state.muted||state.volume===0?'🔇':'🔊';
+    musicDisclosure.classList.toggle('is-playing',state.playing);
+    musicDisclosure.title=state.error|| (state.pending?'Music loading':state.playing?'Music playing':'Music stopped');
+    if(state.error&&state.error!==previousMusicError)setMusicExpanded(true);
+    previousMusicError=state.error;
     $('music-status').textContent=state.error|| (state.pending?'Loading…':state.playing?'Looping at the riverside stage':'Stopped');
     $('music-toggle').textContent=state.playing||state.pending?'Stop':'Start';
     $('music-mute').textContent=state.muted?'Unmute':'Mute';$('music-mute').setAttribute('aria-pressed',String(state.muted));
@@ -90,5 +118,5 @@ export function createNeighborUI({getPark,beforeVisit,isFallback}) {
   $('neighbors-toggle').addEventListener('click',discover);
   $('neighbor-talk').addEventListener('click',talk);
   $('neighbor-cancel').addEventListener('click',dismiss);
-  return {visit,update:renderDock,dismiss,discovery:discover,dispose(){music.dispose();dialog.remove();dock.remove();musicPanel.remove();}};
+  return {visit,update:renderDock,dismiss,discovery:discover,dispose(){music.dispose();dialog.remove();dock.remove();musicPanel.remove();musicDisclosure.remove();document.removeEventListener('pointerdown',dismissMusic);}};
 }

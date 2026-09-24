@@ -17,14 +17,14 @@ Open http://127.0.0.1:4173/ in a browser. ES modules require an HTTP server rath
 - Click or tap a labeled stop to visit it; choose Open field note to read its story.
 - Click or tap the lawn to move the fox, or focus the scene and use WASD / arrow keys. Keyboard walking follows the viewing angle.
 - Drag the scene to rotate around the park and tilt the view. Holding briefly before dragging also works; releasing a held press or drag does not move the fox.
-- Toggle **Follow character** for a close third-person walking view; toggle it again for the miniature view. Drag or use Q / E to orbit in either mode. Pouring temporarily frames the host, then returns to the chosen view.
+- Toggle **Follow character** for a close third-person walking view; toggle it again for the miniature view. The follow camera keeps a low horizon-facing angle as you zoom, with only obstructing booth roofs cut away so the character stays visible. Drag or use Q / E to orbit in either mode. Pouring temporarily frames the host, then returns to the chosen view.
 - Scroll over the park to zoom in and out with a mouse wheel or trackpad, in either camera mode.
 - Use Next stop for the curated route; zoom adjusts the view, and the whole-park button restores the original viewing angle.
 - Toggle Labels to hide all floating stop labels and the river caption. The preference stays in effect while exploring and reading; story controls remain available.
 - The field note starts tucked away in a small dock. Open it for the full tasting note and journal; walking, pouring and Next stop remain available while it is closed.
 - Read story opens the complete recap, including sources and uncertain transcription details.
 - **Meet neighbors** lets you find Mabel, Juniper and Hops for short, sourced stories about Salida, the river and the festival. You can also click their map labels or characters. Walk over, then choose Talk. Escape closes the conversation.
-- Visit **Keys & the Cottonwoods** at the riverside stage to request **Beer Crossing**, the original synth track supplied for this project. Press Start after arriving; the song loops until you press Stop. Start, Stop, mute and volume controls stay available as you wander. Stop resets the song to the beginning.
+- Visit **Keys & the Cottonwoods** at the riverside stage to request **Beer Crossing**, the original synth track supplied for this project. Press Start after arriving; the song loops until you press Stop. Start, Stop, mute and volume controls stay available as you wander. Stop resets the song to the beginning. On phones, a small speaker button opens the music controls; tap it again, tap outside, or press Escape to tuck them away while the song continues.
 
 At each brewery booth—Liquid Mechanics, Seedstock, Four Noses, Ramblebine, Joyride and Breckenridge—walk to the counter and choose **Fill my taster**. A close-up shows the animal host opening the tap, beer filling the glass, and a foam cap. Finishing reveals that beer’s personal tasting note and collects its journal stamp. Cancel, open the reader, or move to another stop to leave an unfinished pour without collecting it. Replays never add duplicate stamps.
 
