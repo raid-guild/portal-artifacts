@@ -96,7 +96,17 @@ symlink points to the canonical public source. See the study README for controls
 and local preview instructions. No build step or external runtime services are
 required.
 
+## Ragdoll Lab
+
+`public/ragdoll-lab/` is the buildless Three.js ragdoll study, including the FIELD
+Goatman rig, a long-slide bowling scene, and the original drop/stairs experiments.
+Tests, editable Blender source, and regeneration instructions live in
+`studies/ragdoll-lab/`; its `dist` symlink points to the canonical public source.
+
 ## Published artifacts
+
+- `ragdoll-lab/` — Ragdoll bowling with a long slide, ten targets, draggable
+  characters, adjustable grip, and a rigged Goatman/Mannequin comparison.
 
 - `raidguild-launch-film/` — Prepared, 85-second RaidGuild website launch film player with native video controls, chapter navigation, and optional lyric captions. Its stable same-origin media path is `./media/film.mp4`; production routing through the existing S3-backed render-outputs proxy still needs deployment verification. The MP4 is intentionally not checked into this repository.
 
