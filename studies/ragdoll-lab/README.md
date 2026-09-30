@@ -22,6 +22,10 @@ Mannequin. Gravity ranges from 0–20 m/s² across all scenes. Bowling’s Impac
 adds one upward/outward kick per struck target; zero keeps natural collisions.
 Slide grip and floor grip control separate surfaces.
 
+On phones, Launch/Reset stay visible and Settings opens a scrollable drawer.
+Touch Camera mode orbits and zooms; Grab mode pulls a body without orbiting.
+Display → Show render FPS enables a rendering-speed badge on any screen.
+
 All runtime dependencies and fonts are served from the same origin under the
 existing portal-artifacts Content Security Policy. This artifact uses no keys,
 Portal credentials, cookies, private APIs, or external runtime requests.

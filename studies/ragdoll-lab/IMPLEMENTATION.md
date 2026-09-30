@@ -21,3 +21,5 @@ The Floor grip slider controls the deck, stairs and flat ground; Slide grip cont
 Gravity is adjustable from 0 to 20 m/s² in every scene and takes effect immediately on released ragdolls. Impact boost is available only in Bowling and ranges from 0 to 2×. Both settings persist through reset, scene, and character changes.
 
 The optional `document.modelContext` integration registers a configure/reset tool in browsers that support WebMCP. Ordinary controls work without that API.
+
+On narrow screens, Launch, Reset and Settings stay beside the full-height viewport. Settings opens the same controls in a native dialog. Touch starts in Camera mode for orbit and pinch zoom; Grab mode pulls a touched body and ignores empty-space drags. A second finger cancels a grab until both fingers lift. Mouse picking on desktop keeps its direct drag behavior. The Display setting can show actual rendered frames per wall-clock second; the FPS readout continues while the physics simulation is paused and resets its sample after tab visibility changes.

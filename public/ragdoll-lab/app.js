@@ -5,6 +5,7 @@ import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
 import { createSimulation, validateProfile } from './physics.js';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
+import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
 
 const $ = id => document.getElementById(id);
 const viewport = $('viewport');
@@ -23,7 +24,7 @@ try {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#1b232b');
   scene.fog = new THREE.Fog('#1b232b', 12, 27);
-  const camera = new THREE.PerspectiveCamera(42, 1, .05, 100);
+  const camera = new THREE.PerspectiveCamera(42, 1, .05, 200);
   camera.position.set(3.7, 3, 5.2);
   camera.lookAt(0, 1.55, 0);
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -39,6 +40,64 @@ try {
   controls.minDistance = 2.3;
   controls.maxDistance = 13;
   controls.maxPolarAngle = Math.PI * .48;
+  const touchPolicy = createTouchPolicy();
+  const fpsCounter = createFpsCounter();
+  const narrowScreen = window.matchMedia('(max-width: 850px)');
+  const panel = document.querySelector('.panel');
+  const panelHome = panel.parentNode;
+  const panelNext = panel.nextSibling;
+  const buttonRow = panel.querySelector('.button-row');
+  const buttonHome = buttonRow.parentNode;
+  const buttonNext = buttonRow.nextSibling;
+  const settingsDialog = $('settings-dialog');
+  let touchMode = 'camera';
+  function reconnectOrbit() { controls.disconnect(); clearOrbitInertia(controls); controls.connect(renderer.domElement); controls.enabled = true; }
+  function closeSettings() { if (settingsDialog.open) settingsDialog.close(); }
+  function syncResponsiveLayout() {
+    releaseDrag();
+    touchPolicy.reset();
+    reconnectOrbit();
+    if (narrowScreen.matches) {
+      $('mobile-action-mount').append(buttonRow);
+      $('settings-mount').append(panel);
+    } else {
+      closeSettings();
+      buttonHome.insertBefore(buttonRow, buttonNext);
+      panelHome.insertBefore(panel, panelNext);
+    }
+  }
+  narrowScreen.addEventListener('change', syncResponsiveLayout);
+  $('open-settings').addEventListener('click', () => {
+    releaseDrag();
+    touchPolicy.reset();
+    reconnectOrbit();
+    settingsDialog.showModal();
+    $('close-settings').focus();
+  });
+  $('close-settings').addEventListener('click', closeSettings);
+  settingsDialog.addEventListener('click', event => { if (event.target === settingsDialog) closeSettings(); });
+  settingsDialog.addEventListener('close', () => { releaseDrag(); (narrowScreen.matches ? $('open-settings') : $('play-button')).focus(); });
+  function setTouchMode(mode) {
+    releaseDrag();
+    touchPolicy.reset();
+    reconnectOrbit();
+    touchMode = mode;
+    for (const choice of ['camera', 'grab']) {
+      const active = choice === mode;
+      $(`touch-${choice}`).classList.toggle('active', active);
+      $(`touch-${choice}`).setAttribute('aria-pressed', String(active));
+    }
+    $('touch-hint').textContent = mode === 'camera' ? 'Drag to orbit · pinch to zoom' : 'Touch a body to pull it';
+  }
+  $('touch-camera').addEventListener('click', () => setTouchMode('camera'));
+  $('touch-grab').addEventListener('click', () => setTouchMode('grab'));
+  $('show-fps').addEventListener('change', event => {
+    const enabled = event.target.checked;
+    fpsCounter.setEnabled(enabled, performance.now());
+    $('fps-badge').hidden = !enabled;
+    $('fps-badge').textContent = '— FPS';
+  });
+  syncResponsiveLayout();
   const ambient = new THREE.HemisphereLight('#cbdfe7', '#26303a', 2.4);
   scene.add(ambient);
   const key = new THREE.DirectionalLight('#fff1d8', 3.1);
@@ -219,11 +278,13 @@ try {
     $('reset-button').setAttribute('aria-label', $('reset-button').title);
     grid.visible = ring.visible = !bowling;
     scene.fog.near = bowling ? 34 : 12;
-    scene.fog.far = bowling ? 90 : 27;
+    scene.fog.far = bowling ? camera.aspect < .75 ? 150 : 90 : 27;
     updateCameraButtons();
   }
   function reset(nextScene) {
     releaseDrag();
+    touchPolicy.reset();
+    reconnectOrbit();
     simulation.reset(nextScene);
     frameDelta();
     rebuildVisuals();
@@ -236,6 +297,8 @@ try {
     if (value !== 'mannequin' && value !== 'goatman') return;
     if (value === 'goatman' && !goatTemplate) return;
     releaseDrag();
+    touchPolicy.reset();
+    reconnectOrbit();
     simulation.setProfile(value === 'goatman' ? goatProfile : null);
     frameDelta();
     rebuildVisuals();
@@ -250,10 +313,6 @@ try {
     simulation.setPaused(!before.paused);
     if (before.scene === 'bowling' && before.paused && before.time === 0) {
       setCameraMode('follow');
-      if (window.innerWidth <= 850) {
-        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        document.querySelector('.viewport-wrap').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-      }
     }
     frameDelta(); updateUI();
   });
@@ -273,17 +332,26 @@ try {
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
   }
-  function releaseDrag() {
-    if (!activeDrag) return;
-    simulation.endDrag();
-    if (renderer.domElement.hasPointerCapture(activeDrag.pointerId)) renderer.domElement.releasePointerCapture(activeDrag.pointerId);
+  function releaseDrag(event) {
+    if (!activeDrag || (event?.pointerId !== undefined && event.pointerId !== activeDrag.pointerId)) return;
+    const owner = activeDrag;
     activeDrag = null;
+    simulation.endDrag();
+    if (renderer.domElement.hasPointerCapture(owner.pointerId)) renderer.domElement.releasePointerCapture(owner.pointerId);
     $('selection-label').hidden = true;
     controls.enabled = true;
     renderer.domElement.style.cursor = 'grab';
   }
   renderer.domElement.addEventListener('pointerdown', event => {
-    if (event.button !== 0) return;
+    if (event.pointerType === 'touch') {
+      touchPolicy.down(event.pointerId);
+      if (touchPolicy.blocked) releaseDrag();
+      if (touchMode === 'camera') return;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      if (!touchPolicy.canGrab(event.pointerId)) return;
+    } else if (event.button !== 0) return;
+    if (activeDrag) return;
     setPointer(event);
     if (simulation.readFrame().profileId === 'goatman') for (const rig of goatRigs.values()) rig.refreshBounds();
     const hit = raycaster.intersectObjects(pickMeshes, false)[0];
@@ -291,11 +359,10 @@ try {
     const instance = simulation.instances.find(item => item.id === hit.object.userData.instanceId);
     const body = simulation.readFrame().profileId === 'goatman' ? hit.object.userData.rig.pickBody(hit, instance.bodyById) : hit.object.userData.body;
     if (!body) return;
-    event.stopImmediatePropagation();
-    event.preventDefault();
-    controls.enabled = false;
+    if (event.pointerType !== 'touch') { event.stopImmediatePropagation(); event.preventDefault(); }
     dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), hit.point);
     if (!simulation.beginDrag(body, hit.point.toArray())) return;
+    controls.enabled = false;
     simulation.setPaused(false);
     activeDrag = { pointerId: event.pointerId };
     $('selection-label').textContent = `PULLING ${body.instanceId === 'single' ? '' : `${body.instanceId.toUpperCase()} · `}${body.idTag.replaceAll('-', ' ').toUpperCase()}`;
@@ -312,9 +379,14 @@ try {
       simulation.moveDrag(dragPoint.toArray());
     }
   });
-  renderer.domElement.addEventListener('pointerup', releaseDrag);
-  renderer.domElement.addEventListener('pointercancel', releaseDrag);
-  window.addEventListener('blur', releaseDrag);
+  function pointerDone(event) {
+    if (event.pointerType === 'touch') touchPolicy.up(event.pointerId);
+    releaseDrag(event);
+  }
+  document.addEventListener('pointerup', pointerDone, { capture: true });
+  document.addEventListener('pointercancel', pointerDone, { capture: true });
+  renderer.domElement.addEventListener('lostpointercapture', releaseDrag);
+  window.addEventListener('blur', () => { releaseDrag(); touchPolicy.reset(); reconnectOrbit(); });
   renderer.domElement.style.cursor = 'grab';
 
   function updateCameraButtons() {
@@ -330,7 +402,7 @@ try {
     updateCameraButtons();
   }
   controls.addEventListener('start', () => {
-    if (simulation.readFrame().scene === 'bowling' && cameraMode === 'follow') {
+    if (simulation.readFrame().scene === 'bowling' && (cameraMode === 'follow' || cameraMode === 'overview')) {
       cameraMode = 'free';
       updateCameraButtons();
     }
@@ -350,6 +422,24 @@ try {
   function frameScene() {
     const frame = simulation.readFrame();
     if (frame.scene === 'bowling') {
+      if (cameraMode !== 'follow' && camera.aspect < .75) {
+        const target = new THREE.Vector3(0, 5, 2);
+        controls.maxDistance = 90;
+        controls.target.copy(target);
+        camera.position.copy(target).add(new THREE.Vector3(8, 42, 48));
+        camera.lookAt(target);
+        controls.update();
+        return;
+      }
+      if (cameraMode !== 'follow' && narrowScreen.matches && window.innerHeight <= 450 && camera.aspect > 1.6) {
+        const target = new THREE.Vector3(0, 4, 5);
+        controls.maxDistance = 90;
+        controls.target.copy(target);
+        camera.position.copy(target).add(new THREE.Vector3(19.5, 28, 48));
+        camera.lookAt(target);
+        controls.update();
+        return;
+      }
       const portraitScale = Math.max(1, .82 / Math.max(.3, camera.aspect));
       let target, offset;
       if (cameraMode === 'follow') {
@@ -385,11 +475,15 @@ try {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
-    frameScene();
+    if (simulation.readFrame().scene === 'bowling' && cameraMode === 'overview') {
+      scene.fog.far = camera.aspect < .75 ? 150 : 90;
+      frameScene();
+    }
   }
   resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(viewport);
   resize();
+  frameScene();
   syncVisuals();
   updateUI();
   renderer.setAnimationLoop(() => {
@@ -402,8 +496,15 @@ try {
     $('sim-time').textContent = frame.time.toFixed(1);
     if (frame.scene === 'bowling') $('pin-count').textContent = `${frame.releasedPins}/10`;
     renderer.render(scene, camera);
+    const fps = fpsCounter.frame(performance.now());
+    if (fps !== null) $('fps-badge').textContent = `${fps} FPS`;
   });
-  document.addEventListener('visibilitychange', () => { lastFrame = performance.now(); });
+  document.addEventListener('visibilitychange', () => {
+    lastFrame = performance.now();
+    fpsCounter.reset(lastFrame);
+    if ($('show-fps').checked) $('fps-badge').textContent = '— FPS';
+    if (document.hidden) { releaseDrag(); touchPolicy.reset(); reconnectOrbit(); }
+  });
 
   (async () => {
     try {

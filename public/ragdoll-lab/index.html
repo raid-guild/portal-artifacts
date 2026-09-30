@@ -42,15 +42,19 @@
           <div id="slide-grip-setting" class="slider-setting"><div class="slider-head"><label for="slide-grip">Slide grip</label><output id="slide-grip-value" for="slide-grip">0.03</output></div><input id="slide-grip" type="range" min="0" max="0.5" step="0.01" value="0.03"><p>Lower values let the launcher travel farther.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="joint-range">Joint range</label><output id="joint-range-value" for="joint-range">100%</output></div><input id="joint-range" type="range" min="25" max="125" step="1" value="100"><p>Scales each joint’s allowed cone and twist angle. These simple joints approximate a body; they do not model anatomical hinges.</p></div>
         </div>
+        <div class="panel-section display-section"><div class="section-heading"><span>04</span><h2>Display</h2></div><label class="fps-toggle" for="show-fps"><input id="show-fps" type="checkbox"> Show render FPS</label><p class="setting-help">Measures displayed frames per wall-clock second, including while physics is paused.</p></div>
         <div class="panel-footer"><span class="footer-symbol">◎</span> Built to observe, tweak, and try again.</div>
       </aside>
       <section class="viewport-wrap" aria-label="Interactive 3D ragdoll simulation">
         <div id="viewport" class="viewport"><div id="error-message" class="error-message" role="alert" hidden></div></div>
         <div class="viewport-top"><div class="viewport-labels"><span class="scene-chip"><span class="scene-chip-dot"></span><span id="scene-title">BOWLING COURSE</span></span><span id="selection-label" class="selection-label" aria-live="polite" hidden></span></div><div id="camera-control" class="camera-control" role="group" aria-label="Camera view"><button id="camera-overview" type="button" class="active" aria-pressed="true">Overview</button><button id="camera-follow" type="button" aria-pressed="false">Follow</button></div><span class="live-chip" id="live-chip">● PAUSED</span></div>
+        <div id="fps-badge" class="fps-badge" aria-live="off" hidden>— FPS</div>
         <div class="viewport-bottom"><div class="hint"><span class="hint-icon">↗</span><span>Drag a body to pull it · Drag space to orbit · Scroll to zoom</span></div><div class="stats"><span><b id="sim-time">0.0</b><small>SECONDS</small></span><i></i><span><b id="body-count">143</b><small>BODIES</small></span><i></i><span><b id="joint-count">132</b><small>JOINTS</small></span><i></i><span id="pin-stat"><b id="pin-count">0/10</b><small>PINS HIT</small></span></div></div>
+        <div id="mobile-controls" class="mobile-controls"><div class="touch-mode-control" role="group" aria-label="Touch gesture mode"><button id="touch-camera" type="button" class="active" aria-pressed="true">Camera</button><button id="touch-grab" type="button" aria-pressed="false">Grab</button></div><span id="touch-hint">Drag to orbit · pinch to zoom</span><div id="mobile-action-mount"></div><button id="open-settings" type="button" aria-haspopup="dialog" aria-controls="settings-dialog">Settings</button></div>
       </section>
     </main>
   </div>
+  <dialog id="settings-dialog" aria-label="Simulation settings"><div class="settings-dialog-header"><strong>Settings</strong><button id="close-settings" type="button" aria-label="Close settings">✕</button></div><div id="settings-mount"></div></dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
