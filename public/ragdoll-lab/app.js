@@ -195,11 +195,15 @@ try {
       $(`scene-${name}`).setAttribute('aria-pressed', String(active));
     }
     $('speed').value = String(snap.settings.speed);
+    $('gravity').value = String(snap.settings.gravity);
+    $('impact-boost').value = String(snap.settings.impactBoost);
     $('damping').value = String(snap.settings.damping);
     $('friction').value = String(snap.settings.friction);
     $('slide-grip').value = String(snap.settings.slideGrip);
     $('joint-range').value = String(snap.settings.jointRange);
     $('damping-value').textContent = snap.settings.damping.toFixed(2);
+    $('gravity-value').textContent = `${snap.settings.gravity.toFixed(2)} m/s²`;
+    $('impact-boost-value').textContent = `${snap.settings.impactBoost.toFixed(1)}×`;
     $('friction-value').textContent = snap.settings.friction.toFixed(2);
     $('slide-grip-value').textContent = snap.settings.slideGrip.toFixed(2);
     $('joint-range-value').textContent = `${snap.settings.jointRange}%`;
@@ -209,6 +213,7 @@ try {
     $('pin-count').textContent = `${snap.releasedPins}/10`;
     $('pin-stat').hidden = !bowling;
     $('slide-grip-setting').hidden = !bowling;
+    $('impact-boost-setting').hidden = !bowling;
     $('camera-control').hidden = !bowling;
     $('reset-button').title = bowling ? 'Rerack simulation' : 'Reset simulation';
     $('reset-button').setAttribute('aria-label', $('reset-button').title);
@@ -259,7 +264,7 @@ try {
   $('camera-overview').addEventListener('click', () => setCameraMode('overview'));
   $('camera-follow').addEventListener('click', () => setCameraMode('follow'));
   $('speed').addEventListener('change', e => configure({ speed: Number(e.target.value) }));
-  for (const [id, key] of [['damping', 'damping'], ['friction', 'friction'], ['slide-grip', 'slideGrip'], ['joint-range', 'jointRange']]) {
+  for (const [id, key] of [['gravity', 'gravity'], ['impact-boost', 'impactBoost'], ['damping', 'damping'], ['friction', 'friction'], ['slide-grip', 'slideGrip'], ['joint-range', 'jointRange']]) {
     $(id).addEventListener('input', e => configure({ [key]: Number(e.target.value) }));
   }
   function setPointer(event) {
@@ -426,7 +431,7 @@ try {
     webToolController = new AbortController();
     webTool = Promise.resolve(document.modelContext.registerTool({
       name: 'configure_ragdoll_study',
-      description: 'Configure or reset Ragdoll Lab. Choose bowling, drop or stairs; adjust damping, floor grip, slide grip, joint range and speed.',
+      description: 'Configure or reset Ragdoll Lab. Choose bowling, drop or stairs; adjust gravity, impact boost, damping, grip, joint range and speed.',
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       signal: webToolController.signal,
       inputSchema: { type: 'object', properties: {
@@ -434,6 +439,8 @@ try {
         character: { type: 'string', enum: ['goatman', 'mannequin'] },
         reset: { type: 'boolean' },
         paused: { type: 'boolean' },
+        gravity: { type: 'number', minimum: 0, maximum: 20 },
+        impactBoost: { type: 'number', minimum: 0, maximum: 2 },
         damping: { type: 'number', minimum: 0, maximum: .8 },
         friction: { type: 'number', minimum: 0, maximum: 1 },
         slideGrip: { type: 'number', minimum: 0, maximum: .5 },

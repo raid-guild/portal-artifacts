@@ -18,7 +18,9 @@ Bowling launches one ragdoll down a long slide into ten targets. Targets hold th
 starting pose until struck, then participate in the same physical simulation.
 Use Launch/Pause/Resume, Reset to rerack, Overview/Follow, and drag a visible limb.
 Drop and Stairs retain the smaller experiments. Character selects Goatman or
-Mannequin. Slide grip and floor grip control separate surfaces.
+Mannequin. Gravity ranges from 0–20 m/s² across all scenes. Bowling’s Impact boost
+adds one upward/outward kick per struck target; zero keeps natural collisions.
+Slide grip and floor grip control separate surfaces.
 
 All runtime dependencies and fonts are served from the same origin under the
 existing portal-artifacts Content Security Policy. This artifact uses no keys,

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#10141b">
-  <meta name="description" content="An interactive Three.js ragdoll physics study. Drop a mannequin, pull its limbs, change friction, damping and joint range, then try the stairs.">
+  <meta name="description" content="An interactive Three.js ragdoll physics study. Launch Goatman into ten ragdolls, change gravity and impact boost, or try a free drop and stairs.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141a22'/%3E%3Ccircle cx='32' cy='15' r='6' fill='%23f17b55'/%3E%3Cpath d='M32 23v16m-13-7 13-9 13 9M32 39 20 54m12-15 12 15' fill='none' stroke='%23f17b55' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <title>Ragdoll Lab — a Three.js physics study</title>
   <link rel="stylesheet" href="./style.css">
@@ -34,7 +34,9 @@
           <div class="button-row"><button class="primary-button" id="play-button" type="button"><span id="play-icon">▶</span><span id="play-label">Launch</span></button><button class="reset-button" id="reset-button" type="button" aria-label="Rerack simulation" title="Rerack simulation">↻</button></div>
           <div class="speed-control"><label for="speed">Playback speed</label><select id="speed"><option value="0.25">0.25× slow</option><option value="0.5">0.5× slow</option><option value="1" selected>1× real time</option></select></div>
         </div>
-        <div class="panel-section"><div class="section-heading"><span>03</span><h2>Material & joints</h2></div>
+        <div class="panel-section"><div class="section-heading"><span>03</span><h2>Forces, material & joints</h2></div>
+          <div class="slider-setting"><div class="slider-head"><label for="gravity">Gravity</label><output id="gravity-value" for="gravity">9.82 m/s²</output></div><input id="gravity" type="range" min="0" max="20" step="0.01" value="9.82"><p>Pulls every released body down.</p></div>
+          <div id="impact-boost-setting" class="slider-setting"><div class="slider-head"><label for="impact-boost">Impact boost</label><output id="impact-boost-value" for="impact-boost">1.0×</output></div><input id="impact-boost" type="range" min="0" max="2" step="0.1" value="1"><p>Adds one upward and outward kick when a moving ragdoll hits a target. Zero keeps the natural collision.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="damping">Air damping</label><output id="damping-value" for="damping">0.08</output></div><input id="damping" type="range" min="0" max="0.8" step="0.01" value="0.08"><p>How quickly motion settles.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="friction">Floor grip</label><output id="friction-value" for="friction">0.60</output></div><input id="friction" type="range" min="0" max="1" step="0.01" value="0.6"><p>Grip on the landing deck, stairs and floor.</p></div>
           <div id="slide-grip-setting" class="slider-setting"><div class="slider-head"><label for="slide-grip">Slide grip</label><output id="slide-grip-value" for="slide-grip">0.03</output></div><input id="slide-grip" type="range" min="0" max="0.5" step="0.01" value="0.03"><p>Lower values let the launcher travel farther.</p></div>

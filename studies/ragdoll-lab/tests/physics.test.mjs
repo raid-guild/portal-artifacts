@@ -504,3 +504,166 @@ test('friction remains similar at 60 and 120 Hz and responds to a live change', 
   assert.ok(changed.distance < frictionProbe(0).distance - 1);
   assert.ok(changed.speed < 5);
 });
+
+test('gravity validates, acts live, pauses cleanly, and persists across resets and profiles', () => {
+  const simulation = createSimulation();
+  assert.throws(() => simulation.configure({ gravity: -1 }), RangeError);
+  assert.throws(() => simulation.configure({ gravity: 21 }), RangeError);
+  assert.throws(() => simulation.configure({ gravity: NaN }), RangeError);
+  assert.throws(() => simulation.configure({ impactBoost: -0.1 }), RangeError);
+  assert.throws(() => simulation.configure({ impactBoost: 2.1 }), RangeError);
+  simulation.configure({ gravity: 0, impactBoost: 1.4 });
+  assert.ok(simulation.world.gravity.y === 0);
+  const pelvis = simulation.instances[0].bodyById.get('pelvis');
+  simulation.step(1);
+  assert.equal(pelvis.velocity.y, 0, 'paused gravity does not advance bodies');
+  simulation.setPaused(false);
+  simulation.step(1 / 120);
+  const before = pelvis.velocity.y;
+  simulation.configure({ gravity: 10 });
+  assert.equal(simulation.world.gravity.y, -10);
+  simulation.step(1 / 120);
+  assert.ok(pelvis.velocity.y < before - .06, 'live gravity accelerates the released body');
+  simulation.reset('bowling');
+  assert.equal(simulation.snapshot().settings.gravity, 10);
+  assert.equal(simulation.snapshot().settings.impactBoost, 1.4);
+  assert.ok(simulation.instances.slice(1).every(instance => instance.held && instance.bodies.every(body => body.type === CANNON.Body.KINEMATIC)));
+  simulation.setProfile(goatProfile);
+  assert.equal(simulation.snapshot().settings.gravity, 10);
+  assert.equal(simulation.snapshot().settings.impactBoost, 1.4);
+  simulation.reset('stairs');
+  assert.equal(simulation.world.gravity.y, -10);
+});
+
+test('a first real hit adds one coherent, bounded COM velocity to its target', () => {
+  const natural = createSimulation();
+  const boosted = createSimulation();
+  for (const simulation of [natural, boosted]) { simulation.reset('bowling'); simulation.setPaused(false); }
+  natural.configure({ impactBoost: 0 });
+  let pin;
+  for (let tick = 0; tick < 8 * 120; tick++) {
+    natural.step(1 / 120);
+    boosted.step(1 / 120);
+    pin = boosted.instances.find(instance => instance.role === 'pin' && !instance.held);
+    if (pin) break;
+  }
+  assert.ok(pin, 'a real moving projectile contact released a pin');
+  const counterpart = natural.instances.find(instance => instance.id === pin.id);
+  assert.equal(counterpart.held, false);
+  const deltas = pin.bodies.map((body, index) => body.velocity.vsub(counterpart.bodies[index].velocity));
+  assert.ok(deltas[0].y > .5 && deltas[0].y <= 4.01, 'target got one bounded upward kick');
+  assert.ok(Math.hypot(deltas[0].x, deltas[0].z) > .2 && Math.hypot(deltas[0].x, deltas[0].z) <= 2.51);
+  for (const delta of deltas) assert.ok(delta.distanceTo(deltas[0]) < 1e-6, 'equal velocity change preserves the articulated pose');
+  assert.equal(boosted.snapshot().releasedPins, 1, 'first impact is counted once');
+  const dragged = createSimulation();
+  dragged.reset('bowling');
+  const target = dragged.instances[1];
+  const pelvis = target.bodyById.get('pelvis');
+  dragged.beginDrag(pelvis, pelvis.position.toArray());
+  dragged.endDrag();
+  assert.equal(dragged.snapshot().releasedPins, 1);
+  assert.ok(target.bodies.every(body => body.velocity.length() < 1e-8), 'manual release adds no kick');
+  dragged.reset('bowling');
+  assert.equal(dragged.snapshot().releasedPins, 0);
+  assert.ok(dragged.instances.slice(1).every(instance => instance.held), 'reset clears release and queued effects');
+});
+
+test('dragging the launcher into a target releases it without adding impact boost', () => {
+  const natural = createSimulation();
+  const boosted = createSimulation();
+  for (const [simulation, impactBoost] of [[natural, 0], [boosted, 1]]) {
+    simulation.reset('bowling');
+    simulation.configure({ gravity: 0, impactBoost });
+    const launcher = simulation.instances[0].bodyById.get('pelvis');
+    const target = simulation.instances[1].bodyById.get('pelvis');
+    assert.equal(simulation.beginDrag(launcher, launcher.position.toArray()), true);
+    simulation.moveDrag(target.position.toArray());
+    simulation.setPaused(false);
+  }
+  let released;
+  for (let tick = 0; tick < 120; tick++) {
+    natural.step(1 / 120);
+    boosted.step(1 / 120);
+    released = boosted.instances.find(instance => instance.role === 'pin' && !instance.held);
+    if (released) break;
+  }
+  assert.ok(released, 'manual contact still releases a target');
+  const counterpart = natural.instances.find(instance => instance.id === released.id);
+  assert.equal(counterpart.held, false);
+  for (const [index, body] of released.bodies.entries()) {
+    assert.ok(body.velocity.distanceTo(counterpart.bodies[index].velocity) < 1e-8, `${body.idTag} received no extra boost`);
+  }
+  natural.endDrag();
+  boosted.endDrag();
+  assert.equal(boosted.snapshot().dragging, false);
+});
+
+test('holding an unrelated pin does not suppress the launcher impact boost', () => {
+  const natural = createSimulation();
+  const boosted = createSimulation();
+  for (const [simulation, impactBoost] of [[natural, 0], [boosted, 1]]) {
+    simulation.reset('bowling');
+    simulation.configure({ impactBoost });
+    const unrelated = simulation.instances.at(-1).bodyById.get('pelvis');
+    assert.equal(simulation.beginDrag(unrelated, unrelated.position.toArray()), true);
+    simulation.setPaused(false);
+  }
+  let impacted;
+  for (let tick = 0; tick < 8 * 120; tick++) {
+    natural.step(1 / 120);
+    boosted.step(1 / 120);
+    impacted = boosted.instances.find(instance => instance.id === 'pin-01' && !instance.held);
+    if (impacted) break;
+  }
+  assert.ok(impacted, 'launcher hit a held target while a different pin was dragged');
+  const counterpart = natural.instances.find(instance => instance.id === impacted.id);
+  assert.equal(counterpart.held, false);
+  const delta = impacted.bodyById.get('pelvis').velocity.y - counterpart.bodyById.get('pelvis').velocity.y;
+  assert.ok(delta > .5 && delta <= 4.01, `normal impact kept its boost (${delta} m/s)`);
+  natural.endDrag();
+  boosted.endDrag();
+});
+
+function centerHeight(instance) {
+  const mass = instance.bodies.reduce((total, body) => total + body.mass, 0);
+  return instance.bodies.reduce((total, body) => total + body.mass * body.position.y, 0) / mass;
+}
+
+for (const profile of [null, goatProfile]) {
+  test(`${profile ? 'Goatman' : 'mannequin'} first bowling target becomes airborne with default boost`, () => {
+    const peaks = [];
+    for (const impactBoost of [0, 1]) {
+      const simulation = createSimulation(profile);
+      simulation.reset('bowling');
+      simulation.configure({ impactBoost });
+      const heights = new Map(simulation.instances.slice(1).map(instance => [instance.id, centerHeight(instance)]));
+      simulation.setPaused(false);
+      let first;
+      let peak = -Infinity;
+      for (let tick = 0; tick < 8 * 120; tick++) {
+        simulation.step(1 / 120);
+        first ??= simulation.instances.find(instance => instance.role === 'pin' && !instance.held);
+        if (first) peak = Math.max(peak, centerHeight(first) - heights.get(first.id));
+      }
+      assert.ok(first, 'launcher reached a target');
+      peaks.push(peak);
+    }
+    assert.ok(peaks[1] > .5, `default boost raised target COM ${peaks[1]} m`);
+    assert.ok(peaks[1] > peaks[0] + .4, 'extra lift comes from boost rather than natural collision');
+  });
+}
+
+test('gravity and boost extremes remain finite and constraints remain connected', () => {
+  for (const [gravity, impactBoost] of [[0, 0], [20, 2]]) {
+    const simulation = createSimulation(goatProfile);
+    simulation.reset('bowling');
+    simulation.configure({ gravity, impactBoost });
+    runSeconds(simulation, 8);
+    for (const body of simulation.bodies) assert.ok([body.position.x, body.position.y, body.position.z, body.velocity.x, body.velocity.y, body.velocity.z].every(Number.isFinite), body.bodyKey);
+    for (const joint of simulation.joints) {
+      const a = joint.bodyA.pointToWorldFrame(joint.pivotA);
+      const b = joint.bodyB.pointToWorldFrame(joint.pivotB);
+      assert.ok(a.distanceTo(b) < .35, `${joint.bodyA.bodyKey}–${joint.bodyB.bodyKey} separated at extreme settings`);
+    }
+  }
+});
