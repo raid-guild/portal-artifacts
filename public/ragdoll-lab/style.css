@@ -26,3 +26,7 @@
 
 /* Official RaidGuild crossed-swords mark, reversed for the dark header. */
 .raidguild-credit{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 7px;color:#c9d4d7;text-decoration:none;border-radius:7px;flex-shrink:0}.raidguild-credit img{display:block;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}.raidguild-credit span{display:flex;flex-direction:column;font-size:12px;line-height:1.25}.raidguild-credit strong{font-size:14px;font-weight:700;color:#f0eee8}.raidguild-credit:hover{background:#ffffff0b}.raidguild-credit:focus-visible{outline:2px solid #75dbc6;outline-offset:2px}@media(max-width:520px){.raidguild-credit{gap:6px;padding:4px}.raidguild-credit img{width:24px;height:24px}}
+/* Four experiments use an even, readable two-by-two selector. */
+.scene-switch{grid-template-columns:repeat(2,minmax(0,1fr))}.scene-switch button{font-size:13px;padding:11px 5px}.viewport-top .camera-control.board-camera{grid-template-columns:1fr;width:128px}.viewport-top .camera-control.board-camera button{min-height:36px}
+@media(max-width:850px){.viewport-top .camera-control.board-camera button{min-height:44px}}
+.quality-control{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#dce5e5;font-size:13px;font-weight:600}.quality-control select{background:#202932;border:1px solid #ffffff22;color:#e7ecee;border-radius:7px;padding:9px 10px;min-height:42px;font:600 12px 'DM Sans',sans-serif;cursor:pointer}.display-section .fps-toggle{margin-top:18px}.display-section>.setting-help{margin-top:8px}

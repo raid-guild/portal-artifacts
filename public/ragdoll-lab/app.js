@@ -6,6 +6,7 @@ import { createSimulation, validateProfile } from './physics.js';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
+import { readQuality, saveQuality, createRenderGate, driveRenderFrame } from './quality.js';
 
 const $ = id => document.getElementById(id);
 const viewport = $('viewport');
@@ -19,8 +20,11 @@ let webTool;
 let webToolController;
 
 try {
+  const qualityStorage = (() => { try { return window.localStorage; } catch { return null; } })();
+  let graphicsQuality = readQuality(qualityStorage);
+  const renderGate = createRenderGate(graphicsQuality);
   simulation = createSimulation();
-  simulation.reset('bowling');
+  simulation.reset('plinko');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#1b232b');
   scene.fog = new THREE.Fog('#1b232b', 12, 27);
@@ -28,8 +32,9 @@ try {
   camera.position.set(3.7, 3, 5.2);
   camera.lookAt(0, 1.55, 0);
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = true;
+  const pixelRatioFor = quality => quality === 'low' ? .75 * Math.min(window.devicePixelRatio || 1, 1) : Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(pixelRatioFor(graphicsQuality));
+  renderer.shadowMap.enabled = graphicsQuality === 'standard';
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.65;
@@ -42,6 +47,26 @@ try {
   controls.maxPolarAngle = Math.PI * .48;
   const touchPolicy = createTouchPolicy();
   const fpsCounter = createFpsCounter();
+  $('graphics-quality').value = graphicsQuality;
+  function applyGraphicsQuality(value) {
+    if (value === graphicsQuality) return;
+    graphicsQuality = value;
+    saveQuality(qualityStorage, value);
+    renderGate.setQuality(value);
+    renderer.setPixelRatio(pixelRatioFor(value));
+    renderer.setSize(Math.max(1, viewport.clientWidth), Math.max(1, viewport.clientHeight), false);
+    renderer.shadowMap.enabled = value === 'standard';
+    if (value === 'standard') { renderer.shadowMap.needsUpdate = true; key.shadow.needsUpdate = true; }
+    const materials = new Set();
+    scene.traverse(object => {
+      if (Array.isArray(object.material)) for (const material of object.material) materials.add(material);
+      else if (object.material) materials.add(object.material);
+    });
+    for (const material of materials) material.needsUpdate = true;
+    fpsCounter.reset(performance.now());
+    if ($('show-fps').checked) $('fps-badge').textContent = '— FPS';
+  }
+  $('graphics-quality').addEventListener('change', event => applyGraphicsQuality(event.target.value));
   const narrowScreen = window.matchMedia('(max-width: 850px)');
   const panel = document.querySelector('.panel');
   const panelHome = panel.parentNode;
@@ -108,6 +133,7 @@ try {
   key.shadow.camera.top = 8; key.shadow.camera.bottom = -8;
   key.shadow.bias = -.0005;
   scene.add(key);
+  scene.add(key.target);
   const fill = new THREE.DirectionalLight('#5cc4c4', 1.8);
   fill.position.set(4, 3, -5);
   scene.add(fill);
@@ -120,6 +146,10 @@ try {
   const slideMaterial = new THREE.MeshStandardMaterial({ color: '#39505b', metalness: .09, roughness: .76 });
   const railMaterial = new THREE.MeshStandardMaterial({ color: '#5f7b80', metalness: .2, roughness: .5 });
   const deckMaterial = new THREE.MeshStandardMaterial({ color: '#34484c', metalness: .06, roughness: .85 });
+  const boardMaterial = new THREE.MeshStandardMaterial({ color: '#24373d', metalness: .08, roughness: .86 });
+  const boardFrameMaterial = new THREE.MeshStandardMaterial({ color: '#608b91', metalness: .2, roughness: .56 });
+  const boardGuardMaterial = new THREE.MeshBasicMaterial({ color: '#9bd5d1', transparent: true, opacity: .065, depthWrite: false, side: THREE.DoubleSide });
+  const mountMaterial = new THREE.MeshBasicMaterial({ color: '#90d7c9', transparent: true, opacity: .35, depthWrite: false });
   const dynamicMeshes = [];
   const staticMeshes = [];
   const pickMeshes = [];
@@ -150,7 +180,7 @@ try {
     const shape = body.shapeTag;
     const isHead = id === 'head';
     const isFoot = id.endsWith('foot');
-    const primaryMaterial = body.ragdollInstance.role === 'pin' ? accentMaterial : bodyMaterial;
+    const primaryMaterial = ['pin', 'target'].includes(body.ragdollInstance.role) ? accentMaterial : bodyMaterial;
     if (shape instanceof Object && 'radius' in shape && isHead) {
       const mesh = pickable(new THREE.Mesh(new THREE.SphereGeometry(shape.radius, 24, 16), primaryMaterial), body);
       group.add(mesh);
@@ -203,14 +233,24 @@ try {
     for (const body of simulation.staticBodies) {
       const [x, y, z] = body.halfExtentsTag;
       const isFloor = body.idTag === 'floor';
-      const material = body.idTag.startsWith('slide-') ? slideMaterial : body.idTag.includes('rail') ? railMaterial : body.idTag === 'deck' ? deckMaterial : isFloor ? floorMaterial : treadMaterial;
+      const material = body.idTag === 'board-front' ? boardGuardMaterial : body.idTag === 'board-back' ? boardMaterial : body.idTag.startsWith('board-side') ? boardFrameMaterial : body.idTag === 'board-floor' ? deckMaterial : body.idTag.startsWith('slide-') ? slideMaterial : body.idTag.includes('rail') ? railMaterial : body.idTag === 'deck' ? deckMaterial : isFloor ? floorMaterial : treadMaterial;
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(x * 2, y * 2, z * 2), material);
       mesh.position.copy(body.position);
       mesh.quaternion.copy(body.quaternion);
-      mesh.receiveShadow = true;
-      mesh.castShadow = !isFloor;
+      mesh.receiveShadow = body.idTag !== 'board-front';
+      mesh.castShadow = !isFloor && body.idTag !== 'board-front';
+      if (body.idTag === 'board-front') mesh.renderOrder = 5;
       scene.add(mesh);
       staticMeshes.push(mesh);
+    }
+    if (simulation.readFrame().scene === 'plinko') {
+      for (let row = 0; row < 5; row++) for (let column = 0; column <= row; column++) {
+        const mark = new THREE.Mesh(new THREE.RingGeometry(.13, .16, 20), mountMaterial);
+        mark.position.set((column - row / 2) * 1.8, 15.35 - 3 * row, -.535);
+        mark.renderOrder = 1;
+        scene.add(mark);
+        staticMeshes.push(mark);
+      }
     }
   }
   const grid = new THREE.GridHelper(30, 30, '#566f77', '#3c5059');
@@ -238,17 +278,18 @@ try {
   function updateUI() {
     const snap = simulation.snapshot();
     const bowling = snap.scene === 'bowling';
-    $('play-label').textContent = snap.paused ? bowling ? (snap.time === 0 ? 'Launch' : 'Resume') : 'Play simulation' : 'Pause simulation';
+    const plinko = snap.scene === 'plinko';
+    $('play-label').textContent = snap.paused ? bowling ? (snap.time === 0 ? 'Launch' : 'Resume') : plinko ? (snap.time === 0 ? 'Drop' : 'Resume') : 'Play simulation' : 'Pause simulation';
     $('play-icon').textContent = snap.paused ? '▶' : 'Ⅱ';
     $('live-chip').textContent = snap.paused ? '● PAUSED' : '● LIVE';
     $('live-chip').classList.toggle('playing', !snap.paused);
     $('status-text').textContent = snap.paused ? (snap.time ? 'SIMULATION PAUSED' : bowling ? 'READY TO LAUNCH' : 'READY TO DROP') : 'SIMULATION LIVE';
     $('sim-time').textContent = snap.time.toFixed(1);
-    $('scene-title').textContent = bowling ? 'BOWLING COURSE' : snap.scene === 'drop' ? 'FREE DROP' : 'STAIR FALL';
-    $('scene-help').textContent = bowling ? 'Launch one ragdoll down the long slide into ten standing ragdolls.' : snap.scene === 'drop' ? 'Watch joints absorb the landing on a flat plane.' : 'A forward lean sends the body down five steps.';
-    $('study-title').innerHTML = bowling ? 'Cause a<br><em>pileup.</em>' : 'Make a body<br><em>fall.</em>';
-    $('study-intro').textContent = bowling ? 'One launcher, ten ragdoll targets, and a long run downhill.' : 'Thirteen connected rigid bodies. Twelve joints. One very unforgiving floor.';
-    for (const name of ['bowling', 'drop', 'stairs']) {
+    $('scene-title').textContent = plinko ? 'PLINKO BOARD' : bowling ? 'BOWLING COURSE' : snap.scene === 'drop' ? 'FREE DROP' : 'STAIR FALL';
+    $('scene-help').textContent = plinko ? 'Drop one ragdoll through fifteen targets arranged in five rows.' : bowling ? 'Launch one ragdoll down the long slide into ten standing ragdolls.' : snap.scene === 'drop' ? 'Watch joints absorb the landing on a flat plane.' : 'A forward lean sends the body down five steps.';
+    $('study-title').innerHTML = plinko ? 'Watch them<br><em>cascade.</em>' : bowling ? 'Cause a<br><em>pileup.</em>' : 'Make a body<br><em>fall.</em>';
+    $('study-intro').textContent = plinko ? 'One dropper, fifteen ragdoll targets, and gravity.' : bowling ? 'One launcher, ten ragdoll targets, and a long run downhill.' : 'Thirteen connected rigid bodies. Twelve joints. One very unforgiving floor.';
+    for (const name of ['plinko', 'bowling', 'drop', 'stairs']) {
       const active = name === snap.scene;
       $(`scene-${name}`).classList.toggle('active', active);
       $(`scene-${name}`).setAttribute('aria-pressed', String(active));
@@ -269,16 +310,31 @@ try {
     $('character').value = snap.profileId;
     $('body-count').textContent = String(snap.bodies);
     $('joint-count').textContent = String(snap.joints);
-    $('pin-count').textContent = `${snap.releasedPins}/10`;
-    $('pin-stat').hidden = !bowling;
-    $('slide-grip-setting').hidden = !bowling;
-    $('impact-boost-setting').hidden = !bowling;
-    $('camera-control').hidden = !bowling;
-    $('reset-button').title = bowling ? 'Rerack simulation' : 'Reset simulation';
+    $('pin-count').textContent = `${snap.releasedTargets}/${snap.totalTargets}`;
+    $('target-stat-label').textContent = plinko ? 'RELEASED' : 'PINS HIT';
+    $('pin-stat').hidden = !(bowling || plinko);
+    $('slide-grip-setting').hidden = !(bowling || plinko);
+    $('slide-grip-label').textContent = plinko ? 'Board grip' : 'Slide grip';
+    $('slide-grip-help').textContent = plinko ? 'Grip against the board walls.' : 'Lower values let the launcher travel farther.';
+    $('impact-boost-setting').hidden = !(bowling || plinko);
+    $('impact-boost-help').textContent = plinko ? 'Adds one downward and sideways kick on contact. Zero keeps the natural collision.' : 'Adds one upward and outward kick on contact. Zero keeps the natural collision.';
+    $('camera-control').hidden = !(bowling || plinko);
+    $('camera-control').classList.toggle('board-camera', plinko);
+    $('camera-overview').textContent = plinko ? 'Frame board' : 'Overview';
+    $('camera-follow').hidden = !bowling;
+    $('reset-button').title = plinko ? 'Reset board' : bowling ? 'Rerack simulation' : 'Reset simulation';
     $('reset-button').setAttribute('aria-label', $('reset-button').title);
-    grid.visible = ring.visible = !bowling;
-    scene.fog.near = bowling ? 34 : 12;
-    scene.fog.far = bowling ? camera.aspect < .75 ? 150 : 90 : 27;
+    grid.visible = ring.visible = !(bowling || plinko);
+    scene.fog.near = plinko ? 30 : bowling ? 34 : 12;
+    scene.fog.far = plinko ? 110 : bowling ? camera.aspect < .75 ? 150 : 90 : 27;
+    key.position.set(plinko ? -6 : -3, plinko ? 25 : 7, plinko ? 16 : 5);
+    key.target.position.set(0, plinko ? 10 : 0, 0);
+    key.shadow.camera.left = plinko ? -10 : -8;
+    key.shadow.camera.right = plinko ? 10 : 8;
+    key.shadow.camera.top = plinko ? 13 : 8;
+    key.shadow.camera.bottom = plinko ? -13 : -8;
+    key.shadow.camera.updateProjectionMatrix();
+    fill.position.set(plinko ? 5 : 4, plinko ? 14 : 3, plinko ? 12 : -5);
     updateCameraButtons();
   }
   function reset(nextScene) {
@@ -318,6 +374,7 @@ try {
   });
   $('reset-button').addEventListener('click', () => reset());
   $('scene-bowling').addEventListener('click', () => { cameraMode = 'overview'; reset('bowling'); });
+  $('scene-plinko').addEventListener('click', () => { cameraMode = 'overview'; reset('plinko'); });
   $('scene-drop').addEventListener('click', () => reset('drop'));
   $('scene-stairs').addEventListener('click', () => reset('stairs'));
   $('camera-overview').addEventListener('click', () => setCameraMode('overview'));
@@ -402,7 +459,7 @@ try {
     updateCameraButtons();
   }
   controls.addEventListener('start', () => {
-    if (simulation.readFrame().scene === 'bowling' && (cameraMode === 'follow' || cameraMode === 'overview')) {
+    if (['bowling', 'plinko'].includes(simulation.readFrame().scene) && (cameraMode === 'follow' || cameraMode === 'overview')) {
       cameraMode = 'free';
       updateCameraButtons();
     }
@@ -421,6 +478,19 @@ try {
 
   function frameScene() {
     const frame = simulation.readFrame();
+    if (frame.scene === 'plinko') {
+      const shortLandscape = narrowScreen.matches && window.innerHeight <= 450 && camera.aspect > 1.6;
+      const portrait = camera.aspect < .75;
+      const target = new THREE.Vector3(0, shortLandscape ? 8 : portrait ? 8.5 : 9.2, 0);
+      controls.maxDistance = 80;
+      controls.maxPolarAngle = Math.PI * .75;
+      controls.target.copy(target);
+      camera.position.copy(target).add(new THREE.Vector3(0, 0, shortLandscape ? 40 : portrait ? 38 : 36));
+      camera.lookAt(target);
+      controls.update();
+      return;
+    }
+    controls.maxPolarAngle = Math.PI * .48;
     if (frame.scene === 'bowling') {
       if (cameraMode !== 'follow' && camera.aspect < .75) {
         const target = new THREE.Vector3(0, 5, 2);
@@ -475,8 +545,8 @@ try {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
-    if (simulation.readFrame().scene === 'bowling' && cameraMode === 'overview') {
-      scene.fog.far = camera.aspect < .75 ? 150 : 90;
+    if (['bowling', 'plinko'].includes(simulation.readFrame().scene) && cameraMode === 'overview') {
+      scene.fog.far = simulation.readFrame().scene === 'plinko' ? 110 : camera.aspect < .75 ? 150 : 90;
       frameScene();
     }
   }
@@ -486,21 +556,24 @@ try {
   frameScene();
   syncVisuals();
   updateUI();
-  renderer.setAnimationLoop(() => {
-    const delta = frameDelta();
-    simulation.step(delta);
-    syncVisuals();
+  function physicsTick() { simulation.step(frameDelta()); }
+  function cameraTick() {
     updateFollow();
     controls.update();
+  }
+  function drawFrame() {
+    syncVisuals();
     const frame = simulation.readFrame();
     $('sim-time').textContent = frame.time.toFixed(1);
-    if (frame.scene === 'bowling') $('pin-count').textContent = `${frame.releasedPins}/10`;
+    if (frame.totalTargets) $('pin-count').textContent = `${frame.releasedTargets}/${frame.totalTargets}`;
     renderer.render(scene, camera);
     const fps = fpsCounter.frame(performance.now());
     if (fps !== null) $('fps-badge').textContent = `${fps} FPS`;
-  });
+  }
+  renderer.setAnimationLoop(() => driveRenderFrame(renderGate, performance.now(), physicsTick, cameraTick, drawFrame));
   document.addEventListener('visibilitychange', () => {
     lastFrame = performance.now();
+    renderGate.reset();
     fpsCounter.reset(lastFrame);
     if ($('show-fps').checked) $('fps-badge').textContent = '— FPS';
     if (document.hidden) { releaseDrag(); touchPolicy.reset(); reconnectOrbit(); }
@@ -532,11 +605,11 @@ try {
     webToolController = new AbortController();
     webTool = Promise.resolve(document.modelContext.registerTool({
       name: 'configure_ragdoll_study',
-      description: 'Configure or reset Ragdoll Lab. Choose bowling, drop or stairs; adjust gravity, impact boost, damping, grip, joint range and speed.',
+      description: 'Configure or reset Ragdoll Lab. Choose plinko, bowling, drop or stairs; adjust gravity, impact boost, damping, grip, joint range and speed.',
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       signal: webToolController.signal,
       inputSchema: { type: 'object', properties: {
-        scene: { type: 'string', enum: ['bowling', 'drop', 'stairs'] },
+        scene: { type: 'string', enum: ['plinko', 'bowling', 'drop', 'stairs'] },
         character: { type: 'string', enum: ['goatman', 'mannequin'] },
         reset: { type: 'boolean' },
         paused: { type: 'boolean' },
@@ -552,7 +625,7 @@ try {
         try {
           if (input == null || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Expected settings object');
           const { scene: nextScene, character, reset: shouldReset, paused, ...values } = input;
-          if (nextScene !== undefined && !['bowling', 'drop', 'stairs'].includes(nextScene)) throw new RangeError('Invalid scene');
+          if (nextScene !== undefined && !['plinko', 'bowling', 'drop', 'stairs'].includes(nextScene)) throw new RangeError('Invalid scene');
           if (character !== undefined && !['goatman', 'mannequin'].includes(character)) throw new RangeError('Invalid character');
           if (character === 'goatman' && !goatTemplate) throw new Error('Goatman is not loaded');
           if (shouldReset !== undefined && typeof shouldReset !== 'boolean') throw new TypeError('Invalid reset');

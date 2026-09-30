@@ -125,6 +125,12 @@ export function createSimulation(initialProfile = null) {
     if (settings.impactBoost === 0) return;
     const center = centerOfMass(instance);
     const sourceCenter = centerOfMass(source);
+    const strength = Math.min(closingSpeed / 6, 1) * settings.impactBoost;
+    if (scene === 'plinko') {
+      const side = Math.abs(center.x - sourceCenter.x) < 1e-4 ? 0 : Math.sign(center.x - sourceCenter.x);
+      pendingBoosts.push({ instance, delta: new CANNON.Vec3(side * .8 * strength, -2 * strength, 0) });
+      return;
+    }
     let dx = center.x - sourceCenter.x, dz = center.z - sourceCenter.z;
     let length = Math.hypot(dx, dz);
     if (length < 1e-5) {
@@ -132,7 +138,6 @@ export function createSimulation(initialProfile = null) {
       dx = velocity.x; dz = velocity.z; length = Math.hypot(dx, dz);
     }
     if (length < 1e-5) { dx = 0; dz = 1; length = 1; }
-    const strength = Math.min(closingSpeed / 6, 1) * settings.impactBoost;
     pendingBoosts.push({ instance, delta: new CANNON.Vec3(dx / length * 2.5 * strength, 4 * strength, dz / length * 2.5 * strength) });
   }
   function applyPendingBoosts() {
@@ -221,6 +226,13 @@ export function createSimulation(initialProfile = null) {
     staticBodies.push(body);
   }
   function makeEnvironment() {
+    if (scene === 'plinko') {
+      staticBox('board-floor', [0, -.2, 0], [4.6, .2, .7]);
+      for (const side of [-1, 1]) staticBox(`board-side-${side}`, [side * 4.6, 10, 0], [.15, 10, .7], slideMaterial);
+      staticBox('board-back', [0, 10, -.65], [4.6, 10, .1], slideMaterial);
+      staticBox('board-front', [0, 10, .65], [4.6, 10, .1], slideMaterial);
+      return;
+    }
     if (scene === 'bowling') {
       staticBox('ground', [0, -1.15, -3], [15, .15, 42]);
       const points = [[-26, 12], [-16, 8.5], [0, 2.5], [8, .25]];
@@ -303,6 +315,25 @@ export function createSimulation(initialProfile = null) {
         const x = (column - row / 2) * 1.13;
         const z = 11 + row * 1.55;
         transformInstance(instance, new CANNON.Quaternion(), new CANNON.Vec3(0, .95, 0), new CANNON.Vec3(x, 0, z));
+        holdInstance(instance);
+      }
+    }
+    buildingInstance = null;
+  }
+  function makePlinkoRagdolls() {
+    const dropper = newInstance('dropper', 'dropper');
+    buildingInstance = dropper;
+    makeRagdoll();
+    transformInstance(dropper, new CANNON.Quaternion(), new CANNON.Vec3(0, .95, 0), new CANNON.Vec3(.12, 17.2, 0));
+    for (let row = 0, index = 0; row < 5; row++) {
+      for (let column = 0; column <= row; column++, index++) {
+        const instance = newInstance(`target-${String(index + 1).padStart(2, '0')}`, 'target');
+        buildingInstance = instance;
+        makeRagdoll();
+        const x = (column - row / 2) * 1.8;
+        const footBase = 14 - 3 * row;
+        transformInstance(instance, new CANNON.Quaternion(), new CANNON.Vec3(0, .95, 0), new CANNON.Vec3(x, footBase, 0));
+        instance.row = row;
         holdInstance(instance);
       }
     }
@@ -395,7 +426,7 @@ export function createSimulation(initialProfile = null) {
     drag = null;
   }
   function reset(nextScene = scene) {
-    if (!['drop', 'stairs', 'bowling'].includes(nextScene)) throw new RangeError('Unknown scene');
+    if (!['drop', 'stairs', 'bowling', 'plinko'].includes(nextScene)) throw new RangeError('Unknown scene');
     clearDrag();
     pendingBoosts.length = 0;
     for (const joint of joints) world.removeConstraint(joint);
@@ -412,11 +443,11 @@ export function createSimulation(initialProfile = null) {
     // Corrected contact friction exposes small contact-manifold changes in the
     // passive poses. These iteration counts solve those contacts without changing
     // sleep thresholds or pinning bodies in place.
-    world.solver.iterations = scene === 'bowling' ? (profile ? 40 : 20) : profile ? (scene === 'stairs' ? 60 : 90) : (scene === 'drop' ? 30 : 20);
-    if (scene === 'bowling') {
+    world.solver.iterations = scene === 'bowling' || scene === 'plinko' ? (profile ? 40 : 20) : profile ? (scene === 'stairs' ? 60 : 90) : (scene === 'drop' ? 30 : 20);
+    if (scene === 'bowling' || scene === 'plinko') {
       if (!sapBroadphase) sapBroadphase = new CANNON.SAPBroadphase(world);
       sapBroadphase.setWorld(world);
-      sapBroadphase.axisIndex = 2;
+      sapBroadphase.axisIndex = scene === 'plinko' ? 1 : 2;
       world.broadphase = sapBroadphase;
     } else world.broadphase = new CANNON.NaiveBroadphase();
     time = accumulator = 0;
@@ -425,6 +456,7 @@ export function createSimulation(initialProfile = null) {
     bowlingStarted = false;
     makeEnvironment();
     if (scene === 'bowling') makeBowlingRagdolls();
+    else if (scene === 'plinko') makePlinkoRagdolls();
     else {
       buildingInstance = newInstance('single');
       makeRagdoll();
@@ -531,13 +563,15 @@ export function createSimulation(initialProfile = null) {
     return reset();
   }
   function snapshot() {
+    const targets = instances.filter(instance => instance.role === 'pin' || instance.role === 'target');
     return { scene, profileId: profile?.id ?? 'mannequin', paused, time, settings: { ...settings }, bodies: bodies.length, joints: joints.length,
       instances: instances.map(instance => ({ id: instance.id, role: instance.role, held: instance.held })),
       releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length,
+      releasedTargets: targets.filter(instance => !instance.held).length, totalTargets: targets.length,
       sleepingBodies: bodies.filter(body => body.sleepState === CANNON.Body.SLEEPING).length,
       movingBodies: bodies.filter(body => body.sleepState !== CANNON.Body.SLEEPING && !body.ragdollInstance.held).map(body => ({ id: body.bodyKey, speed: body.velocity.length(), angularSpeed: body.angularVelocity.length(), sleepState: body.sleepState })), dragging: Boolean(drag) };
   }
-  function readFrame() { return { scene, profileId: profile?.id ?? 'mannequin', paused, time, releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length }; }
+  function readFrame() { const targets = instances.filter(instance => instance.role === 'pin' || instance.role === 'target'); return { scene, profileId: profile?.id ?? 'mannequin', paused, time, releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length, releasedTargets: targets.filter(instance => !instance.held).length, totalTargets: targets.length }; }
   reset();
   return { world, bodies, joints, staticBodies, instances, settings, reset, setProfile, configure, setPaused, step, beginDrag, moveDrag, endDrag, snapshot, readFrame, clonePose, interpolationAlpha: () => paused ? 1 : Math.min(1, accumulator / (1 / 120)) };
 }

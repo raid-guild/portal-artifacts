@@ -14,6 +14,12 @@ python3 -m http.server 5173 --directory public
 
 Open `http://localhost:5173/ragdoll-lab/`. From this study directory, run `npm test`.
 
+Plinko drops one ragdoll onto fifteen targets arranged down a shallow vertical
+board. Targets stay mounted until struck; released ragdolls can knock the next
+rows loose. Use Drop/Pause/Resume, Reset board, and Frame board. Board grip controls
+the walls; Impact boost adds a downward/sideways kick per struck target. Set it to
+zero to watch a cascade driven by natural collisions alone.
+
 Bowling launches one ragdoll down a long slide into ten targets. Targets hold their
 starting pose until struck, then participate in the same physical simulation.
 Use Launch/Pause/Resume, Reset to rerack, Overview/Follow, and drag a visible limb.
@@ -22,9 +28,12 @@ Mannequin. Gravity ranges from 0–20 m/s² across all scenes. Bowling’s Impac
 adds one upward/outward kick per struck target; zero keeps natural collisions.
 Slide grip and floor grip control separate surfaces.
 
-On phones, Launch/Reset stay visible and Settings opens a scrollable drawer.
+On phones, Drop or Launch and Reset stay visible; Settings opens a scrollable drawer.
 Touch Camera mode orbits and zooms; Grab mode pulls a body without orbiting.
 Display → Show render FPS enables a rendering-speed badge on any screen.
+Display → Graphics quality → Low reduces 3D resolution, disables shadows, and
+caps rendering at 30 FPS. The choice is saved in this browser; physics timing and
+the current simulation are preserved when switching quality.
 
 All runtime dependencies and fonts are served from the same origin under the
 existing portal-artifacts Content Security Policy. This artifact uses no keys,
