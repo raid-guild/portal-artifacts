@@ -1,6 +1,6 @@
 # Ragdoll Lab
 
-An interactive Three.js study of passive ragdolls. The default Plinko scene drops one character through fifteen targets arranged in five rows; Bowling, Free drop and Stairs remain available. Vitalik (a stylized human) and Goatman are skinned GLBs driven by 13 rigid bodies and 12 cone twist joints; the visible-collider mannequin is also selectable. Vitalik is selected when its asset loads, unless the visitor has already chosen another character. Plinko uses one shared physics world with 16 independent rigs, 208 bodies and 192 joints. Bowling has 11 rigs, 143 bodies and 132 joints.
+An interactive Three.js study of passive ragdolls. The initial Free drop scene starts with one character above a flat floor. Plinko drops one character through fifteen targets arranged in five rows; Bowling and Stairs are also available. Vitalik (a stylized human) and Goatman are skinned GLBs driven by 13 rigid bodies and 12 cone twist joints; the visible-collider mannequin is also selectable. Vitalik is selected when its asset loads, unless the visitor has already chosen another character. Plinko uses one shared physics world with 16 independent rigs, 208 bodies and 192 joints. Bowling has 11 rigs, 143 bodies and 132 joints.
 
 Run locally:
 

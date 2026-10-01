@@ -20,28 +20,28 @@
     <main class="workspace">
       <aside class="panel" aria-label="Simulation controls">
         <div class="eyebrow">THE EXPERIMENT</div>
-        <h1 id="study-title">Watch them<br><em>cascade.</em></h1>
-        <p class="intro" id="study-intro">One dropper, fifteen ragdoll targets, and gravity.</p>
+        <h1 id="study-title">Make a body<br><em>fall.</em></h1>
+        <p class="intro" id="study-intro">Thirteen connected rigid bodies. Twelve joints. One very unforgiving floor.</p>
         <div class="character-control"><label for="character">Character</label><select id="character"><option value="vitalik" disabled>Vitalik · loading</option><option value="goatman" disabled>Goatman · loading</option><option value="mannequin" selected>Mannequin</option></select><p id="character-status" role="status">Loading the rigged characters…</p></div>
         <div class="panel-section scene-section"><div class="section-heading"><span>01</span><h2>Environment</h2></div>
           <div class="scene-switch" role="group" aria-label="Environment">
-            <button id="scene-plinko" class="active" type="button" aria-pressed="true">Plinko</button>
+            <button id="scene-plinko" type="button" aria-pressed="false">Plinko</button>
             <button id="scene-bowling" type="button" aria-pressed="false">Bowling</button>
-            <button id="scene-drop" type="button" aria-pressed="false">Free drop</button>
+            <button id="scene-drop" class="active" type="button" aria-pressed="true">Free drop</button>
             <button id="scene-stairs" type="button" aria-pressed="false">Stairs</button>
           </div>
-          <p class="setting-help" id="scene-help">Drop one ragdoll through fifteen targets arranged in five rows.</p>
+          <p class="setting-help" id="scene-help">Watch joints absorb the landing on a flat plane.</p>
         </div>
         <div class="panel-section"><div class="section-heading"><span>02</span><h2>Motion</h2></div>
-          <div class="button-row"><button class="primary-button" id="play-button" type="button"><span id="play-icon">▶</span><span id="play-label">Launch</span></button><button class="reset-button" id="reset-button" type="button" aria-label="Rerack simulation" title="Rerack simulation">↻</button></div>
+          <div class="button-row"><button class="primary-button" id="play-button" type="button"><span id="play-icon">▶</span><span id="play-label">Play simulation</span></button><button class="reset-button" id="reset-button" type="button" aria-label="Reset simulation" title="Reset simulation">↻</button></div>
           <div class="speed-control"><label for="speed">Playback speed</label><select id="speed"><option value="0.25">0.25× slow</option><option value="0.5">0.5× slow</option><option value="1" selected>1× real time</option></select></div>
         </div>
         <div class="panel-section"><div class="section-heading"><span>03</span><h2>Forces, material & joints</h2></div>
           <div class="slider-setting"><div class="slider-head"><label for="gravity">Gravity</label><output id="gravity-value" for="gravity">9.82 m/s²</output></div><input id="gravity" type="range" min="0" max="20" step="0.01" value="9.82"><p>Pulls every released body down.</p></div>
-          <div id="impact-boost-setting" class="slider-setting"><div class="slider-head"><label for="impact-boost">Impact boost</label><output id="impact-boost-value" for="impact-boost">1.0×</output></div><input id="impact-boost" type="range" min="0" max="2" step="0.1" value="1"><p id="impact-boost-help">Adds one downward and sideways kick on contact. Zero keeps the natural collision.</p></div>
+          <div id="impact-boost-setting" class="slider-setting" hidden><div class="slider-head"><label for="impact-boost">Impact boost</label><output id="impact-boost-value" for="impact-boost">1.0×</output></div><input id="impact-boost" type="range" min="0" max="2" step="0.1" value="1"><p id="impact-boost-help">Adds one downward and sideways kick on contact. Zero keeps the natural collision.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="damping">Air damping</label><output id="damping-value" for="damping">0.08</output></div><input id="damping" type="range" min="0" max="0.8" step="0.01" value="0.08"><p>How quickly motion settles.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="friction">Floor grip</label><output id="friction-value" for="friction">0.60</output></div><input id="friction" type="range" min="0" max="1" step="0.01" value="0.6"><p>Grip on the landing deck, stairs and floor.</p></div>
-          <div id="slide-grip-setting" class="slider-setting"><div class="slider-head"><label id="slide-grip-label" for="slide-grip">Board grip</label><output id="slide-grip-value" for="slide-grip">0.03</output></div><input id="slide-grip" type="range" min="0" max="0.5" step="0.01" value="0.03"><p id="slide-grip-help">Grip against the board walls.</p></div>
+          <div id="slide-grip-setting" class="slider-setting" hidden><div class="slider-head"><label id="slide-grip-label" for="slide-grip">Board grip</label><output id="slide-grip-value" for="slide-grip">0.03</output></div><input id="slide-grip" type="range" min="0" max="0.5" step="0.01" value="0.03"><p id="slide-grip-help">Grip against the board walls.</p></div>
           <div class="slider-setting"><div class="slider-head"><label for="joint-range">Joint range</label><output id="joint-range-value" for="joint-range">100%</output></div><input id="joint-range" type="range" min="25" max="125" step="1" value="100"><p>Scales each joint’s allowed cone and twist angle. These simple joints approximate a body; they do not model anatomical hinges.</p></div>
         </div>
         <div class="panel-section display-section"><div class="section-heading"><span>04</span><h2>Display</h2></div><div class="quality-control"><label for="graphics-quality">Graphics quality</label><select id="graphics-quality"><option value="standard">Standard</option><option value="low">Low</option></select></div><p class="setting-help">Low reduces 3D resolution, turns off shadows, and caps rendering at 30 FPS. Physics keeps running normally.</p><label class="fps-toggle" for="show-fps"><input id="show-fps" type="checkbox"> Show render FPS</label><p class="setting-help">Measures displayed frames per wall-clock second, including while physics is paused.</p></div>
@@ -49,14 +49,14 @@
       </aside>
       <section class="viewport-wrap" aria-label="Interactive 3D ragdoll simulation">
         <div id="viewport" class="viewport"><div id="error-message" class="error-message" role="alert" hidden></div></div>
-        <div class="viewport-top"><div class="viewport-labels"><span class="scene-chip"><span class="scene-chip-dot"></span><span id="scene-title">PLINKO BOARD</span></span><span id="selection-label" class="selection-label" aria-live="polite" hidden></span></div><div id="camera-control" class="camera-control" role="group" aria-label="Camera view"><button id="camera-overview" type="button" class="active" aria-pressed="true">Frame board</button><button id="camera-follow" type="button" aria-pressed="false" hidden>Follow</button></div><span class="live-chip" id="live-chip">● PAUSED</span></div>
+        <div class="viewport-top"><div class="viewport-labels"><span class="scene-chip"><span class="scene-chip-dot"></span><span id="scene-title">FREE DROP</span></span><span id="selection-label" class="selection-label" aria-live="polite" hidden></span></div><div id="camera-control" class="camera-control" hidden role="group" aria-label="Camera view"><button id="camera-overview" type="button" class="active" aria-pressed="true">Frame board</button><button id="camera-follow" type="button" aria-pressed="false" hidden>Follow</button></div><span class="live-chip" id="live-chip">● PAUSED</span></div>
         <div id="fps-badge" class="fps-badge" aria-live="off" hidden>— FPS</div>
-        <div class="viewport-bottom"><div class="hint"><span class="hint-icon">↗</span><span>Drag a body to pull it · Drag space to orbit · Scroll to zoom</span></div><div class="stats"><span><b id="sim-time">0.0</b><small>SECONDS</small></span><i></i><span><b id="body-count">208</b><small>BODIES</small></span><i></i><span><b id="joint-count">192</b><small>JOINTS</small></span><i></i><span id="pin-stat"><b id="pin-count">0/15</b><small id="target-stat-label">RELEASED</small></span></div></div>
+        <div class="viewport-bottom"><div class="hint"><span class="hint-icon">↗</span><span>Drag a body to pull it · Drag space to orbit · Scroll to zoom</span></div><div class="stats"><span><b id="sim-time">0.0</b><small>SECONDS</small></span><i></i><span><b id="body-count">13</b><small>BODIES</small></span><i></i><span><b id="joint-count">12</b><small>JOINTS</small></span><i></i><span id="pin-stat" hidden><b id="pin-count">0/15</b><small id="target-stat-label">RELEASED</small></span></div></div>
         <div id="mobile-controls" class="mobile-controls"><div class="touch-mode-control" role="group" aria-label="Touch gesture mode"><button id="touch-camera" type="button" class="active" aria-pressed="true">Camera</button><button id="touch-grab" type="button" aria-pressed="false">Grab</button></div><span id="touch-hint">Drag to orbit · pinch to zoom</span><div id="mobile-action-mount"></div><button id="open-settings" type="button" aria-haspopup="dialog" aria-controls="settings-dialog">Settings</button></div>
       </section>
     </main>
   </div>
   <dialog id="settings-dialog" aria-label="Simulation settings"><div class="settings-dialog-header"><strong>Settings</strong><button id="close-settings" type="button" aria-label="Close settings">✕</button></div><div id="settings-mount"></div></dialog>
-  <script type="module" src="./app.js?v=vitalik-20261001"></script>
+  <script type="module" src="./app.js?v=freedrop-20261001"></script>
 </body>
 </html>

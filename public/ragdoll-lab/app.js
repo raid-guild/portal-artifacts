@@ -25,7 +25,7 @@ try {
   let graphicsQuality = readQuality(qualityStorage);
   const renderGate = createRenderGate(graphicsQuality);
   simulation = createSimulation();
-  simulation.reset('plinko');
+  simulation.reset('drop');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#1b232b');
   scene.fog = new THREE.Fog('#1b232b', 12, 27);
