@@ -2,12 +2,12 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
-import { createSimulation, validateProfile } from './physics.js?v=vitalik-20261001';
+import { createSimulation, validateProfile } from './physics.js?v=vitalik-shoulder-20261001';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
 import { readQuality, saveQuality, createRenderGate, driveRenderFrame } from './quality.js';
-import { createCharacterSelection } from './characterSelection.js?v=vitalik-20261001';
+import { createCharacterSelection } from './characterSelection.js?v=vitalik-shoulder-20261001';
 
 const $ = id => document.getElementById(id);
 const viewport = $('viewport');
@@ -25,7 +25,7 @@ try {
   let graphicsQuality = readQuality(qualityStorage);
   const renderGate = createRenderGate(graphicsQuality);
   simulation = createSimulation();
-  simulation.reset('plinko');
+  simulation.reset('drop');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#1b232b');
   scene.fog = new THREE.Fog('#1b232b', 12, 27);
@@ -590,7 +590,9 @@ try {
       if (!profileResponse.ok) throw new Error(`Profile HTTP ${profileResponse.status}`);
       const profile = validateProfile(await profileResponse.json());
       if (profile.id !== id) throw new Error('Profile identity does not match the requested character');
-      const template = await new GLTFLoader().loadAsync(new URL(profile.asset, import.meta.url).href);
+      const assetUrl = new URL(profile.asset, import.meta.url);
+      if (id === 'vitalik') assetUrl.searchParams.set('v', 'shoulder-20261001');
+      const template = await new GLTFLoader().loadAsync(assetUrl.href);
       characterAssets.set(id, { profile, template });
       const option = $('character').querySelector(`option[value="${id}"]`);
       option.disabled = false;

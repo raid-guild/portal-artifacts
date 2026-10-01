@@ -3,9 +3,11 @@
 Run inside Blender 5.2 with the Vitalik_Study scene in outputs/vitalik-rigged.blend.
 The original default Scene is retained. The companion bake script uses this exact rest mesh.
 """
-import bpy, json, math, os
+import bpy, json, math, os, sys
 from pathlib import Path
 from mathutils import Vector
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vitalik_weights import weights
 
 SITE = Path(os.environ.get('VITALIK_SITE_ROOT', Path(__file__).resolve().parents[1]))
 OUT = Path(os.environ.get('VITALIK_OUTPUT_ROOT', SITE / 'outputs'))
@@ -125,27 +127,6 @@ for s,n in [(-1,'left'),(1,'right')]:
 details.append(ellipsoid('Soft lip',(0,-.092,1.699),(.028,.005,.005),LIP,12,8))
 
 parts=[sweater,pants,head,hair]+details
-
-def ramp(z,a,b):
-    t=max(0,min(1,(z-a)/(b-a)))
-    return t*t*(3-2*t)
-def weights(part,p):
-    x,y,z=p;side='left' if x<0 else 'right'
-    if part=='sweater':
-        if abs(x)>.22 and z<1.56:
-            fore=1-ramp(z,1.15,1.27)
-            shoulder=ramp(abs(x),.22,.31)
-            return {side+'-forearm':fore,side+'-upper-arm':(1-fore)*shoulder,'chest':(1-fore)*(1-shoulder)}
-        return {'pelvis':1-ramp(z,1.12,1.36),'chest':ramp(z,1.12,1.36)}
-    if part=='pants':
-        if abs(x)<.05 and z>.84:return {'pelvis':1}
-        thigh=ramp(z,.49,.61)
-        hip=ramp(z,.91,1.04)
-        return {side+'-shin':1-thigh,side+'-thigh':thigh*(1-hip),'pelvis':thigh*hip}
-    if part=='head':return {'head':ramp(z,1.62,1.68),'chest':1-ramp(z,1.62,1.68)}
-    if part=='hand':return {side+'-forearm':1}
-    if part=='shoe':return {side+'-foot':1}
-    return {'head':1}
 
 for obj in parts:
     kind='sweater' if obj==sweater else 'pants' if obj==pants else 'head' if obj==head else 'hand' if 'hand' in obj.name else 'shoe' if ('shoe' in obj.name or 'sole' in obj.name) else 'detail'
