@@ -1,0 +1,563 @@
+{
+  "version": 1,
+  "id": "vitalik",
+  "asset": "./assets/vitalik-rigged.glb",
+  "coordinateSystem": "gltf-y-up",
+  "units": "meters",
+  "bounds": {
+    "min": [
+      -0.5070000290870667,
+      0.0,
+      -0.10678577423095703
+    ],
+    "max": [
+      0.5070000290870667,
+      1.9010000228881836,
+      0.22199995815753937
+    ]
+  },
+  "bodies": [
+    {
+      "id": "pelvis",
+      "bone": "pelvis",
+      "mass": 9,
+      "position": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "shape": {
+        "type": "box",
+        "halfExtents": [
+          0.14,
+          0.12,
+          0.08
+        ]
+      }
+    },
+    {
+      "id": "chest",
+      "bone": "chest",
+      "mass": 13,
+      "position": [
+        0.0,
+        1.41,
+        0.0
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "shape": {
+        "type": "box",
+        "halfExtents": [
+          0.2,
+          0.21,
+          0.1
+        ]
+      }
+    },
+    {
+      "id": "head",
+      "bone": "head",
+      "mass": 4,
+      "position": [
+        0.0,
+        1.76,
+        0.015
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "shape": {
+        "type": "box",
+        "halfExtents": [
+          0.092,
+          0.14,
+          0.09
+        ]
+      }
+    },
+    {
+      "id": "left-upper-arm",
+      "bone": "left-upper-arm",
+      "mass": 2.2,
+      "position": [
+        -0.26899999380111694,
+        1.369999885559082,
+        0.007000000216066837
+      ],
+      "quaternion": [
+        0.10727915167808533,
+        -0.0,
+        0.9808380007743835,
+        0.16262845695018768
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.061,
+        "totalLength": 0.40122313293431805
+      }
+    },
+    {
+      "id": "left-forearm",
+      "bone": "left-forearm",
+      "mass": 1.6,
+      "position": [
+        -0.3995000123977661,
+        0.9749999642372131,
+        0.014000000432133675
+      ],
+      "quaternion": [
+        0.0,
+        -0.0,
+        0.9877257943153381,
+        0.1561979353427887
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.049,
+        "totalLength": 0.4310324427642725
+      }
+    },
+    {
+      "id": "left-thigh",
+      "bone": "left-thigh",
+      "mass": 6,
+      "position": [
+        -0.10300000011920929,
+        0.7799999713897705,
+        0.006000000052154064
+      ],
+      "quaternion": [
+        0.41881558299064636,
+        -0.0,
+        0.9074333906173706,
+        0.0340307354927063
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.069,
+        "totalLength": 0.42097508280340973
+      }
+    },
+    {
+      "id": "left-shin",
+      "bone": "left-shin",
+      "mass": 4,
+      "position": [
+        -0.12200000137090683,
+        0.35499998927116394,
+        0.008500000461935997
+      ],
+      "quaternion": [
+        -0.5038050413131714,
+        0.0,
+        0.8636664152145386,
+        0.016147702932357788
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.052,
+        "totalLength": 0.4302243611382581
+      }
+    },
+    {
+      "id": "left-foot",
+      "bone": "left-foot",
+      "mass": 1.2,
+      "position": [
+        -0.128,
+        0.075,
+        0.073
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "shape": {
+        "type": "box",
+        "halfExtents": [
+          0.075,
+          0.075,
+          0.145
+        ]
+      }
+    },
+    {
+      "id": "right-upper-arm",
+      "bone": "right-upper-arm",
+      "mass": 2.2,
+      "position": [
+        0.26899999380111694,
+        1.369999885559082,
+        0.007000000216066837
+      ],
+      "quaternion": [
+        0.10727915167808533,
+        0.0,
+        -0.9808380007743835,
+        0.16262845695018768
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.061,
+        "totalLength": 0.40122313293431805
+      }
+    },
+    {
+      "id": "right-forearm",
+      "bone": "right-forearm",
+      "mass": 1.6,
+      "position": [
+        0.3995000123977661,
+        0.9749999642372131,
+        0.014000000432133675
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        -0.9877257943153381,
+        0.1561979353427887
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.049,
+        "totalLength": 0.4310324427642725
+      }
+    },
+    {
+      "id": "right-thigh",
+      "bone": "right-thigh",
+      "mass": 6,
+      "position": [
+        0.10300000011920929,
+        0.7799999713897705,
+        0.006000000052154064
+      ],
+      "quaternion": [
+        0.41881558299064636,
+        0.0,
+        -0.9074333906173706,
+        0.0340307354927063
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.069,
+        "totalLength": 0.42097508280340973
+      }
+    },
+    {
+      "id": "right-shin",
+      "bone": "right-shin",
+      "mass": 4,
+      "position": [
+        0.12200000137090683,
+        0.35499998927116394,
+        0.008500000461935997
+      ],
+      "quaternion": [
+        -0.5038050413131714,
+        0.0,
+        -0.8636664152145386,
+        0.016147702932357788
+      ],
+      "shape": {
+        "type": "capsule",
+        "radius": 0.052,
+        "totalLength": 0.4302243611382581
+      }
+    },
+    {
+      "id": "right-foot",
+      "bone": "right-foot",
+      "mass": 1.2,
+      "position": [
+        0.128,
+        0.075,
+        0.073
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "shape": {
+        "type": "box",
+        "halfExtents": [
+          0.075,
+          0.075,
+          0.145
+        ]
+      }
+    }
+  ],
+  "joints": [
+    {
+      "parent": "pelvis",
+      "child": "chest",
+      "anchor": [
+        0.0,
+        1.22,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 20,
+      "twistDegrees": 14
+    },
+    {
+      "parent": "chest",
+      "child": "head",
+      "anchor": [
+        0.0,
+        1.58,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 30,
+      "twistDegrees": 22
+    },
+    {
+      "parent": "chest",
+      "child": "left-upper-arm",
+      "anchor": [
+        -0.205,
+        1.56,
+        0.0
+      ],
+      "axis": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 75,
+      "twistDegrees": 35
+    },
+    {
+      "parent": "left-upper-arm",
+      "child": "left-forearm",
+      "anchor": [
+        -0.333,
+        1.18,
+        0.014
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 65,
+      "twistDegrees": 25
+    },
+    {
+      "parent": "pelvis",
+      "child": "left-thigh",
+      "anchor": [
+        -0.09,
+        0.99,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 50,
+      "twistDegrees": 25
+    },
+    {
+      "parent": "left-thigh",
+      "child": "left-shin",
+      "anchor": [
+        -0.116,
+        0.57,
+        0.012
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 65,
+      "twistDegrees": 20
+    },
+    {
+      "parent": "left-shin",
+      "child": "left-foot",
+      "anchor": [
+        -0.128,
+        0.14,
+        0.005
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 20,
+      "twistDegrees": 15
+    },
+    {
+      "parent": "chest",
+      "child": "right-upper-arm",
+      "anchor": [
+        0.205,
+        1.56,
+        0.0
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "swingDegrees": 75,
+      "twistDegrees": 35
+    },
+    {
+      "parent": "right-upper-arm",
+      "child": "right-forearm",
+      "anchor": [
+        0.333,
+        1.18,
+        0.014
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 65,
+      "twistDegrees": 25
+    },
+    {
+      "parent": "pelvis",
+      "child": "right-thigh",
+      "anchor": [
+        0.09,
+        0.99,
+        0.0
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 50,
+      "twistDegrees": 25
+    },
+    {
+      "parent": "right-thigh",
+      "child": "right-shin",
+      "anchor": [
+        0.116,
+        0.57,
+        0.012
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 65,
+      "twistDegrees": 20
+    },
+    {
+      "parent": "right-shin",
+      "child": "right-foot",
+      "anchor": [
+        0.128,
+        0.14,
+        0.005
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "tangent": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "swingDegrees": 20,
+      "twistDegrees": 15
+    }
+  ]
+}

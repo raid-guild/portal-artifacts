@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "artwork": "vitalik-texture-work/vitalik-front-back-imagegen.png",
+  "artworkSha256": "6a6b76da2cd363f31df0b1a403e58e53582d8ffb7d0d2d8880cef7fad3be03d5",
+  "artworkDimensions": [
+    1254,
+    1254
+  ],
+  "guide": "vitalik-projection.json",
+  "atlas": "vitalik-baked-atlas.png",
+  "atlasDimensions": [
+    2048,
+    2048
+  ],
+  "projection": "Exact orthographic front/back rest-pose projectors; side sweater stripe continuation and material fallback",
+  "bake": "Cycles emission texture sampling, UVMap, 16 px margin",
+  "projectedPolygons": 5057,
+  "fallbackPolygons": 3297,
+  "exportedGLB": "../dist/assets/vitalik-rigged.glb"
+}

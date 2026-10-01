@@ -38,8 +38,9 @@ export const BODY_IDS = Object.freeze(['pelvis', 'chest', 'head', 'left-upper-ar
 export function validateProfile(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Physics profile must be an object');
   const profile = JSON.parse(JSON.stringify(input));
-  if (profile.version !== 1 || profile.id !== 'goatman') throw new RangeError('Unsupported physics profile');
-  if (profile.asset !== './assets/goatman-rigged.glb' || profile.coordinateSystem !== 'gltf-y-up' || profile.units !== 'meters') throw new RangeError('Invalid asset or coordinate system');
+  const assets = { goatman: './assets/goatman-rigged.glb', vitalik: './assets/vitalik-rigged.glb' };
+  if (profile.version !== 1 || !Object.hasOwn(assets, profile.id)) throw new RangeError('Unsupported physics profile');
+  if (profile.asset !== assets[profile.id] || profile.coordinateSystem !== 'gltf-y-up' || profile.units !== 'meters') throw new RangeError('Invalid asset or coordinate system');
   const triple = value => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
   const quaternion = value => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite) && Math.abs(Math.hypot(...value) - 1) < .01;
   if (!profile.bounds || !triple(profile.bounds.min) || !triple(profile.bounds.max) || profile.bounds.min.some((value, i) => value >= profile.bounds.max[i])) throw new RangeError('Invalid profile bounds');

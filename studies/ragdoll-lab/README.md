@@ -23,8 +23,8 @@ zero to watch a cascade driven by natural collisions alone.
 Bowling launches one ragdoll down a long slide into ten targets. Targets hold their
 starting pose until struck, then participate in the same physical simulation.
 Use Launch/Pause/Resume, Reset to rerack, Overview/Follow, and drag a visible limb.
-Drop and Stairs retain the smaller experiments. Character selects Goatman or
-Mannequin. Gravity ranges from 0–20 m/s² across all scenes. Bowling’s Impact boost
+Drop and Stairs retain the smaller experiments. Character selects Vitalik
+(stylized), Goatman, or Mannequin. Gravity ranges from 0–20 m/s² across all scenes. Bowling’s Impact boost
 adds one upward/outward kick per struck target; zero keeps natural collisions.
 Slide grip and floor grip control separate surfaces.
 
@@ -58,6 +58,15 @@ To regenerate from the original FIELD source in this repository, run
 path). It appends the approved FIELD source into a separate scene, matches baked
 runtime vertices to that source, assigns weights, and writes the rigged GLB,
 physics profile, and editable Blender copy. It does not modify FIELD's files.
+
+## Editable human character
+
+The stylized human character uses a separate 13-bone model with ImageGen artwork
+projected from front/back views and baked to a standard UV texture. Its editable
+Blender source, projection guide, generated artwork, atlas, and provenance are
+retained in this study's `outputs/`; the reproducible Blender scripts are in
+`tools/`. The game loads only the GLB and physics profile, with no runtime image
+generation or projection. See the implementation notes for the build workflow.
 
 ## Publishing
 

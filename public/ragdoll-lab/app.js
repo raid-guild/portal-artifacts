@@ -2,11 +2,12 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
-import { createSimulation, validateProfile } from './physics.js';
+import { createSimulation, validateProfile } from './physics.js?v=vitalik-20261001';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
 import { readQuality, saveQuality, createRenderGate, driveRenderFrame } from './quality.js';
+import { createCharacterSelection } from './characterSelection.js?v=vitalik-20261001';
 
 const $ = id => document.getElementById(id);
 const viewport = $('viewport');
@@ -153,9 +154,10 @@ try {
   const dynamicMeshes = [];
   const staticMeshes = [];
   const pickMeshes = [];
-  let goatTemplate = null;
-  const goatRigs = new Map();
-  let goatProfile = null;
+  const characterAssets = new Map();
+  const characterRigs = new Map();
+  const characterSelection = createCharacterSelection();
+  const characterNames = { goatman: 'Goatman', vitalik: 'Vitalik · stylized' };
   let cameraMode = 'overview';
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -217,15 +219,15 @@ try {
     }
     dynamicMeshes.length = 0;
     pickMeshes.length = 0;
-    for (const rig of goatRigs.values()) scene.remove(rig.root);
-    goatRigs.clear();
+    for (const rig of characterRigs.values()) scene.remove(rig.root);
+    characterRigs.clear();
     for (const mesh of staticMeshes) { scene.remove(mesh); mesh.geometry.dispose(); }
     staticMeshes.length = 0;
-    const goatActive = simulation.readFrame().profileId === 'goatman' && goatTemplate;
-    if (goatActive) {
+    const characterAsset = characterAssets.get(simulation.readFrame().profileId);
+    if (characterAsset) {
       for (const instance of simulation.instances) {
-        const rig = createSkinnedRagdoll({ scene: cloneSkeleton(goatTemplate.scene) }, goatProfile);
-        goatRigs.set(instance.id, rig);
+        const rig = createSkinnedRagdoll({ scene: cloneSkeleton(characterAsset.template.scene) }, characterAsset.profile);
+        characterRigs.set(instance.id, rig);
         scene.add(rig.root);
         for (const mesh of rig.meshes) { mesh.userData.rig = rig; mesh.userData.instanceId = instance.id; pickMeshes.push(mesh); }
       }
@@ -266,8 +268,8 @@ try {
 
   function syncVisuals() {
     const alpha = simulation.interpolationAlpha();
-    if (simulation.readFrame().profileId === 'goatman' && goatRigs.size) {
-      for (const instance of simulation.instances) goatRigs.get(instance.id)?.pose(instance.bodies, alpha);
+    if (characterRigs.size) {
+      for (const instance of simulation.instances) characterRigs.get(instance.id)?.pose(instance.bodies, alpha);
       return;
     }
     for (const { body, group } of dynamicMeshes) {
@@ -349,21 +351,24 @@ try {
     updateUI();
   }
   function configure(values) { simulation.configure(values); updateUI(); return simulation.snapshot(); }
-  function switchCharacter(value) {
-    if (value !== 'mannequin' && value !== 'goatman') return;
-    if (value === 'goatman' && !goatTemplate) return;
+  function switchCharacter(value, deliberate = false) {
+    if (value !== 'mannequin' && !characterAssets.has(value)) return;
+    if (deliberate) characterSelection.choose(value);
     releaseDrag();
     touchPolicy.reset();
     reconnectOrbit();
-    simulation.setProfile(value === 'goatman' ? goatProfile : null);
+    simulation.setProfile(characterAssets.get(value)?.profile ?? null);
     frameDelta();
     rebuildVisuals();
     syncVisuals();
     frameScene();
     updateUI();
-    $('character-status').textContent = value === 'goatman' ? 'Rigged skin follows the 13 physics bodies.' : 'Thirteen visible rigid bodies and their joints.';
+    $('character-status').textContent = value === 'mannequin' ? 'Thirteen visible rigid bodies and their joints.' : 'Rigged skin follows the 13 physics bodies.';
   }
-  $('character').addEventListener('change', event => switchCharacter(event.target.value));
+  $('character').addEventListener('change', event => switchCharacter(event.target.value, true));
+  for (const type of ['pointerdown', 'keydown']) $('character').addEventListener(type, () => {
+    if (simulation.readFrame().profileId === 'mannequin') characterSelection.choose('mannequin');
+  });
   $('play-button').addEventListener('click', () => {
     const before = simulation.readFrame();
     simulation.setPaused(!before.paused);
@@ -410,11 +415,11 @@ try {
     } else if (event.button !== 0) return;
     if (activeDrag) return;
     setPointer(event);
-    if (simulation.readFrame().profileId === 'goatman') for (const rig of goatRigs.values()) rig.refreshBounds();
+    if (characterRigs.size) for (const rig of characterRigs.values()) rig.refreshBounds();
     const hit = raycaster.intersectObjects(pickMeshes, false)[0];
     if (!hit) return;
     const instance = simulation.instances.find(item => item.id === hit.object.userData.instanceId);
-    const body = simulation.readFrame().profileId === 'goatman' ? hit.object.userData.rig.pickBody(hit, instance.bodyById) : hit.object.userData.body;
+    const body = characterRigs.size ? hit.object.userData.rig.pickBody(hit, instance.bodyById) : hit.object.userData.body;
     if (!body) return;
     if (event.pointerType !== 'touch') { event.stopImmediatePropagation(); event.preventDefault(); }
     dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), hit.point);
@@ -529,7 +534,7 @@ try {
     }
     controls.maxDistance = 13;
     const stairs = frame.scene === 'stairs';
-    const goat = frame.profileId === 'goatman' && goatProfile;
+    const goat = frame.profileId === 'goatman';
     const target = goat ? new THREE.Vector3(stairs ? -.45 : 0, stairs ? 1.8 : 1.5, 0) :
       stairs ? new THREE.Vector3(-.3, 1.7, 0) : new THREE.Vector3(0, 1.55, 0);
     const offset = goat ? stairs ? new THREE.Vector3(6.3, 4.1, 8.8) : new THREE.Vector3(4.7, 3, 7.1) :
@@ -579,23 +584,28 @@ try {
     if (document.hidden) { releaseDrag(); touchPolicy.reset(); reconnectOrbit(); }
   });
 
-  (async () => {
+  for (const id of ['vitalik', 'goatman']) (async () => {
     try {
-      const profileResponse = await fetch(new URL('./assets/goatman-ragdoll.json', import.meta.url));
+      const profileResponse = await fetch(new URL(`./assets/${id}-ragdoll.json`, import.meta.url));
       if (!profileResponse.ok) throw new Error(`Profile HTTP ${profileResponse.status}`);
       const profile = validateProfile(await profileResponse.json());
-      const gltf = await new GLTFLoader().loadAsync(new URL(profile.asset, import.meta.url).href);
-      goatProfile = profile;
-      goatTemplate = gltf;
-      $('character').disabled = false;
-      $('character').options[0].textContent = 'Goatman';
-      $('character-status').textContent = 'Rigged skin follows the 13 physics bodies.';
-      switchCharacter('goatman');
+      if (profile.id !== id) throw new Error('Profile identity does not match the requested character');
+      const template = await new GLTFLoader().loadAsync(new URL(profile.asset, import.meta.url).href);
+      characterAssets.set(id, { profile, template });
+      const option = $('character').querySelector(`option[value="${id}"]`);
+      option.disabled = false;
+      option.textContent = characterNames[id];
+      const suggested = characterSelection.loaded(id);
+      if (suggested) switchCharacter(suggested);
+      else if (simulation.readFrame().profileId === 'mannequin') $('character-status').textContent = 'Choose a rigged character or the visible-collider mannequin.';
     } catch (cause) {
-      console.warn('Goatman asset unavailable:', cause);
-      $('character').disabled = true;
-      $('character').value = 'mannequin';
-      $('character-status').textContent = 'Goatman could not load. The mannequin study is ready.';
+      console.warn(`${characterNames[id]} asset unavailable:`, cause);
+      const option = $('character').querySelector(`option[value="${id}"]`);
+      option.textContent = `${characterNames[id]} · unavailable`;
+      option.disabled = true;
+      const suggested = characterSelection.loadFailed(id);
+      if (suggested) switchCharacter(suggested);
+      else if (simulation.readFrame().profileId === 'mannequin') $('character-status').textContent = 'A rigged character could not load. The mannequin study is ready.';
     }
   })();
 
@@ -610,7 +620,7 @@ try {
       signal: webToolController.signal,
       inputSchema: { type: 'object', properties: {
         scene: { type: 'string', enum: ['plinko', 'bowling', 'drop', 'stairs'] },
-        character: { type: 'string', enum: ['goatman', 'mannequin'] },
+        character: { type: 'string', enum: ['vitalik', 'goatman', 'mannequin'] },
         reset: { type: 'boolean' },
         paused: { type: 'boolean' },
         gravity: { type: 'number', minimum: 0, maximum: 20 },
@@ -626,12 +636,12 @@ try {
           if (input == null || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Expected settings object');
           const { scene: nextScene, character, reset: shouldReset, paused, ...values } = input;
           if (nextScene !== undefined && !['plinko', 'bowling', 'drop', 'stairs'].includes(nextScene)) throw new RangeError('Invalid scene');
-          if (character !== undefined && !['goatman', 'mannequin'].includes(character)) throw new RangeError('Invalid character');
-          if (character === 'goatman' && !goatTemplate) throw new Error('Goatman is not loaded');
+          if (character !== undefined && !['vitalik', 'goatman', 'mannequin'].includes(character)) throw new RangeError('Invalid character');
+          if (character !== undefined && character !== 'mannequin' && !characterAssets.has(character)) throw new Error(`${characterNames[character]} is not loaded`);
           if (shouldReset !== undefined && typeof shouldReset !== 'boolean') throw new TypeError('Invalid reset');
           if (paused !== undefined && typeof paused !== 'boolean') throw new TypeError('Invalid paused');
           simulation.configure(values);
-          if (character !== undefined) switchCharacter(character);
+          if (character !== undefined) switchCharacter(character, true);
           if (nextScene !== undefined || shouldReset) reset(nextScene);
           if (paused !== undefined) simulation.setPaused(paused);
           updateUI();
