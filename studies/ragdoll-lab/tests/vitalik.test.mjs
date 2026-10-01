@@ -20,6 +20,25 @@ function maxGap(simulation) {
     joint.bodyA.pointToWorldFrame(joint.pivotA).distanceTo(joint.bodyB.pointToWorldFrame(joint.pivotB))));
 }
 
+async function loadGeometryOnly() {
+  // Parse the real exported geometry/skeleton in Node without a DOM image API.
+  const jsonLength = glb.readUInt32LE(12);
+  const document = JSON.parse(glb.toString('utf8', 20, 20 + jsonLength));
+  for (const material of document.materials) delete material.pbrMetallicRoughness.baseColorTexture;
+  delete document.textures; delete document.images; delete document.samplers;
+  const serialized = JSON.stringify(document);
+  const json = Buffer.from(serialized + ' '.repeat((4 - serialized.length % 4) % 4));
+  const binary = glb.subarray(20 + jsonLength);
+  const stripped = Buffer.alloc(20 + json.length + binary.length);
+  glb.copy(stripped, 0, 0, 12);
+  stripped.writeUInt32LE(stripped.length, 8);
+  stripped.writeUInt32LE(json.length, 12);
+  stripped.writeUInt32LE(0x4e4f534a, 16);
+  json.copy(stripped, 20);
+  binary.copy(stripped, 20 + json.length);
+  return new GLTFLoader().parseAsync(stripped.buffer.slice(stripped.byteOffset, stripped.byteOffset + stripped.byteLength), '');
+}
+
 test('Vitalik profile preserves the canonical 13-body contract and asset identity', () => {
   assert.equal(validateProfile(profile).id, 'vitalik');
   assert.deepEqual(new Set(profile.bodies.map(body => body.id)), new Set(BODY_IDS));
@@ -86,23 +105,7 @@ test('exported GLB contains one textured UV atlas, a 13-bone skin, and normalize
 });
 
 test('painted shoes and hands stay attached through a stair fall', async () => {
-  // GLTFLoader can parse the real geometry/skeleton in Node once the embedded
-  // texture reference is removed from an in-memory copy of the GLB JSON.
-  const jsonLength = glb.readUInt32LE(12);
-  const document = JSON.parse(glb.toString('utf8', 20, 20 + jsonLength));
-  for (const material of document.materials) delete material.pbrMetallicRoughness.baseColorTexture;
-  delete document.textures; delete document.images; delete document.samplers;
-  const serialized = JSON.stringify(document);
-  const json = Buffer.from(serialized + ' '.repeat((4 - serialized.length % 4) % 4));
-  const binary = glb.subarray(20 + jsonLength);
-  const stripped = Buffer.alloc(20 + json.length + binary.length);
-  glb.copy(stripped, 0, 0, 12);
-  stripped.writeUInt32LE(stripped.length, 8);
-  stripped.writeUInt32LE(json.length, 12);
-  stripped.writeUInt32LE(0x4e4f534a, 16);
-  json.copy(stripped, 20);
-  binary.copy(stripped, 20 + json.length);
-  const gltf = await new GLTFLoader().parseAsync(stripped.buffer.slice(stripped.byteOffset, stripped.byteOffset + stripped.byteLength), '');
+  const gltf = await loadGeometryOnly();
   const rig = createSkinnedRagdoll(gltf, profile);
   const simulation = createSimulation(profile);
   simulation.reset('stairs');
@@ -128,6 +131,76 @@ test('painted shoes and hands stay attached through a stair fall', async () => {
     counts[id]++;
   }
   for (const [id, count] of Object.entries(counts)) assert.ok(count > 20, `posed ${count} ${id} vertices`);
+});
+
+test('real sleeve skin follows sideways and overhead arm poses without a cap discontinuity', async () => {
+  const rig = createSkinnedRagdoll(await loadGeometryOnly(), profile);
+  const mesh = rig.meshes[0];
+  const positions = mesh.geometry.getAttribute('position');
+  const jointIndices = mesh.geometry.getAttribute('skinIndex');
+  const skinWeights = mesh.geometry.getAttribute('skinWeight');
+  const upperIndex = mesh.skeleton.bones.findIndex(bone => bone.name === 'left-upper-arm');
+  const upperWeight = index => {
+    let total = 0;
+    for (let slot = 0; slot < 4; slot++) if (jointIndices.getComponent(index, slot) === upperIndex) total += skinWeights.getComponent(index, slot);
+    return total;
+  };
+  const innerSleeve = [];
+  const cap = [];
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+    if (x < -.225 && x > -.245 && y > 1.31 && y < 1.35 && Math.abs(z) < .09) innerSleeve.push(i);
+    if (x < -.205 && x > -.275 && y > 1.56 && y < 1.61 && Math.abs(z) < .12) cap.push(i);
+  }
+  assert.ok(innerSleeve.length > 5 && cap.length > 5, 'sampled upper sleeve and cap');
+  assert.ok(Math.min(...innerSleeve.map(upperWeight)) > .9, 'inner upper sleeve is carried by the arm');
+  assert.ok(cap.reduce((sum, index) => sum + upperWeight(index), 0) / cap.length > .55, 'shoulder cap follows the arm');
+  const triangles = mesh.geometry.getIndex();
+  let crossingEdges = 0;
+  let largestWeightJump = 0;
+  for (let triangle = 0; triangle < triangles.count; triangle += 3) {
+    const ids = [triangles.getX(triangle), triangles.getX(triangle + 1), triangles.getX(triangle + 2)];
+    for (const [a, b] of [[ids[0], ids[1]], [ids[1], ids[2]], [ids[2], ids[0]]]) {
+      const ax = positions.getX(a), bx = positions.getX(b), ay = positions.getY(a), by = positions.getY(b);
+      if (ax > -.25 || bx > -.25 || ax < -.34 || bx < -.34 || Math.min(ay, by) >= 1.56 || Math.max(ay, by) <= 1.56) continue;
+      crossingEdges++;
+      largestWeightJump = Math.max(largestWeightJump, Math.abs(upperWeight(a) - upperWeight(b)));
+    }
+  }
+  assert.ok(crossingEdges > 5, `sampled ${crossingEdges} edges across the former cap cutoff`);
+  assert.ok(largestWeightJump < .35, `upper-arm weight jumped ${largestWeightJump.toFixed(3)} across the cap`);
+
+  const pivot = new THREE.Vector3(...profile.joints.find(joint => joint.child === 'left-upper-arm').anchor);
+  const bodies = profile.bodies.map(spec => {
+    const position = new THREE.Vector3(...spec.position);
+    const quaternion = new THREE.Quaternion(...spec.quaternion);
+    return { idTag: spec.id, position, previousPosition: position.clone(), quaternion, previousQuaternion: quaternion.clone() };
+  });
+  const sample = new THREE.Vector3();
+  const closest = new THREE.Vector3();
+  const restElbow = new THREE.Vector3(...profile.joints.find(joint => joint.child === 'left-forearm').anchor);
+  for (const angle of [90, 150]) {
+    const turn = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle * Math.PI / 180);
+    for (const id of ['left-upper-arm', 'left-forearm']) {
+      const body = bodies.find(item => item.idTag === id);
+      const spec = profile.bodies.find(item => item.id === id);
+      body.position.copy(new THREE.Vector3(...spec.position).sub(pivot).applyQuaternion(turn).add(pivot));
+      body.quaternion.copy(turn).multiply(new THREE.Quaternion(...spec.quaternion));
+    }
+    const elbow = restElbow.clone().sub(pivot).applyQuaternion(turn).add(pivot);
+    const axis = elbow.clone().sub(pivot);
+    rig.pose(bodies, 1);
+    rig.root.updateMatrixWorld(true);
+    mesh.skeleton.update();
+    let worst = 0;
+    for (const index of innerSleeve) {
+      mesh.getVertexPosition(index, sample).applyMatrix4(mesh.matrixWorld);
+      const t = Math.max(0, Math.min(1, sample.clone().sub(pivot).dot(axis) / axis.lengthSq()));
+      closest.copy(pivot).addScaledVector(axis, t);
+      worst = Math.max(worst, sample.distanceTo(closest));
+    }
+    assert.ok(worst < .17, `${angle}° sleeve drifted ${worst.toFixed(3)} m from upper arm`);
+  }
 });
 
 test('load ordering honors a deliberate character selection and falls back if preferred fails', () => {
