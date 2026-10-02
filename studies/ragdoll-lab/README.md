@@ -41,8 +41,10 @@ Portal credentials, cookies, private APIs, or external runtime requests.
 
 Auto get up is enabled by default. After resting on a clear floor, released
 characters animate back to standing. Drag or hit them to knock them down again,
-or turn the option off in Motion for passive physics. Crowded or obstructed
-positions wait until there is room to rise.
+or turn the option off in Motion for passive physics. Touching released ragdolls
+can push one another while rising. Nearby rises take turns; if a standing neighbor
+blocks the path, a character can scoot into clear floor space before getting up.
+Walls, held targets, and blocked escape paths still prevent recovery.
 
 ## Physics implementation
 

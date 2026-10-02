@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
-import { createSimulation, validateProfile } from './physics.js?v=getup-20261002b';
+import { createSimulation, validateProfile } from './physics.js?v=getup-scoot-20261002c';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';

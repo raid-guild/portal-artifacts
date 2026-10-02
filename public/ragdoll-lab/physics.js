@@ -1,5 +1,5 @@
 import * as CANNON from './vendor/cannon-es.js';
-import { captureUpright, beginGetUp, sampleGetUp } from './getUp.js?v=getup-20261002b';
+import { captureUpright, beginGetUp, sampleGetUp } from './getUp.js?v=getup-scoot-20261002';
 
 const RAD = Math.PI / 180;
 const vec = ([x, y, z]) => new CANNON.Vec3(x, y, z);
@@ -116,6 +116,7 @@ export function createSimulation(initialProfile = null) {
   let bowlingStarted = false;
   let sapBroadphase = null;
   const pendingBoosts = [];
+  const overlapProbe = new CANNON.Narrowphase(world);
 
   function centerOfMass(instance) {
     const center = new CANNON.Vec3();
@@ -186,18 +187,41 @@ export function createSimulation(initialProfile = null) {
       if (obstacle.aabb.lowerBound.x < pelvis.position.x + .55 && obstacle.aabb.upperBound.x > pelvis.position.x - .55 &&
           obstacle.aabb.lowerBound.z < pelvis.position.z + .55 && obstacle.aabb.upperBound.z > pelvis.position.z - .55) return null;
     }
-    for (const other of instances) {
-      if (other === instance) continue;
-      const p = other.bodyById.get('pelvis')?.position;
-      if (p && Math.hypot(p.x - pelvis.position.x, p.z - pelvis.position.z) < .95 && Math.abs(p.y - pelvis.position.y) < 2) return null;
-    }
     return chosen;
+  }
+  function overlapsWithMargin(a, b, margin = .015) {
+    return a.lowerBound.x < b.upperBound.x - margin && a.upperBound.x > b.lowerBound.x + margin &&
+      a.lowerBound.y < b.upperBound.y - margin && a.upperBound.y > b.lowerBound.y + margin &&
+      a.lowerBound.z < b.upperBound.z - margin && a.upperBound.z > b.lowerBound.z + margin;
+  }
+  function colliderPenetration(a, b) {
+    const contacts = [];
+    overlapProbe.getContacts([a], [b], world, contacts, [], [], []);
+    let deepest = 0;
+    for (const contact of contacts) {
+      const first = contact.bi.position.vadd(contact.ri);
+      const second = contact.bj.position.vadd(contact.rj);
+      deepest = Math.min(deepest, contact.ni.dot(second.vsub(first)));
+    }
+    return deepest;
   }
   function recoverySweepClear(instance, recovery, support) {
     const originals = instance.bodies.map(body => ({ body, position: body.position.clone(), quaternion: body.quaternion.clone() }));
+    const reservation = { lowerBound: new CANNON.Vec3(Infinity, Infinity, Infinity), upperBound: new CANNON.Vec3(-Infinity, -Infinity, -Infinity) };
+    recovery.blocker = null;
     try {
-      for (const progress of [0, .25, .55, .8, 1]) {
-        const poses = sampleGetUp(recovery, progress);
+      const samples = [];
+      if (recovery.scootDuration) {
+        const distance = Math.hypot(recovery.targetX - recovery.x, recovery.targetZ - recovery.z);
+        // Smoothstep peaks at 1.5 times average speed. Bound spatial travel
+        // between probes so a thin rail or standing leg cannot be skipped.
+        const steps = Math.ceil(1.5 * distance / .025);
+        for (let step = 0; step <= steps; step++) samples.push(recovery.scootDuration * step / steps);
+      }
+      for (let elapsed = recovery.scootDuration || 0; elapsed < recovery.duration; elapsed += .14) samples.push(elapsed);
+      samples.push(recovery.duration);
+      for (const elapsed of samples) {
+        const poses = sampleGetUp(recovery, elapsed / recovery.duration);
         let lowest = Infinity;
         for (const body of instance.bodies) {
           const pose = poses.get(body.idTag);
@@ -208,6 +232,12 @@ export function createSimulation(initialProfile = null) {
         for (const body of instance.bodies) {
           body.position.y += lift; body.updateAABB();
           const a = body.aabb;
+          reservation.lowerBound.x = Math.min(reservation.lowerBound.x, a.lowerBound.x);
+          reservation.lowerBound.y = Math.min(reservation.lowerBound.y, a.lowerBound.y);
+          reservation.lowerBound.z = Math.min(reservation.lowerBound.z, a.lowerBound.z);
+          reservation.upperBound.x = Math.max(reservation.upperBound.x, a.upperBound.x);
+          reservation.upperBound.y = Math.max(reservation.upperBound.y, a.upperBound.y);
+          reservation.upperBound.z = Math.max(reservation.upperBound.z, a.upperBound.z);
           if (a.lowerBound.x < support.position.x - support.halfExtentsTag[0] + .03 ||
               a.upperBound.x > support.position.x + support.halfExtentsTag[0] - .03 ||
               a.lowerBound.z < support.position.z - support.halfExtentsTag[2] + .03 ||
@@ -218,20 +248,52 @@ export function createSimulation(initialProfile = null) {
             if (a.overlaps(obstacle.aabb)) return false;
           }
           for (const other of instances) {
-            if (other === instance) continue;
+            if (other === instance || (!other.held && (other.state === 'ragdoll' || other.state === 'settling'))) continue;
+            if (other.state === 'recovering') {
+              if (overlapsWithMargin(a, other.recovery.reservation)) return false;
+              continue;
+            }
             for (const otherBody of other.bodies) {
               otherBody.updateAABB();
-              if (a.overlaps(otherBody.aabb)) return false;
+              if (!overlapsWithMargin(a, otherBody.aabb, -.005)) continue;
+              const penetration = colliderPenetration(body, otherBody);
+              if (penetration < -.008) {
+                if (other.state === 'standing') recovery.blocker = other;
+                return false;
+              }
             }
           }
         }
       }
+      recovery.reservation = reservation;
       return true;
     } finally {
       for (const { body, position, quaternion } of originals) {
         body.position.copy(position); body.quaternion.copy(quaternion); body.updateAABB();
       }
     }
+  }
+  function findRecovery(instance, support) {
+    const origin = beginGetUp(instance, support.top, settings.jointRange);
+    if (recoverySweepClear(instance, origin, support.body)) return origin;
+    if (origin.blocker?.state !== 'standing') return null;
+    const pelvis = instance.bodyById.get('pelvis').position;
+    const blocker = origin.blocker.bodyById.get('pelvis').position;
+    const awayX = pelvis.x - blocker.x, awayZ = pelvis.z - blocker.z;
+    const length = Math.hypot(awayX, awayZ) || 1;
+    const directions = Array.from({ length: 8 }, (_, i) => {
+      const angle = i * Math.PI / 4;
+      return { x: Math.cos(angle), z: Math.sin(angle), index: i };
+    }).sort((a, b) => ((b.x * awayX + b.z * awayZ) - (a.x * awayX + a.z * awayZ)) / length || a.index - b.index);
+    for (const distance of [.4, .8, 1.2, 1.6]) {
+      for (const direction of directions) {
+        const candidate = beginGetUp(instance, support.top, settings.jointRange, {
+          x: pelvis.x + direction.x * distance, z: pelvis.z + direction.z * distance
+        });
+        if (recoverySweepClear(instance, candidate, support.body)) return candidate;
+      }
+    }
+    return null;
   }
   function releaseGetUp(instance) {
     if (instance.state !== 'recovering' && instance.state !== 'standing') return;
@@ -247,26 +309,75 @@ export function createSimulation(initialProfile = null) {
     for (const joint of instance.joints) for (const equation of joint.equations) equation.enabled = true;
     wakeRagdoll(instance);
   }
+  function recoveryTarget(instance, progress) {
+    const poses = sampleGetUp(instance.recovery, progress);
+    const originals = instance.bodies.map(body => ({ body, position: body.position.clone(), quaternion: body.quaternion.clone() }));
+    let lowest = Infinity;
+    for (const body of instance.bodies) {
+      const pose = poses.get(body.idTag);
+      body.position.copy(pose.position); body.quaternion.copy(pose.quaternion);
+      body.updateAABB(); lowest = Math.min(lowest, body.aabb.lowerBound.y);
+    }
+    const lift = Math.max(0, instance.recovery.supportTop + .006 - lowest);
+    const bounds = new Map();
+    for (const body of instance.bodies) {
+      const pose = poses.get(body.idTag);
+      pose.position.y += lift;
+      body.position.copy(pose.position); body.updateAABB();
+      bounds.set(body.idTag, { lowerBound: body.aabb.lowerBound.clone(), upperBound: body.aabb.upperBound.clone() });
+    }
+    for (const { body, position, quaternion } of originals) {
+      body.position.copy(position); body.quaternion.copy(quaternion); body.updateAABB();
+    }
+    return { poses, bounds };
+  }
+  function prepareGetUp(dt) {
+    for (const instance of instances) {
+      if (instance.state !== 'recovering') continue;
+      const recovery = instance.recovery;
+      recovery.nextElapsed = Math.min(recovery.duration, recovery.elapsed + dt);
+      recovery.next = recoveryTarget(instance, recovery.nextElapsed / recovery.duration);
+      const movingBounds = [];
+      for (const body of instance.bodies) {
+        const pose = recovery.next.poses.get(body.idTag);
+        body.velocity.set((pose.position.x - body.position.x) / dt, (pose.position.y - body.position.y) / dt, (pose.position.z - body.position.z) / dt);
+        if (body.velocity.length() > 12) body.velocity.scale(12 / body.velocity.length(), body.velocity);
+        const delta = pose.quaternion.mult(body.quaternion.conjugate());
+        if (delta.w < 0) { delta.x *= -1; delta.y *= -1; delta.z *= -1; delta.w *= -1; }
+        const sinHalf = Math.hypot(delta.x, delta.y, delta.z);
+        const angle = 2 * Math.atan2(sinHalf, Math.max(0, delta.w));
+        const factor = sinHalf > 1e-8 ? angle / (sinHalf * dt) : 0;
+        body.angularVelocity.set(delta.x * factor, delta.y * factor, delta.z * factor);
+        if (body.angularVelocity.length() > 10) body.angularVelocity.scale(10 / body.angularVelocity.length(), body.angularVelocity);
+        body.wakeUp();
+        const next = recovery.next.bounds.get(body.idTag);
+        body.updateAABB();
+        movingBounds.push({ lowerBound: new CANNON.Vec3(Math.min(body.aabb.lowerBound.x, next.lowerBound.x), Math.min(body.aabb.lowerBound.y, next.lowerBound.y), Math.min(body.aabb.lowerBound.z, next.lowerBound.z)),
+          upperBound: new CANNON.Vec3(Math.max(body.aabb.upperBound.x, next.upperBound.x), Math.max(body.aabb.upperBound.y, next.upperBound.y), Math.max(body.aabb.upperBound.z, next.upperBound.z)) });
+      }
+      // Cannon wakes contact bodies, but not the other limbs in their connected rig.
+      for (const other of instances) {
+        if (other === instance || other.held || other.state === 'recovering' || other.state === 'standing') continue;
+        if (other.bodies.some(body => { body.updateAABB(); return movingBounds.some(bounds => overlapsWithMargin(bounds, body.aabb, -.02)); })) {
+          if (other.pushedByRecoveryUntil >= time || other.bodies.every(body => body.velocity.length() < .3)) other.pushedByRecoveryUntil = time + .2;
+          wakeRagdoll(other);
+        }
+      }
+    }
+  }
   function updateGetUp(dt) {
     for (const instance of instances) {
       if (instance.held) continue;
       if (instance.state === 'recovering') {
         const recovery = instance.recovery;
-        recovery.elapsed = Math.min(recovery.duration, recovery.elapsed + dt);
-        const poses = sampleGetUp(recovery, recovery.elapsed / recovery.duration);
-        let lowest = Infinity;
+        recovery.elapsed = recovery.nextElapsed;
         for (const body of instance.bodies) {
-          const pose = poses.get(body.idTag);
+          const pose = recovery.next.poses.get(body.idTag);
           body.position.copy(pose.position); body.quaternion.copy(pose.quaternion);
-          body.updateAABB(); lowest = Math.min(lowest, body.aabb.lowerBound.y);
-        }
-        const lift = Math.max(0, recovery.supportTop + .006 - lowest);
-        for (const body of instance.bodies) {
-          body.position.y += lift;
           body.velocity.setZero(); body.angularVelocity.setZero();
           body.aabbNeedsUpdate = true;
         }
-        if (recovery.elapsed >= recovery.duration) instance.state = 'standing';
+        if (recovery.elapsed >= recovery.duration) { instance.state = 'standing'; instance.recovery = null; }
       } else if (instance.state === 'standing') {
         if (!settings.autoGetUp || settings.gravity <= 0 || !supportForStanding(instance)) releaseGetUp(instance);
       } else {
@@ -275,11 +386,15 @@ export function createSimulation(initialProfile = null) {
         if (!support) { instance.quietSeconds = 0; instance.state = 'ragdoll'; continue; }
         const quiet = instance.bodies.every(body => body.sleepState === CANNON.Body.SLEEPING ||
           (body.velocity.length() < .10 && body.angularVelocity.length() < .16));
-        instance.quietSeconds = quiet ? instance.quietSeconds + dt : 0;
-        instance.state = quiet ? 'settling' : 'ragdoll';
+        // Contact jitter in a touching pile can briefly wake one limb. Let those
+        // isolated ticks leak time; real locomotion quickly drains the timer.
+        const moving = instance.bodyById.get('pelvis').velocity.length() > .3 ||
+          instance.bodies.some(body => body.velocity.length() > 1 || body.angularVelocity.length() > 2);
+        instance.quietSeconds = quiet ? instance.quietSeconds + dt : Math.max(0, instance.quietSeconds - dt * (moving ? 4 : .5));
+        instance.state = instance.quietSeconds > 0 ? 'settling' : 'ragdoll';
         if (instance.quietSeconds < 1) continue;
-        const recovery = beginGetUp(instance, support.top, settings.jointRange);
-        if (!recoverySweepClear(instance, recovery, support.body)) { instance.quietSeconds = 0; instance.state = 'ragdoll'; instance.cooldownUntil = time + 1; continue; }
+        const recovery = findRecovery(instance, support);
+        if (!recovery) { instance.quietSeconds = 0; instance.state = 'ragdoll'; instance.cooldownUntil = time + 1; continue; }
         instance.recovery = recovery;
         instance.state = 'recovering'; instance.quietSeconds = 0;
         for (const body of instance.bodies) {
@@ -301,13 +416,21 @@ export function createSimulation(initialProfile = null) {
 
   function newInstance(id, role = 'single') {
     const instance = { id, role, held: false, bodies: [], joints: [], bodyById: new Map(), propagatingWake: false,
-      state: 'ragdoll', quietSeconds: 0, cooldownUntil: 0, recovery: null, upright: null, onWake: null, onCollide: null };
+      state: 'ragdoll', quietSeconds: 0, cooldownUntil: 0, pushedByRecoveryUntil: -Infinity, recovery: null, upright: null, onWake: null, onCollide: null };
     instance.onWake = () => wakeRagdoll(instance);
     instance.onCollide = event => {
       if (instance.state !== 'standing' && instance.state !== 'recovering') return;
       const other = event.body;
-      if (!other?.ragdollInstance || other.ragdollInstance === instance || other.ragdollInstance.held) return;
-      if (event.contact.getImpactVelocityAlongNormal() > .8) releaseGetUp(instance);
+      if (!other?.ragdollInstance || other.ragdollInstance === instance || other.ragdollInstance.held || other.type !== CANNON.Body.DYNAMIC) return;
+      if (instance.state === 'recovering' && other.ragdollInstance.pushedByRecoveryUntil >= time) return;
+      const contact = event.contact;
+      const otherIsA = contact.bi === other;
+      const point = other.position.vadd(otherIsA ? contact.ri : contact.rj);
+      const velocity = other.getVelocityAtWorldPoint(point, new CANNON.Vec3());
+      const incoming = (otherIsA ? 1 : -1) * contact.ni.dot(velocity);
+      // Relative contact speed also includes the recovering body's own motion.
+      // Only a genuinely incoming dynamic neighbor should interrupt the rise.
+      if (incoming > .8) releaseGetUp(instance);
     };
     instances.push(instance);
     return instance;
@@ -688,7 +811,7 @@ export function createSimulation(initialProfile = null) {
         body.previousPosition.copy(body.position);
         body.previousQuaternion.copy(body.quaternion);
       }
-      world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; updateGetUp(dt); count++;
+      prepareGetUp(dt); world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; updateGetUp(dt); count++;
     }
     if (count === 12) accumulator = Math.min(accumulator, dt);
     return count;

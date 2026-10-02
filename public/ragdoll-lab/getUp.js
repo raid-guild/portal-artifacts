@@ -48,7 +48,7 @@ function stagedQuaternion(rest, id, phase, prone, rangeScale) {
   return tilt(degrees).mult(rest);
 }
 
-export function beginGetUp(instance, supportTop, jointRange = 100) {
+export function beginGetUp(instance, supportTop, jointRange = 100, destination = null) {
   const pelvis = instance.bodyById.get('pelvis');
   const upright = instance.upright;
   if (!upright) throw new Error('No upright rest pose for recovery');
@@ -56,7 +56,10 @@ export function beginGetUp(instance, supportTop, jointRange = 100) {
   const forward = chest.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
   const prone = forward.y < 0;
   const start = new Map(instance.bodies.map(body => [body.idTag, body.quaternion.clone()]));
+  const startPoses = new Map(instance.bodies.map(body => [body.idTag, { position: body.position.clone(), quaternion: body.quaternion.clone() }]));
   const x = pelvis.position.x, z = pelvis.position.z;
+  const targetX = destination?.x ?? x, targetZ = destination?.z ?? z;
+  const scootDuration = destination ? .7 : 0;
   const finalY = supportTop + upright.pelvisHeight + .015;
   const rangeScale = Math.min(1, Math.max(.25, jointRange / 100));
   const keys = [
@@ -66,11 +69,20 @@ export function beginGetUp(instance, supportTop, jointRange = 100) {
     { at: .80, y: supportTop + upright.pelvisHeight * .78, quats: new Map(instance.bodies.map(body => [body.idTag, stagedQuaternion(upright.quaternions.get(body.idTag), body.idTag, 'crouch', prone, rangeScale)])) },
     { at: 1, y: finalY, quats: upright.quaternions }
   ];
-  return { elapsed: 0, duration: 3, supportTop, x, z, keys, upright };
+  return { elapsed: 0, duration: 3 + scootDuration, scootDuration, supportTop, x, z, targetX, targetZ, startPoses, keys, upright };
 }
 
 export function sampleGetUp(recovery, progress) {
-  const t = Math.max(0, Math.min(1, progress));
+  const elapsed = Math.max(0, Math.min(recovery.duration, progress * recovery.duration));
+  if (recovery.scootDuration && elapsed <= recovery.scootDuration) {
+    const blend = smooth(elapsed / recovery.scootDuration);
+    const dx = (recovery.targetX - recovery.x) * blend;
+    const dz = (recovery.targetZ - recovery.z) * blend;
+    return new Map([...recovery.startPoses].map(([id, pose]) => [id, {
+      position: pose.position.vadd(new CANNON.Vec3(dx, 0, dz)), quaternion: pose.quaternion.clone()
+    }]));
+  }
+  const t = Math.max(0, Math.min(1, (elapsed - recovery.scootDuration) / 3));
   const keys = recovery.keys;
   let index = keys.length - 2;
   for (let i = 0; i < keys.length - 1; i++) if (t <= keys[i + 1].at) { index = i; break; }
@@ -78,7 +90,7 @@ export function sampleGetUp(recovery, progress) {
   const blend = smooth((t - a.at) / (b.at - a.at));
   const poses = new Map();
   const pelvisQ = a.quats.get('pelvis').slerp(b.quats.get('pelvis'), blend);
-  poses.set('pelvis', { position: new CANNON.Vec3(recovery.x, a.y * (1 - blend) + b.y * blend, recovery.z), quaternion: pelvisQ });
+  poses.set('pelvis', { position: new CANNON.Vec3(recovery.targetX, a.y * (1 - blend) + b.y * blend, recovery.targetZ), quaternion: pelvisQ });
   for (const link of recovery.upright.links) {
     const parent = poses.get(link.parent);
     const childQ = a.quats.get(link.child).slerp(b.quats.get(link.child), blend);

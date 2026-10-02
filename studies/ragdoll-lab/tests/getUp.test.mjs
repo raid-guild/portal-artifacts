@@ -9,6 +9,38 @@ const profiles = [null, 'goatman', 'vitalik'].map(name => name ?
 const advance = (sim, seconds) => { for (let tick = 0; tick < seconds * 120; tick++) sim.step(1 / 120); };
 const maxJointGap = instance => Math.max(...instance.joints.map(joint =>
   joint.bodyA.pointToWorldFrame(joint.pivotA).distanceTo(joint.bodyB.pointToWorldFrame(joint.pivotB))));
+const lie = new CANNON.Quaternion();
+lie.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+function placeLying(instance, pelvisAt) {
+  const center = instance.bodyById.get('pelvis').position.clone();
+  for (const body of instance.bodies) {
+    body.position.copy(pelvisAt.vadd(lie.vmult(body.position.vsub(center))));
+    body.quaternion.copy(lie.mult(body.quaternion));
+    body.previousPosition.copy(body.position); body.previousQuaternion.copy(body.quaternion);
+    body.aabbNeedsUpdate = true;
+  }
+}
+function releaseByDrag(sim, instance) {
+  const p = instance.bodyById.get('pelvis').position;
+  assert.equal(sim.beginDrag(instance.bodyById.get('pelvis'), [p.x, p.y, p.z]), true);
+  sim.endDrag();
+}
+function isolatedBowlingPair(profile) {
+  const sim = createSimulation(profile); sim.reset('bowling');
+  const [launcher, a, b, ...rack] = sim.instances;
+  for (const instance of [launcher, ...rack]) for (const body of instance.bodies) {
+    body.position.x += 20; body.previousPosition.copy(body.position); body.aabbNeedsUpdate = true;
+  }
+  return { sim, a, b };
+}
+function initiallyTouchingPair(profile = null) {
+  const pair = isolatedBowlingPair(profile);
+  placeLying(pair.a, new CANNON.Vec3(0, .27, 14));
+  placeLying(pair.b, new CANNON.Vec3(.55, .27, 14));
+  releaseByDrag(pair.sim, pair.a); releaseByDrag(pair.sim, pair.b);
+  pair.sim.setPaused(false);
+  return pair;
+}
 
 test('each character rises from a real Drop landing, stays connected, and stands stably', () => {
   for (const profile of profiles) {
@@ -162,4 +194,152 @@ test('recovery preference survives scene and character resets without changing t
   assert.equal(sim.snapshot().totalTargets, 15);
   assert.equal(sim.snapshot().standingCount, 0);
   assert.ok(sim.instances.filter(instance => instance.held).every(instance => instance.state === 'ragdoll'));
+});
+
+test('nearby released ragdolls have real rising contacts and displace instead of blocking recovery', () => {
+  const spacing = [.8, .65, .55];
+  for (let index = 0; index < profiles.length; index++) {
+    const { sim, a, b } = isolatedBowlingPair(profiles[index]);
+    placeLying(a, new CANNON.Vec3(0, .27, 14)); releaseByDrag(sim, a);
+    sim.setPaused(false);
+    let introduced = false, contacts = 0, displaced = 0, start = null;
+    let stoodA = false, stoodB = false, deepest = 0, maxLinear = 0, maxAngular = 0, maxGap = 0;
+    for (const body of a.bodies) body.addEventListener('collide', event => { if (event.body?.ragdollInstance === b) contacts++; });
+    sim.world.addEventListener('preStep', () => {
+      for (const instance of [a, b]) if (instance.state === 'recovering') for (const body of instance.bodies) {
+        maxLinear = Math.max(maxLinear, body.velocity.length());
+        maxAngular = Math.max(maxAngular, body.angularVelocity.length());
+      }
+    });
+    for (let tick = 0; tick < 40 * 120; tick++) {
+      sim.step(1 / 120);
+      if (a.state === 'recovering' && !introduced) {
+        const pelvis = a.bodyById.get('pelvis').position;
+        placeLying(b, new CANNON.Vec3(pelvis.x + spacing[index], .27, pelvis.z));
+        releaseByDrag(sim, b);
+        start = b.bodyById.get('pelvis').position.clone(); introduced = true;
+      }
+      if (!introduced) continue;
+      const bPelvis = b.bodyById.get('pelvis').position;
+      if (a.state === 'recovering') displaced = Math.max(displaced, bPelvis.distanceTo(start));
+      if (a.state === 'standing') stoodA = true;
+      if (b.state === 'standing') stoodB = true;
+      if (a.state === 'recovering') maxGap = Math.max(maxGap, maxJointGap(a));
+      if (b.state === 'recovering') maxGap = Math.max(maxGap, maxJointGap(b));
+      for (const contact of sim.world.contacts) {
+        if (!((contact.bi.ragdollInstance === a && contact.bj.ragdollInstance === b) ||
+              (contact.bi.ragdollInstance === b && contact.bj.ragdollInstance === a))) continue;
+        const first = contact.bi.position.vadd(contact.ri);
+        const second = contact.bj.position.vadd(contact.rj);
+        deepest = Math.min(deepest, contact.ni.dot(second.vsub(first)));
+      }
+    }
+    assert.equal(introduced, true);
+    assert.ok(contacts > 0, `${profiles[index]?.id ?? 'mannequin'} had no real inter-ragdoll contact`);
+    assert.ok(displaced > .02, 'the rising rig did not move its neighbor');
+    assert.equal(stoodA, true, 'own pushing interrupted recovery');
+    if (index !== 1) assert.equal(stoodB, true, 'the displaced neighbor never recovered');
+    assert.ok(deepest > -.13, `sustained deep penetration: ${deepest}`);
+    assert.ok(maxLinear <= 12.01 && maxAngular <= 10.01 && maxGap < .03);
+    for (const instance of [a, b]) for (const body of instance.bodies) assert.ok(Number.isFinite(body.position.y));
+  }
+});
+
+test('distant fallen ragdolls recover at the same time for every character', () => {
+  for (const profile of profiles) {
+    const { sim, a, b } = isolatedBowlingPair(profile);
+    placeLying(a, new CANNON.Vec3(-1.45, .27, 14));
+    placeLying(b, new CANNON.Vec3(1.45, .27, 14));
+    releaseByDrag(sim, a); releaseByDrag(sim, b);
+    sim.setPaused(false);
+    let concurrent = false;
+    for (let tick = 0; tick < 20 * 120; tick++) {
+      sim.step(1 / 120);
+      if (a.state === 'recovering' && b.state === 'recovering') concurrent = true;
+    }
+    assert.equal(concurrent, true);
+    assert.equal(a.state, 'standing'); assert.equal(b.state, 'standing');
+  }
+});
+
+test('two initially touching fallen rigs scoot continuously and both stand without crossing obstacles', () => {
+  for (const profile of profiles) {
+    const { sim, a, b } = initiallyTouchingPair(profile);
+    let scooted = false, maxStep = 0, maxGap = 0, lowest = Infinity, maxLinear = 0, maxAngular = 0;
+    let lastPelvis = null, lastScoot = false;
+    sim.world.addEventListener('preStep', () => {
+      for (const instance of [a, b]) if (instance.state === 'recovering') for (const body of instance.bodies) {
+        maxLinear = Math.max(maxLinear, body.velocity.length());
+        maxAngular = Math.max(maxAngular, body.angularVelocity.length());
+      }
+    });
+    for (let tick = 0; tick < 40 * 120; tick++) {
+      sim.step(1 / 120);
+      for (const instance of [a, b]) if (instance.state === 'recovering') {
+        maxGap = Math.max(maxGap, maxJointGap(instance));
+        for (const body of instance.bodies) { body.updateAABB(); lowest = Math.min(lowest, body.aabb.lowerBound.y); }
+      }
+      const scooting = a.state === 'recovering' && a.recovery?.scootDuration > 0 && a.recovery.elapsed < a.recovery.scootDuration;
+      if (scooting) {
+        scooted = true;
+        const position = a.bodyById.get('pelvis').position.clone();
+        if (lastScoot) maxStep = Math.max(maxStep, position.distanceTo(lastPelvis));
+        lastPelvis = position;
+      }
+      lastScoot = scooting;
+    }
+    assert.equal(a.state, 'standing', `${profile?.id ?? 'mannequin'} first rig remains down`);
+    assert.equal(b.state, 'standing', `${profile?.id ?? 'mannequin'} second rig remains down`);
+    assert.equal(scooted, true);
+    assert.ok(maxStep < .12, `scoot jumped ${maxStep} m in one step`);
+    assert.ok(maxGap < .03 && lowest > -.035);
+    assert.ok(maxLinear <= 12.01 && maxAngular <= 10.01);
+    assert.equal(sim.snapshot().releasedTargets, 2);
+  }
+});
+
+test('a thin physical wall across the escape path makes recovery wait, then retry', () => {
+  const { sim, a, b } = initiallyTouchingPair();
+  for (let tick = 0; tick < 20 * 120 && b.state !== 'standing'; tick++) sim.step(1 / 120);
+  assert.equal(b.state, 'standing');
+  let left = Infinity;
+  for (const body of a.bodies) { body.updateAABB(); left = Math.min(left, body.aabb.lowerBound.x); }
+  const wall = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(.015, .6, 2)) });
+  wall.position.set(left - .16, .6, 14);
+  wall.idTag = 'test-escape-wall';
+  sim.world.addBody(wall); sim.staticBodies.push(wall);
+  advance(sim, 10);
+  assert.notEqual(a.state, 'recovering');
+  assert.notEqual(a.state, 'standing');
+  sim.world.removeBody(wall); sim.staticBodies.splice(sim.staticBodies.indexOf(wall), 1);
+  for (let tick = 0; tick < 20 * 120 && a.state !== 'standing'; tick++) sim.step(1 / 120);
+  assert.equal(a.state, 'standing');
+});
+
+test('drag, toggle and reset during the scoot release its reservation and dynamics', () => {
+  for (const action of ['drag', 'toggle', 'reset']) {
+    const { sim, a } = initiallyTouchingPair();
+    for (let tick = 0; tick < 25 * 120; tick++) {
+      sim.step(1 / 120);
+      if (a.state === 'recovering' && a.recovery?.scootDuration && a.recovery.elapsed < a.recovery.scootDuration) break;
+    }
+    assert.equal(a.state, 'recovering');
+    assert.ok(a.recovery.reservation);
+    if (action === 'drag') {
+      releaseByDrag(sim, a);
+      assert.equal(a.state, 'ragdoll'); assert.equal(a.recovery, null);
+      assert.equal(sim.snapshot().dragging, false);
+    } else if (action === 'toggle') {
+      sim.configure({ autoGetUp: false });
+      assert.equal(a.state, 'ragdoll'); assert.equal(a.recovery, null);
+    } else {
+      sim.reset('bowling');
+      assert.equal(sim.snapshot().recoveringCount, 0);
+      assert.equal(sim.snapshot().releasedTargets, 0);
+    }
+    if (action !== 'reset') {
+      assert.ok(a.bodies.every(body => body.type === CANNON.Body.DYNAMIC));
+      assert.ok(a.joints.every(joint => joint.equations.every(equation => equation.enabled)));
+    }
+  }
 });
