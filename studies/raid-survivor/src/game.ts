@@ -2,13 +2,26 @@ export type Hero = 'ranger' | 'wizard' | 'dwarf';
 export type Weapon = 'thornbow' | 'arcwand' | 'scattergun' | 'chain' | 'orbit' | 'comet';
 export type EnemyKind = 'rat' | 'cultist' | 'brute' | 'wisp' | 'boss';
 export type Vec = { x: number; y: number };
-export type Enemy = Vec & { id: number; hp: number; maxHp: number; speed: number; damage: number; radius: number; kind: EnemyKind; elite: boolean; flash: number; phase: number; attackCd: number; windup: number; facing: -1 | 1; knockX: number; knockY: number; attackPhase: number };
+export type SpecialKind = 'juggernaut' | 'hexcaster' | null;
+export type SpecialState = 'idle' | 'windup' | 'charge' | 'recovery';
+export type Enemy = Vec & { id: number; hp: number; maxHp: number; speed: number; damage: number; openingScale: number; radius: number; kind: EnemyKind; elite: boolean; special: SpecialKind; specialState: SpecialState; specialTimer: number; specialCd: number; targetX: number; targetY: number; chargeX: number; chargeY: number; chargeHit: boolean; tier: 1 | 2 | 3; bossCastTimer: number; flash: number; phase: number; attackCd: number; windup: number; facing: -1 | 1; knockX: number; knockY: number; attackPhase: number };
 export type Projectile = Vec & { vx: number; vy: number; damage: number; radius: number; life: number; pierce: number; kind: Weapon; chain: number; hit: Set<number> };
 export type EnemyShot = Vec & { vx: number; vy: number; life: number; damage: number; radius: number; boss: boolean };
 export type Strike = Vec & { delay: number; radius: number; damage: number; source: Weapon };
 export type Shrine = Vec & { id: number; active: boolean };
 export type Pickup = Vec & { kind: 'xp' | 'heart' | 'chest'; value: number; life: number };
 export type Effect = Vec & { kind: 'hit' | 'burst' | 'ring' | 'zap' | 'text' | 'comet'; life: number; max: number; color: number; size: number; text?: string; x2?: number; y2?: number };
+export type Hazard = Vec & { radius: number; delay: number; duration: number; damage: number; sourceId: number; kind: 'hex' | 'boss' };
+export const chargeCapsule = (enemy: Enemy) => {
+  const length = Math.hypot(enemy.targetX - enemy.x, enemy.targetY - enemy.y) || 1;
+  return { x1: enemy.x, y1: enemy.y, x2: clamp(enemy.x + (enemy.targetX - enemy.x) / length * 7.7, 1, WORLD - 1),
+    y2: clamp(enemy.y + (enemy.targetY - enemy.y) / length * 7.7, 1, WORLD - 1), radius: enemy.radius + .55 };
+};
+export const pointInCapsule = (x: number, y: number, x1: number, y1: number, x2: number, y2: number, radius: number) => {
+  const vx = x2 - x1, vy = y2 - y1, distance = vx * vx + vy * vy;
+  const projection = distance ? clamp(((x - x1) * vx + (y - y1) * vy) / distance, 0, 1) : 0;
+  return (x - x1 - vx * projection) ** 2 + (y - y1 - vy * projection) ** 2 < radius ** 2;
+};
 export type Stats = { kills: number; elites: number; bosses: number; chests: number; level: number };
 export type Reward = { kind: 'weapon' | 'passive' | 'heal' | 'boon' | 'bomb'; id: string; name: string; detail: string; rarity: 'common' | 'rare' | 'epic'; icon: string };
 
@@ -30,6 +43,9 @@ export const ENEMY_CAP = 2400;
 const MAX_PROJECTILES = 650;
 const MAX_PICKUPS = 900;
 const MAX_EFFECTS = 360;
+export const MAX_HAZARDS = 12;
+export const MAX_ENEMY_SHOTS = 280;
+const MAX_RENDERED_BOSSES = 16;
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const distanceSq = (a: Vec, b: Vec) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
@@ -43,6 +59,7 @@ export class Game {
   strikes: Strike[] = [];
   pickups: Pickup[] = [];
   effects: Effect[] = [];
+  hazards: Hazard[] = [];
   weapons: Partial<Record<Weapon, number>> = {};
   slots: Weapon[] = [];
   backpack: Weapon[] = [];
@@ -64,6 +81,7 @@ export class Game {
   bombWave: { age: number; radius: number; previousRadius: number; hit: Set<number> } | null = null;
   facing: -1 | 1 = 1;
   bossWave = 0;
+  escortDebt = 0;
   nextId = 1;
   dead = false;
   deathReason: 'combat' | 'bank' | 'abandon' | null = null;
@@ -94,7 +112,7 @@ export class Game {
     this.player = { x: WORLD / 2, y: WORLD / 2, health: def.health, maxHealth: def.health, invuln: 0, dash: 0, dashCooldown: 0, speed: def.speed };
     this.weapons[def.weapon] = 1;
     this.slots.push(def.weapon);
-    for (let i = 0; i < 22; i++) this.spawnEnemy();
+    for (let i = 0; i < 18; i++) this.spawnEnemy();
     this.buildGrid();
   }
 
@@ -107,6 +125,7 @@ export class Game {
     this.player.health = 0;
     this.move.x = this.move.y = 0;
     this.firing = false;
+    this.hazards.length = 0;
     if (reason === 'combat') this.onEvent?.('death');
     return true;
   }
@@ -135,16 +154,23 @@ export class Game {
     this.forNearby(x, y, radius, enemy => { const q = (enemy.x - x) ** 2 + (enemy.y - y) ** 2; if (enemy.hp > 0 && q < d && !exclude?.has(enemy.id)) { best = enemy; d = q; } });
     return best;
   }
-  spawnEnemy(forcedKind?: EnemyKind, elite = false) {
+  spawnEnemy(forcedKind?: EnemyKind, elite = false): Enemy | undefined {
     if (this.enemies.length >= ENEMY_CAP) return;
     const t = this.elapsed / 60;
     const kind: EnemyKind = forcedKind || (Math.random() < Math.min(.08 + t * .04, .25) ? 'brute' : Math.random() < .18 ? 'wisp' : Math.random() < .28 ? 'cultist' : 'rat');
+    if (kind === 'boss' && this.enemies.filter(enemy => enemy.kind === 'boss' && enemy.hp > 0).length >= MAX_RENDERED_BOSSES) return;
     const angle = rand(0, Math.PI * 2), range = rand(21, 30);
     const x = clamp(this.player.x + Math.cos(angle) * range, 2, WORLD - 2), y = clamp(this.player.y + Math.sin(angle) * range, 2, WORLD - 2);
     const base = { rat: [15, 3.2, 8, .44], cultist: [25, 2.5, 10, .55], brute: [60, 1.65, 17, .85], wisp: [17, 4, 7, .4], boss: [1050, 1.6, 27, 2.2] }[kind];
     const scale = 1 + Math.min(4, t * .27);
-    const hp = base[0] * scale * (elite ? 3 : 1);
-    this.enemies.push({ id: this.nextId++, x, y, hp, maxHp: hp, speed: base[1], damage: base[2], radius: base[3] * (elite ? 1.35 : 1), kind, elite, flash: 0, phase: rand(0, 6.28), attackCd: kind === 'boss' ? 1.5 : rand(1.4,3), windup: 0, facing: this.player.x < x ? -1 : 1, knockX: 0, knockY: 0, attackPhase: 0 });
+    const tier: 1 | 2 | 3 = kind !== 'boss' || this.elapsed < 360 ? 1 : this.elapsed < 540 ? 2 : 3;
+    const special: SpecialKind = elite && kind === 'brute' && this.elapsed >= 120 ? 'juggernaut' : elite && kind === 'cultist' && this.elapsed >= 180 ? 'hexcaster' : null;
+    const specialHp = special === 'juggernaut' ? 6 : special === 'hexcaster' ? 7 : 1;
+    const hp = base[0] * scale * (elite ? 3 : 1) * specialHp * (kind === 'boss' ? tier === 2 ? 1.35 : tier === 3 ? 1.65 : 1 : 1);
+    const openingScale = kind === 'boss' ? 1 : .85 + .15 * clamp(this.elapsed / 60, 0, 1);
+    const enemy: Enemy = { id: this.nextId++, x, y, hp, maxHp: hp, speed: kind === 'boss' && tier > 1 ? tier === 2 ? 1.9 : 2.1 : base[1], damage: base[2] * openingScale, openingScale, radius: base[3] * (elite ? 1.35 : 1), kind, elite, special, specialState: 'idle', specialTimer: 0, specialCd: special ? 1 : 0, targetX: x, targetY: y, chargeX: 0, chargeY: 0, chargeHit: false, tier, bossCastTimer: 0, flash: 0, phase: rand(0, 6.28), attackCd: kind === 'boss' ? 1.5 : rand(1.4,3), windup: 0, facing: this.player.x < x ? -1 : 1, knockX: 0, knockY: 0, attackPhase: 0 };
+    this.enemies.push(enemy);
+    return enemy;
   }
   dash() {
     if (this.player.dashCooldown > 0 || this.dead || this.paused || this.awaitingReward) return;
@@ -202,6 +228,7 @@ export class Game {
     enemy.hp -= amount * (1 + this.passives.damage * .18);
     enemy.flash = .12;
     if (enemy.hp > 0) { if (Math.random() < .28) this.effect({ x: enemy.x, y: enemy.y, kind: 'hit', life: .16, max: .16, color: WEAPONS[source].color, size: .7 }); return; }
+    this.hazards = this.hazards.filter(hazard => hazard.sourceId !== enemy.id);
     this.stats.kills++;
     if (enemy.elite) this.stats.elites++;
     if (enemy.kind === 'boss') { this.stats.bosses++; this.onEvent?.('bossDead'); }
@@ -268,6 +295,77 @@ export class Game {
       if ((this.cooldowns[weapon] || 0) <= 0) { this.fireWeapon(weapon); this.cooldowns[weapon] = rate; }
     }
   }
+  private pushEnemyShot(shot: EnemyShot) {
+    if (this.enemyShots.length < MAX_ENEMY_SHOTS) this.enemyShots.push(shot);
+  }
+  private hurtPlayer(amount: number, invulnerability: number) {
+    const p = this.player;
+    if (p.invuln > 0) return false;
+    p.health = Math.max(0, p.health - amount);
+    p.invuln = invulnerability;
+    this.effect({ x: p.x, y: p.y, kind: 'ring', life: .3, max: .3, color: 0xff6c82, size: 1.7 });
+    if (p.health <= 0) { this.die(); return true; }
+    this.onEvent?.('hurt');
+    return false;
+  }
+  private spawnBossWave() {
+    const aliveBosses = this.enemies.reduce((count, e) => count + Number(e.hp > 0 && e.kind === 'boss'), 0);
+    if (aliveBosses >= MAX_RENDERED_BOSSES) return;
+    const tier = this.elapsed < 360 ? 1 : this.elapsed < 540 ? 2 : 3;
+    const escorts = tier === 1 ? 0 : tier === 2 ? 2 : 4;
+    while (this.enemies.length > ENEMY_CAP - 1 - escorts) {
+      let victim = -1, farthest = -1;
+      for (let i = 0; i < this.enemies.length; i++) {
+        const e = this.enemies[i];
+        if (e.hp <= 0 || e.kind === 'boss' || e.elite) continue;
+        const distance = distanceSq(e, this.player);
+        if (distance > farthest) { farthest = distance; victim = i; }
+      }
+      if (victim < 0) break;
+      this.enemies.splice(victim, 1); // Admission does not award a kill, XP, or loot.
+    }
+    if (this.enemies.length >= ENEMY_CAP) return;
+    const boss = this.spawnEnemy('boss');
+    if (!boss) return;
+    for (let i = 0; i < escorts && this.enemies.length < ENEMY_CAP; i++) {
+      const escort = this.spawnEnemy(i % 2 ? 'cultist' : 'brute', true);
+      if (!escort) break;
+      const angle = i * Math.PI * 2 / escorts;
+      escort.x = clamp(boss.x + Math.cos(angle) * 3.5, 2, WORLD - 2);
+      escort.y = clamp(boss.y + Math.sin(angle) * 3.5, 2, WORLD - 2);
+      this.escortDebt++;
+    }
+    this.onEvent?.('boss');
+    this.effect({ x: this.player.x, y: this.player.y, kind: 'text', life: 1.5, max: 1.5, color: 0xffcf85, size: 3,
+      text: boss.tier === 1 ? 'MOLOCH RISES' : boss.tier === 2 ? 'ASCENDED MOLOCH' : 'MOLOCH UNBOUND' });
+  }
+  private addMarks(e: Enemy, count: number, delay: number, damage: number, kind: Hazard['kind']) {
+    if (this.hazards.length + count > MAX_HAZARDS) return false;
+    const dx = this.player.x - e.x, dy = this.player.y - e.y, length = Math.hypot(dx, dy) || 1;
+    const normalX = -dy / length, normalY = dx / length;
+    for (let i = 0; i < count; i++) {
+      const offset = (i - (count - 1) / 2) * 3.6;
+      this.hazards.push({ x: clamp(this.player.x + normalX * offset, 2, WORLD - 2),
+        y: clamp(this.player.y + normalY * offset, 2, WORLD - 2),
+        radius: kind === 'hex' ? 2.2 : 2.4, delay, duration: delay, damage, sourceId: e.id, kind });
+    }
+    return true;
+  }
+  private updateHazards(dt: number) {
+    const pending: Hazard[] = [];
+    for (const hazard of this.hazards) {
+      if (!this.enemies.some(e => e.id === hazard.sourceId && e.hp > 0)) continue;
+      hazard.delay -= dt;
+      if (hazard.delay > 0) { pending.push(hazard); continue; }
+      if (distanceSq(hazard, this.player) < (hazard.radius + .45) ** 2 && this.hurtPlayer(hazard.damage, .42)) {
+        this.hazards = pending;
+        return;
+      }
+      this.effect({ x: hazard.x, y: hazard.y, kind: 'burst', life: .3, max: .3,
+        color: hazard.kind === 'hex' ? 0xff79d8 : 0xffa264, size: hazard.radius });
+    }
+    this.hazards = pending;
+  }
   update(dt: number) {
     if (this.dead || this.paused || this.awaitingReward) return;
     dt = Math.min(dt, .05); this.elapsed += dt;
@@ -282,35 +380,123 @@ export class Game {
     const facingDirection = this.firing ? this.aim.x : this.move.x;
     if (Math.abs(facingDirection) > .15) this.facing = facingDirection < 0 ? -1 : 1;
     for(const shrine of this.shrines) if(shrine.active&&distanceSq(shrine,p)<1.9**2){shrine.active=false;const healed=Math.min(25,p.maxHealth-p.health);p.health+=healed;this.xp+=18;this.effect({x:shrine.x,y:shrine.y,kind:'ring',life:.8,max:.8,color:0x74ffb4,size:7});this.effect({x:shrine.x,y:shrine.y,kind:'text',life:1.2,max:1.2,color:0xbaffd1,size:2,text:`HEAL +${Math.ceil(healed)}  ·  XP +18`});this.onEvent?.('heal');}
+    const wave = Math.floor(this.elapsed / 90);
+    if (wave > this.bossWave) { this.bossWave = wave; this.spawnBossWave(); }
     this.spawnClock += dt;
     const target = Math.min(ENEMY_CAP, 70 + Math.floor(this.elapsed * 4.8));
-    if (this.enemies.length < target && this.spawnClock >= Math.max(.012, .14 - this.elapsed * .00045)) { this.spawnClock = 0; const batch = Math.min(8, 1 + Math.floor(this.elapsed / 35)); for (let i = 0; i < batch; i++) this.spawnEnemy(undefined, this.elapsed > 40 && Math.random() < .025); }
-    const wave = Math.floor(this.elapsed / 90);
-    if (wave > this.bossWave) { this.bossWave = wave; this.spawnEnemy('boss'); this.onEvent?.('boss'); this.effect({ x: p.x, y: p.y, kind: 'text', life: 1.5, max: 1.5, color: 0xffcf85, size: 3, text: 'MOLOCH RISES' }); }
+    const openingInterval = 1.2 - .2 * clamp(this.elapsed / 45, 0, 1);
+    if (this.enemies.length < target && this.spawnClock >= Math.max(.012, .14 - this.elapsed * .00045) * openingInterval) {
+      this.spawnClock = 0;
+      const batch = Math.min(8, 1 + Math.floor(this.elapsed / 35));
+      for (let i = 0; i < batch; i++) {
+        if (this.escortDebt > 0) this.escortDebt--;
+        else this.spawnEnemy(undefined, this.elapsed > 40 && Math.random() < .025);
+      }
+    }
     this.chestClock += dt;
     if (this.chestClock > 36) { this.chestClock = 0; this.spawnEnemy('brute', true); }
     const alive: Enemy[] = [];
-    const crowd=Math.min(1,Math.max(0,(this.enemies.length-100)/900));
+    let activeCharges = this.enemies.reduce((count, e) => count + Number(e.special === 'juggernaut' && (e.specialState === 'windup' || e.specialState === 'charge')), 0);
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       e.flash = Math.max(0, e.flash - dt);
       const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
       if (Math.abs(dx) > .2) e.facing = dx < 0 ? -1 : 1;
-      if (Math.abs(e.knockX) + Math.abs(e.knockY) > .02) { e.x = clamp(e.x + e.knockX * dt, 1, WORLD - 1); e.y = clamp(e.y + e.knockY * dt, 1, WORLD - 1); const decay = Math.max(0, 1 - dt * 9); e.knockX *= decay; e.knockY *= decay; }
-      const swirl = e.kind === 'wisp' ? Math.sin(this.elapsed * 4 + e.phase) * .48 : 0;
-      const band=((e.id*2654435761)>>>0)/4294967296;
-      const standOff=e.radius+.3+crowd*Math.sqrt(band)*17;
-      if (d > standOff) { e.x += (dx / d - dy / d * swirl) * e.speed * dt; e.y += (dy / d + dx / d * swirl) * e.speed * dt; }
-      else if(crowd>.25){const direction=e.id%2?1:-1;e.x+=-dy/d*e.speed*dt*.23*direction;e.y+=dx/d*e.speed*dt*.23*direction;}
-      if(e.kind==='cultist'||e.kind==='boss'){
-        e.attackCd-=dt;
-        if(e.attackCd<=0&&e.windup<=0&&d<17){e.windup=e.kind==='boss'?.9:.55;e.attackCd=e.kind==='boss'?3.2:2.4+Math.random();this.effect({x:e.x,y:e.y,kind:'ring',life:e.windup,max:e.windup,color:e.kind==='boss'?0xffb97b:0xf1a0d1,size:e.radius*1.6});if(e.kind==='boss'){e.attackPhase++;if(e.attackPhase%3===0)this.effect({x:e.x,y:e.y,kind:'ring',life:.9,max:.9,color:0xff5c51,size:8});}}
-        if(e.windup>0){e.windup-=dt;if(e.windup<=0&&this.enemyShots.length<280){const angle=Math.atan2(p.y-e.y,p.x-e.x);const boss=e.kind==='boss';const count=boss?12:1;for(let j=0;j<count;j++){const a=boss?j*Math.PI*2/count+this.elapsed*.12:angle;this.enemyShots.push({x:e.x,y:e.y,vx:Math.cos(a)*(boss?7:9),vy:Math.sin(a)*(boss?7:9),life:boss?3.1:2.1,damage:boss?16:8,radius:boss?.32:.23,boss});}if(boss)for(let j=-1;j<=1;j++){const a=angle+j*.22;this.enemyShots.push({x:e.x,y:e.y,vx:Math.cos(a)*11,vy:Math.sin(a)*11,life:2.3,damage:14,radius:.28,boss:true});}if(boss&&e.attackPhase%3===0)for(let j=0;j<8;j++){const a=j*Math.PI/4+this.elapsed*.25;this.enemyShots.push({x:e.x,y:e.y,vx:Math.cos(a)*4.8,vy:Math.sin(a)*4.8,life:5,damage:22,radius:.55,boss:true});}}}
+      if (e.special === 'juggernaut' && e.specialState !== 'idle') {
+        e.knockX = 0; e.knockY = 0;
+      } else if (Math.abs(e.knockX) + Math.abs(e.knockY) > .02) {
+        e.x = clamp(e.x + e.knockX * dt, 1, WORLD - 1);
+        e.y = clamp(e.y + e.knockY * dt, 1, WORLD - 1);
+        const decay = Math.max(0, 1 - dt * 9); e.knockX *= decay; e.knockY *= decay;
       }
-      if (d < e.radius + .55 && p.invuln <= 0) { p.health -= e.damage; p.invuln = .62; this.effect({ x: p.x, y: p.y, kind: 'ring', life: .3, max: .3, color: 0xff6c82, size: 1.7 }); if (p.health <= 0) { this.die(); return; } this.onEvent?.('hurt'); }
+      let canMove = true;
+      if (e.special === 'juggernaut') {
+        e.specialCd -= dt;
+        if (e.specialState === 'windup') {
+          canMove = false;
+          e.specialTimer -= dt;
+          if (e.specialTimer <= 0) {
+            e.specialState = 'charge'; e.specialTimer = .55;
+            const length = Math.hypot(e.targetX - e.x, e.targetY - e.y) || 1;
+            e.chargeX = (e.targetX - e.x) / length; e.chargeY = (e.targetY - e.y) / length;
+            e.chargeHit = false;
+          }
+        } else if (e.specialState === 'charge') {
+          canMove = false;
+          const oldX = e.x, oldY = e.y;
+          const step = Math.min(dt, e.specialTimer) * 14;
+          e.x = clamp(e.x + e.chargeX * step, 1, WORLD - 1);
+          e.y = clamp(e.y + e.chargeY * step, 1, WORLD - 1);
+          if (!e.chargeHit && pointInCapsule(p.x, p.y, oldX, oldY, e.x, e.y, e.radius + .55)) {
+            e.chargeHit = true;
+            if (this.hurtPlayer(24, .62)) return;
+          }
+          e.specialTimer -= dt;
+          if (e.specialTimer <= 0 || (oldX === e.x && oldY === e.y)) {
+            e.specialState = 'recovery'; e.specialTimer = .65; activeCharges--;
+          }
+        } else if (e.specialState === 'recovery') {
+          canMove = false;
+          e.specialTimer -= dt;
+          if (e.specialTimer <= 0) { e.specialState = 'idle'; e.specialCd = 5.5; }
+        } else if (e.specialCd <= 0 && d >= 4 && d <= 12 && activeCharges < 4) {
+          e.specialState = 'windup'; e.specialTimer = .9;
+          e.targetX = p.x; e.targetY = p.y; e.knockX = 0; e.knockY = 0; activeCharges++; canMove = false;
+        }
+      }
+      if (e.kind === 'boss' && e.bossCastTimer > 0) { e.bossCastTimer = Math.max(0, e.bossCastTimer - dt); canMove = false; }
+      if (canMove) {
+        const swirl = e.kind === 'wisp' ? Math.sin(this.elapsed * 4 + e.phase) * .48 : 0;
+        const standOff = e.kind === 'cultist' ? 6 : e.kind === 'boss' ? 4.5 : e.radius + .3;
+        if (d > standOff) {
+          e.x = clamp(e.x + (dx / d - dy / d * swirl) * e.speed * dt, 1, WORLD - 1);
+          e.y = clamp(e.y + (dy / d + dx / d * swirl) * e.speed * dt, 1, WORLD - 1);
+        }
+      }
+      if (e.special === 'hexcaster') {
+        e.specialCd -= dt;
+        if (e.specialCd <= 0 && d < 14 && this.addMarks(e, 1, 1.2, 18, 'hex')) e.specialCd = 4.5;
+      } else if (e.kind === 'cultist' || e.kind === 'boss') {
+        e.attackCd -= dt;
+        if (e.attackCd <= 0 && e.windup <= 0 && e.bossCastTimer <= 0 && d < 17) {
+          e.attackCd = e.kind === 'boss' ? 3.2 : 2.4 + Math.random();
+          e.attackPhase++;
+          if (e.kind === 'boss' && e.tier > 1 && e.attackPhase % 2 === 0 &&
+              this.addMarks(e, e.tier === 2 ? 3 : 5, e.tier === 2 ? 1.25 : 1.4, 22, 'boss')) {
+            e.bossCastTimer = e.tier === 2 ? 1.25 : 1.4;
+          } else e.windup = e.kind === 'boss' ? .9 : .55;
+        }
+        if (e.windup > 0) {
+          e.windup -= dt;
+          if (e.windup <= 0) {
+            const angle = Math.atan2(p.y - e.y, p.x - e.x), boss = e.kind === 'boss';
+            const count = boss ? 12 : 1;
+            for (let j = 0; j < count; j++) {
+              const a = boss ? j * Math.PI * 2 / count + this.elapsed * .12 : angle;
+              this.pushEnemyShot({ x: e.x, y: e.y, vx: Math.cos(a) * (boss ? 7 : 9),
+                vy: Math.sin(a) * (boss ? 7 : 9), life: boss ? 3.1 : 2.1,
+                damage: boss ? 16 : 8 * e.openingScale, radius: boss ? .32 : .23, boss });
+            }
+            if (boss) for (let j = -1; j <= 1; j++) {
+              const a = angle + j * .22;
+              this.pushEnemyShot({ x: e.x, y: e.y, vx: Math.cos(a) * 11, vy: Math.sin(a) * 11,
+                life: 2.3, damage: 14, radius: .28, boss: true });
+            }
+            if (boss && e.attackPhase % 3 === 0) for (let j = 0; j < 8; j++) {
+              const a = j * Math.PI / 4 + this.elapsed * .25;
+              this.pushEnemyShot({ x: e.x, y: e.y, vx: Math.cos(a) * 4.8, vy: Math.sin(a) * 4.8,
+                life: 5, damage: 22, radius: .55, boss: true });
+            }
+          }
+        }
+      }
+      const contact = (p.x - e.x) ** 2 + (p.y - e.y) ** 2 < (e.radius + .55) ** 2;
+      if (contact && (e.special !== 'juggernaut' || e.specialState === 'idle') && this.hurtPlayer(e.damage, .62)) return;
       alive.push(e);
     }
     this.enemies = alive;
+    this.updateHazards(dt);
+    if (this.dead) return;
     this.buildGrid();
     this.updateBomb(dt);
     this.updateWeapons(dt);
@@ -387,4 +573,32 @@ export class Game {
   }
   stress(count: number) { this.rankable = false; const additions = Math.min(Math.max(0, Math.floor(count)), ENEMY_CAP - this.enemies.length); for (let i = 0; i < additions; i++) this.spawnEnemy('rat'); }
   defeatBossDebug() { this.rankable = false; const boss = this.enemies.find(enemy => enemy.kind === 'boss' && enemy.hp > 0); if (boss) this.damage(boss, 1e9, 'thornbow'); }
+  demoEncounter(kind: 'juggernaut' | 'hexcaster' | 'ascended' | 'unbound') {
+    this.rankable = false;
+    this.elapsed = kind === 'juggernaut' ? 130 : kind === 'hexcaster' ? 190 : kind === 'ascended' ? 370 : 550;
+    this.endless = kind === 'unbound';
+    this.bossWave = Math.floor(this.elapsed / 90);
+    this.spawnClock = this.chestClock = -1000;
+    this.escortDebt = 0;
+    this.enemies = []; this.enemyShots = []; this.hazards = []; this.effects = [];
+    this.projectiles = []; this.strikes = []; this.pickups = []; this.slots = [];
+    this.awaitingReward = false; this.cleared = false; this.dead = false; this.paused = true;
+    this.player.health = this.player.maxHealth; this.player.invuln = 1e9;
+    const enemy = kind === 'juggernaut' ? this.spawnEnemy('brute', true) :
+      kind === 'hexcaster' ? this.spawnEnemy('cultist', true) : this.spawnEnemy('boss');
+    if (enemy) {
+      enemy.x = clamp(this.player.x + (enemy.kind === 'boss' ? 10 : 8), 2, WORLD - 2);
+      enemy.y = this.player.y;
+      enemy.specialCd = 0; enemy.attackCd = 0;
+      if (enemy.kind === 'boss') enemy.attackPhase = 1; // First demo cast places marks.
+    }
+    this.buildGrid();
+    return enemy;
+  }
+  advanceDemo(seconds: number) {
+    if (this.rankable || !Number.isFinite(seconds)) return;
+    this.paused = false;
+    for (let i = 0, count = Math.min(300, Math.max(0, Math.ceil(seconds * 60))); i < count && !this.dead; i++) this.update(1 / 60);
+    this.paused = true;
+  }
 }

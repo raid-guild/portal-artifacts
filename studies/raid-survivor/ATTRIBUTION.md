@@ -7,3 +7,7 @@ Moloch is original generated artwork. The generation prompt and asset provenance
 The arena floor, runes, effects, menus, and HUD are original code rendered with Canvas 2D, Three.js, and CSS.
 
 Cinzel and DM Sans are self-hosted through Fontsource under the SIL Open Font License. System fallbacks are included.
+
+The Raid Survivor social card and Portal cover are original generated artwork.
+Its generation brief is saved in [art/social-card-generation.txt](./art/social-card-generation.txt).
+The card is promotional key art rather than a gameplay screenshot.
