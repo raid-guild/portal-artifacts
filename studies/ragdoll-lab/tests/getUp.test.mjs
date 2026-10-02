@@ -94,6 +94,26 @@ test('zero gravity, air and a held target cannot start recovery', () => {
   assert.equal(board.instances[0].state, 'ragdoll');
 });
 
+test('Plinko starts with passive piles and remembers its own auto get-up choice', () => {
+  const sim = createSimulation();
+  assert.equal(sim.snapshot().settings.autoGetUp, true);
+  sim.reset('plinko');
+  assert.equal(sim.snapshot().settings.autoGetUp, false);
+  sim.reset('bowling');
+  assert.equal(sim.snapshot().settings.autoGetUp, true);
+  sim.configure({ autoGetUp: true }, 'plinko');
+  assert.equal(sim.snapshot().settings.autoGetUp, true, 'destination override does not change the current scene');
+  sim.reset('plinko');
+  assert.equal(sim.snapshot().settings.autoGetUp, true);
+  sim.configure({ autoGetUp: false });
+  sim.reset('drop');
+  assert.equal(sim.snapshot().settings.autoGetUp, true);
+  sim.reset('plinko');
+  assert.equal(sim.snapshot().settings.autoGetUp, false);
+  assert.throws(() => sim.configure({ autoGetUp: true, gravity: -1 }, 'plinko'), RangeError);
+  assert.equal(sim.snapshot().settings.autoGetUp, false, 'invalid WebMCP values cannot change the saved choice');
+});
+
 test('drag, toggle and gravity interruption restore dynamics and constraints; reset clears recovery', () => {
   const sim = createSimulation(); sim.setPaused(false);
   for (let tick = 0; tick < 30 * 120 && sim.instances[0].state !== 'standing'; tick++) sim.step(1 / 120);
@@ -180,14 +200,16 @@ test('a raised-arm obstruction defers recovery until its sweep is clear', () => 
   assert.equal(instance.state, 'recovering');
 });
 
-test('recovery preference survives scene and character resets without changing target counts', () => {
+test('scene recovery preferences survive character resets without changing target counts', () => {
   const sim = createSimulation();
   sim.configure({ autoGetUp: false });
   sim.reset('bowling');
+  assert.equal(sim.snapshot().settings.autoGetUp, true, 'Bowling keeps its separate default');
+  sim.configure({ autoGetUp: false });
+  sim.setProfile(profiles[2]);
   assert.equal(sim.snapshot().settings.autoGetUp, false);
   assert.equal(sim.snapshot().releasedTargets, 0);
   assert.equal(sim.snapshot().totalTargets, 10);
-  sim.setProfile(profiles[2]);
   sim.reset('plinko');
   assert.equal(sim.snapshot().settings.autoGetUp, false);
   assert.equal(sim.snapshot().releasedTargets, 0);

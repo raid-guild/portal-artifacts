@@ -11,6 +11,15 @@ const settingsDefault = Object.freeze({ gravity: 9.82, impactBoost: 1, damping: 
 // across its contact points. Restore the bounds because equations are pooled.
 export class TimeStepFrictionSolver extends CANNON.GSSolver {
   solve(dt, world) {
+    const allEquations = this.equations;
+    // A sleeping rig has no solve mass. Its internal joints and its contacts
+    // against other sleepers cannot change anything, but a live body's contact
+    // with it still must be solved so the impact can wake the whole rig.
+    if (this.filterSleepingEquations) this.equations = allEquations.filter(equation =>
+      (equation.bi.type === CANNON.Body.DYNAMIC && equation.bi.sleepState !== CANNON.Body.SLEEPING) ||
+      (equation.bj.type === CANNON.Body.DYNAMIC && equation.bj.sleepState !== CANNON.Body.SLEEPING));
+    this.lastEquationCount = allEquations.length;
+    this.lastSolvedEquationCount = this.equations.length;
     const groups = new Map();
     for (const equation of this.equations) {
       if (!(equation instanceof CANNON.FrictionEquation)) continue;
@@ -31,7 +40,10 @@ export class TimeStepFrictionSolver extends CANNON.GSSolver {
       }
     }
     try { return super.solve(dt, world); }
-    finally { for (const [equation, min, max] of oldBounds) { equation.minForce = min; equation.maxForce = max; } }
+    finally {
+      for (const [equation, min, max] of oldBounds) { equation.minForce = min; equation.maxForce = max; }
+      this.equations = allEquations;
+    }
   }
 }
 export const BODY_IDS = Object.freeze(['pelvis', 'chest', 'head', 'left-upper-arm', 'left-forearm', 'left-thigh', 'left-shin', 'left-foot', 'right-upper-arm', 'right-forearm', 'right-thigh', 'right-shin', 'right-foot']);
@@ -102,6 +114,7 @@ export function createSimulation(initialProfile = null) {
   const slideContact = new CANNON.ContactMaterial(bodyMaterial, slideMaterial, { friction: settingsDefault.slideGrip, restitution: 0.005 });
   world.addContactMaterial(slideContact);
   const settings = { ...settingsDefault };
+  const autoGetUpByScene = { drop: true, stairs: true, bowling: true, plinko: false };
   const bodies = [];
   const joints = [];
   const staticBodies = [];
@@ -115,6 +128,10 @@ export function createSimulation(initialProfile = null) {
   let stairStarted = false;
   let bowlingStarted = false;
   let sapBroadphase = null;
+  let lastPlinkoInteractionAt = 0;
+  let pileAnchor = null;
+  let pileQuietSeconds = 0;
+  const pileContactAt = new Map();
   const pendingBoosts = [];
   const overlapProbe = new CANNON.Narrowphase(world);
 
@@ -156,8 +173,106 @@ export function createSimulation(initialProfile = null) {
     if (!instance) { for (const one of instances) wakeRagdoll(one); return; }
     if (instance.propagatingWake) return;
     instance.propagatingWake = true;
-    try { for (const body of instance.bodies) body.wakeUp(); }
+    try {
+      if (scene === 'plinko' && instance.resting) {
+        pileAnchor = null;
+        pileQuietSeconds = 0;
+        lastPlinkoInteractionAt = time;
+      }
+      instance.resting = false;
+      instance.restSupport = null;
+      for (const body of instance.bodies) body.wakeUp();
+    }
     finally { instance.propagatingWake = false; }
+  }
+  function updatePlinkoRest(dt) {
+    if (scene !== 'plinko') return;
+    for (const contact of world.contacts) {
+      for (const [body, other, upward] of [
+        [contact.bi, contact.bj, -contact.ni.y], [contact.bj, contact.bi, contact.ni.y]
+      ]) {
+        const instance = body.ragdollInstance;
+        if (instance && !instance.held && body.type === CANNON.Body.DYNAMIC && other.idTag === 'board-floor' && upward >= .35)
+          instance.lastFloorAt = time;
+      }
+    }
+    // A resting rig supported by another rig cannot remain inert when that
+    // support starts moving. Wake the entire stack, starting at its base.
+    for (let pass = 0; pass < instances.length; pass++) {
+      let changed = false;
+      for (const instance of instances) {
+        if (!instance.resting || !instance.restSupport) continue;
+        if (instance.restSupport.some(support => support !== 'board-floor' && !support.resting)) {
+          wakeRagdoll(instance); changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    // A connected pile must sleep together. An isolated sleeping limb would
+    // be woken by its still-awake neighbor's ordinary joint jitter.
+    const pile = instances.filter(instance => !instance.held && instance.state !== 'standing' && instance.state !== 'recovering');
+    if (pile.length && pile.every(instance => instance.resting)) return;
+    if (settings.autoGetUp || drag || time < 10 || time - lastPlinkoInteractionAt < 2 || pile.length < 2 || pile.some(instance => instance.bodyById.get('pelvis').position.y > 1.5)) {
+      pileAnchor = null; pileQuietSeconds = 0; return;
+    }
+    const pileSet = new Set(pile);
+    const centers = new Map(pile.map(instance => [instance, centerOfMass(instance)]));
+    if (!pileAnchor) {
+      pileAnchor = new Map(pile.map(instance => [instance, {
+        center: centers.get(instance), poses: instance.bodies.map(body => clonePose(body))
+      }]));
+      pileQuietSeconds = 0;
+      return;
+    }
+    const drifted = pile.some(instance => {
+      const anchor = pileAnchor.get(instance);
+      if (!anchor || centers.get(instance).distanceTo(anchor.center) > .035) return true;
+      return instance.bodies.some((body, index) => {
+        const pose = anchor.poses[index], q = body.quaternion, a = pose.quaternion;
+        const dot = Math.abs(q.x * a.x + q.y * a.y + q.z * a.z + q.w * a.w);
+        return body.position.distanceTo(pose.position) + 2 * Math.acos(Math.min(1, dot)) * body.boundingRadius > .08;
+      });
+    });
+    if (drifted) { pileAnchor = null; pileQuietSeconds = 0; return; }
+    // Contact islands are undirected: a pile can carry load through friction
+    // and side contacts. A genuine upward floor contact roots each island.
+    for (const contact of world.contacts) {
+      const a = contact.bi.ragdollInstance, b = contact.bj.ragdollInstance;
+      if (!a || !b || a === b || !pileSet.has(a) || !pileSet.has(b)) continue;
+      const key = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
+      pileContactAt.set(key, { a, b, at: time });
+    }
+    const adjacent = new Map(pile.map(instance => [instance, new Set()]));
+    for (const [key, edge] of pileContactAt) {
+      if (time - edge.at > .15 || !pileSet.has(edge.a) || !pileSet.has(edge.b)) { pileContactAt.delete(key); continue; }
+      adjacent.get(edge.a).add(edge.b); adjacent.get(edge.b).add(edge.a);
+    }
+    for (const instance of pile) if (instance.resting) for (const other of instance.restSupport ?? []) {
+      if (pileSet.has(other)) { adjacent.get(instance).add(other); adjacent.get(other).add(instance); }
+    }
+    const grounded = new Set(pile.filter(instance => time - instance.lastFloorAt <= .15 ||
+      (instance.resting && instance.restSupport?.includes('board-floor'))));
+    const queue = [...grounded];
+    for (let index = 0; index < queue.length; index++) for (const other of adjacent.get(queue[index])) {
+      if (!grounded.has(other)) { grounded.add(other); queue.push(other); }
+    }
+    const moving = pile.some(instance => {
+      let total = 0, max = 0;
+      for (const body of instance.bodies) {
+        const speed = body.velocity.length() + body.angularVelocity.length() * body.boundingRadius;
+        total += speed; max = Math.max(max, speed);
+      }
+      return total / instance.bodies.length > .08 || max > .6;
+    });
+    if (grounded.size !== pile.length || moving) { pileQuietSeconds = Math.max(0, pileQuietSeconds - dt * 2); return; }
+    pileQuietSeconds += dt;
+    if (pileQuietSeconds < 1) return;
+    for (const instance of pile) {
+      if (instance.resting) continue;
+      instance.resting = true;
+      instance.restSupport = time - instance.lastFloorAt <= .15 ? ['board-floor'] : [...adjacent.get(instance)];
+      for (const body of instance.bodies) body.sleep();
+    }
   }
   const supportIds = new Set(['floor', 'ground', 'deck', 'board-floor']);
   function supportFor(instance) {
@@ -416,6 +531,7 @@ export function createSimulation(initialProfile = null) {
 
   function newInstance(id, role = 'single') {
     const instance = { id, role, held: false, bodies: [], joints: [], bodyById: new Map(), propagatingWake: false,
+      resting: false, restSupport: null, lastFloorAt: -Infinity,
       state: 'ragdoll', quietSeconds: 0, cooldownUntil: 0, pushedByRecoveryUntil: -Infinity, recovery: null, upright: null, onWake: null, onCollide: null };
     instance.onWake = () => wakeRagdoll(instance);
     instance.onCollide = event => {
@@ -563,6 +679,7 @@ export function createSimulation(initialProfile = null) {
   }
   function releaseInstance(instance) {
     if (!instance?.held) return false;
+    if (scene === 'plinko') lastPlinkoInteractionAt = time;
     instance.held = false;
     for (const body of instance.bodies) {
       body.type = CANNON.Body.DYNAMIC;
@@ -724,9 +841,15 @@ export function createSimulation(initialProfile = null) {
       if (!sapBroadphase) sapBroadphase = new CANNON.SAPBroadphase(world);
       sapBroadphase.setWorld(world);
       sapBroadphase.axisIndex = scene === 'plinko' ? 1 : 2;
+      sapBroadphase.useBoundingBoxes = scene === 'plinko';
       world.broadphase = sapBroadphase;
     } else world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.filterSleepingEquations = scene === 'plinko';
     time = accumulator = 0;
+    lastPlinkoInteractionAt = 0;
+    pileAnchor = null;
+    pileQuietSeconds = 0;
+    pileContactAt.clear();
     paused = true;
     stairStarted = false;
     bowlingStarted = false;
@@ -738,7 +861,11 @@ export function createSimulation(initialProfile = null) {
       makeRagdoll();
       buildingInstance = null;
     }
+    // The grounded pile rests as connected rigs after sustained stillness.
+    // Keep native impact wakeups, but prevent isolated limbs sleeping first.
+    if (scene === 'plinko') for (const body of bodies) body.sleepTimeLimit = Infinity;
     setJointRange(settings.jointRange);
+    settings.autoGetUp = autoGetUpByScene[scene];
     return snapshot();
   }
   function setJointRange(value) {
@@ -751,8 +878,9 @@ export function createSimulation(initialProfile = null) {
     }
     wakeRagdoll();
   }
-  function configure(values) {
+  function configure(values, destinationScene = scene) {
     if (values == null || typeof values !== 'object' || Array.isArray(values)) throw new TypeError('Settings must be an object');
+    if (!Object.hasOwn(autoGetUpByScene, destinationScene)) throw new RangeError('Unknown scene');
     const allowed = new Set(['gravity', 'impactBoost', 'damping', 'friction', 'slideGrip', 'jointRange', 'speed', 'autoGetUp']);
     for (const [key, value] of Object.entries(values)) {
       if (!allowed.has(key)) throw new RangeError(`Unknown setting: ${key}`);
@@ -775,8 +903,12 @@ export function createSimulation(initialProfile = null) {
       if (values.gravity <= 0) for (const instance of instances) releaseGetUp(instance);
     }
     if ('autoGetUp' in values) {
-      settings.autoGetUp = values.autoGetUp;
-      if (!values.autoGetUp) for (const instance of instances) releaseGetUp(instance);
+      autoGetUpByScene[destinationScene] = values.autoGetUp;
+      if (destinationScene === scene) {
+        settings.autoGetUp = values.autoGetUp;
+        if (!values.autoGetUp) for (const instance of instances) releaseGetUp(instance);
+        else if (scene === 'plinko') for (const instance of instances) if (!instance.held && instance.resting) wakeRagdoll(instance);
+      }
     }
     if ('impactBoost' in values) settings.impactBoost = values.impactBoost;
     if ('speed' in values) settings.speed = values.speed;
@@ -811,13 +943,14 @@ export function createSimulation(initialProfile = null) {
         body.previousPosition.copy(body.position);
         body.previousQuaternion.copy(body.quaternion);
       }
-      prepareGetUp(dt); world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; updateGetUp(dt); count++;
+      prepareGetUp(dt); world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; updatePlinkoRest(dt); updateGetUp(dt); count++;
     }
     if (count === 12) accumulator = Math.min(accumulator, dt);
     return count;
   }
   function beginDrag(body, worldPoint) {
     if (!bodies.includes(body)) return false;
+    if (scene === 'plinko') lastPlinkoInteractionAt = time;
     clearDrag();
     releaseGetUp(body.ragdollInstance);
     if (body.ragdollInstance.held) releaseInstance(body.ragdollInstance);

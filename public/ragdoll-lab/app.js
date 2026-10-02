@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
-import { createSimulation, validateProfile } from './physics.js?v=getup-scoot-20261002c';
+import { createSimulation, validateProfile } from './physics.js?v=plinko-pile-20261002b';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
@@ -298,6 +298,11 @@ try {
     }
     $('speed').value = String(snap.settings.speed);
     $('auto-get-up').checked = snap.settings.autoGetUp;
+    $('auto-get-up-help').textContent = plinko
+      ? snap.settings.autoGetUp
+        ? 'Enabled for Plinko. Released ragdolls can rise after resting; crowded spots still need room.'
+        : 'Off by default in Plinko so the floor pile can settle together. Turn it on to try crowded recoveries.'
+      : 'After resting on supported ground, a ragdoll rises and stands. Grab it to resume physics.';
     $('gravity').value = String(snap.settings.gravity);
     $('impact-boost').value = String(snap.settings.impactBoost);
     $('damping').value = String(snap.settings.damping);
@@ -647,7 +652,7 @@ try {
           if (character !== undefined && character !== 'mannequin' && !characterAssets.has(character)) throw new Error(`${characterNames[character]} is not loaded`);
           if (shouldReset !== undefined && typeof shouldReset !== 'boolean') throw new TypeError('Invalid reset');
           if (paused !== undefined && typeof paused !== 'boolean') throw new TypeError('Invalid paused');
-          simulation.configure(values);
+          simulation.configure(values, nextScene ?? simulation.readFrame().scene);
           if (character !== undefined) switchCharacter(character, true);
           if (nextScene !== undefined || shouldReset) reset(nextScene);
           if (paused !== undefined) simulation.setPaused(paused);

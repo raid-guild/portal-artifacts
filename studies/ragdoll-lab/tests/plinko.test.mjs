@@ -7,6 +7,7 @@ import * as CANNON from '../dist/vendor/cannon-es.js';
 function createSimulation(profile = null) { const simulation = createRawSimulation(profile); simulation.configure({ autoGetUp: false }); return simulation; }
 
 const goatProfile = JSON.parse(readFileSync(new URL('../dist/assets/goatman-ragdoll.json', import.meta.url), 'utf8'));
+const vitalikProfile = JSON.parse(readFileSync(new URL('../dist/assets/vitalik-ragdoll.json', import.meta.url), 'utf8'));
 const advance = (simulation, seconds) => { simulation.setPaused(false); for (let tick = 0; tick < seconds * 120; tick++) simulation.step(1 / 120); };
 
 test('Plinko builds a nonoverlapping five-row rack and resets without leaks', () => {
@@ -54,8 +55,8 @@ test('Plinko starts with gravity alone, pauses without a shove, and gravity zero
   assert.equal(simulation.snapshot().settings.impactBoost, 2);
 });
 
-for (const profile of [null, goatProfile]) {
-  test(`${profile ? 'Goatman' : 'mannequin'} naturally cascades through at least three Plinko rows`, () => {
+for (const profile of [null, goatProfile, vitalikProfile]) {
+  test(`${profile?.id ?? 'mannequin'} naturally cascades through at least three Plinko rows`, () => {
     const simulation = createSimulation(profile);
     simulation.reset('plinko');
     simulation.configure({ impactBoost: 0 });
@@ -66,6 +67,8 @@ for (const profile of [null, goatProfile]) {
       });
     }
     advance(simulation, 8);
+    assert.ok(simulation.snapshot().sleepingBodies < simulation.instances.filter(instance => !instance.held).length * 13,
+      'the entire pile cannot sleep during the active cascade');
     const released = simulation.instances.filter(instance => instance.role === 'target' && !instance.held);
     assert.ok(released.length >= 5, `${released.length} targets released`);
     assert.ok(new Set(released.map(instance => instance.row)).size >= 3, 'cascade reached multiple rows');
@@ -114,6 +117,11 @@ test('Goatman Plinko remains finite and connected through a 30-second cascade an
     }
   }
   assert.ok(peakJointGap < .10, `transient collision stretch ${peakJointGap} m`);
+  const pile = simulation.instances.filter(instance => !instance.held);
+  assert.ok(pile.length >= 10, 'a substantial pile formed');
+  assert.ok(pile.every(instance => instance.bodies.every(body => body.sleepState === CANNON.Body.SLEEPING)), 'the grounded pile sleeps as connected rigs');
+  assert.ok(simulation.world.solver.lastEquationCount > 500, 'sleeping joints are still present in the physics world');
+  assert.ok(simulation.world.solver.lastSolvedEquationCount < 50, 'the solver omits inactive pile equations');
   for (const body of simulation.bodies) {
     assert.ok([body.position.x, body.position.y, body.position.z, body.velocity.x, body.velocity.y, body.velocity.z].every(Number.isFinite), body.bodyKey);
     assert.ok(Math.abs(body.position.x) < 6 && body.position.y > -.5 && body.position.y < 22 && Math.abs(body.position.z) < 2, `${body.bodyKey} escaped board`);
@@ -123,8 +131,30 @@ test('Goatman Plinko remains finite and connected through a 30-second cascade an
     const b = joint.bodyB.pointToWorldFrame(joint.pivotB);
     assert.ok(a.distanceTo(b) < .03, `${joint.bodyA.bodyKey} to ${joint.bodyB.bodyKey} separated`);
   }
+  simulation.configure({ autoGetUp: true });
+  assert.ok(pile.every(instance => !instance.resting && instance.bodies.every(part => part.sleepState === CANNON.Body.AWAKE)),
+    'enabling Auto get up wakes the rested pile so recovery can be evaluated');
+  simulation.configure({ autoGetUp: false });
+  for (let tick = 0; tick < 20 * 120 && simulation.snapshot().sleepingBodies < pile.length * 13; tick++) simulation.step(1 / 120);
+  assert.equal(simulation.snapshot().sleepingBodies, pile.length * 13, 'the pile can settle again after the preference changes');
   const body = simulation.instances[0].bodyById.get('head');
   assert.equal(simulation.beginDrag(body, body.position.toArray()), true);
+  assert.ok(simulation.instances[0].bodies.every(part => part.sleepState === CANNON.Body.AWAKE), 'grab wakes the whole selected rig');
+  simulation.setPaused(false);
+  advance(simulation, 1.5);
+  assert.equal(simulation.instances[0].resting, false, 'a held grab cannot sleep again');
+  simulation.moveDrag([body.position.x + .8, body.position.y + .3, body.position.z]);
+  advance(simulation, .6);
+  assert.ok(simulation.snapshot().sleepingBodies < (pile.length - 1) * 13, 'drag motion wakes another rig through real contact');
+  simulation.endDrag();
+  for (let tick = 0; tick < 20 * 120 && simulation.snapshot().sleepingBodies < pile.length * 13; tick++) simulation.step(1 / 120);
+  assert.equal(simulation.snapshot().sleepingBodies, pile.length * 13, 'the disturbed pile settles again');
+  const held = simulation.instances.find(instance => instance.held && instance.row === 4);
+  const falling = held.bodyById.get('pelvis');
+  assert.equal(simulation.beginDrag(falling, falling.position.toArray()), true);
+  simulation.endDrag();
+  advance(simulation, 2);
+  assert.ok(simulation.snapshot().sleepingBodies < pile.length * 13, 'a real falling target wakes the sleeping pile');
   simulation.reset('plinko');
   assert.equal(simulation.snapshot().dragging, false);
   assert.equal(simulation.world.bodies.length, 213);
