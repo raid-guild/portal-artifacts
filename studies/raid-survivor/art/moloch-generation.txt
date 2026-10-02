@@ -1,0 +1,7 @@
+Moloch boss asset
+Generated with the built-in image_gen tool on 2026-10-02.
+Saved asset: public/characters/moloch.png
+No RaidGuild reference artwork was modified for this new boss asset.
+
+Prompt:
+Use case: stylized-concept. Asset type: transparent pixel-art boss sprite for a top-down fantasy twin-stick horde shooter. Create a single full-body Moloch boss: a massive horned bull demon, charcoal and dark oxblood skin, bronze armor, glowing molten orange eyes and chest fissures, heavy hooves, broad powerful silhouette, thick curved horns. Retro 16-bit fantasy arcade sprite aesthetic, crisp square pixel clusters and strong dark outlines, limited shading, readable at 128 pixels tall; no smooth painted gradients. Front-facing three-quarter top-down view similar to classic RPG character sprites, slightly facing the viewer's left so it can be horizontally mirrored. Both hands visible, one holding a large infernal cleaver. Centered complete character occupying about 85 percent of canvas with small transparent margins, horns and weapon entirely inside frame. Actual fully transparent background, no floor, no scenery, no framing, no text, no labels, no sprite sheet, no extra characters. Menacing fantasy monster, non-graphic.

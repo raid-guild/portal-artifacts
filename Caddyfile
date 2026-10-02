@@ -21,6 +21,10 @@
 	header @cosmic Access-Control-Allow-Origin "*"
 	header @cosmic Cache-Control "no-cache"
 
+	@raid path /raid-survivor /raid-survivor/*
+	header @raid Access-Control-Allow-Origin "*"
+	header @raid Cache-Control "no-cache"
+
 	# Revalidate walker assets so repeat visitors receive new deployments.
 	@field path /field /field/*
 	header @field Cache-Control "no-cache"
@@ -91,6 +95,15 @@
 
 		# Optional game backend; same-origin requests preserve first-party sessions.
 		# The service remains usable without this backend (guest/local mode).
+		handle /leaderboard-api/raid-survivor/* {
+			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
+				header_up Host {upstream_hostport}
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 8s
+				}
+			}
+		}
 		handle /leaderboard-api/cosmic-carnival/* {
 			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
 				header_up Host {upstream_hostport}

@@ -120,3 +120,51 @@ static deployment or unset LEADERBOARD_UPSTREAM; guest gameplay continues. Keep 
 schema and scores intact. No existing game tables are changed by this service.
 
 Wave rules are generated from the game source by `npm run build` in `studies/cosmic-carnival`. Commit the generated `src/cosmic-waves.js` alongside changes to the scoring version.
+
+## Raid Survivor rollout (additive to Cosmic Carnival)
+
+Raid Survivor uses the same API service and database, with its own `raid-survivor`
+route, `raid_survivor_ranked` path-scoped cookie, launch audience, and
+`RAID_SURVIVOR_LAUNCH_SECRET`. The Cosmic configuration and scoring version remain
+unchanged. A missing Raid secret makes only Raid's ranked routes return 503; the
+static game continues with local scores. The current services are
+`portal-artifact-leaderboards` and `Tapper-Postgres` in the RaidGuild Playground
+production project, and `portal-artifacts` in DarkFactory production.
+
+1. With administrator database credentials, run the updated `npm run migrate`
+   against Tapper-Postgres. This adds nullable `artifact_leaderboards.runs.details`
+   as JSONB; it is safe to run again and leaves existing Cosmic runs intact. The
+   runtime role already needs CRUD on `runs` and need not receive DDL rights.
+2. Generate a unique random secret of at least 32 characters. Set the same value
+   as `RAID_SURVIVOR_LAUNCH_SECRET` on the backend Railway service and Portal.
+   Keep `COSMIC_LAUNCH_SECRET` and all existing variables. Deploy the backend
+   from `/services/leaderboards`; check `/health` and
+   `/leaderboard-api/cosmic-carnival/leaderboard` after deployment. Redeploy
+   Portal after setting its secret so Payload can read it.
+3. Build the game with `npm ci && npm run build` in
+   `studies/raid-survivor`. Deploy the static `portal-artifacts` service from the
+   repository root using the root Dockerfile. Its existing
+   `LEADERBOARD_UPSTREAM` already points to
+   `https://portal-artifact-leaderboards-production.up.railway.app`; retain it.
+   Check `/raid-survivor/` and `/leaderboard-api/raid-survivor/leaderboard`.
+4. Register the Portal external module if absent, using slug `raid-survivor`,
+   entry route `https://portal-artifacts-production.up.railway.app/raid-survivor/`,
+   and the appropriate Portal visibility/category settings. The guarded script
+   `ops/configure-raid-survivor.ts` requires exactly one module with that slug,
+   kind `external`, and exact entry route. From a Portal checkout, run it with
+   `pnpm payload run <path>` to review its dry-run output; then run with
+   `--apply`. It sets the callback URL to
+   `https://portal-artifacts-production.up.railway.app/leaderboard-api/raid-survivor/callback`,
+   audience `raid-survivor`, dedicated secret key, 120-second token lifetime,
+   and handle/profile claims only. Test a Portal launch and a submitted run.
+
+Raid's finish body is `{version:"1",character,durationMs,stats}` with integer
+`kills`, `elites`, `bosses`, `chests`, and `level`. The server derives score
+from the game's rules, stores canonical counters in `details`, and returns public
+entries containing only `displayName`, `score`, `character`, `kills`, and
+`durationMs`. A player may start 60 Raid runs per hour regardless of Cosmic
+starts. The same two-hour run lifetime and transaction controls apply.
+
+If ranked setup must be rolled back, set the Raid module to guest launch or
+remove the Raid secret from the backend. Local play and Cosmic ranked scores
+remain available. Preserve the schema and historical run rows.
