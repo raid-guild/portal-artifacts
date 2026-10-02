@@ -89,3 +89,5 @@ not change the deployment service or other artifact paths.
 
 The development copy is also published privately with Sites. Portal's public
 runtime source does not include Sites hosting metadata or credentials.
+
+The social sharing card is `og.png` (1733 × 907 PNG). Open Graph and X metadata are delivered in the static HTML, with the public Portal Artifacts `/ragdoll-lab/` URL as the canonical link and image origin in both builds. Deploy the Portal branch before testing public unfurls; the private Sites preview is not the public sharing URL.
