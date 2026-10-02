@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createSimulation, validateProfile, TimeStepFrictionSolver } from '../dist/physics.js';
+import { createSimulation as createRawSimulation, validateProfile, TimeStepFrictionSolver } from '../dist/physics.js';
 import * as CANNON from '../dist/vendor/cannon-es.js';
 import * as THREE from '../dist/vendor/three.module.js';
 import { interpolateBodyQuaternion } from '../dist/renderMath.js';
 import { createSkinnedRagdoll } from '../dist/skinnedRagdoll.js';
 import { clone as cloneSkeleton } from '../dist/vendor/SkeletonUtils.js';
+
+function createSimulation(profile = null) { const simulation = createRawSimulation(profile); simulation.configure({ autoGetUp: false }); return simulation; }
 
 const goatProfile = JSON.parse(readFileSync(new URL('../dist/assets/goatman-ragdoll.json', import.meta.url), 'utf8'));
 

@@ -39,6 +39,19 @@ All runtime dependencies and fonts are served from the same origin under the
 existing portal-artifacts Content Security Policy. This artifact uses no keys,
 Portal credentials, cookies, private APIs, or external runtime requests.
 
+Auto get up is enabled by default outside Plinko. Each scene remembers its own
+choice. After resting on a clear floor, released
+characters animate back to standing. Drag or hit them to knock them down again,
+or turn the option off in Motion for passive physics. Touching released ragdolls
+can push one another while rising. Nearby rises take turns; if a standing neighbor
+blocks the path, a character can scoot into clear floor space before getting up.
+Walls, held targets, and blocked escape paths still prevent recovery.
+
+Plinko starts with Auto get up off. A supported, still floor pile sleeps together
+to avoid repeatedly solving hundreds of stationary bodies and joints. Dragging
+or hitting it wakes the pile; collision shapes, solver accuracy, and the 120 Hz
+physics step are preserved.
+
 ## Physics implementation
 
 See [implementation notes](IMPLEMENTATION.md) for engine versions, friction

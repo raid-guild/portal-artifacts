@@ -1,15 +1,25 @@
 import * as CANNON from './vendor/cannon-es.js';
+import { captureUpright, beginGetUp, sampleGetUp } from './getUp.js?v=getup-scoot-20261002';
 
 const RAD = Math.PI / 180;
 const vec = ([x, y, z]) => new CANNON.Vec3(x, y, z);
 const clonePose = body => ({ position: body.position.clone(), quaternion: body.quaternion.clone() });
-const settingsDefault = Object.freeze({ gravity: 9.82, impactBoost: 1, damping: 0.08, friction: 0.6, slideGrip: 0.03, jointRange: 100, speed: 1 });
+const settingsDefault = Object.freeze({ gravity: 9.82, impactBoost: 1, damping: 0.08, friction: 0.6, slideGrip: 0.03, jointRange: 100, speed: 1, autoGetUp: true });
 
 // Cannon's narrowphase sets each friction tangent's bound in force units, while
 // GSSolver clamps an impulse. Scale by the step and split a body's contact budget
 // across its contact points. Restore the bounds because equations are pooled.
 export class TimeStepFrictionSolver extends CANNON.GSSolver {
   solve(dt, world) {
+    const allEquations = this.equations;
+    // A sleeping rig has no solve mass. Its internal joints and its contacts
+    // against other sleepers cannot change anything, but a live body's contact
+    // with it still must be solved so the impact can wake the whole rig.
+    if (this.filterSleepingEquations) this.equations = allEquations.filter(equation =>
+      (equation.bi.type === CANNON.Body.DYNAMIC && equation.bi.sleepState !== CANNON.Body.SLEEPING) ||
+      (equation.bj.type === CANNON.Body.DYNAMIC && equation.bj.sleepState !== CANNON.Body.SLEEPING));
+    this.lastEquationCount = allEquations.length;
+    this.lastSolvedEquationCount = this.equations.length;
     const groups = new Map();
     for (const equation of this.equations) {
       if (!(equation instanceof CANNON.FrictionEquation)) continue;
@@ -30,7 +40,10 @@ export class TimeStepFrictionSolver extends CANNON.GSSolver {
       }
     }
     try { return super.solve(dt, world); }
-    finally { for (const [equation, min, max] of oldBounds) { equation.minForce = min; equation.maxForce = max; } }
+    finally {
+      for (const [equation, min, max] of oldBounds) { equation.minForce = min; equation.maxForce = max; }
+      this.equations = allEquations;
+    }
   }
 }
 export const BODY_IDS = Object.freeze(['pelvis', 'chest', 'head', 'left-upper-arm', 'left-forearm', 'left-thigh', 'left-shin', 'left-foot', 'right-upper-arm', 'right-forearm', 'right-thigh', 'right-shin', 'right-foot']);
@@ -101,6 +114,7 @@ export function createSimulation(initialProfile = null) {
   const slideContact = new CANNON.ContactMaterial(bodyMaterial, slideMaterial, { friction: settingsDefault.slideGrip, restitution: 0.005 });
   world.addContactMaterial(slideContact);
   const settings = { ...settingsDefault };
+  const autoGetUpByScene = { drop: true, stairs: true, bowling: true, plinko: false };
   const bodies = [];
   const joints = [];
   const staticBodies = [];
@@ -114,7 +128,12 @@ export function createSimulation(initialProfile = null) {
   let stairStarted = false;
   let bowlingStarted = false;
   let sapBroadphase = null;
+  let lastPlinkoInteractionAt = 0;
+  let pileAnchor = null;
+  let pileQuietSeconds = 0;
+  const pileContactAt = new Map();
   const pendingBoosts = [];
+  const overlapProbe = new CANNON.Narrowphase(world);
 
   function centerOfMass(instance) {
     const center = new CANNON.Vec3();
@@ -154,13 +173,381 @@ export function createSimulation(initialProfile = null) {
     if (!instance) { for (const one of instances) wakeRagdoll(one); return; }
     if (instance.propagatingWake) return;
     instance.propagatingWake = true;
-    try { for (const body of instance.bodies) body.wakeUp(); }
+    try {
+      if (scene === 'plinko' && instance.resting) {
+        pileAnchor = null;
+        pileQuietSeconds = 0;
+        lastPlinkoInteractionAt = time;
+      }
+      instance.resting = false;
+      instance.restSupport = null;
+      for (const body of instance.bodies) body.wakeUp();
+    }
     finally { instance.propagatingWake = false; }
+  }
+  function updatePlinkoRest(dt) {
+    if (scene !== 'plinko') return;
+    for (const contact of world.contacts) {
+      for (const [body, other, upward] of [
+        [contact.bi, contact.bj, -contact.ni.y], [contact.bj, contact.bi, contact.ni.y]
+      ]) {
+        const instance = body.ragdollInstance;
+        if (instance && !instance.held && body.type === CANNON.Body.DYNAMIC && other.idTag === 'board-floor' && upward >= .35)
+          instance.lastFloorAt = time;
+      }
+    }
+    // A resting rig supported by another rig cannot remain inert when that
+    // support starts moving. Wake the entire stack, starting at its base.
+    for (let pass = 0; pass < instances.length; pass++) {
+      let changed = false;
+      for (const instance of instances) {
+        if (!instance.resting || !instance.restSupport) continue;
+        if (instance.restSupport.some(support => support !== 'board-floor' && !support.resting)) {
+          wakeRagdoll(instance); changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    // A connected pile must sleep together. An isolated sleeping limb would
+    // be woken by its still-awake neighbor's ordinary joint jitter.
+    const pile = instances.filter(instance => !instance.held && instance.state !== 'standing' && instance.state !== 'recovering');
+    if (pile.length && pile.every(instance => instance.resting)) return;
+    if (settings.autoGetUp || drag || time < 10 || time - lastPlinkoInteractionAt < 2 || pile.length < 2 || pile.some(instance => instance.bodyById.get('pelvis').position.y > 1.5)) {
+      pileAnchor = null; pileQuietSeconds = 0; return;
+    }
+    const pileSet = new Set(pile);
+    const centers = new Map(pile.map(instance => [instance, centerOfMass(instance)]));
+    if (!pileAnchor) {
+      pileAnchor = new Map(pile.map(instance => [instance, {
+        center: centers.get(instance), poses: instance.bodies.map(body => clonePose(body))
+      }]));
+      pileQuietSeconds = 0;
+      return;
+    }
+    const drifted = pile.some(instance => {
+      const anchor = pileAnchor.get(instance);
+      if (!anchor || centers.get(instance).distanceTo(anchor.center) > .035) return true;
+      return instance.bodies.some((body, index) => {
+        const pose = anchor.poses[index], q = body.quaternion, a = pose.quaternion;
+        const dot = Math.abs(q.x * a.x + q.y * a.y + q.z * a.z + q.w * a.w);
+        return body.position.distanceTo(pose.position) + 2 * Math.acos(Math.min(1, dot)) * body.boundingRadius > .08;
+      });
+    });
+    if (drifted) { pileAnchor = null; pileQuietSeconds = 0; return; }
+    // Contact islands are undirected: a pile can carry load through friction
+    // and side contacts. A genuine upward floor contact roots each island.
+    for (const contact of world.contacts) {
+      const a = contact.bi.ragdollInstance, b = contact.bj.ragdollInstance;
+      if (!a || !b || a === b || !pileSet.has(a) || !pileSet.has(b)) continue;
+      const key = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
+      pileContactAt.set(key, { a, b, at: time });
+    }
+    const adjacent = new Map(pile.map(instance => [instance, new Set()]));
+    for (const [key, edge] of pileContactAt) {
+      if (time - edge.at > .15 || !pileSet.has(edge.a) || !pileSet.has(edge.b)) { pileContactAt.delete(key); continue; }
+      adjacent.get(edge.a).add(edge.b); adjacent.get(edge.b).add(edge.a);
+    }
+    for (const instance of pile) if (instance.resting) for (const other of instance.restSupport ?? []) {
+      if (pileSet.has(other)) { adjacent.get(instance).add(other); adjacent.get(other).add(instance); }
+    }
+    const grounded = new Set(pile.filter(instance => time - instance.lastFloorAt <= .15 ||
+      (instance.resting && instance.restSupport?.includes('board-floor'))));
+    const queue = [...grounded];
+    for (let index = 0; index < queue.length; index++) for (const other of adjacent.get(queue[index])) {
+      if (!grounded.has(other)) { grounded.add(other); queue.push(other); }
+    }
+    const moving = pile.some(instance => {
+      let total = 0, max = 0;
+      for (const body of instance.bodies) {
+        const speed = body.velocity.length() + body.angularVelocity.length() * body.boundingRadius;
+        total += speed; max = Math.max(max, speed);
+      }
+      return total / instance.bodies.length > .08 || max > .6;
+    });
+    if (grounded.size !== pile.length || moving) { pileQuietSeconds = Math.max(0, pileQuietSeconds - dt * 2); return; }
+    pileQuietSeconds += dt;
+    if (pileQuietSeconds < 1) return;
+    for (const instance of pile) {
+      if (instance.resting) continue;
+      instance.resting = true;
+      instance.restSupport = time - instance.lastFloorAt <= .15 ? ['board-floor'] : [...adjacent.get(instance)];
+      for (const body of instance.bodies) body.sleep();
+    }
+  }
+  const supportIds = new Set(['floor', 'ground', 'deck', 'board-floor']);
+  function supportFor(instance) {
+    const pelvis = instance.bodyById.get('pelvis');
+    let chosen = null;
+    for (const support of staticBodies) {
+      if (!supportIds.has(support.idTag)) continue;
+      const top = support.position.y + support.halfExtentsTag[1];
+      const margin = .65;
+      if (Math.abs(pelvis.position.x - support.position.x) > support.halfExtentsTag[0] - margin ||
+          Math.abs(pelvis.position.z - support.position.z) > support.halfExtentsTag[2] - margin) continue;
+      if (pelvis.position.y < top - .05 || pelvis.position.y > top + instance.upright.pelvisHeight * .82) continue;
+      const grounded = instance.bodies.some(body => {
+        body.updateAABB();
+        return body.aabb.lowerBound.y <= top + .075 && body.aabb.upperBound.y >= top - .075 &&
+          body.aabb.lowerBound.x < support.position.x + support.halfExtentsTag[0] && body.aabb.upperBound.x > support.position.x - support.halfExtentsTag[0] &&
+          body.aabb.lowerBound.z < support.position.z + support.halfExtentsTag[2] && body.aabb.upperBound.z > support.position.z - support.halfExtentsTag[2];
+      });
+      if (grounded && (!chosen || top > chosen.top)) chosen = { body: support, top };
+    }
+    if (!chosen) return null;
+    // Kinematic recovery has no static-body solver response. Require an open column.
+    for (const obstacle of staticBodies) {
+      if (obstacle === chosen.body || supportIds.has(obstacle.idTag)) continue;
+      obstacle.updateAABB();
+      if (obstacle.aabb.upperBound.y < chosen.top + .15 || obstacle.aabb.lowerBound.y > chosen.top + instance.upright.pelvisHeight * 2.4) continue;
+      if (obstacle.aabb.lowerBound.x < pelvis.position.x + .55 && obstacle.aabb.upperBound.x > pelvis.position.x - .55 &&
+          obstacle.aabb.lowerBound.z < pelvis.position.z + .55 && obstacle.aabb.upperBound.z > pelvis.position.z - .55) return null;
+    }
+    return chosen;
+  }
+  function overlapsWithMargin(a, b, margin = .015) {
+    return a.lowerBound.x < b.upperBound.x - margin && a.upperBound.x > b.lowerBound.x + margin &&
+      a.lowerBound.y < b.upperBound.y - margin && a.upperBound.y > b.lowerBound.y + margin &&
+      a.lowerBound.z < b.upperBound.z - margin && a.upperBound.z > b.lowerBound.z + margin;
+  }
+  function colliderPenetration(a, b) {
+    const contacts = [];
+    overlapProbe.getContacts([a], [b], world, contacts, [], [], []);
+    let deepest = 0;
+    for (const contact of contacts) {
+      const first = contact.bi.position.vadd(contact.ri);
+      const second = contact.bj.position.vadd(contact.rj);
+      deepest = Math.min(deepest, contact.ni.dot(second.vsub(first)));
+    }
+    return deepest;
+  }
+  function recoverySweepClear(instance, recovery, support) {
+    const originals = instance.bodies.map(body => ({ body, position: body.position.clone(), quaternion: body.quaternion.clone() }));
+    const reservation = { lowerBound: new CANNON.Vec3(Infinity, Infinity, Infinity), upperBound: new CANNON.Vec3(-Infinity, -Infinity, -Infinity) };
+    recovery.blocker = null;
+    try {
+      const samples = [];
+      if (recovery.scootDuration) {
+        const distance = Math.hypot(recovery.targetX - recovery.x, recovery.targetZ - recovery.z);
+        // Smoothstep peaks at 1.5 times average speed. Bound spatial travel
+        // between probes so a thin rail or standing leg cannot be skipped.
+        const steps = Math.ceil(1.5 * distance / .025);
+        for (let step = 0; step <= steps; step++) samples.push(recovery.scootDuration * step / steps);
+      }
+      for (let elapsed = recovery.scootDuration || 0; elapsed < recovery.duration; elapsed += .14) samples.push(elapsed);
+      samples.push(recovery.duration);
+      for (const elapsed of samples) {
+        const poses = sampleGetUp(recovery, elapsed / recovery.duration);
+        let lowest = Infinity;
+        for (const body of instance.bodies) {
+          const pose = poses.get(body.idTag);
+          body.position.copy(pose.position); body.quaternion.copy(pose.quaternion);
+          body.updateAABB(); lowest = Math.min(lowest, body.aabb.lowerBound.y);
+        }
+        const lift = Math.max(0, recovery.supportTop + .006 - lowest);
+        for (const body of instance.bodies) {
+          body.position.y += lift; body.updateAABB();
+          const a = body.aabb;
+          reservation.lowerBound.x = Math.min(reservation.lowerBound.x, a.lowerBound.x);
+          reservation.lowerBound.y = Math.min(reservation.lowerBound.y, a.lowerBound.y);
+          reservation.lowerBound.z = Math.min(reservation.lowerBound.z, a.lowerBound.z);
+          reservation.upperBound.x = Math.max(reservation.upperBound.x, a.upperBound.x);
+          reservation.upperBound.y = Math.max(reservation.upperBound.y, a.upperBound.y);
+          reservation.upperBound.z = Math.max(reservation.upperBound.z, a.upperBound.z);
+          if (a.lowerBound.x < support.position.x - support.halfExtentsTag[0] + .03 ||
+              a.upperBound.x > support.position.x + support.halfExtentsTag[0] - .03 ||
+              a.lowerBound.z < support.position.z - support.halfExtentsTag[2] + .03 ||
+              a.upperBound.z > support.position.z + support.halfExtentsTag[2] - .03) return false;
+          for (const obstacle of staticBodies) {
+            if (obstacle === support || supportIds.has(obstacle.idTag)) continue;
+            obstacle.updateAABB();
+            if (a.overlaps(obstacle.aabb)) return false;
+          }
+          for (const other of instances) {
+            if (other === instance || (!other.held && (other.state === 'ragdoll' || other.state === 'settling'))) continue;
+            if (other.state === 'recovering') {
+              if (overlapsWithMargin(a, other.recovery.reservation)) return false;
+              continue;
+            }
+            for (const otherBody of other.bodies) {
+              otherBody.updateAABB();
+              if (!overlapsWithMargin(a, otherBody.aabb, -.005)) continue;
+              const penetration = colliderPenetration(body, otherBody);
+              if (penetration < -.008) {
+                if (other.state === 'standing') recovery.blocker = other;
+                return false;
+              }
+            }
+          }
+        }
+      }
+      recovery.reservation = reservation;
+      return true;
+    } finally {
+      for (const { body, position, quaternion } of originals) {
+        body.position.copy(position); body.quaternion.copy(quaternion); body.updateAABB();
+      }
+    }
+  }
+  function findRecovery(instance, support) {
+    const origin = beginGetUp(instance, support.top, settings.jointRange);
+    if (recoverySweepClear(instance, origin, support.body)) return origin;
+    if (origin.blocker?.state !== 'standing') return null;
+    const pelvis = instance.bodyById.get('pelvis').position;
+    const blocker = origin.blocker.bodyById.get('pelvis').position;
+    const awayX = pelvis.x - blocker.x, awayZ = pelvis.z - blocker.z;
+    const length = Math.hypot(awayX, awayZ) || 1;
+    const directions = Array.from({ length: 8 }, (_, i) => {
+      const angle = i * Math.PI / 4;
+      return { x: Math.cos(angle), z: Math.sin(angle), index: i };
+    }).sort((a, b) => ((b.x * awayX + b.z * awayZ) - (a.x * awayX + a.z * awayZ)) / length || a.index - b.index);
+    for (const distance of [.4, .8, 1.2, 1.6]) {
+      for (const direction of directions) {
+        const candidate = beginGetUp(instance, support.top, settings.jointRange, {
+          x: pelvis.x + direction.x * distance, z: pelvis.z + direction.z * distance
+        });
+        if (recoverySweepClear(instance, candidate, support.body)) return candidate;
+      }
+    }
+    return null;
+  }
+  function releaseGetUp(instance) {
+    if (instance.state !== 'recovering' && instance.state !== 'standing') return;
+    instance.state = 'ragdoll'; instance.recovery = null; instance.quietSeconds = 0;
+    instance.cooldownUntil = time + 2;
+    for (const body of instance.bodies) {
+      body.type = CANNON.Body.DYNAMIC;
+      body.updateMassProperties();
+      body.previousPosition.copy(body.position);
+      body.previousQuaternion.copy(body.quaternion);
+      body.aabbNeedsUpdate = true;
+    }
+    for (const joint of instance.joints) for (const equation of joint.equations) equation.enabled = true;
+    wakeRagdoll(instance);
+  }
+  function recoveryTarget(instance, progress) {
+    const poses = sampleGetUp(instance.recovery, progress);
+    const originals = instance.bodies.map(body => ({ body, position: body.position.clone(), quaternion: body.quaternion.clone() }));
+    let lowest = Infinity;
+    for (const body of instance.bodies) {
+      const pose = poses.get(body.idTag);
+      body.position.copy(pose.position); body.quaternion.copy(pose.quaternion);
+      body.updateAABB(); lowest = Math.min(lowest, body.aabb.lowerBound.y);
+    }
+    const lift = Math.max(0, instance.recovery.supportTop + .006 - lowest);
+    const bounds = new Map();
+    for (const body of instance.bodies) {
+      const pose = poses.get(body.idTag);
+      pose.position.y += lift;
+      body.position.copy(pose.position); body.updateAABB();
+      bounds.set(body.idTag, { lowerBound: body.aabb.lowerBound.clone(), upperBound: body.aabb.upperBound.clone() });
+    }
+    for (const { body, position, quaternion } of originals) {
+      body.position.copy(position); body.quaternion.copy(quaternion); body.updateAABB();
+    }
+    return { poses, bounds };
+  }
+  function prepareGetUp(dt) {
+    for (const instance of instances) {
+      if (instance.state !== 'recovering') continue;
+      const recovery = instance.recovery;
+      recovery.nextElapsed = Math.min(recovery.duration, recovery.elapsed + dt);
+      recovery.next = recoveryTarget(instance, recovery.nextElapsed / recovery.duration);
+      const movingBounds = [];
+      for (const body of instance.bodies) {
+        const pose = recovery.next.poses.get(body.idTag);
+        body.velocity.set((pose.position.x - body.position.x) / dt, (pose.position.y - body.position.y) / dt, (pose.position.z - body.position.z) / dt);
+        if (body.velocity.length() > 12) body.velocity.scale(12 / body.velocity.length(), body.velocity);
+        const delta = pose.quaternion.mult(body.quaternion.conjugate());
+        if (delta.w < 0) { delta.x *= -1; delta.y *= -1; delta.z *= -1; delta.w *= -1; }
+        const sinHalf = Math.hypot(delta.x, delta.y, delta.z);
+        const angle = 2 * Math.atan2(sinHalf, Math.max(0, delta.w));
+        const factor = sinHalf > 1e-8 ? angle / (sinHalf * dt) : 0;
+        body.angularVelocity.set(delta.x * factor, delta.y * factor, delta.z * factor);
+        if (body.angularVelocity.length() > 10) body.angularVelocity.scale(10 / body.angularVelocity.length(), body.angularVelocity);
+        body.wakeUp();
+        const next = recovery.next.bounds.get(body.idTag);
+        body.updateAABB();
+        movingBounds.push({ lowerBound: new CANNON.Vec3(Math.min(body.aabb.lowerBound.x, next.lowerBound.x), Math.min(body.aabb.lowerBound.y, next.lowerBound.y), Math.min(body.aabb.lowerBound.z, next.lowerBound.z)),
+          upperBound: new CANNON.Vec3(Math.max(body.aabb.upperBound.x, next.upperBound.x), Math.max(body.aabb.upperBound.y, next.upperBound.y), Math.max(body.aabb.upperBound.z, next.upperBound.z)) });
+      }
+      // Cannon wakes contact bodies, but not the other limbs in their connected rig.
+      for (const other of instances) {
+        if (other === instance || other.held || other.state === 'recovering' || other.state === 'standing') continue;
+        if (other.bodies.some(body => { body.updateAABB(); return movingBounds.some(bounds => overlapsWithMargin(bounds, body.aabb, -.02)); })) {
+          if (other.pushedByRecoveryUntil >= time || other.bodies.every(body => body.velocity.length() < .3)) other.pushedByRecoveryUntil = time + .2;
+          wakeRagdoll(other);
+        }
+      }
+    }
+  }
+  function updateGetUp(dt) {
+    for (const instance of instances) {
+      if (instance.held) continue;
+      if (instance.state === 'recovering') {
+        const recovery = instance.recovery;
+        recovery.elapsed = recovery.nextElapsed;
+        for (const body of instance.bodies) {
+          const pose = recovery.next.poses.get(body.idTag);
+          body.position.copy(pose.position); body.quaternion.copy(pose.quaternion);
+          body.velocity.setZero(); body.angularVelocity.setZero();
+          body.aabbNeedsUpdate = true;
+        }
+        if (recovery.elapsed >= recovery.duration) { instance.state = 'standing'; instance.recovery = null; }
+      } else if (instance.state === 'standing') {
+        if (!settings.autoGetUp || settings.gravity <= 0 || !supportForStanding(instance)) releaseGetUp(instance);
+      } else {
+        if (!settings.autoGetUp || settings.gravity <= 0 || time < instance.cooldownUntil || drag?.body.ragdollInstance === instance) { instance.quietSeconds = 0; continue; }
+        const support = supportFor(instance);
+        if (!support) { instance.quietSeconds = 0; instance.state = 'ragdoll'; continue; }
+        const quiet = instance.bodies.every(body => body.sleepState === CANNON.Body.SLEEPING ||
+          (body.velocity.length() < .10 && body.angularVelocity.length() < .16));
+        // Contact jitter in a touching pile can briefly wake one limb. Let those
+        // isolated ticks leak time; real locomotion quickly drains the timer.
+        const moving = instance.bodyById.get('pelvis').velocity.length() > .3 ||
+          instance.bodies.some(body => body.velocity.length() > 1 || body.angularVelocity.length() > 2);
+        instance.quietSeconds = quiet ? instance.quietSeconds + dt : Math.max(0, instance.quietSeconds - dt * (moving ? 4 : .5));
+        instance.state = instance.quietSeconds > 0 ? 'settling' : 'ragdoll';
+        if (instance.quietSeconds < 1) continue;
+        const recovery = findRecovery(instance, support);
+        if (!recovery) { instance.quietSeconds = 0; instance.state = 'ragdoll'; instance.cooldownUntil = time + 1; continue; }
+        instance.recovery = recovery;
+        instance.state = 'recovering'; instance.quietSeconds = 0;
+        for (const body of instance.bodies) {
+          body.type = CANNON.Body.KINEMATIC;
+          body.velocity.setZero(); body.angularVelocity.setZero(); body.force.setZero(); body.torque.setZero();
+          body.updateMassProperties();
+        }
+        for (const joint of instance.joints) for (const equation of joint.equations) equation.enabled = false;
+      }
+    }
+  }
+  function supportForStanding(instance) {
+    const pelvis = instance.bodyById.get('pelvis').position;
+    return staticBodies.some(support => supportIds.has(support.idTag) &&
+      Math.abs(pelvis.x - support.position.x) < support.halfExtentsTag[0] - .5 &&
+      Math.abs(pelvis.z - support.position.z) < support.halfExtentsTag[2] - .5 &&
+      Math.abs(pelvis.y - (support.position.y + support.halfExtentsTag[1] + instance.upright.pelvisHeight)) < .35);
   }
 
   function newInstance(id, role = 'single') {
-    const instance = { id, role, held: false, bodies: [], joints: [], bodyById: new Map(), propagatingWake: false, onWake: null, onCollide: null };
+    const instance = { id, role, held: false, bodies: [], joints: [], bodyById: new Map(), propagatingWake: false,
+      resting: false, restSupport: null, lastFloorAt: -Infinity,
+      state: 'ragdoll', quietSeconds: 0, cooldownUntil: 0, pushedByRecoveryUntil: -Infinity, recovery: null, upright: null, onWake: null, onCollide: null };
     instance.onWake = () => wakeRagdoll(instance);
+    instance.onCollide = event => {
+      if (instance.state !== 'standing' && instance.state !== 'recovering') return;
+      const other = event.body;
+      if (!other?.ragdollInstance || other.ragdollInstance === instance || other.ragdollInstance.held || other.type !== CANNON.Body.DYNAMIC) return;
+      if (instance.state === 'recovering' && other.ragdollInstance.pushedByRecoveryUntil >= time) return;
+      const contact = event.contact;
+      const otherIsA = contact.bi === other;
+      const point = other.position.vadd(otherIsA ? contact.ri : contact.rj);
+      const velocity = other.getVelocityAtWorldPoint(point, new CANNON.Vec3());
+      const incoming = (otherIsA ? 1 : -1) * contact.ni.dot(velocity);
+      // Relative contact speed also includes the recovering body's own motion.
+      // Only a genuinely incoming dynamic neighbor should interrupt the rise.
+      if (incoming > .8) releaseGetUp(instance);
+    };
     instances.push(instance);
     return instance;
   }
@@ -178,6 +565,7 @@ export function createSimulation(initialProfile = null) {
     body.previousPosition = body.position.clone();
     body.previousQuaternion = body.quaternion.clone();
     body.addEventListener('wakeup', buildingInstance.onWake);
+    body.addEventListener('collide', buildingInstance.onCollide);
     world.addBody(body);
     bodies.push(body);
     buildingInstance.bodies.push(body);
@@ -291,6 +679,7 @@ export function createSimulation(initialProfile = null) {
   }
   function releaseInstance(instance) {
     if (!instance?.held) return false;
+    if (scene === 'plinko') lastPlinkoInteractionAt = time;
     instance.held = false;
     for (const body of instance.bodies) {
       body.type = CANNON.Body.DYNAMIC;
@@ -363,6 +752,7 @@ export function createSimulation(initialProfile = null) {
       join(thigh, shin, p(side * .17, .62), 70, 25);
       join(shin, foot, p(side * .18, .25), 20, 15);
     }
+    buildingInstance.upright = captureUpright(buildingInstance);
     if (scene === 'stairs') {
       const tilt = new CANNON.Quaternion();
       tilt.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), -0.13);
@@ -404,6 +794,7 @@ export function createSimulation(initialProfile = null) {
     for (const joint of profile.joints) {
       join(byId.get(joint.parent), byId.get(joint.child), place(joint.anchor), joint.swingDegrees, joint.twistDegrees, joint.axis, joint.tangent);
     }
+    buildingInstance.upright = captureUpright(buildingInstance);
     if (scene === 'stairs') {
       const tilt = new CANNON.Quaternion();
       tilt.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), -.13);
@@ -433,6 +824,7 @@ export function createSimulation(initialProfile = null) {
     for (const joint of joints) world.removeConstraint(joint);
     for (const body of bodies) {
       body.removeEventListener('wakeup', body.ragdollInstance.onWake);
+      body.removeEventListener('collide', body.ragdollInstance.onCollide);
       if (body.onPinCollide) body.removeEventListener('collide', body.onPinCollide);
     }
     for (const body of [...bodies, ...staticBodies]) world.removeBody(body);
@@ -449,9 +841,15 @@ export function createSimulation(initialProfile = null) {
       if (!sapBroadphase) sapBroadphase = new CANNON.SAPBroadphase(world);
       sapBroadphase.setWorld(world);
       sapBroadphase.axisIndex = scene === 'plinko' ? 1 : 2;
+      sapBroadphase.useBoundingBoxes = scene === 'plinko';
       world.broadphase = sapBroadphase;
     } else world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.filterSleepingEquations = scene === 'plinko';
     time = accumulator = 0;
+    lastPlinkoInteractionAt = 0;
+    pileAnchor = null;
+    pileQuietSeconds = 0;
+    pileContactAt.clear();
     paused = true;
     stairStarted = false;
     bowlingStarted = false;
@@ -463,7 +861,11 @@ export function createSimulation(initialProfile = null) {
       makeRagdoll();
       buildingInstance = null;
     }
+    // The grounded pile rests as connected rigs after sustained stillness.
+    // Keep native impact wakeups, but prevent isolated limbs sleeping first.
+    if (scene === 'plinko') for (const body of bodies) body.sleepTimeLimit = Infinity;
     setJointRange(settings.jointRange);
+    settings.autoGetUp = autoGetUpByScene[scene];
     return snapshot();
   }
   function setJointRange(value) {
@@ -476,12 +878,13 @@ export function createSimulation(initialProfile = null) {
     }
     wakeRagdoll();
   }
-  function configure(values) {
+  function configure(values, destinationScene = scene) {
     if (values == null || typeof values !== 'object' || Array.isArray(values)) throw new TypeError('Settings must be an object');
-    const allowed = new Set(['gravity', 'impactBoost', 'damping', 'friction', 'slideGrip', 'jointRange', 'speed']);
+    if (!Object.hasOwn(autoGetUpByScene, destinationScene)) throw new RangeError('Unknown scene');
+    const allowed = new Set(['gravity', 'impactBoost', 'damping', 'friction', 'slideGrip', 'jointRange', 'speed', 'autoGetUp']);
     for (const [key, value] of Object.entries(values)) {
       if (!allowed.has(key)) throw new RangeError(`Unknown setting: ${key}`);
-      const valid = key === 'speed' ? [0.25, 0.5, 1].includes(value) :
+      const valid = key === 'autoGetUp' ? typeof value === 'boolean' : key === 'speed' ? [0.25, 0.5, 1].includes(value) :
         key === 'jointRange' ? Number.isFinite(value) && value >= 25 && value <= 125 :
         Number.isFinite(value) && value >= 0 && value <= (key === 'gravity' ? 20 : key === 'impactBoost' ? 2 : key === 'damping' ? 0.8 : key === 'slideGrip' ? .5 : 1);
       if (!valid) throw new RangeError(`Invalid ${key}`);
@@ -497,6 +900,15 @@ export function createSimulation(initialProfile = null) {
       settings.gravity = values.gravity;
       world.gravity.y = -values.gravity;
       for (const instance of instances) if (!instance.held) wakeRagdoll(instance);
+      if (values.gravity <= 0) for (const instance of instances) releaseGetUp(instance);
+    }
+    if ('autoGetUp' in values) {
+      autoGetUpByScene[destinationScene] = values.autoGetUp;
+      if (destinationScene === scene) {
+        settings.autoGetUp = values.autoGetUp;
+        if (!values.autoGetUp) for (const instance of instances) releaseGetUp(instance);
+        else if (scene === 'plinko') for (const instance of instances) if (!instance.held && instance.resting) wakeRagdoll(instance);
+      }
     }
     if ('impactBoost' in values) settings.impactBoost = values.impactBoost;
     if ('speed' in values) settings.speed = values.speed;
@@ -531,14 +943,16 @@ export function createSimulation(initialProfile = null) {
         body.previousPosition.copy(body.position);
         body.previousQuaternion.copy(body.quaternion);
       }
-      world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; count++;
+      prepareGetUp(dt); world.step(dt); applyPendingBoosts(); accumulator -= dt; time += dt; updatePlinkoRest(dt); updateGetUp(dt); count++;
     }
     if (count === 12) accumulator = Math.min(accumulator, dt);
     return count;
   }
   function beginDrag(body, worldPoint) {
     if (!bodies.includes(body)) return false;
+    if (scene === 'plinko') lastPlinkoInteractionAt = time;
     clearDrag();
+    releaseGetUp(body.ragdollInstance);
     if (body.ragdollInstance.held) releaseInstance(body.ragdollInstance);
     const mouseBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, collisionFilterGroup: 0, collisionFilterMask: 0 });
     mouseBody.position.copy(vec(worldPoint));
@@ -557,7 +971,7 @@ export function createSimulation(initialProfile = null) {
     drag.mouseBody.velocity.setZero();
     wakeRagdoll(drag.body.ragdollInstance);
   }
-  function endDrag() { if (drag) { const instance = drag.body.ragdollInstance; clearDrag(); wakeRagdoll(instance); } }
+  function endDrag() { if (drag) { const instance = drag.body.ragdollInstance; clearDrag(); instance.cooldownUntil = time + 2; wakeRagdoll(instance); } }
   function setProfile(nextProfile) {
     const validated = nextProfile === null ? null : validateProfile(nextProfile);
     profile = validated;
@@ -566,13 +980,15 @@ export function createSimulation(initialProfile = null) {
   function snapshot() {
     const targets = instances.filter(instance => instance.role === 'pin' || instance.role === 'target');
     return { scene, profileId: profile?.id ?? 'mannequin', paused, time, settings: { ...settings }, bodies: bodies.length, joints: joints.length,
-      instances: instances.map(instance => ({ id: instance.id, role: instance.role, held: instance.held })),
+      instances: instances.map(instance => ({ id: instance.id, role: instance.role, held: instance.held, state: instance.state })),
+      recoveringCount: instances.filter(instance => instance.state === 'recovering').length,
+      standingCount: instances.filter(instance => instance.state === 'standing').length,
       releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length,
       releasedTargets: targets.filter(instance => !instance.held).length, totalTargets: targets.length,
       sleepingBodies: bodies.filter(body => body.sleepState === CANNON.Body.SLEEPING).length,
       movingBodies: bodies.filter(body => body.sleepState !== CANNON.Body.SLEEPING && !body.ragdollInstance.held).map(body => ({ id: body.bodyKey, speed: body.velocity.length(), angularSpeed: body.angularVelocity.length(), sleepState: body.sleepState })), dragging: Boolean(drag) };
   }
-  function readFrame() { const targets = instances.filter(instance => instance.role === 'pin' || instance.role === 'target'); return { scene, profileId: profile?.id ?? 'mannequin', paused, time, releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length, releasedTargets: targets.filter(instance => !instance.held).length, totalTargets: targets.length }; }
+  function readFrame() { const targets = instances.filter(instance => instance.role === 'pin' || instance.role === 'target'); return { scene, profileId: profile?.id ?? 'mannequin', paused, time, recoveringCount: instances.filter(instance => instance.state === 'recovering').length, standingCount: instances.filter(instance => instance.state === 'standing').length, releasedPins: instances.filter(instance => instance.role === 'pin' && !instance.held).length, releasedTargets: targets.filter(instance => !instance.held).length, totalTargets: targets.length }; }
   reset();
   return { world, bodies, joints, staticBodies, instances, settings, reset, setProfile, configure, setPaused, step, beginDrag, moveDrag, endDrag, snapshot, readFrame, clonePose, interpolationAlpha: () => paused ? 1 : Math.min(1, accumulator / (1 / 120)) };
 }
