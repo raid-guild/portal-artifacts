@@ -1,0 +1,10 @@
+Tool: built-in image_gen (opaque PNG)
+Asset: raid-survivor-social-v1.png
+Purpose: game link unfurl and Portal module cover artwork (not a gameplay screenshot).
+
+Use case: ads-marketing.
+Create original cover art for RAID SURVIVOR, a RaidGuild pixel-art horde-survival arcade game. Wide landscape social share card, approximately 1.9:1 ratio, ideally 1200x630 or larger equivalent. Opaque background.
+Scene: a dark charcoal/navy stone dungeon arena, dramatic warm gold vault light, dense silhouettes of small monsters, a gigantic horned bull demon Moloch looming in the background with dark oxblood skin, bronze armor, molten orange eyes and chest fissures.
+Foreground: three distinct heroic pixel-art champions in dynamic poses: green-hooded ranger firing a luminous green thorn bow, violet-robed wizard casting blue-violet lightning, stocky bronze-armored dwarf firing a scattergun. A golden treasure vault/chest erupts in a tasteful shower of coins and tiny bright confetti near the heroes. Epic weapon trails.
+Style: beautiful deliberately pixelated 16-bit/32-bit game key art, crisp pixel clusters, rich limited palette, dramatic readable silhouette composition, arcade poster polish, no photorealism, no smooth 3D rendering.
+Layout: strong centered composition, all essential content inside generous margins suitable for social cropping. Very large perfectly legible cream/gold pixel-display title at upper center: "RAID SURVIVOR". Smaller tasteful line above it: "RAID GUILD". No other text. Title should remain easy to read at thumbnail size. Keep demon behind and around title, avoid obscuring letters. No fake UI, no watermark, no unrelated logos.
