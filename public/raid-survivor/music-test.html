@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Runner · Music Test</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#111019;color:#f4e4c8}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0,#393043,transparent 70%)}main{width:min(100%,740px)}.eyebrow{color:#d6b582;font-size:11px;letter-spacing:.24em;text-transform:uppercase}h1{font-family:Georgia,serif;font-weight:normal;font-size:clamp(44px,9vw,76px);margin:16px 0 8px}p{color:#baadbf;line-height:1.6}.deck{border:1px solid #635367;background:#211c2dcc;padding:24px;margin-top:30px}.status{display:flex;justify-content:space-between;gap:16px;align-items:center;font-size:13px;margin-bottom:24px;color:#d3c2ab}#section{color:#f4cf90}#bars{font-variant-numeric:tabular-nums}.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:5px;margin-bottom:26px}.step{height:38px;background:#403344;transition:background .07s,transform .07s}.step:nth-child(4n+1){background:#625063}.step.on{background:#e8be79;transform:translateY(-3px)}.transport{display:flex;align-items:center;flex-wrap:wrap;gap:12px}button{font:inherit;cursor:pointer;border:1px solid #6d5b6d;background:#2c2537;color:#ead5b5;padding:12px 20px;border-radius:3px;min-height:46px}button:focus-visible,input:focus-visible{outline:2px solid #f4d390;outline-offset:4px}button:hover{border-color:#c5a575}button:disabled{opacity:.35;cursor:default}#play{background:#e5bc79;color:#302132;border-color:#ffe0a5;font-weight:650;min-width:140px}.volume{display:flex;gap:10px;align-items:center;margin-left:auto;color:#bcadbe;font-size:12px}input{accent-color:#e5bc79;width:120px}.stems{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:26px}.stems button{font-size:11px;letter-spacing:.07em;padding:12px 4px;text-transform:uppercase}.stems button[aria-pressed=false]{opacity:.4;text-decoration:line-through}.note{font-size:12px;margin-top:16px}footer{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:20px;color:#8f8195;font-size:11px;letter-spacing:.05em}#error{color:#ffb3ac} @media(max-width:520px){body{padding:18px}.deck{padding:18px}.volume{margin-left:0;width:100%;justify-content:space-between}.volume input{width:65%}.stems{grid-template-columns:repeat(3,1fr)}.steps{gap:3px}.step{height:27px}}@media(prefers-reduced-motion:reduce){.step{transition:none;transform:none!important}}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">Raid Survivor · Soundtrack sketch 01</div>
+<h1>Vault Runner</h1>
+<p>Driving synth bass. Dungeon bells. Arcade percussion.<br>A two-minute arrangement that rolls back into the raid.</p>
+<div class="deck">
+<div class="status"><span id="section" aria-live="polite">Ready to descend</span><span id="bars">130 BPM · D MINOR</span></div>
+<div class="steps" aria-hidden="true"></div>
+<div class="transport"><button id="play" type="button">▶ Play loop</button><button id="stop" type="button" disabled>■ Stop</button><label class="volume">Volume <input id="volume" aria-label="Music volume" type="range" min="0" max="100" value="38"></label></div>
+<div class="stems" aria-label="Instrument layers"><button type="button" data-stem="drums" aria-pressed="true">Drums</button><button type="button" data-stem="bass" aria-pressed="true">Bass</button><button type="button" data-stem="arp" aria-pressed="true">Arpeggio</button><button type="button" data-stem="lead" aria-pressed="true">Melody</button><button type="button" data-stem="air" aria-pressed="true">Dungeon</button></div>
+</div>
+<p class="note">Tap an instrument to mute or bring it back. Playback starts only when you press Play.</p>
+<p id="error" role="alert"></p>
+<footer><span>130 BPM · 64 BARS · SEAMLESS LOOP</span><span>GENERATED LIVE WITH WEB AUDIO</span></footer>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const STEPS=64*16, BPM=130, SIXTEENTH=60/BPM/4;
+const stems={drums:true,bass:true,arp:true,lead:true,air:true};
+let ctx=null,engine=null,running=false,timer=null,animation=null,step=0,nextTime=0,visualQueue=[],shown=-1;
+const stepEls=Array.from({length:16},()=>{const el=document.createElement('div');el.className='step';document.querySelector('.steps').append(el);return el;});
+const freq=m=>440*Math.pow(2,(m-69)/12);
+const progression=[{root:38,chord:[62,65,69],name:'Dm'},{root:34,chord:[58,62,65],name:'Bb'},{root:41,chord:[60,65,69],name:'F'},{root:36,chord:[60,64,67],name:'C'}, {root:43,chord:[62,67,70],name:'Gm'},{root:34,chord:[62,65,70],name:'Bb'},{root:38,chord:[62,65,69],name:'Dm'},{root:33,chord:[61,64,69],name:'A'}];
+const melodies=[
+[74,null,77,76,74,null,69,72], [74,null,77,79,77,74,72,null],
+[77,null,81,79,77,76,74,null], [76,null,79,77,76,72,69,null],
+[79,null,82,81,79,77,74,null], [77,74,null,77,82,81,77,null],
+[81,77,74,null,77,76,74,72], [73,null,76,81,79,76,73,null]
+];
+function makeEngine(context){
+ const master=context.createGain(),compressor=context.createDynamicsCompressor(),out=context.createGain();
+ compressor.threshold.value=-15;compressor.knee.value=16;compressor.ratio.value=5;compressor.attack.value=.004;compressor.release.value=.17;
+ master.connect(compressor);compressor.connect(out);out.connect(context.destination);out.gain.value=Number($('volume').value)/100*.72;
+ const buses={};for(const key of Object.keys(stems)){buses[key]=context.createGain();buses[key].gain.value=stems[key]?1:0;buses[key].connect(master);}
+ const delay=context.createDelay(1);delay.delayTime.value=60/BPM*.75;const feedback=context.createGain();feedback.gain.value=.24;const delayTone=context.createBiquadFilter();delayTone.type='lowpass';delayTone.frequency.value=2900;const wet=context.createGain();wet.gain.value=.18;delay.connect(delayTone);delayTone.connect(feedback);feedback.connect(delay);delayTone.connect(wet);wet.connect(master);
+ const reverb=context.createConvolver(),verbGain=context.createGain();verbGain.gain.value=.12;const impulse=context.createBuffer(2,context.sampleRate*1.6,context.sampleRate);let seed=93;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};for(let c=0;c<2;c++){const data=impulse.getChannelData(c);for(let i=0;i<data.length;i++)data[i]=(random()*2-1)*Math.pow(1-i/data.length,3.2);}reverb.buffer=impulse;reverb.connect(verbGain);verbGain.connect(master);
+ const noise=context.createBuffer(1,context.sampleRate,context.sampleRate);const samples=noise.getChannelData(0);for(let i=0;i<samples.length;i++)samples[i]=random()*2-1;
+ const nodes=new Set();
+ function track(node,t,d){nodes.add(node);node.onended=()=>{nodes.delete(node);node.disconnect();};node.start(t);node.stop(t+d);}
+ function note(m,t,d,type,vol,stem,cutoff=2800,pan=0,send=.0,attack=.007){
+  const osc=context.createOscillator(),filter=context.createBiquadFilter(),gain=context.createGain(),stereo=context.createStereoPanner();osc.type=type;osc.frequency.setValueAtTime(freq(m),t);filter.type='lowpass';filter.frequency.setValueAtTime(cutoff,t);filter.frequency.exponentialRampToValueAtTime(Math.max(160,cutoff*.45),t+d);filter.Q.value=type==='sawtooth'?1.8:.6;stereo.pan.value=pan;
+  gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(vol,t+attack);gain.gain.exponentialRampToValueAtTime(.0001,t+d);
+  osc.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(buses[stem]);
+  if(send&&stems[stem]){const s=context.createGain();s.gain.value=send;stereo.connect(s);s.connect(delay);s.connect(reverb);}
+  track(osc,t,d+.02);
+ }
+ function hiss(t,d,vol,cutoff,pan=0){const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain(),stereo=context.createStereoPanner();source.buffer=noise;filter.type='highpass';filter.frequency.value=cutoff;stereo.pan.value=pan;gain.gain.setValueAtTime(vol,t);gain.gain.exponentialRampToValueAtTime(.0001,t+d);source.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(buses.drums);track(source,t,d+.01);}
+ function kick(t,accent=1){const osc=context.createOscillator(),gain=context.createGain();osc.frequency.setValueAtTime(142,t);osc.frequency.exponentialRampToValueAtTime(47,t+.055);osc.frequency.exponentialRampToValueAtTime(38,t+.28);gain.gain.setValueAtTime(.56*accent,t);gain.gain.exponentialRampToValueAtTime(.0001,t+.31);osc.connect(gain);gain.connect(buses.drums);track(osc,t,.33);}
+ function snare(t,accent=1){hiss(t,.14,.18*accent,1400,-.06);note(50,t,.09,'triangle',.11*accent,'drums',2100);}
+ function bell(m,t){note(m,t,.9,'sine',.075,'air',7000,-.3,.45,.003);note(m+19,t,.42,'sine',.021,'air',8500,.3,.25,.003);}
+ function schedule(n,t){const bar=Math.floor(n/16),s=n%16,section=Math.floor(bar/16),partBar=bar%16,c=progression[Math.floor(partBar/2)],root=c.root,beat=s%4===0;
+  // Four acts: entrance, pursuit, deeper vault, return. Constant rhythm keeps the loop playable.
+  const sparse=section===2&&partBar<8,full=section===1||section===3;
+  if(s===0||s===8||full&&s===6||full&&s===14)kick(t,s===6||s===14?.68:1);
+  if(s===4||s===12)snare(t,s===12?1:.92);
+  if(s%2===0)hiss(t,s===14?.12:.035,s%4===2?.075:.045,6500,s%4===2?.25:-.2);
+  if(full&&s%2===1&&s!==15)hiss(t,.022,.024,7800,s%4<2?-.35:.35);
+  if(partBar%4===3&&s===15){snare(t,.33);hiss(t+.045,.035,.033,6000);}
+  const bassPattern=[0,null,0,12,null,null,7,null,0,null,0,null,12,null,7,null];
+  if(bassPattern[s]!==null){const d=s===0||s===8?.18:.12;note(root+bassPattern[s],t,d,'sawtooth',.095,'bass',620+(s%4)*170);note(root+bassPattern[s]-12,t,d+.03,'sine',.075,'bass',160);}
+  if(!sparse||s%2===0){const arpIndex=[0,1,2,1,0,2,1,2,0,1,2,1,2,1,0,2][s];const oct=(s===7||s===15)?12:0;note(c.chord[arpIndex]+oct,t,.12,'triangle',s%4===0?.055:.036,'arp',3700,s%2?-.32:.32,.3);}
+  if(s%2===0&&((section!==0||partBar>=4)&&!sparse)){
+   const phrase=melodies[Math.floor(partBar/2)],m=phrase[s/2];
+   if(m!==null&&!(partBar%2===0&&s===14)){note(m+(section===3&&partBar>=8?12:0),t,s===0?.29:.21,'square',full?.036:.028,'lead',2200,.08,.44);}
+  }
+  if(s===0){for(let i=0;i<c.chord.length;i++)note(c.chord[i]-12,t,60/BPM*4*.97,'triangle',.029,'air',900,(i-1)*.55,.3,.2);if(partBar%4===0)bell(c.chord[0]+12,t);}
+  if(section===2&&partBar<8&&s===10&&partBar%2===1)bell(c.chord[2],t);
+ }
+ return {schedule,out,buses,stop(){out.gain.cancelScheduledValues(context.currentTime);out.gain.setTargetAtTime(0,context.currentTime,.025);for(const node of nodes){try{node.stop(context.currentTime+.12);}catch{}}}};
+}
+function scheduler(){if(!running)return;while(nextTime<ctx.currentTime+.16){engine.schedule(step,nextTime);visualQueue.push({step,time:nextTime});step=(step+1)%STEPS;nextTime+=SIXTEENTH;}}
+function animate(){if(!running)return;while(visualQueue.length&&visualQueue[0].time<=ctx.currentTime){const item=visualQueue.shift();shown=item.step;}if(shown>=0){stepEls.forEach((el,i)=>el.classList.toggle('on',i===shown%16));const bar=Math.floor(shown/16);$('section').textContent=['I · Through the gates','II · The pursuit','III · Below the guildhall','IV · Gold and glory'][Math.floor(bar/16)];$('bars').textContent=`BAR ${String(bar+1).padStart(2,'0')} / 64`;}animation=requestAnimationFrame(animate);}
+async function stop(){running=false;clearInterval(timer);cancelAnimationFrame(animation);engine?.stop();const old=ctx;ctx=null;engine=null;step=0;shown=-1;visualQueue=[];$('play').disabled=false;$('stop').disabled=true;$('play').textContent='▶ Play loop';$('section').textContent='Ready to descend';$('bars').textContent='130 BPM · D MINOR';stepEls.forEach(el=>el.classList.remove('on'));if(old){await new Promise(r=>setTimeout(r,150));await old.close();}}
+$('play').onclick=async()=>{if(running||$('play').disabled)return;$('play').disabled=true;try{ctx=new (window.AudioContext||window.webkitAudioContext)();await ctx.resume();engine=makeEngine(ctx);running=true;step=0;nextTime=ctx.currentTime+.06;visualQueue=[];$('stop').disabled=false;$('play').textContent='Playing';$('error').textContent='';scheduler();timer=setInterval(scheduler,25);animate();}catch(error){$('error').textContent='Playback could not start: '+error.message;await stop();}};
+$('stop').onclick=stop;$('volume').oninput=()=>engine?.out.gain.setTargetAtTime(Number($('volume').value)/100*.72,ctx.currentTime,.03);
+document.querySelectorAll('[data-stem]').forEach(button=>button.onclick=()=>{const key=button.dataset.stem;stems[key]=!stems[key];button.setAttribute('aria-pressed',String(stems[key]));if(engine)engine.buses[key].gain.setTargetAtTime(stems[key]?1:0,ctx.currentTime,.035);});
+window.addEventListener('pagehide',()=>{running=false;clearInterval(timer);cancelAnimationFrame(animation);ctx?.close();});
+// Deterministic offline render used for verifying that this synthesizer produces audible, bounded samples.
+window.renderMusicTest=async(seconds=4)=>{const offline=new OfflineAudioContext(2,Math.ceil(seconds*44100),44100),synth=makeEngine(offline);for(let n=0;n<Math.floor(seconds/SIXTEENTH);n++)synth.schedule(n,n*SIXTEENTH);const rendered=await offline.startRendering();let peak=0,sum=0;for(const sample of rendered.getChannelData(0)){peak=Math.max(peak,Math.abs(sample));sum+=sample*sample;}return {seconds,peak,rms:Math.sqrt(sum/rendered.length),sampleRate:rendered.sampleRate};};
+</script></main></body></html>

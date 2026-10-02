@@ -1,37 +1,21 @@
 import express from 'express';
-import { waveSchedule } from './cosmic-waves.js';
+import { RAID_VERSION, validateRaidFinish } from './raid-score.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { jwtVerify } from 'jose';
 
-export const GAME = 'cosmic-carnival';
-export const VERSION = '1';
+export const GAME = 'raid-survivor';
+export const VERSION = RAID_VERSION;
 const BASE = `/leaderboard-api/${GAME}`;
-const COOKIE = 'cosmic_ranked';
+const COOKIE = 'raid_survivor_ranked';
 const SESSION_SECONDS = 12 * 60 * 60;
 const RUN_SECONDS = 2 * 60 * 60;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
 // Conservative plausibility bounds, not replay verification or proof of human play.
-export function validateScore(body, wallMs) {
-  const { score, wave, durationMs, version } = body;
-  if (version !== VERSION || !Number.isInteger(score) || score < 0 || score % 100 !== 0 ||
-      !Number.isInteger(wave) || wave < 1 || wave > 1000 ||
-      !Number.isInteger(durationMs) || durationMs < 1000 || durationMs > RUN_SECONDS * 1000 ||
-      durationMs > wallMs + 2000 || score > wave * 6600 || score > durationMs * 2 ||
-      durationMs < (wave - 1) * 1550) throw fail(400, 'This run does not match the scoring rules.');
-  let maximumScore = 0;
-  let minimumDurationMs = 0;
-  for (let n = 1; n <= wave; n++) {
-    const schedule = waveSchedule(n);
-    for (const enemy of schedule) maximumScore += { prism:100, ribbon:200, jester:300 }[enemy.kind];
-    if (n < wave) minimumDurationMs += (schedule.at(-1).at + 1.55) * 1000;
-  }
-  if (score > maximumScore || durationMs < minimumDurationMs) throw fail(400, 'This score or wave cannot be reached in this run.');
-  return { score, wave, durationMs };
-}
+export function validateScore(body, wallMs) { return validateRaidFinish(body, wallMs, RUN_SECONDS * 1000); }
 
-export function createApp({ pool, origin, issuer, launchSecret, secure = true }) {
+export function createRaidApp({ pool, origin, issuer, launchSecret, secure = true }) {
   if (!origin || !issuer || !launchSecret || launchSecret.length < 32) throw new Error('Leaderboard auth configuration is incomplete.');
   const app = express();
   app.disable('x-powered-by');
@@ -96,9 +80,11 @@ export function createApp({ pool, origin, issuer, launchSecret, secure = true })
     res.clearCookie(COOKIE, { httpOnly:true, secure, sameSite:'lax', path:BASE }); res.json({ ok:true });
   });
   app.get(`${BASE}/leaderboard`, async (_req,res) => {
-    const { rows } = await pool.query(`SELECT p.display_name AS "displayName", b.score, b.wave
-      FROM (SELECT DISTINCT ON (player_id) player_id,score,wave,submitted_at,id FROM artifact_leaderboards.runs
-        WHERE game=$1 AND version=$2 AND submitted_at IS NOT NULL
+    const { rows } = await pool.query(`SELECT p.display_name AS "displayName", b.score,
+      b.details->>'character' AS character, (b.details->>'kills')::int AS kills,
+      b.duration_ms AS "durationMs"
+      FROM (SELECT DISTINCT ON (player_id) player_id,score,details,duration_ms,submitted_at,id
+        FROM artifact_leaderboards.runs WHERE game=$1 AND version=$2 AND submitted_at IS NOT NULL
         ORDER BY player_id,score DESC,submitted_at,id) b
       JOIN artifact_leaderboards.players p ON p.id=b.player_id
       ORDER BY b.score DESC,b.submitted_at,b.id LIMIT 20`, [GAME, VERSION]);
@@ -129,11 +115,15 @@ export function createApp({ pool, origin, issuer, launchSecret, secure = true })
         [req.params.id,req.playerSession.token_hash,GAME,VERSION]);
       if (!run) throw fail(404,'Ranked run not found.');
       if (run.submitted_at) {
-        if (run.score !== req.body?.score || run.wave !== req.body?.wave || run.duration_ms !== req.body?.durationMs || req.body?.version !== VERSION) throw fail(409,'This run was already submitted.');
+        const body=req.body ?? {}, stats=body.stats ?? {};
+        const same=body.version===VERSION && body.character===run.details?.character &&
+          body.durationMs===run.duration_ms &&
+          ['kills','elites','bosses','chests','level'].every(key=>stats[key]===run.details?.[key]);
+        if (!same) throw fail(409,'This run was already submitted.');
       } else {
         if (Number(run.wall_ms) > RUN_SECONDS * 1000) throw fail(410,'This ranked run expired. Your local score is saved.');
-        const { score,wave,durationMs } = validateScore(req.body ?? {},Number(run.wall_ms));
-        await client.query(`UPDATE artifact_leaderboards.runs SET score=$2,wave=$3,duration_ms=$4,submitted_at=now() WHERE id=$1`, [run.id,score,wave,durationMs]);
+        const { score,durationMs,details } = validateScore(req.body ?? {},Number(run.wall_ms));
+        await client.query(`UPDATE artifact_leaderboards.runs SET score=$2,wave=NULL,duration_ms=$3,details=$4,submitted_at=now() WHERE id=$1`, [run.id,score,durationMs,details]);
       }
       await client.query('COMMIT'); res.json({ saved:true });
     } catch(e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }

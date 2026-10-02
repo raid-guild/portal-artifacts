@@ -22,3 +22,5 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.runs (
 );
 CREATE INDEX IF NOT EXISTS runs_ranking ON artifact_leaderboards.runs (game, version, score DESC, submitted_at, id) WHERE submitted_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS runs_player_started ON artifact_leaderboards.runs (player_id, started_at);
+
+ALTER TABLE artifact_leaderboards.runs ADD COLUMN IF NOT EXISTS details jsonb;

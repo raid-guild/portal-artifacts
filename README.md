@@ -174,6 +174,12 @@ Rebuild the artifact with `cd studies/jev-maze && npm run build:artifact`.
 The existing Caddy/Railway deployment serves the built artifact after merge to
 main. The local `.env` is Git-ignored and outside the Docker build's copied assets.
 
+## Raid Survivor game
+
+`public/raid-survivor/` is the published build. Editable source, art provenance,
+game and music tests, and build instructions are in `studies/raid-survivor/`.
+The game works as a guest with local scores; Portal launch enables ranked runs.
+
 ## Optional game leaderboards
 
-`services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival remains playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
+`services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival and Raid Survivor remain playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
