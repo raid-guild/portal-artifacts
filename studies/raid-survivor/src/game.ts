@@ -95,6 +95,7 @@ export class Game {
   rankable = true;
   aim = { x: 1, y: 0 };
   move = { x: 0, y: 0 };
+  moveTarget: Vec | null = null;
   firing = false;
   cooldowns: Partial<Record<Weapon, number>> = {};
   onReward: ((rewards: Reward[], chest: boolean) => void) | null = null;
@@ -124,6 +125,7 @@ export class Game {
     this.deathFiring = this.firing;
     this.player.health = 0;
     this.move.x = this.move.y = 0;
+    this.moveTarget = null;
     this.firing = false;
     this.hazards.length = 0;
     if (reason === 'combat') this.onEvent?.('death');
@@ -374,10 +376,13 @@ export class Game {
     const p = this.player;
     p.invuln = Math.max(0, p.invuln - dt); p.dash = Math.max(0, p.dash - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
     this.bombCharge = Math.min(this.bombRecharge, this.bombCharge + dt);
-    const ml = Math.hypot(this.move.x, this.move.y) || 1;
     const speed = p.speed * (1 + this.passives.speed * .1) * (p.dash > 0 ? 3.3 : 1);
-    p.x = clamp(p.x + this.move.x / ml * speed * dt, 1, WORLD - 1); p.y = clamp(p.y + this.move.y / ml * speed * dt, 1, WORLD - 1);
-    const facingDirection = this.firing ? this.aim.x : this.move.x;
+    let moveX = this.move.x, moveY = this.move.y;
+    if (this.moveTarget) { moveX = this.moveTarget.x - p.x; moveY = this.moveTarget.y - p.y; }
+    const ml = Math.hypot(moveX, moveY);
+    const step = this.moveTarget ? Math.min(ml, speed * dt) : speed * dt;
+    if (ml > 0) { p.x = clamp(p.x + moveX / ml * step, 1, WORLD - 1); p.y = clamp(p.y + moveY / ml * step, 1, WORLD - 1); }
+    const facingDirection = this.firing ? this.aim.x : moveX;
     if (Math.abs(facingDirection) > .15) this.facing = facingDirection < 0 ? -1 : 1;
     for(const shrine of this.shrines) if(shrine.active&&distanceSq(shrine,p)<1.9**2){shrine.active=false;const healed=Math.min(25,p.maxHealth-p.health);p.health+=healed;this.xp+=18;this.effect({x:shrine.x,y:shrine.y,kind:'ring',life:.8,max:.8,color:0x74ffb4,size:7});this.effect({x:shrine.x,y:shrine.y,kind:'text',life:1.2,max:1.2,color:0xbaffd1,size:2,text:`HEAL +${Math.ceil(healed)}  ·  XP +18`});this.onEvent?.('heal');}
     const wave = Math.floor(this.elapsed / 90);

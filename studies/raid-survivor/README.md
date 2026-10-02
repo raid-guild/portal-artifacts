@@ -10,6 +10,13 @@ Standalone and sandboxed visitors can play as guests, and every rankable run
 saves its score locally. Launch through Portal to acquire a ranked session.
 No standalone Node server or local auth store is deployed with this game.
 
+On touch screens, drag anywhere on the playfield to move the hero relative to
+the finger. The hero stops at the dragged position or when the finger lifts;
+the movement target stays within three world units of the hero. Bomb and Dash
+sit along the bottom edge, with Backpack above them. Manual touch aim remains
+an optional separate stick in Settings. Keyboard movement and mouse aim remain
+available on desktop.
+
 Vault blessings: elite enemies have a 30% chest chance, elite brutes 45%, and
 regular brutes 8%, when the 45-second chest cooldown is ready and no chest is
 already waiting. Moloch always drops a chest, bypassing those restrictions.
