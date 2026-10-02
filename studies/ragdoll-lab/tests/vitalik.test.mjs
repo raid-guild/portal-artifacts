@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createSimulation, validateProfile, BODY_IDS } from '../dist/physics.js';
+import { createSimulation as createRawSimulation, validateProfile, BODY_IDS } from '../dist/physics.js';
 import { createCharacterSelection } from '../dist/characterSelection.js';
 import * as THREE from '../dist/vendor/three.module.js';
 import { GLTFLoader } from '../dist/vendor/GLTFLoader.js';
 import { createSkinnedRagdoll } from '../dist/skinnedRagdoll.js';
+
+function createSimulation(profile = null) { const simulation = createRawSimulation(profile); simulation.configure({ autoGetUp: false }); return simulation; }
 
 const profile = JSON.parse(readFileSync(new URL('../dist/assets/vitalik-ragdoll.json', import.meta.url), 'utf8'));
 const glb = readFileSync(new URL('../dist/assets/vitalik-rigged.glb', import.meta.url));

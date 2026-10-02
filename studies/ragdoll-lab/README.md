@@ -39,6 +39,11 @@ All runtime dependencies and fonts are served from the same origin under the
 existing portal-artifacts Content Security Policy. This artifact uses no keys,
 Portal credentials, cookies, private APIs, or external runtime requests.
 
+Auto get up is enabled by default. After resting on a clear floor, released
+characters animate back to standing. Drag or hit them to knock them down again,
+or turn the option off in Motion for passive physics. Crowded or obstructed
+positions wait until there is room to rise.
+
 ## Physics implementation
 
 See [implementation notes](IMPLEMENTATION.md) for engine versions, friction

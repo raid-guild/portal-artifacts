@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { clone as cloneSkeleton } from './vendor/SkeletonUtils.js';
-import { createSimulation, validateProfile } from './physics.js?v=vitalik-shoulder-20261001';
+import { createSimulation, validateProfile } from './physics.js?v=getup-20261002b';
 import { interpolateBodyQuaternion } from './renderMath.js';
 import { createSkinnedRagdoll } from './skinnedRagdoll.js';
 import { createTouchPolicy, createFpsCounter, clearOrbitInertia } from './interaction.js';
@@ -285,9 +285,9 @@ try {
     $('play-icon').textContent = snap.paused ? '▶' : 'Ⅱ';
     $('live-chip').textContent = snap.paused ? '● PAUSED' : '● LIVE';
     $('live-chip').classList.toggle('playing', !snap.paused);
-    $('status-text').textContent = snap.paused ? (snap.time ? 'SIMULATION PAUSED' : bowling ? 'READY TO LAUNCH' : 'READY TO DROP') : 'SIMULATION LIVE';
+    $('status-text').textContent = snap.paused ? (snap.time ? 'SIMULATION PAUSED' : bowling ? 'READY TO LAUNCH' : 'READY TO DROP') : snap.instances.some(item => item.state === 'recovering') ? 'GETTING UP' : snap.instances.some(item => item.state === 'standing') ? 'STANDING' : 'SIMULATION LIVE';
     $('sim-time').textContent = snap.time.toFixed(1);
-    $('scene-title').textContent = plinko ? 'PLINKO BOARD' : bowling ? 'BOWLING COURSE' : snap.scene === 'drop' ? 'FREE DROP' : 'STAIR FALL';
+    $('scene-title').textContent = plinko ? 'PLINKO BOARD' : bowling ? 'BOWLING COURSE' : snap.recoveringCount ? 'GETTING UP' : snap.standingCount ? 'STANDING' : snap.scene === 'drop' ? 'FREE DROP' : 'STAIR FALL';
     $('scene-help').textContent = plinko ? 'Drop one ragdoll through fifteen targets arranged in five rows.' : bowling ? 'Launch one ragdoll down the long slide into ten standing ragdolls.' : snap.scene === 'drop' ? 'Watch joints absorb the landing on a flat plane.' : 'A forward lean sends the body down five steps.';
     $('study-title').innerHTML = plinko ? 'Watch them<br><em>cascade.</em>' : bowling ? 'Cause a<br><em>pileup.</em>' : 'Make a body<br><em>fall.</em>';
     $('study-intro').textContent = plinko ? 'One dropper, fifteen ragdoll targets, and gravity.' : bowling ? 'One launcher, ten ragdoll targets, and a long run downhill.' : 'Thirteen connected rigid bodies. Twelve joints. One very unforgiving floor.';
@@ -297,6 +297,7 @@ try {
       $(`scene-${name}`).setAttribute('aria-pressed', String(active));
     }
     $('speed').value = String(snap.settings.speed);
+    $('auto-get-up').checked = snap.settings.autoGetUp;
     $('gravity').value = String(snap.settings.gravity);
     $('impact-boost').value = String(snap.settings.impactBoost);
     $('damping').value = String(snap.settings.damping);
@@ -385,6 +386,7 @@ try {
   $('camera-overview').addEventListener('click', () => setCameraMode('overview'));
   $('camera-follow').addEventListener('click', () => setCameraMode('follow'));
   $('speed').addEventListener('change', e => configure({ speed: Number(e.target.value) }));
+  $('auto-get-up').addEventListener('change', e => configure({ autoGetUp: e.target.checked }));
   for (const [id, key] of [['gravity', 'gravity'], ['impact-boost', 'impactBoost'], ['damping', 'damping'], ['friction', 'friction'], ['slide-grip', 'slideGrip'], ['joint-range', 'jointRange']]) {
     $(id).addEventListener('input', e => configure({ [key]: Number(e.target.value) }));
   }
@@ -570,6 +572,8 @@ try {
     syncVisuals();
     const frame = simulation.readFrame();
     $('sim-time').textContent = frame.time.toFixed(1);
+    if (!frame.paused) $('status-text').textContent = frame.recoveringCount ? 'GETTING UP' : frame.standingCount ? 'STANDING' : 'SIMULATION LIVE';
+    if (frame.scene === 'drop' || frame.scene === 'stairs') $('scene-title').textContent = frame.recoveringCount ? 'GETTING UP' : frame.standingCount ? 'STANDING' : frame.scene === 'drop' ? 'FREE DROP' : 'STAIR FALL';
     if (frame.totalTargets) $('pin-count').textContent = `${frame.releasedTargets}/${frame.totalTargets}`;
     renderer.render(scene, camera);
     const fps = fpsCounter.frame(performance.now());
@@ -617,7 +621,7 @@ try {
     webToolController = new AbortController();
     webTool = Promise.resolve(document.modelContext.registerTool({
       name: 'configure_ragdoll_study',
-      description: 'Configure or reset Ragdoll Lab. Choose plinko, bowling, drop or stairs; adjust gravity, impact boost, damping, grip, joint range and speed.',
+      description: 'Configure or reset Ragdoll Lab. Choose plinko, bowling, drop or stairs; adjust gravity, impact boost, damping, grip, joint range, speed and auto get up.',
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       signal: webToolController.signal,
       inputSchema: { type: 'object', properties: {
@@ -631,7 +635,8 @@ try {
         friction: { type: 'number', minimum: 0, maximum: 1 },
         slideGrip: { type: 'number', minimum: 0, maximum: .5 },
         jointRange: { type: 'number', minimum: 25, maximum: 125 },
-        speed: { type: 'number', enum: [.25, .5, 1] }
+        speed: { type: 'number', enum: [.25, .5, 1] },
+        autoGetUp: { type: 'boolean' }
       }, additionalProperties: false },
       execute: async input => {
         try {

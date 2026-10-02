@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createSimulation } from '../dist/physics.js';
+import { createSimulation as createRawSimulation } from '../dist/physics.js';
 import * as CANNON from '../dist/vendor/cannon-es.js';
+
+function createSimulation(profile = null) { const simulation = createRawSimulation(profile); simulation.configure({ autoGetUp: false }); return simulation; }
 
 const goatProfile = JSON.parse(readFileSync(new URL('../dist/assets/goatman-ragdoll.json', import.meta.url), 'utf8'));
 const advance = (simulation, seconds) => { simulation.setPaused(false); for (let tick = 0; tick < seconds * 120; tick++) simulation.step(1 / 120); };
