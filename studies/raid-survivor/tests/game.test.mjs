@@ -80,13 +80,13 @@ test('maxed loadout still offers three repeatable boons',()=>{
   const rewards=g.rollRewards(false);assert.equal(rewards.length,3);assert.ok(rewards.every(r=>r.kind==='boon'));
   g.awaitingReward=true;g.chooseReward(rewards[0]);assert.equal(g.awaitingReward,false);
 });
-test('elite chests are rare, spaced, and boss chests are guaranteed',()=>{
-  const g=new Game('ranger');g.enemies=[];g.elapsed=100;g.lastChestTime=90;
-  const original=Math.random;Math.random=()=>0;
+test('elite chest rolls use the shorter cooldown and boss chests remain guaranteed',()=>{
+  const g=new Game('ranger');g.enemies=[];g.elapsed=100;g.lastChestTime=56;
+  const original=Math.random;Math.random=()=>.2;
   try{
     g.spawnEnemy('brute',true);g.damage(g.enemies.at(-1),1e9,'thornbow');
     assert.equal(g.pickups.filter(item=>item.kind==='chest').length,0);
-    g.pickups=[];g.lastChestTime=0;g.spawnEnemy('brute',true);g.damage(g.enemies.at(-1),1e9,'thornbow');
+    g.pickups=[];g.lastChestTime=55;g.spawnEnemy('brute',true);g.damage(g.enemies.at(-1),1e9,'thornbow');
     assert.equal(g.pickups.filter(item=>item.kind==='chest').length,1);
     g.pickups=[];g.lastChestTime=100;g.spawnEnemy('boss');g.damage(g.enemies.at(-1),1e9,'thornbow');
     assert.equal(g.pickups.filter(item=>item.kind==='chest').length,1);

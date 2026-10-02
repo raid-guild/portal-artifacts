@@ -58,7 +58,7 @@ export class Game {
   comboTime = 0;
   spawnClock = 0;
   chestClock = 0;
-  lastChestTime = -60;
+  lastChestTime = -45;
   bombCharge = 45;
   bombRanks = { radius: 0, damage: 0, recharge: 0 };
   bombWave: { age: number; radius: number; previousRadius: number; hit: Set<number> } | null = null;
@@ -209,7 +209,8 @@ export class Game {
     this.score += enemy.kind === 'boss' ? 600 : enemy.elite ? 75 : 10;
     const count = enemy.kind === 'boss' ? 22 : enemy.elite ? 5 : 1;
     for (let i = 0; i < count && this.pickups.length < MAX_PICKUPS; i++) this.pickups.push({ x: enemy.x + rand(-1, 1), y: enemy.y + rand(-1, 1), kind: 'xp', value: enemy.kind === 'boss' ? 4 : enemy.elite ? 3 : 1, life: 25 });
-    if (enemy.kind === 'boss' || enemy.elite && this.elapsed - this.lastChestTime >= 60 && !this.pickups.some(item => item.kind === 'chest') && Math.random() < .15) {
+    const chestChance = enemy.elite ? (enemy.kind === 'brute' ? .45 : .30) : enemy.kind === 'brute' ? .08 : 0;
+    if (enemy.kind === 'boss' || chestChance > 0 && this.elapsed - this.lastChestTime >= 45 && !this.pickups.some(item => item.kind === 'chest') && Math.random() < chestChance) {
       const chest: Pickup = { x: enemy.x, y: enemy.y, kind: 'chest', value: 1, life: 45 };
       if (this.pickups.length < MAX_PICKUPS) this.pickups.push(chest);
       else { const xp = this.pickups.findIndex(item => item.kind === 'xp'); if (xp >= 0) this.pickups[xp] = chest; }
