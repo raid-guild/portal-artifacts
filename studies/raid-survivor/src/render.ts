@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ENEMY_CAP, Game, WORLD, WEAPONS, type EnemyKind } from './game';
+import { chargeCapsule, ENEMY_CAP, Game, WORLD, WEAPONS, type EnemyKind } from './game';
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -76,7 +76,7 @@ export class GameRenderer {
   render(dt:number, reducedMotion=false){
     const p=this.game.player;const follow=Math.min(1,dt*7);this.cameraX+=(p.x-this.cameraX)*follow;this.cameraY+=(p.y-this.cameraY)*follow;this.cameraX=Math.max(this.viewWidth/2,Math.min(WORLD-this.viewWidth/2,this.cameraX));this.cameraY=Math.max(this.viewHeight/2,Math.min(WORLD-this.viewHeight/2,this.cameraY));this.camera.position.set(this.cameraX,this.cameraY,50);this.camera.lookAt(this.cameraX,this.cameraY,0);
     const groups = new Map<string,number>();
-    for(const e of this.game.enemies){if(Math.abs(e.x-this.cameraX)>this.viewWidth/2+3||Math.abs(e.y-this.cameraY)>this.viewHeight/2+3)continue;const key=`${e.kind}-${e.facing<0?'left':'right'}`;const mesh=this.enemyMeshes.get(key)!;const idx=groups.get(key)||0;if(idx>=mesh.instanceMatrix.count)continue;this.dummy.position.set(e.x,e.y,e.y/1000);const scale=(e.kind==='boss'?5.1:e.kind==='brute'?2.2:1.65)*(e.elite?1.35:1);this.dummy.scale.set(e.kind==='boss'&&e.facing<0?-scale:scale,scale,1);this.dummy.rotation.z=e.kind==='wisp'?Math.sin(this.game.elapsed*4+e.phase)*.12:0;this.dummy.updateMatrix();mesh.setMatrixAt(idx,this.dummy.matrix);mesh.setColorAt(idx,new THREE.Color(e.flash>0?0xffffff:e.elite?0xffd69d:0xffffff));groups.set(key,idx+1);}
+    for(const e of this.game.enemies){if(Math.abs(e.x-this.cameraX)>this.viewWidth/2+3||Math.abs(e.y-this.cameraY)>this.viewHeight/2+3)continue;const key=`${e.kind}-${e.facing<0?'left':'right'}`;const mesh=this.enemyMeshes.get(key)!;const idx=groups.get(key)||0;if(idx>=mesh.instanceMatrix.count)continue;this.dummy.position.set(e.x,e.y,e.y/1000);const scale=(e.kind==='boss'?5.1:e.kind==='brute'?2.2:1.65)*(e.elite?1.35:1);this.dummy.scale.set(e.kind==='boss'&&e.facing<0?-scale:scale,scale,1);this.dummy.rotation.z=e.kind==='wisp'?Math.sin(this.game.elapsed*4+e.phase)*.12:0;this.dummy.updateMatrix();mesh.setMatrixAt(idx,this.dummy.matrix);mesh.setColorAt(idx,new THREE.Color(e.flash>0?0xffffff:e.special==='hexcaster'?0xff82dc:e.special==='juggernaut'?0xffc36d:e.kind==='boss'&&e.tier===3?0xff8e78:e.kind==='boss'&&e.tier===2?0xffba90:e.elite?0xffd69d:0xffffff));groups.set(key,idx+1);}
     for(const [kind,mesh] of this.enemyMeshes){mesh.count=groups.get(kind)||0;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;}
     for(let i=0;i<this.shrineMeshes.length;i++){const mat=this.shrineMeshes[i].material as THREE.MeshBasicMaterial;mat.opacity=this.game.shrines[i].active?.78:.17;this.shrineMeshes[i].position.x=this.game.shrines[i].x;this.shrineMeshes[i].position.y=this.game.shrines[i].y;this.shrineMeshes[i].rotation.z+=dt*.15;}
     const dying=this.game.dead&&this.game.deathReason==='combat';
@@ -105,7 +105,35 @@ export class GameRenderer {
       else if(effect.kind==='text'){c.font='900 22px Cinzel, Georgia, serif';c.textAlign='center';c.fillText(effect.text||'',s.x,s.y-progress*45);}
       else {c.beginPath();c.arc(s.x,s.y,effect.size*scale*(.3+progress),0,6.28);c.fill();}
     }c.globalAlpha=1;c.shadowBlur=0;
-    for(const e of this.game.enemies){if((!e.elite&&e.kind!=='boss')||e.hp<=0)continue;const s=this.screen(e.x,e.y);if(s.x<0||s.x>this.width||s.y<0||s.y>this.height)continue;const w=e.kind==='boss'?100:36;c.fillStyle='#2c1c29';c.fillRect(s.x-w/2,s.y-45,w,7);c.fillStyle=e.kind==='boss'?'#f4bd76':'#ff8091';c.fillRect(s.x-w/2,s.y-45,w*e.hp/e.maxHp,7);if(e.kind==='boss'){c.font='900 12px Cinzel,Georgia,serif';c.textAlign='center';c.fillStyle='#ffd7a7';c.fillText('MOLOCH',s.x,s.y-51);}}
+    this.drawWarnings(c,scale);
+    for(const e of this.game.enemies){if((!e.elite&&e.kind!=='boss')||e.hp<=0)continue;const s=this.screen(e.x,e.y);if(s.x<0||s.x>this.width||s.y<0||s.y>this.height)continue;const w=e.kind==='boss'?125:e.special?75:36;c.fillStyle='#2c1c29';c.fillRect(s.x-w/2,s.y-45,w,7);c.fillStyle=e.kind==='boss'?'#f4bd76':e.special==='hexcaster'?'#ff75d5':'#ffbd68';c.fillRect(s.x-w/2,s.y-45,w*e.hp/e.maxHp,7);if(e.kind==='boss'||e.special){c.font=`900 ${e.kind==='boss'?12:10}px Cinzel,Georgia,serif`;c.textAlign='center';c.fillStyle=e.special==='hexcaster'?'#ffc0ed':'#ffe2b4';const label=e.special==='hexcaster'?'HEXCASTER':e.special==='juggernaut'?'JUGGERNAUT':e.tier===3?'MOLOCH UNBOUND':e.tier===2?'ASCENDED MOLOCH':'MOLOCH';c.fillText(label,s.x,s.y-51);}}
+  }
+  private drawWarnings(c:CanvasRenderingContext2D,scale:number){
+    // Gameplay warnings are drawn after cosmetic effects, with fixed-position
+    // geometry and timer-based progress that also works in reduced motion.
+    for(const hazard of this.game.hazards){
+      const s=this.screen(hazard.x,hazard.y),radius=hazard.radius*scale;
+      if(s.x+radius<0||s.x-radius>this.width||s.y+radius<0||s.y-radius>this.height)continue;
+      const color=hazard.kind==='hex'?'#ff78d2':'#ffad70';
+      c.save();c.fillStyle=hazard.kind==='hex'?'rgba(231,75,187,.26)':'rgba(255,129,72,.29)';
+      c.strokeStyle=color;c.lineWidth=2;c.shadowColor=color;c.shadowBlur=12;
+      c.beginPath();c.arc(s.x,s.y,radius,0,Math.PI*2);c.fill();c.stroke();
+      c.shadowBlur=0;c.lineWidth=5;c.beginPath();c.arc(s.x,s.y,radius+7,-Math.PI/2,-Math.PI/2+2*Math.PI*Math.max(0,hazard.delay/hazard.duration));c.stroke();c.restore();
+    }
+    for(const e of this.game.enemies){
+      if(e.special!=='juggernaut'||e.specialState!=='windup')continue;
+      const capsule=chargeCapsule(e),from=this.screen(capsule.x1,capsule.y1),end=this.screen(capsule.x2,capsule.y2);
+      const angle=Math.atan2(end.y-from.y,end.x-from.x),radius=capsule.radius*scale;
+      c.save();c.fillStyle='rgba(255,165,72,.29)';c.strokeStyle='#ffbf69';c.lineWidth=2;c.shadowColor='#ff9b3f';c.shadowBlur=9;
+      c.beginPath();c.moveTo(from.x-Math.sin(angle)*radius,from.y+Math.cos(angle)*radius);
+      c.lineTo(end.x-Math.sin(angle)*radius,end.y+Math.cos(angle)*radius);
+      c.arc(end.x,end.y,radius,angle+Math.PI/2,angle-Math.PI/2,true);
+      c.lineTo(from.x+Math.sin(angle)*radius,from.y-Math.cos(angle)*radius);
+      c.arc(from.x,from.y,radius,angle-Math.PI/2,angle+Math.PI/2,true);
+      c.closePath();c.fill();c.stroke();
+      c.shadowBlur=0;c.strokeStyle='#fff0bf';c.lineWidth=5;c.beginPath();
+      c.arc(from.x,from.y,radius+7,-Math.PI/2,-Math.PI/2+2*Math.PI*Math.max(0,e.specialTimer/.9));c.stroke();c.restore();
+    }
   }
   private drawDeath(c:CanvasRenderingContext2D,x:number,y:number,scale:number){
     const image=this.heroAtlas,progress=Math.max(0,Math.min(1,this.game.deathProgress));
