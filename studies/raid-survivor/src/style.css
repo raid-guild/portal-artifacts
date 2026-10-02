@@ -83,3 +83,11 @@
   .touch-controls{right:calc(9px + env(safe-area-inset-right));bottom:calc(124px + env(safe-area-inset-bottom));width:68px}
   .touch-controls .aim-stick{width:68px;height:68px}
 }
+
+/* Feedback stays on the champion; steering stays relative to the original finger grab. */
+.player-joystick{display:none;position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-50%);border:1px solid #edcd8755;border-radius:50%;z-index:4;pointer-events:none;opacity:.35}
+.player-joystick-knob{position:absolute;left:31px;top:31px;width:24px;height:24px;border:2px solid #ffe0a4;border-radius:50%;background:#ffcf7726;opacity:0}
+.player-joystick.active{display:block;border-color:#ffe0a4b3;opacity:.9;background:#19172620}
+.player-joystick.active .player-joystick-knob{opacity:1}
+@media(max-width:760px),(hover:none) and (pointer:coarse){.player-joystick{display:block}}
+.player-joystick.unavailable{display:none}

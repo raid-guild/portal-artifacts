@@ -10,9 +10,10 @@ Standalone and sandboxed visitors can play as guests, and every rankable run
 saves its score locally. Launch through Portal to acquire a ranked session.
 No standalone Node server or local auth store is deployed with this game.
 
-On touch screens, drag anywhere on the playfield to move the hero relative to
-the finger. The hero stops at the dragged position or when the finger lifts;
-the movement target stays within three world units of the hero. Bomb and Dash
+On touch screens, drag and hold anywhere on the playfield to steer continuously.
+A joystick ring follows the hero; steering is relative to the original finger
+grab, so a stationary held finger keeps moving. Release or return to the small
+deadzone to stop. Bomb and Dash
 sit along the bottom edge, with Backpack above them. Manual touch aim remains
 an optional separate stick in Settings. Keyboard movement and mouse aim remain
 available on desktop.

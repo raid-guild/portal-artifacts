@@ -95,7 +95,6 @@ export class Game {
   rankable = true;
   aim = { x: 1, y: 0 };
   move = { x: 0, y: 0 };
-  moveTarget: Vec | null = null;
   firing = false;
   cooldowns: Partial<Record<Weapon, number>> = {};
   onReward: ((rewards: Reward[], chest: boolean) => void) | null = null;
@@ -125,7 +124,6 @@ export class Game {
     this.deathFiring = this.firing;
     this.player.health = 0;
     this.move.x = this.move.y = 0;
-    this.moveTarget = null;
     this.firing = false;
     this.hazards.length = 0;
     if (reason === 'combat') this.onEvent?.('death');
@@ -377,10 +375,9 @@ export class Game {
     p.invuln = Math.max(0, p.invuln - dt); p.dash = Math.max(0, p.dash - dt); p.dashCooldown = Math.max(0, p.dashCooldown - dt);
     this.bombCharge = Math.min(this.bombRecharge, this.bombCharge + dt);
     const speed = p.speed * (1 + this.passives.speed * .1) * (p.dash > 0 ? 3.3 : 1);
-    let moveX = this.move.x, moveY = this.move.y;
-    if (this.moveTarget) { moveX = this.moveTarget.x - p.x; moveY = this.moveTarget.y - p.y; }
+    const moveX = this.move.x, moveY = this.move.y;
     const ml = Math.hypot(moveX, moveY);
-    const step = this.moveTarget ? Math.min(ml, speed * dt) : speed * dt;
+    const step = speed * dt;
     if (ml > 0) { p.x = clamp(p.x + moveX / ml * step, 1, WORLD - 1); p.y = clamp(p.y + moveY / ml * step, 1, WORLD - 1); }
     const facingDirection = this.firing ? this.aim.x : moveX;
     if (Math.abs(facingDirection) > .15) this.facing = facingDirection < 0 ? -1 : 1;
