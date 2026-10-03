@@ -45,3 +45,22 @@ benchmark is bounded and does not represent a full twelve-minute playthrough
 or all player builds. In a development preview, `__raidDebug.setupLateEncounter`
 accepts `juggernaut`, `hexcaster`, `ascended`, or `unbound`; `stepDemo(seconds)`
 advances fixed simulation time while keeping the encounter paused.
+
+## Mobile rendering
+
+Graphics defaults to Auto: coarse-pointer devices use Performance rendering.
+Settings can explicitly select Performance or Full, and the choice is saved.
+Performance uses 1× buffers for both WebGL and canvas effects and omits per-object
+blurred glow; all projectile cores, explosions, rewards, and warning geometry
+remain. Full uses up to 1.7× WebGL and 2× effects resolution with glows.
+
+Presentation is capped at 60 draws/second independently of the existing 60Hz
+simulation. The minimap updates at 10Hz, weapon HUD markup only changes with the
+loadout, and instanced enemy transfers contain only visible instances. Effects
+outside the viewport are skipped with conservative bounds. No enemy caps,
+spawns, damage, collision rules, or ranked scoring change with graphics quality.
+
+`tests/render-policy.test.mjs` covers resolution selection, render cadence at
+30/60/90/120/144Hz, and GPU transfer ranges through visible-count changes. Node
+simulation benchmarks do not measure a phone's GPU or sustained thermal behavior;
+actual Pixel 8 frame rate still needs an on-device playtest.
