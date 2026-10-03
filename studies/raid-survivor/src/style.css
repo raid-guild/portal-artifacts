@@ -91,3 +91,5 @@
 .player-joystick.active .player-joystick-knob{opacity:1}
 @media(max-width:760px),(hover:none) and (pointer:coarse){.player-joystick{display:block}}
 .player-joystick.unavailable{display:none}
+
+.graphics-row{gap:12px}.graphics-row .toggle{flex-shrink:0;min-width:112px;padding:10px;font-size:11px}

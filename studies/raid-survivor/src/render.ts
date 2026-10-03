@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { graphicsProfile, uploadVisibleInstances, type GraphicsMode } from './render-policy';
 import { chargeCapsule, ENEMY_CAP, Game, WORLD, WEAPONS, type EnemyKind } from './game';
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
@@ -42,11 +43,21 @@ export class GameRenderer {
   decorations: THREE.InstancedMesh;
   shrineMeshes: THREE.Mesh[] = [];
   resizeObserver: ResizeObserver;
+  private profile = graphicsProfile('full', false, 1);
+  private groups = new Map<string,number>();
+  private enemyColor = new THREE.Color();
+  private minimapElapsed = .1;
+  setGraphics(mode: GraphicsMode) {
+    this.profile = graphicsProfile(mode, matchMedia('(pointer:coarse)').matches, devicePixelRatio);
+    this.resize();
+  }
+  private glow(amount:number){return this.profile.lean ? 0 : amount;}
 
-  constructor(host: HTMLElement, game: Game, minimap: HTMLCanvasElement) {
-    this.host = host; this.game = game; this.minimap = minimap;
+
+  constructor(host: HTMLElement, game: Game, minimap: HTMLCanvasElement, mode: GraphicsMode = 'auto') {
+    this.host = host; this.game = game; this.minimap = minimap;this.profile=graphicsProfile(mode,matchMedia('(pointer:coarse)').matches,devicePixelRatio);
     this.scene.background = new THREE.Color(0x101019);
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7)); this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.setPixelRatio(this.profile.webglRatio); this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.className = 'game-canvas'; host.append(this.renderer.domElement);
     this.overlay.className = 'fx-canvas'; host.append(this.overlay);
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), new THREE.MeshBasicMaterial({ map: terrainTexture() }));
@@ -70,14 +81,14 @@ export class GameRenderer {
     this.hamImage.src=`${import.meta.env.BASE_URL}sprites/items.png`;
     this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(host);this.resize();
   }
-  resize(){this.width=this.host.clientWidth || 1;this.height=this.host.clientHeight || 1;this.renderer.setSize(this.width,this.height);this.overlay.width=Math.floor(this.width*devicePixelRatio);this.overlay.height=Math.floor(this.height*devicePixelRatio);this.overlay.style.width=`${this.width}px`;this.overlay.style.height=`${this.height}px`;this.ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);this.viewHeight=this.width<700?31:25;this.viewWidth=this.viewHeight*this.width/this.height;this.camera.left=-this.viewWidth/2;this.camera.right=this.viewWidth/2;this.camera.top=this.viewHeight/2;this.camera.bottom=-this.viewHeight/2;this.camera.updateProjectionMatrix();}
+  resize(){this.width=this.host.clientWidth || 1;this.height=this.host.clientHeight || 1;this.renderer.setPixelRatio(this.profile.webglRatio);this.renderer.setSize(this.width,this.height);this.overlay.width=Math.max(1,Math.floor(this.width*this.profile.effectsRatio));this.overlay.height=Math.max(1,Math.floor(this.height*this.profile.effectsRatio));this.overlay.style.width=`${this.width}px`;this.overlay.style.height=`${this.height}px`;this.ctx.setTransform(this.profile.effectsRatio,0,0,this.profile.effectsRatio,0,0);this.viewHeight=this.width<700?31:25;this.viewWidth=this.viewHeight*this.width/this.height;this.camera.left=-this.viewWidth/2;this.camera.right=this.viewWidth/2;this.camera.top=this.viewHeight/2;this.camera.bottom=-this.viewHeight/2;this.camera.updateProjectionMatrix();}
   screen(x:number,y:number){return {x:(x-this.cameraX)/this.viewWidth*this.width+this.width/2,y:this.height/2-(y-this.cameraY)/this.viewHeight*this.height};}
   world(x:number,y:number){return {x:this.cameraX+(x-this.width/2)/this.width*this.viewWidth,y:this.cameraY-(y-this.height/2)/this.height*this.viewHeight};}
   render(dt:number, reducedMotion=false){
     const p=this.game.player;const follow=Math.min(1,dt*7);this.cameraX+=(p.x-this.cameraX)*follow;this.cameraY+=(p.y-this.cameraY)*follow;this.cameraX=Math.max(this.viewWidth/2,Math.min(WORLD-this.viewWidth/2,this.cameraX));this.cameraY=Math.max(this.viewHeight/2,Math.min(WORLD-this.viewHeight/2,this.cameraY));this.camera.position.set(this.cameraX,this.cameraY,50);this.camera.lookAt(this.cameraX,this.cameraY,0);
-    const groups = new Map<string,number>();
-    for(const e of this.game.enemies){if(Math.abs(e.x-this.cameraX)>this.viewWidth/2+3||Math.abs(e.y-this.cameraY)>this.viewHeight/2+3)continue;const key=`${e.kind}-${e.facing<0?'left':'right'}`;const mesh=this.enemyMeshes.get(key)!;const idx=groups.get(key)||0;if(idx>=mesh.instanceMatrix.count)continue;this.dummy.position.set(e.x,e.y,e.y/1000);const scale=(e.kind==='boss'?5.1:e.kind==='brute'?2.2:1.65)*(e.elite?1.35:1);this.dummy.scale.set(e.kind==='boss'&&e.facing<0?-scale:scale,scale,1);this.dummy.rotation.z=e.kind==='wisp'?Math.sin(this.game.elapsed*4+e.phase)*.12:0;this.dummy.updateMatrix();mesh.setMatrixAt(idx,this.dummy.matrix);mesh.setColorAt(idx,new THREE.Color(e.flash>0?0xffffff:e.special==='hexcaster'?0xff82dc:e.special==='juggernaut'?0xffc36d:e.kind==='boss'&&e.tier===3?0xff8e78:e.kind==='boss'&&e.tier===2?0xffba90:e.elite?0xffd69d:0xffffff));groups.set(key,idx+1);}
-    for(const [kind,mesh] of this.enemyMeshes){mesh.count=groups.get(kind)||0;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;}
+    const groups = this.groups;for(const key of this.enemyMeshes.keys())groups.set(key,0);
+    for(const e of this.game.enemies){if(Math.abs(e.x-this.cameraX)>this.viewWidth/2+3||Math.abs(e.y-this.cameraY)>this.viewHeight/2+3)continue;const key=`${e.kind}-${e.facing<0?'left':'right'}`;const mesh=this.enemyMeshes.get(key)!;const idx=groups.get(key)||0;if(idx>=mesh.instanceMatrix.count)continue;this.dummy.position.set(e.x,e.y,e.y/1000);const scale=(e.kind==='boss'?5.1:e.kind==='brute'?2.2:1.65)*(e.elite?1.35:1);this.dummy.scale.set(e.kind==='boss'&&e.facing<0?-scale:scale,scale,1);this.dummy.rotation.z=e.kind==='wisp'?Math.sin(this.game.elapsed*4+e.phase)*.12:0;this.dummy.updateMatrix();mesh.setMatrixAt(idx,this.dummy.matrix);mesh.setColorAt(idx,this.enemyColor.setHex(e.flash>0?0xffffff:e.special==='hexcaster'?0xff82dc:e.special==='juggernaut'?0xffc36d:e.kind==='boss'&&e.tier===3?0xff8e78:e.kind==='boss'&&e.tier===2?0xffba90:e.elite?0xffd69d:0xffffff));groups.set(key,idx+1);}
+    for(const [kind,mesh] of this.enemyMeshes){uploadVisibleInstances(mesh,groups.get(kind)||0);}
     for(let i=0;i<this.shrineMeshes.length;i++){const mat=this.shrineMeshes[i].material as THREE.MeshBasicMaterial;mat.opacity=this.game.shrines[i].active?.78:.17;this.shrineMeshes[i].position.x=this.game.shrines[i].x;this.shrineMeshes[i].position.y=this.game.shrines[i].y;this.shrineMeshes[i].rotation.z+=dt*.15;}
     const dying=this.game.dead&&this.game.deathReason==='combat';
     this.player.visible=!dying||reducedMotion;
@@ -85,21 +96,25 @@ export class GameRenderer {
     this.player.material.map=this.heroTextures[`${(dying?this.game.deathFiring:this.game.firing)?'attack-':''}${(dying?this.game.deathFacing:this.game.facing)<0?'left':'right'}`];
     this.player.material.color.setHex(dying?0xffffff:p.invuln>0&&Math.floor(this.game.elapsed*18)%2?0xff718c:0xffffff);
     this.player.material.opacity=dying&&reducedMotion?Math.max(0,1-this.game.deathProgress):1;
-    this.renderer.render(this.scene,this.camera);this.drawFx();this.drawMinimap();
+    this.renderer.render(this.scene,this.camera);this.drawFx();this.minimapElapsed+=dt;if(this.minimapElapsed>=.1){this.minimapElapsed%=.1;this.drawMinimap();}
   }
   private drawFx(){
     const c=this.ctx;c.clearRect(0,0,this.width,this.height);const scale=this.width/this.viewWidth;
-    for(const b of this.game.projectiles){const s=this.screen(b.x,b.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;c.save();c.translate(s.x,s.y);c.rotate(Math.atan2(-b.vy,b.vx));c.shadowColor=hex(WEAPONS[b.kind].color);c.shadowBlur=16;c.fillStyle=hex(WEAPONS[b.kind].color);c.beginPath();c.ellipse(0,0,Math.max(4,b.radius*scale*1.6),Math.max(2,b.radius*scale*.58),0,0,6.28);c.fill();c.restore();}
-    for(const shot of this.game.enemyShots){const s=this.screen(shot.x,shot.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;c.fillStyle=shot.boss?'#ffb079':'#f2a1d8';c.shadowColor=c.fillStyle;c.shadowBlur=17;c.beginPath();c.arc(s.x,s.y,Math.max(3,shot.radius*scale),0,6.28);c.fill();c.shadowBlur=0;}
-    for(const item of this.game.pickups){const s=this.screen(item.x,item.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;const color=item.kind==='xp'?'#8df3cb':item.kind==='heart'?'#94ffb3':'#ffd277';const size=item.kind==='chest'?12:5;c.fillStyle=color;c.shadowColor=color;c.shadowBlur=item.kind==='chest'?20:9;c.beginPath();if(item.kind==='heart'&&this.hamImage.complete&&this.hamImage.naturalWidth){c.drawImage(this.hamImage,0,0,48,48,s.x-17,s.y-17,34,34);}else if(item.kind==='chest'){c.fillRect(s.x-size,s.y-size,size*2,size*2);c.fillStyle='#4b2e42';c.fillRect(s.x-4,s.y-8,8,13);}else{c.arc(s.x,s.y,size,0,6.28);c.fill();}c.shadowBlur=0;}
-    for(const shrine of this.game.shrines){if(!shrine.active)continue;const s=this.screen(shrine.x,shrine.y);if(s.x<0||s.x>this.width||s.y<0||s.y>this.height)continue;c.fillStyle='#baffd1';c.shadowColor='#63ffba';c.shadowBlur=16;c.font='900 10px Cinzel,Georgia,serif';c.textAlign='center';c.fillText('✚ HEAL + XP',s.x,s.y-45);c.shadowBlur=0;}
-    if(this.game.bombWave){const wave=this.game.bombWave;const center=this.screen(this.game.player.x,this.game.player.y);c.save();c.strokeStyle=this.game.hero==='ranger'?'#8ff8b0':this.game.hero==='wizard'?'#a9c9ff':'#ffca8d';c.lineWidth=7;c.shadowColor=c.strokeStyle;c.shadowBlur=28;c.globalAlpha=.9-wave.age*.7;c.beginPath();c.arc(center.x,center.y,wave.radius*scale,0,Math.PI*2);c.stroke();c.restore();}
+    for(const b of this.game.projectiles){const s=this.screen(b.x,b.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;c.save();c.translate(s.x,s.y);c.rotate(Math.atan2(-b.vy,b.vx));c.shadowColor=hex(WEAPONS[b.kind].color);c.shadowBlur=this.glow(16);c.fillStyle=hex(WEAPONS[b.kind].color);c.beginPath();c.ellipse(0,0,Math.max(4,b.radius*scale*1.6),Math.max(2,b.radius*scale*.58),0,0,6.28);c.fill();c.restore();}
+    for(const shot of this.game.enemyShots){const s=this.screen(shot.x,shot.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;c.fillStyle=shot.boss?'#ffb079':'#f2a1d8';c.shadowColor=c.fillStyle;c.shadowBlur=this.glow(17);c.beginPath();c.arc(s.x,s.y,Math.max(3,shot.radius*scale),0,6.28);c.fill();c.shadowBlur=0;}
+    for(const item of this.game.pickups){const s=this.screen(item.x,item.y);if(s.x<-20||s.x>this.width+20||s.y<-20||s.y>this.height+20)continue;const color=item.kind==='xp'?'#8df3cb':item.kind==='heart'?'#94ffb3':'#ffd277';const size=item.kind==='chest'?12:5;c.fillStyle=color;c.shadowColor=color;c.shadowBlur=this.glow(item.kind==='chest'?20:9);c.beginPath();if(item.kind==='heart'&&this.hamImage.complete&&this.hamImage.naturalWidth){c.drawImage(this.hamImage,0,0,48,48,s.x-17,s.y-17,34,34);}else if(item.kind==='chest'){c.fillRect(s.x-size,s.y-size,size*2,size*2);c.fillStyle='#4b2e42';c.fillRect(s.x-4,s.y-8,8,13);}else{c.arc(s.x,s.y,size,0,6.28);c.fill();}c.shadowBlur=0;}
+    for(const shrine of this.game.shrines){if(!shrine.active)continue;const s=this.screen(shrine.x,shrine.y);if(s.x<0||s.x>this.width||s.y<0||s.y>this.height)continue;c.fillStyle='#baffd1';c.shadowColor='#63ffba';c.shadowBlur=this.glow(16);c.font='900 10px Cinzel,Georgia,serif';c.textAlign='center';c.fillText('✚ HEAL + XP',s.x,s.y-45);c.shadowBlur=0;}
+    if(this.game.bombWave){const wave=this.game.bombWave;const center=this.screen(this.game.player.x,this.game.player.y);c.save();c.strokeStyle=this.game.hero==='ranger'?'#8ff8b0':this.game.hero==='wizard'?'#a9c9ff':'#ffca8d';c.lineWidth=7;c.shadowColor=c.strokeStyle;c.shadowBlur=this.glow(28);c.globalAlpha=.9-wave.age*.7;c.beginPath();c.arc(center.x,center.y,wave.radius*scale,0,Math.PI*2);c.stroke();c.restore();}
     const dying=this.game.dead&&this.game.deathReason==='combat';
     const p=this.screen(this.game.player.x,this.game.player.y);
     if(!dying){c.strokeStyle='rgba(159,240,194,.55)';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y+19,20,6,0,0,6.28);c.stroke();if(this.game.player.dashCooldown<=0){c.strokeStyle='rgba(171,255,207,.7)';c.beginPath();c.arc(p.x,p.y,26,0,6.28);c.stroke();}}
-    if(!dying&&this.game.weapons.orbit&&this.game.slots.includes('orbit')){const rank=this.game.weapons.orbit;const blades=2+rank;for(let i=0;i<blades;i++){const a=this.game.elapsed*(2.7+rank*.15)+i*6.28/blades;const s=this.screen(this.game.player.x+Math.cos(a)*(2.2+rank*.2),this.game.player.y+Math.sin(a)*(2.2+rank*.2));c.save();c.translate(s.x,s.y);c.rotate(a);c.fillStyle='#ffe5a4';c.shadowColor='#ffd071';c.shadowBlur=17;c.beginPath();c.moveTo(0,-12);c.lineTo(5,0);c.lineTo(0,12);c.lineTo(-5,0);c.closePath();c.fill();c.restore();}}
+    if(!dying&&this.game.weapons.orbit&&this.game.slots.includes('orbit')){const rank=this.game.weapons.orbit;const blades=2+rank;for(let i=0;i<blades;i++){const a=this.game.elapsed*(2.7+rank*.15)+i*6.28/blades;const s=this.screen(this.game.player.x+Math.cos(a)*(2.2+rank*.2),this.game.player.y+Math.sin(a)*(2.2+rank*.2));c.save();c.translate(s.x,s.y);c.rotate(a);c.fillStyle='#ffe5a4';c.shadowColor='#ffd071';c.shadowBlur=this.glow(17);c.beginPath();c.moveTo(0,-12);c.lineTo(5,0);c.lineTo(0,12);c.lineTo(-5,0);c.closePath();c.fill();c.restore();}}
     if(dying&&this.player.visible===false)this.drawDeath(c,p.x,p.y,scale);
-    for(const effect of this.game.effects){const s=this.screen(effect.x,effect.y);const progress=1-effect.life/effect.max;c.globalAlpha=Math.max(0,effect.life/effect.max);c.strokeStyle=hex(effect.color);c.fillStyle=hex(effect.color);c.shadowColor=hex(effect.color);c.shadowBlur=20;c.lineWidth=3;
+    for(const effect of this.game.effects){const s=this.screen(effect.x,effect.y);const progress=1-effect.life/effect.max;
+      const to=effect.kind==='zap'&&effect.x2!==undefined&&effect.y2!==undefined?this.screen(effect.x2,effect.y2):s;
+      const margin=Math.max(60,effect.size*scale*1.4+24);
+      if(Math.max(s.x,to.x)+margin<0||Math.min(s.x,to.x)-margin>this.width||Math.max(s.y,to.y)+margin<0||Math.min(s.y,to.y)-margin>this.height)continue;
+      c.globalAlpha=Math.max(0,effect.life/effect.max);c.strokeStyle=hex(effect.color);c.fillStyle=hex(effect.color);c.shadowColor=hex(effect.color);c.shadowBlur=this.glow(20);c.lineWidth=3;
       if(effect.kind==='zap'&&effect.x2!==undefined&&effect.y2!==undefined){const to=this.screen(effect.x2,effect.y2);c.beginPath();c.moveTo(s.x,s.y);const midX=(s.x+to.x)/2,midY=(s.y+to.y)/2;c.lineTo(midX+rand(-8,8),midY+rand(-8,8));c.lineTo(to.x,to.y);c.stroke();}
       else if(effect.kind==='ring'||effect.kind==='comet'){c.beginPath();c.arc(s.x,s.y,Math.max(1,effect.size*scale*(effect.kind==='comet'?1-progress*.25:progress)),0,6.28);c.stroke();if(effect.kind==='comet'){c.fillStyle='rgba(255,145,101,.11)';c.fill();}}
       else if(effect.kind==='text'){c.font='900 22px Cinzel, Georgia, serif';c.textAlign='center';c.fillText(effect.text||'',s.x,s.y-progress*45);}
@@ -116,7 +131,7 @@ export class GameRenderer {
       if(s.x+radius<0||s.x-radius>this.width||s.y+radius<0||s.y-radius>this.height)continue;
       const color=hazard.kind==='hex'?'#ff78d2':'#ffad70';
       c.save();c.fillStyle=hazard.kind==='hex'?'rgba(231,75,187,.26)':'rgba(255,129,72,.29)';
-      c.strokeStyle=color;c.lineWidth=2;c.shadowColor=color;c.shadowBlur=12;
+      c.strokeStyle=color;c.lineWidth=2;c.shadowColor=color;c.shadowBlur=this.glow(12);
       c.beginPath();c.arc(s.x,s.y,radius,0,Math.PI*2);c.fill();c.stroke();
       c.shadowBlur=0;c.lineWidth=5;c.beginPath();c.arc(s.x,s.y,radius+7,-Math.PI/2,-Math.PI/2+2*Math.PI*Math.max(0,hazard.delay/hazard.duration));c.stroke();c.restore();
     }
@@ -124,7 +139,7 @@ export class GameRenderer {
       if(e.special!=='juggernaut'||e.specialState!=='windup')continue;
       const capsule=chargeCapsule(e),from=this.screen(capsule.x1,capsule.y1),end=this.screen(capsule.x2,capsule.y2);
       const angle=Math.atan2(end.y-from.y,end.x-from.x),radius=capsule.radius*scale;
-      c.save();c.fillStyle='rgba(255,165,72,.29)';c.strokeStyle='#ffbf69';c.lineWidth=2;c.shadowColor='#ff9b3f';c.shadowBlur=9;
+      c.save();c.fillStyle='rgba(255,165,72,.29)';c.strokeStyle='#ffbf69';c.lineWidth=2;c.shadowColor='#ff9b3f';c.shadowBlur=this.glow(9);
       c.beginPath();c.moveTo(from.x-Math.sin(angle)*radius,from.y+Math.cos(angle)*radius);
       c.lineTo(end.x-Math.sin(angle)*radius,end.y+Math.cos(angle)*radius);
       c.arc(end.x,end.y,radius,angle+Math.PI/2,angle-Math.PI/2,true);
