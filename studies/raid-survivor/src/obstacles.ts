@@ -1,4 +1,4 @@
-export type TerrainLevel = 'training' | 'forest' | 'desert' | 'ice';
+export type TerrainLevel = 'training' | 'forest' | 'desert' | 'ice' | 'lava';
 export type Obstacle = Readonly<{ id: number; shape: 'circle' | 'rect'; x: number; y: number; radius: number; halfWidth: number; halfHeight: number }>;
 export type SweepHit = { hit: boolean; t: number; nx: number; ny: number; id: number };
 export type MoveResult = { x: number; y: number; hit: boolean; id: number };
@@ -24,7 +24,7 @@ const clamp = (n:number,a:number,b:number) => Math.max(a,Math.min(b,n));
 
 export function sweepObstacles(level: TerrainLevel, x: number, y: number, dx: number, dy: number, bodyRadius: number, flying: boolean, out: SweepHit): SweepHit {
   out.hit=false;out.t=1;out.nx=out.ny=0;out.id=0;
-  if(level==='training'||level==='forest'||(!dx&&!dy))return out;
+  if(level==='training'||level==='forest'||level==='lava'||(!dx&&!dy))return out;
   const obstacles=obstaclesFor(level),cells=level==='desert'?DESERT_CELLS:ICE_CELLS;
   let mask=0;const minX=Math.max(0,Math.floor((Math.min(x,x+dx)-bodyRadius)/CELL)),maxX=Math.min(CELLS-1,Math.floor((Math.max(x,x+dx)+bodyRadius)/CELL));
   const minY=Math.max(0,Math.floor((Math.min(y,y+dy)-bodyRadius)/CELL)),maxY=Math.min(CELLS-1,Math.floor((Math.max(y,y+dy)+bodyRadius)/CELL));

@@ -1,0 +1,5 @@
+{
+  "tool": "built-in image_gen",
+  "asset": "public/terrain/lava-floor.png",
+  "prompt": "Use case: stylized-concept. Asset type: seamless repeating ground tile for a top-down pixel-art horde survival game. Create a square perfectly seamless tileable volcanic basalt dungeon floor viewed exactly from overhead, matching classic Raid Guild RPG pixel art. Dark charcoal and muted umber basalt plates with sparse thin dull ember-red cracks, tiny warm ash flecks, a few chipped rock details; 90 percent dark walkable quiet ground. Crisp chunky hand-placed pixel edges, restrained 16-bit palette, flat consistent diffuse lighting. No perspective, no large bright lava pools, no lava rivers, no objects, no characters, no skulls, no borders, no text. It must stay low contrast beneath vivid pink enemy bullets and readable character sprites. Opposite edges must tile without seams. Opaque square image, usable as a repeated terrain texture. Target 512 by 512 pixel-art look."
+}

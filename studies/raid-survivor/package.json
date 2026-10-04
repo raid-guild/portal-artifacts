@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "test": "npm run build && node --test tests/*.test.mjs",
     "benchmark": "node scripts/benchmark.mjs",
+    "balance:qa": "node scripts/balance-qa.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

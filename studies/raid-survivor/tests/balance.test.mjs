@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 const result = await build({ entryPoints:['src/game.ts'], bundle:true, platform:'node', format:'esm', write:false, absWorkingDir:process.cwd() });
 const { Game, ENEMY_CAP, MAX_HAZARDS, MAX_ENEMY_SHOTS, chargeCapsule, pointInCapsule } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 const tick = (game, count=1) => { for(let i=0;i<count;i++)game.update(1/60); };
-const quiet = game => {game.enemies=[];game.slots=[];game.spawnClock=-1000;game.chestClock=-1000;};
+const quiet = game => {game.enemies=[];game.slots=[];game.spawnClock=-1000;game.chestClock=-1000;game.nextShooterScan=Infinity;};
 
 test('opening has eighteen enemies, slower spawning and spawn-time damage ramp',()=>{
   const g=new Game('ranger');assert.equal(g.enemies.length,18);
@@ -82,7 +82,7 @@ test('boss tiers, escort budget, full-cap admission, and render cap',()=>{
   try{tick(budget);}finally{Math.random=random;}
   assert.equal(budget.enemies.length,9);assert.equal(budget.enemies.filter(e=>e.elite).length,2);assert.equal(budget.escortDebt,0);
   for(const [time,wave,tier,escortCount] of [[359.99,3,2,2],[539.99,5,3,4]]){
-    const full=new Game('ranger');full.stress(ENEMY_CAP);full.elapsed=time;full.bossWave=wave;full.player.invuln=1e9;
+    const full=new Game('ranger');full.stress(ENEMY_CAP);full.elapsed=time;full.bossWave=wave;full.player.invuln=1e9;full.nextShooterScan=Infinity;
     const kills=full.stats.kills,loot=full.pickups.length;tick(full);
     assert.equal(full.enemies.length,ENEMY_CAP);assert.equal(full.enemies.filter(e=>e.kind==='boss'&&e.tier===tier).length,1);
     assert.equal(full.enemies.filter(e=>e.elite).length,escortCount);

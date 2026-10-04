@@ -65,3 +65,43 @@ existing gameplay colliders; their surrounding sand and snow are decorative.
 These two obstacle decals are an exception to the earlier asset resize: the
 runtime loads the generated 1254 × 1254 oasis and 2172 × 724 ice PNGs directly,
 with RGBA transparency and nearest-neighbor filtering.
+
+## Molten Vault and new guild heroes
+
+`public/terrain/lava-floor.png` was generated with the built-in image generation
+tool for this game. Its complete generation prompt and tool attribution are in
+[`lava-art-prompt.json`](lava-art-prompt.json). The renderer repeats this opaque
+basalt tile with nearest-neighbor filtering and a subdued tint so enemies and
+projectiles remain visible.
+
+`public/sprites/characters/warrior.png` and
+`public/sprites/characters/tavern-keeper.png`, with their JSON frame maps and
+previews, are copied from the local Raid Guild
+`reference/public/sprites/characters/` source. They use the same ten-frame,
+54 × 68 pixel character atlas format as the existing playable classes; they
+were not generated for this expansion.
+
+### Native Molten Vault monsters
+
+The following transparent sprites are original gameplay adaptations generated
+with the built-in `image_gen.imagegen` tool and copied unchanged into the game:
+
+- `public/sprites/monsters/tosculi-3015.png` — Tosculi Hive-Queen #3015;
+  one compact swarm silhouette rendered as a single enemy.
+- `public/sprites/monsters/seahag-5413.png` — Sea Hag #5413;
+  a stout breath attacker with poison and flame throat accents.
+- `public/sprites/monsters/hezrou-3112.png` — Hezrou #3112;
+  a colossal slithering fiend carrying a fiery greatsword.
+
+The full prompts, tool attribution, generated filenames, and final asset paths
+are preserved in [`lava-monster-art-prompts.json`](lava-monster-art-prompts.json).
+The PNGs retain real RGBA transparency. The two smaller monster images are
+1374 × 1145 pixels; Hezrou is 1254 × 1254 pixels.
+
+These images are not original NFT artwork. Exact canonical sheet lines and
+provenance are in [`public/lava-monstermaps-sheets.json`](public/lava-monstermaps-sheets.json),
+taken from the previously captured Ethereum mainnet export at block 26114270,
+contract `0xecb9b2ea457740fbde58c758e4c574834224413e`. A refresh attempt on
+2026-10-04 returned HTTP 403, so no fresh verification is claimed. Canonical
+names, habitats, alignments, and traits stay unchanged in the Monster Book;
+their Lava roles and the new visuals are game adaptations.

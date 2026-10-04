@@ -1,4 +1,4 @@
-export type MusicLevel='training'|'forest'|'desert'|'ice';
+export type MusicLevel='training'|'forest'|'desert'|'ice'|'lava';
 export type NewRealm=Exclude<MusicLevel,'training'>;
 export type Stem='drums'|'bass'|'arp'|'lead'|'air';
 export const REALM_TRACKS={
@@ -6,10 +6,11 @@ export const REALM_TRACKS={
   forest:{title:'Thornlight Pursuit',bpm:126,key:'E minor',acts:['Entrance','Pursuit','Sparse Canopy','Full Return']},
   desert:{title:'Sunken Caravan',bpm:132,key:'E Phrygian dominant',acts:['Dunes','Caravan','Sunken Court','Return']},
   ice:{title:'Shards of Dawn',bpm:128,key:'B minor',acts:['Opening','Shards','Bridge','Return']},
+  lava:{title:'Molten Crown',bpm:104,key:'C Phrygian / diminished',acts:['Ash Gate','Hollow Furnace',"Moloch's Shadow",'Final Descent']},
 } as const;
 export const LOOP_STEPS=64*16;
-type Event={stem:Stem;kind:'note'|'kick'|'snare'|'hat';pitch?:number;duration?:number;volume?:number;wave?:OscillatorType;cutoff?:number;pan?:number;send?:number};
-const e=(stem:Stem,kind:Event['kind'],pitch?:number,duration?:number,volume?:number,wave?:OscillatorType,cutoff?:number,pan?:number,send?:number):Event=>({stem,kind,pitch,duration,volume,wave,cutoff,pan,send});
+type Event={stem:Stem;kind:'note'|'kick'|'snare'|'hat';pitch?:number;duration?:number;volume?:number;wave?:OscillatorType;cutoff?:number;pan?:number;send?:number;attack?:number};
+const e=(stem:Stem,kind:Event['kind'],pitch?:number,duration?:number,volume?:number,wave?:OscillatorType,cutoff?:number,pan?:number,send?:number,attack?:number):Event=>({stem,kind,pitch,duration,volume,wave,cutoff,pan,send,attack});
 const FOREST=[
  {root:40,chord:[64,67,71]},{root:36,chord:[60,64,67]},{root:40,chord:[64,67,71]},{root:45,chord:[57,60,64]},
  {root:36,chord:[60,64,67]},{root:47,chord:[59,62,66]},{root:40,chord:[64,67,71]},{root:47,chord:[59,62,66]},
@@ -21,6 +22,10 @@ const DESERT=[
 const ICE=[
  {root:35,chord:[59,62,66]},{root:43,chord:[55,59,62]},{root:38,chord:[62,66,69]},{root:45,chord:[57,62,64]},
  {root:35,chord:[59,62,66]},{root:43,chord:[55,59,62]},{root:38,chord:[62,66,69]},{root:45,chord:[57,62,64]},
+];
+const LAVA=[
+ {root:36,chord:[48,51,54]},{root:31,chord:[48,49,55]},{root:37,chord:[49,52,55]},{root:36,chord:[48,54,57]},
+ {root:36,chord:[48,51,54]},{root:31,chord:[48,49,55]},{root:37,chord:[49,52,55]},{root:36,chord:[48,51,55]},
 ];
 const FOREST_LEAD=[
  [76,null,79,78,null,76,74,null],[79,null,83,null,81,79,null,76],
@@ -39,6 +44,10 @@ const ICE_LEAD=[
  [78,null,76,null,74,null,69,null],[76,null,74,null,71,null,69,null],
  [83,null,86,null,83,null,78,null],[81,null,83,null,81,null,74,null],
  [78,null,74,null,71,null,69,null],[76,null,74,null,71,null,66,null],
+];
+const LAVA_LEAD=[
+ [67,65,63],[66,null,61],[65,63,61],[67,65,60],
+ [66,63,61],[65,null,60],[67,64,61],[65,63,60],
 ];
 
 /** Pure 64-bar arrangements; each realm authors its own harmony, rhythm and rests. */
@@ -66,7 +75,7 @@ export function realmPattern(level:NewRealm,n:number):Event[]{
     if([0,3,7,10,14].includes(s)&&b>=(act===0?2:0)&&!sparse){const m=DESERT_LEAD[Math.floor(b/2)][Math.floor(s/2)];if(m!==null)result.push(e('lead','note',m,s===0?.31:.16,full?.044:.033,'triangle',2600,.15,.075));}
     if(s===0&&b%2===0)result.push(e('air','note',c.chord[0]-12,.9,.016,'triangle',1250,-.3,.055));
     if(s===14&&b%4===3)result.push(e('air','note',c.chord[1]+12,.38,.027,'sine',6100,.3,.08));
-  }else{
+  }else if(level==='ice'){
     const c=ICE[Math.floor(b/2)],bridge=act===2&&b<8;
     if(s===0||s===8||full&&s===6)result.push(e('drums','kick',undefined,undefined,s===6?.62:.86));
     if(s===4||s===12)result.push(e('drums','snare',undefined,undefined,bridge?.52:.78));
@@ -76,6 +85,24 @@ export function realmPattern(level:NewRealm,n:number):Event[]{
     if([0,6,12].includes(s)&&b>=(act===0?4:0)&&!bridge){const m=ICE_LEAD[Math.floor(b/2)][s===0?0:s===6?2:4];if(m!==null)result.push(e('lead','note',m,s===0?.66:.45,full?.037:.027,'triangle',3400,.06,.31));}
     if(s===0){for(let i=0;i<3;i++)result.push(e('air','note',c.chord[i]-12,1.7,.019,'sine',4800,(i-1)*.5,.25));}
     if(s===8&&b%2===0)result.push(e('air','note',c.chord[2]+12,.95,.051,'sine',7600,.28,.38));
+  }else{
+    const c=LAVA[Math.floor(b/2)],breakdown=act===2&&b<4;
+    // Low heartbeat and pedal tones leave space for the slow, descending motif.
+    if(s===0||s===3&&!breakdown)result.push(e('drums','kick',undefined,undefined,s===0?.76:.4));
+    if(s===0)result.push(e('bass','note',c.root,.85,.071,'sine',510,0,.18));
+    if(s===8&&b%4===3)result.push(e('bass','note',36,1.2,.085,'sine',470,0,.2));
+    if(!breakdown&&s===10&&b%2===1)result.push(e('arp','note',c.chord[(b+act)%3]+12,.31,.023,'triangle',1700,b%4===1?-.28:.28,.52));
+    const leadBar=act===3||b%2===0&&b>=(act===0?4:0);
+    if(!breakdown&&leadBar&&(s===0||s===7||s===12)){
+      const pitch=LAVA_LEAD[Math.floor(b/2)][s===0?0:s===7?1:2];
+      if(pitch!==null)result.push(e('lead','note',pitch,s===0?.68:.48,act===3?.03:.025,s===7?'sine':'triangle',1200,-.08,.28));
+    }
+    if(s===0&&b%2===0){
+      result.push(e('air','note',c.chord[0],2.65,.018,'sine',560,-.24,.26,.95));
+      result.push(e('air','note',c.chord[2],2.45,.012,'triangle',680,.24,.24,.85));
+    }
+    if(s===12&&b%4===2){result.push(e('air','note',c.chord[1]+12,.7,.012,'sine',2100,-.22,.35));result.push(e('air','note',c.chord[1]+13,.62,.009,'sine',1900,.22,.32));}
+    if(s===8&&b%4===3)result.push(e('air','note',48,1.25,.016,'sine',500,0,.28,.72));
   }
   return result;
 }
@@ -87,10 +114,10 @@ export function makeRealmMusicEngine(context:BaseAudioContext,level:NewRealm,vol
   master.connect(compressor);compressor.connect(out);out.connect(context.destination);out.gain.value=volume/100*.72;
   const buses={} as Record<Stem,GainNode>;for(const stem of ['drums','bass','arp','lead','air'] as Stem[]){buses[stem]=context.createGain();buses[stem].connect(master);}
   const delay=context.createDelay(1),tone=context.createBiquadFilter(),feedback=context.createGain(),wet=context.createGain();
-  delay.delayTime.value=60/bpm*(level==='desert'?.5:.75);tone.type='lowpass';tone.frequency.value=level==='ice'?4200:2800;feedback.gain.value=level==='desert'?.13:.21;wet.gain.value=level==='desert'?.07:.16;
+  delay.delayTime.value=60/bpm*(level==='desert'?.5:.75);tone.type='lowpass';tone.frequency.value=level==='ice'?4200:level==='lava'?1200:2800;feedback.gain.value=level==='desert'?.13:level==='lava'?.30:.21;wet.gain.value=level==='desert'?.07:level==='lava'?.20:.16;
   delay.connect(tone);tone.connect(feedback);feedback.connect(delay);tone.connect(wet);wet.connect(master);
-  const reverb=context.createConvolver(),verbGain=context.createGain();verbGain.gain.value=level==='desert'?.055:.11;
-  const impulse=context.createBuffer(2,Math.floor(context.sampleRate*1.5),context.sampleRate);let seed=level==='forest'?12693:level==='desert'?13293:12893;
+  const reverb=context.createConvolver(),verbGain=context.createGain();verbGain.gain.value=level==='desert'?.055:level==='lava'?.17:.11;
+  const impulse=context.createBuffer(2,Math.floor(context.sampleRate*1.5),context.sampleRate);let seed=level==='forest'?12693:level==='desert'?13293:level==='ice'?12893:13893;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   for(let c=0;c<2;c++){const data=impulse.getChannelData(c);for(let i=0;i<data.length;i++)data[i]=(random()*2-1)*Math.pow(1-i/data.length,3.3);}
   reverb.buffer=impulse;reverb.connect(verbGain);verbGain.connect(master);
@@ -106,7 +133,8 @@ export function makeRealmMusicEngine(context:BaseAudioContext,level:NewRealm,vol
     const pitch=event.pitch??60,d=event.duration??.18,volume=event.volume??.04,wave=event.wave??'triangle';
     const oscillator=context.createOscillator(),filter=context.createBiquadFilter(),gain=context.createGain(),pan=context.createStereoPanner(),chain:AudioNode[]=[oscillator,filter,gain,pan];
     oscillator.type=wave;oscillator.frequency.setValueAtTime(frequency(pitch),t);filter.type='lowpass';filter.frequency.setValueAtTime(event.cutoff??2800,t);filter.frequency.exponentialRampToValueAtTime(Math.max(180,(event.cutoff??2800)*.52),t+d);filter.Q.value=wave==='sawtooth'?1.3:.5;pan.pan.value=event.pan??0;
-    gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(volume,t+Math.min(.12,d*.25));gain.gain.exponentialRampToValueAtTime(.0001,t+d);
+    const attack=event.attack??Math.min(.12,d*.25);
+    gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(volume,t+attack);gain.gain.exponentialRampToValueAtTime(.0001,t+d);
     oscillator.connect(filter);filter.connect(gain);gain.connect(pan);pan.connect(buses[event.stem]);
     if(event.send){const send=context.createGain();send.gain.value=event.send;pan.connect(send);send.connect(delay);send.connect(reverb);chain.push(send);}
     track(oscillator,t,d+.02,chain);

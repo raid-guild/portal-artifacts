@@ -1,0 +1,47 @@
+{
+  "contract": "0xecb9b2ea457740fbde58c758e4c574834224413e",
+  "chainId": 1,
+  "blockNumber": 26114270,
+  "source": "Previously captured read-only on-chain export sample-96.json. Refresh attempt on 2026-10-04 returned HTTP 403; original export retained.",
+  "monsters": [
+    {
+      "tokenId": 3015,
+      "lines": [
+        "Tosculi Hive-Queen The Swarm of Tiny Undead of The Dungeon",
+        "Size: Tiny",
+        "Alignment: Neutral Evil",
+        "Actions: Flame Breath, Breath Weapon",
+        "Special Ability: Sure-Footed",
+        "Weakness: Freeze",
+        "Locomotion: Leap",
+        "Language: Dragon, Abberation, Merfolk, Simian"
+      ]
+    },
+    {
+      "tokenId": 5413,
+      "lines": [
+        "Sea Hag The Kryt of The Desert",
+        "Size: Stout",
+        "Alignment: Lawful Neutral",
+        "Actions: Poison Breath, Flame Breath",
+        "Special Ability: Sure-Footed",
+        "Weakness: Freeze",
+        "Locomotion: Leap",
+        "Language: Bearfolk, Beast, Burrowling, Telepathy"
+      ]
+    },
+    {
+      "tokenId": 3112,
+      "lines": [
+        "Hezrou The Fiend of The Dungeon",
+        "Size: Colossal",
+        "Alignment: Lawful Good",
+        "Actions: Fiery Greatsword, Devour",
+        "Special Ability: Hellish Rejuvenation",
+        "Weakness: Light",
+        "Locomotion: Slither",
+        "Language: Can't understand language at all"
+      ]
+    }
+  ]
+}
