@@ -8,6 +8,31 @@ const { Game, ENEMY_CAP } = await import(`data:text/javascript;base64,${Buffer.f
 test('three heroes start with distinct primary weapons',()=>{
   assert.deepEqual(['ranger','wizard','dwarf'].map(h=>new Game(h).slots[0]),['thornbow','arcwand','scattergun']);
 });
+test('forest begins with a real elemental choice and class mastery applies only at construction',()=>{
+  const g=new Game('ranger','forest',{vitality:1,agility:1,bombRecharge:1});
+  assert.equal(g.level,'forest');assert.equal(g.player.maxHealth,105);assert.ok(g.player.speed>8.2);assert.ok(g.bombRecharge<45);
+  const first=g.rollRewards(false);assert.deepEqual(first.map(r=>r.id),['light','freeze','resolve']);
+  g.awaitingReward=true;g.chooseReward(first[1]);assert.equal(g.runes.freeze,true);assert.equal(g.awaitingReward,false);
+  g.awaitingReward=true;g.chooseReward(first[0]);assert.equal(g.runes.light,true);assert.equal(g.runes.freeze,true);
+  assert.equal(g.rollRewards(false).length,3);
+});
+test('forest monsters keep on-chain identities with visible attacks and elemental counters',()=>{
+  const g=new Game('wizard','forest');g.enemies=[];g.slots=[];g.spawnClock=-1000;g.chestClock=-1000;g.player.invuln=1e9;
+  g.elapsed=90;const rage=g.spawnEnemy('rageipede');rage.x=g.player.x+8;rage.y=g.player.y;rage.specialCd=0;
+  g.update(1/60);assert.equal(rage.specialState,'windup');assert.equal(g.monsters.rageipede.encountered,1);
+  g.runes.light=true;g.damage(rage,1e9,'thornbow');assert.equal(g.monsters.rageipede.counterKills,1);
+  g.elapsed=150;const xorn=g.spawnEnemy('xorn');xorn.x=g.player.x+8;xorn.y=g.player.y;xorn.specialCd=0;
+  g.update(1/60);assert.equal(xorn.specialState,'windup');g.runes.freeze=true;g.damage(xorn,1,'arcwand');assert.ok(xorn.frozen>0);assert.equal(xorn.specialState,'recovery');
+  xorn.frozen=0;g.damage(xorn,1,'arcwand');assert.equal(xorn.frozen,0,'freeze immunity blocks immediate repeat');
+  const efreeti=g.spawnEnemy('efreeti');efreeti.x=g.player.x+8;efreeti.y=g.player.y;efreeti.specialState='charge';efreeti.specialTimer=1;
+  g.runes.freeze=false;const before=efreeti.hp;g.damage(efreeti,40,'arcwand');assert.equal(efreeti.hp,before);
+  g.runes.freeze=true;g.damage(efreeti,1e9,'arcwand');assert.equal(g.monsters.efreeti.counterKills,1);assert.ok(g.enemies.length<=ENEMY_CAP);
+});
+test('paused and blessing screens do not advance active survival time',()=>{
+  const g=new Game('ranger');g.elapsed=179.99;g.paused=true;g.update(1/60);assert.equal(g.elapsed,179.99);
+  g.paused=false;g.awaitingReward=true;g.update(1/60);assert.equal(g.elapsed,179.99);
+  g.awaitingReward=false;g.update(1/60);assert.ok(g.elapsed>=180);
+});
 test('spatial queries are initialized before the first tick',()=>{
   const g=new Game('ranger'), first=g.enemies[0];
   assert.equal(g.nearest(first.x,first.y,.1)?.id,first.id);

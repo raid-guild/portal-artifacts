@@ -6,9 +6,10 @@ const { Game } = await import(`data:text/javascript;base64,${Buffer.from(result.
 const ticks = Number(process.env.BENCH_TICKS || 300);
 const counts = [1000, 2000, 2400];
 
-for (const count of counts) {
-  const game = new Game('ranger');
-  game.stress(count - game.enemies.length);
+for (const level of ['training','forest','desert','ice']) for (const count of counts) {
+  const game = new Game('ranger',level);
+  if(level==='training')game.stress(count - game.enemies.length);
+  else {game.enemies=[];const kinds=level==='forest'?['rageipede','xorn','efreeti']:level==='desert'?['deathwisp','buraq','wisp']:['chuul','dogmole','wisp'];for(let i=0;i<count;i++)game.spawnEnemy(i%20===0?kinds[1]:i%7===0?kinds[2]:kinds[0]);}
   for (const enemy of game.enemies) enemy.hp = enemy.maxHp = 1e9;
   game.slots = ['thornbow', 'arcwand', 'scattergun'];
   for (const weapon of game.slots) game.weapons[weapon] = 5;
@@ -29,7 +30,7 @@ for (const count of counts) {
   }
   const sorted = [...samples].sort((a, b) => a - b);
   const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
-  console.log(JSON.stringify({ enemiesRequested: count, enemiesAlive: game.enemies.length, ticks, meanMs: +mean.toFixed(2), p95Ms: +sorted[Math.floor(sorted.length * .95)].toFixed(2), maxMs: +sorted.at(-1).toFixed(2), projectiles: game.projectiles.length, heapDeltaMB: +((process.memoryUsage().heapUsed - memoryBefore) / 1024 / 1024).toFixed(1) }));
+  console.log(JSON.stringify({ level, enemiesRequested: count, enemiesAlive: game.enemies.length, ticks, meanMs: +mean.toFixed(2), p95Ms: +sorted[Math.floor(sorted.length * .95)].toFixed(2), maxMs: +sorted.at(-1).toFixed(2), projectiles: game.projectiles.length, heapDeltaMB: +((process.memoryUsage().heapUsed - memoryBefore) / 1024 / 1024).toFixed(1) }));
 }
 
 // A bounded late encounter mixes ordinary enemies with both special variants,

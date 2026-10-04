@@ -16,7 +16,7 @@ const origin = 'http://localhost:5173';
 let server,base;
 before(async () => {
   await pool.query(await readFile(new URL('../schema.sql',import.meta.url),'utf8'));
-  await pool.query('TRUNCATE artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
+  await pool.query('TRUNCATE artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
   server = createApp({pool,origin,issuer,launchSecret:secret,secure:false}).listen(0,'127.0.0.1');
   await new Promise(resolve => server.once('listening',resolve));
   base = `http://127.0.0.1:${server.address().port}/leaderboard-api/${GAME}`;
