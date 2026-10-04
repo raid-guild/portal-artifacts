@@ -26,6 +26,22 @@ export class RenderCadence {
   }
 }
 
+/** Reusable presentation coordinates, one fixed simulation step behind the live state. */
+export class PlayerPresentation {
+  x = 0;
+  y = 0;
+  private previousX = 0;
+  private previousY = 0;
+  reset(x: number, y: number) { this.x = this.previousX = x; this.y = this.previousY = y; }
+  beforeStep(x: number, y: number) { this.previousX = x; this.previousY = y; }
+  sample(x: number, y: number, alpha: number) {
+    const t = Math.max(0, Math.min(1, alpha));
+    this.x = this.previousX + (x - this.previousX) * t;
+    this.y = this.previousY + (y - this.previousY) * t;
+    return this;
+  }
+}
+
 type UploadAttribute = { clearUpdateRanges(): void; addUpdateRange(start: number, count: number): void; needsUpdate: boolean };
 /** Only the visible prefix is drawn or transferred; capacity stays available for the full horde. */
 export function uploadVisibleInstances(mesh: { count: number; instanceMatrix: UploadAttribute; instanceColor: UploadAttribute | null }, count: number) {

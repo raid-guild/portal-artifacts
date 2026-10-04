@@ -8,6 +8,7 @@ const tick = (g, count=1) => { for(let i=0;i<count;i++)g.update(1/60); };
 const quiet = (seconds=0) => {
   const g=new Game('ranger','forest');g.enemies=[];g.slots=[];
   g.spawnClock=g.chestClock=-1000;g.player.invuln=1e9;
+  g.nextShooterScan=Infinity; // Isolate native spawn/guardian pacing from the separate shooter quota.
   g.elapsed=seconds;g.bossWave=forestPacing(seconds).bossWave;
   return g;
 };
@@ -59,7 +60,8 @@ test('early survivors learn attacks only at their time gates',()=>{
   }
   const early=quiet(60),ordinary=early.spawnEnemy('brute'),guardian=early.spawnEnemy('brute',true);
   assert.equal(guardian.maxHp,ordinary.maxHp*3);
-  const late=quiet(240);assert.equal(late.spawnEnemy('brute',true).maxHp,late.spawnEnemy('brute').maxHp*18);
+  const middle=quiet(240);assert.equal(middle.spawnEnemy('brute',true).maxHp,middle.spawnEnemy('brute').maxHp*10.5);
+  const late=quiet(300);assert.equal(late.spawnEnemy('brute',true).maxHp,late.spawnEnemy('brute').maxHp*18);
 });
 
 test('all lunge kinds share a small concurrency budget and stagger attack starts',()=>{

@@ -1,0 +1,8 @@
+{
+  "tool": "Built-in image_gen.imagegen",
+  "transparent_background": true,
+  "savedPath": "public/sprites/weapons/tankard.png",
+  "generatedFile": "exec-a6d18ff5-e324-4ab2-a67a-b6e44b42a260.png",
+  "prompt": "Use case: stylized-concept. Asset type: one tiny transparent projectile sprite for a retro pixel-art horde shooter. Draw ONE wooden tavern beer tankard, upright, handle on RIGHT, viewed from slightly above and front so the rim is visible. Design it on a STRICT SIMPLE 32x32 PIXEL GRID enlarged for output: very chunky large square pixel blocks, no fine detail below the logical pixel grid. Stubby broad honey-brown wooden barrel body, two pale silver horizontal metal bands, a large clearly OPEN squared C-shaped ivory metal handle, thick creamy-white foam cap with three simple lobes, tiny golden drink patch at the rim. Strong charcoal outline plus restrained cream highlights so it is readable at 24 to 32 pixels on a dark background. Centered whole object, square composition, around 20% transparent padding on all sides. True transparent background including the hole in the handle. Single sprite only. No lettering, labels, logos, floor, shadow outside sprite, scenery, particles, splash, beer drops, gradient, antialiasing, blur, smooth painting, extra objects or multiple frames. This is a flying weapon icon that will be rotated during gameplay; give it a clean compact silhouette.",
+  "notes": "Generated PNG copied unchanged, with transparent background. Runtime renderer caches the sprite at small gameplay size."
+}

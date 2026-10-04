@@ -7,6 +7,6 @@ const {boardTabs}=await import(`data:text/javascript;base64,${Buffer.from(result
 
 test('leaderboard renders one filter for each realm plus global and legacy',()=>{
   const ids=[...boardTabs().matchAll(/data-board="([^"]+)"/g)].map(match=>match[1]);
-  assert.deepEqual(ids,['all','training','forest','desert','ice','legacy']);
+  assert.deepEqual(ids,['all','training','forest','desert','ice','lava','archive-v2','legacy']);
   assert.equal(new Set(ids).size,ids.length);
 });

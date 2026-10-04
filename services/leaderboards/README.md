@@ -137,7 +137,11 @@ Keep the registered Portal module, launch secret, callback, and proxy settings.
 In a coordinated deployment window, run the additive schema migration as an
 administrator, grant the restricted runtime role SELECT/INSERT/UPDATE/DELETE on
 `artifact_leaderboards.raid_profiles`, then deploy the updated API and static
-game. The new API accepts completion of in-flight version 1 Raid runs for the
+game. Check `/leaderboard-api/raid-survivor/ready` as the runtime role: it returns
+`200 {"ready":true,"missing":[]}` only when Raid's profile and run columns and
+read/write grants are present. A `503` lists missing Raid schema or privileges;
+`/health` can still pass when this Raid migration is incomplete. The check is
+read-only and does not change Cosmic data. The new API accepts completion of in-flight version 1 Raid runs for the
 remainder of their two-hour lifetime; it starts only version 2 runs. Version 1
 scores remain visible on the Legacy board. If the API is rolled back during an
 active version 2 run, the old API cannot finish that run or save its checkpoint
@@ -187,6 +191,11 @@ skill, and are captured when a new run starts. Mastery purchases include
 `{character,skill,rank,expectedRevision}`; exact retries are idempotent. The finish body
 includes the same final checkpoint and canonical kill/level statistics. The
 server derives the score, preserving the original scoring formula in all realms.
+Both first and repeated successful finish responses return the authoritative
+persisted profile. A finish can bank a milestone even if its preceding checkpoint
+response was lost. The client keeps a linked player's known profile visible during
+a profile fetch outage, retries temporary checkpoint failures with cumulative
+snapshots, and labels a failed ranked start as practice with no saved unlocks.
 Public boards accept `?level=all|training|forest|desert|ice|legacy`; `legacy` contains
 version 1 Raid scores. A player may start 60 Raid runs per hour regardless of
 Cosmic starts. A renewed Portal session for the same account can finish its own
@@ -196,3 +205,54 @@ guest progression does not merge into a Portal account.
 If ranked setup must be rolled back, set the Raid module to guest launch or
 remove the Raid secret from the backend. Local play and Cosmic ranked scores
 remain available. Preserve the schema and historical run rows.
+
+### Raid Survivor version 3 progression
+
+New ranked starts use `{version:"3",character,level}`. The server validates the
+unlocked hero and realm, then returns an immutable run config with purchased skill
+ranks, one equipped perk, and the next eligible checkpoint target. Client-provided
+targets and perk effects are ignored. There are five realms and five heroes; Warrior
+unlocks at Training 05:00 and Tavern Keeper at Forest 07:00. Any hero can unlock a
+realm for the account. Per-hero checkpoint times are Training 03:00/05:00/07:00/09:00/12:00,
+Forest 05:00/07:00/09:00/12:00, Desert 07:00/09:00/12:00, Ice 09:00/12:00,
+and Lava 12:00. The first checkpoint in Forest, Desert, and Ice unlocks the next
+realm. Twelve minutes grants that hero's realm mastery; Lava twelve grants class
+mastery. A run awards only its saved target, even when play continues or another
+run has already claimed it. A new run is needed for the next checkpoint.
+
+Each hero can earn fifteen checkpoint credits. Three skills have two ranks each
+at one credit per rank. Three class perks cost three credits each; all can be
+owned, and exactly one can be equipped per run. `POST /profile/mastery` takes
+`{character,skill,rank,expectedRevision,requestId}`; `POST /profile/perks` takes
+`{character,perkId,expectedRevision,requestId}`; `POST /profile/equip` takes
+`{character,perkId|null,expectedRevision,requestId}`. The profile and revision
+are returned after each transaction. Request IDs make exact retries idempotent;
+stale revisions and reused IDs with changed payloads conflict. Profile version 2
+JSON migrates to version 3 on read/write: each old milestone becomes exactly its
+first checkpoint, including Ice's Lava unlock. Skill spending, purchase history,
+NFT tallies, revision, and existing account unlocks are retained. This application
+migration uses the existing JSONB columns and needs no SQL schema change.
+
+Version 1 and 2 runs already in progress can still finish with their original
+validators. Version 2 progress can earn only the old first checkpoint. New v2
+starts are rejected. Historical boards are `?level=legacy` (v1) and
+`?level=archive-v2` (v2). Version 3 boards are `all`, `training`, `forest`,
+`desert`, `ice`, and `lava`, with one best single-run score per player. Lava may
+advance existing Forest, Desert, and Ice monster records as well as its native
+records. Version 3 score validation allows the extra 11:00 Moloch, while old
+version bounds stay intact. The readiness endpoint and deployment credentials
+remain the same. Verify migration and transactional behavior only against a
+disposable local database before deployment.
+
+Lava now has three native Monstermaps records: Tosculi Hive-Queen #3015, Sea
+Hag #5413, and Hezrou #3112 on Ethereum chain 1. Their metadata follows the
+selected cached chain export preserved at
+`studies/raid-survivor/public/lava-monstermaps-sheets.json` (block 26114270).
+Existing profiles initialize their tallies to zero, and older progress payloads
+without these keys remain valid. Only Lava runs can report them; Lava still
+accepts Forest, Desert, and Ice encounters. The shared Lava boss schedule asks
+for 1 alive at 05:00, 2 at 08:00, 2 at 10:00, and 3 at 11:00, then 3 every
+two minutes from 13:00 in Endless. At most 8 bosses can be admitted by 11:00
+and 11 by 13:00. Lava score validation uses this admission ceiling and a
+conservative chest ceiling of `2 + floor(seconds / 45) + maxAdmittedBosses`;
+other realms and old scoring versions retain their existing bounds.

@@ -1,0 +1,18 @@
+export type HeroId='ranger'|'wizard'|'dwarf'|'warrior'|'tavern-keeper';
+export type LevelId='training'|'forest'|'desert'|'ice'|'lava';
+export type SkillId='vitality'|'agility'|'bombRecharge';
+export type Checkpoint={checkpointId:string;thresholdMs:number};
+export type PerkEffect={primaryDamageMultiplier?:number;primaryDamageCondition?:'range>6'|'elite-or-boss'|'range<3'|'hp>75%'|'hp<50%';dashMagnetSeconds?:number;pickupMagnetBonus?:number;bombSpeedSeconds?:number;bombSpeedMultiplier?:number;bombGuardSeconds?:number;dashGuardSeconds?:number;damageTakenMultiplier?:number;foodHealMultiplier?:number;bombDamageMultiplier?:number;bombRadiusMultiplier?:number;bombKnockbackMultiplier?:number;bombArcDegrees?:number;bombHeal?:number};
+export type Perk={id:string;name:string;description:string;cost:3;effect:PerkEffect};
+export const RAID_VERSION:'3';
+export const LEGACY_RAID_VERSION:'2';
+export const HERO_IDS:readonly HeroId[];
+export const STARTER_HERO_IDS:readonly HeroId[];
+export const SKILLS:readonly SkillId[];
+export const LEVELS:Record<LevelId,{id:LevelId;name:string;milestoneMs:number;unlocks:LevelId|null;scoreMultiplier:number}>;
+export const CHECKPOINTS:Record<LevelId,readonly Checkpoint[]>;
+export type LavaBossStage={wave:number;desiredAlive:number;tier:number;maxAdmitted:number};
+export const LAVA_BOSS_SCHEDULE:readonly {atSeconds:number;desiredAlive:number;tier:number;maxAdmitted:number}[];
+export function lavaBossSchedule(seconds:number):LavaBossStage;
+export const PERKS:Record<HeroId,readonly Perk[]>;
+export function perkFor(hero:HeroId,id:string):Perk|null;

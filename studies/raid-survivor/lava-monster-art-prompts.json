@@ -1,0 +1,25 @@
+{
+  "tool": "Built-in image_gen.imagegen",
+  "transparent_background": true,
+  "notes": "Original game adaptations, not canonical NFT artwork. Generated PNGs copied unchanged with alpha.",
+  "assets": [
+    {
+      "key": "tosculi",
+      "prompt": "Use case: stylized-concept. Asset type: one transparent enemy sprite for Raid Survivor top-down retro pixel-art horde shooter. Original game adaptation of MonsterMaps sheet #3015: Tosculi Hive-Queen, Swarm of Tiny Undead, Tiny, Flame Breath, Sure-Footed, Leap. Draw ONE compact cluster of three tiny skeletal insect-like undead creatures under a distinctive crowned central hive queen, fused visually into one readable enemy silhouette. Dark bone and charcoal chitin, ivory skull masks, small glowing orange throats. Three-quarter top-down view facing RIGHT, full body centered with 12% transparent margins. Chunky 16-bit pixel art, hard square pixel clusters, crisp dark outlines, restrained warm highlights; readable when displayed at 48 pixels tall. No painted smooth gradients. True transparent background, no floor, no shadows outside silhouette, no text, no sheet/card, no border, no frames, no effects cloud. Not canonical NFT artwork; this is a new gameplay sprite based on the listed traits. Single pose only.",
+      "savedPath": "public/sprites/monsters/tosculi-3015.png",
+      "generatedFile": "exec-2377f321-a35d-4aba-97d3-3be8c2cf11b3.png"
+    },
+    {
+      "key": "sea-hag",
+      "prompt": "Use case: stylized-concept. Asset type: one transparent enemy sprite for Raid Survivor retro pixel-art top-down horde shooter. Original game adaptation of MonsterMaps sheet #5413 Sea Hag, Kryt of the Desert, Stout, Poison Breath and Flame Breath, Sure-Footed, Leap. Draw ONE squat stout uncanny hag-like reptilian monster with hunched shoulders, wide toad mouth, heavy bent hind legs and short clawed arms, jagged basalt-colored back plates, weathered sand-colored skin with muted purple scales, two small vivid pink eyes, throat split into ember-orange and poison-green luminous accents. No weapons or clothing necessary. Three-quarter top-down facing RIGHT, full body centered with 12% transparent margin. Chunky 16-bit pixel art, hard square pixel clusters and dark outline matching classic retro horde game enemies, readable at 64px tall. True transparent background. No ground, shadow outside body, smoke, particles, text, card, border, grid, multiple poses, blurred glow, smooth painted details. Not canonical NFT art, new gameplay adaptation.",
+      "savedPath": "public/sprites/monsters/seahag-5413.png",
+      "generatedFile": "exec-b4176eed-0180-4e3b-b149-414c36ff0858.png"
+    },
+    {
+      "key": "hezrou",
+      "prompt": "Use case: stylized-concept. Asset type: one transparent elite enemy sprite for Raid Survivor retro pixel-art top-down horde shooter. Original game adaptation of MonsterMaps sheet #3112 Hezrou, Colossal Fiend of the Dungeon, Fiery Greatsword, Devour, Hellish Rejuvenation, Slither. Draw ONE massive broad-shouldered horned fiend with an armored charcoal and dark red torso, a powerful coiled serpentine lower body, heavy pale curved horns, amber eyes, wide tusked jaw, wielding a gigantic jagged orange-hot greatsword angled upward at its right side. Distinct from a standing humanoid Moloch boss. The tail and sword fit within a compact square silhouette; total creature faces RIGHT in three-quarter top-down view. Full body, 12% transparent margin. Chunky 16-bit pixel art, crisp hard clusters and dark outline, readable at 100px tall. Keep fire confined to sword edge, no surrounding fire cloud. True transparent background, no scenery, ground shadow, text, frame, card, grid, extra poses, blur or smooth painting. New game adaptation, not canonical NFT art.",
+      "savedPath": "public/sprites/monsters/hezrou-3112.png",
+      "generatedFile": "exec-88355fac-e9a1-4260-901f-b8b1e3ae57f1.png"
+    }
+  ]
+}

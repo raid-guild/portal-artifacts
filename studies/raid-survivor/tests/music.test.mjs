@@ -45,6 +45,12 @@ function approvedEngine(context){
  return new Function('document','context',`${body}\nreturn makeEngine(context);`)(doc,context);
 }
 function digest(log){return crypto.createHash('sha256').update(log.join('\n')).digest('hex');}
+const jsonDigest=value=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const nonLavaBaseline={
+ forest:{pattern:'3a0dcabb7ac6c6d8fd02f01afcc86b46d64a63468e59f3ec7e612f398ac5275e',trace:'0fd03065cb953a999b7cfbf9dfab7e6c3acca824ba59dec7e41cfd4ea8e19ed3'},
+ desert:{pattern:'05e8e162ac7ff67649f282f7ae3dfcb310293e7b1e87ecfbe0a4d62337d31c44',trace:'c3300f0aef4345b3b621a8565658bb276d35c96c680c3b7c3fe6749e8b0e405c'},
+ ice:{pattern:'21f648ae10161faa5f1a0e8f9ca9173cacafa0e87d9a028bda32134e32a1414f',trace:'f020ef56ee7f19eb0def63edc77e9996d7d3ca45e9276a5b109389ea536bb900'},
+};
 
 test('approved standalone source stays byte identical',()=>{
  assert.equal(crypto.createHash('sha256').update(source).digest('hex'),approvedHash);
@@ -60,35 +66,54 @@ test('all 1024 steps produce the exact approved Web Audio event trace',()=>{
  assert.equal(current.log.length,old.log.length);
 });
 
-test('three authored 64-bar patterns are deterministic, finite, five-stem, and rhythmically distinct',()=>{
+test('four authored 64-bar patterns are deterministic, finite, five-stem, and rhythmically distinct',()=>{
  const signatures=new Set(),rhythms=new Set();
- for(const level of ['forest','desert','ice']){
+ for(const level of ['forest','desert','ice','lava']){
   const all=Array.from({length:LOOP_STEPS},(_,n)=>realmPattern(level,n));
   assert.deepEqual(all,Array.from({length:LOOP_STEPS},(_,n)=>realmPattern(level,n)));
   const stems=new Set(all.flat().map(event=>event.stem));assert.deepEqual([...stems].sort(),['air','arp','bass','drums','lead']);
-  for(const event of all.flat())for(const value of [event.pitch,event.duration,event.volume,event.cutoff,event.pan,event.send])if(value!==undefined)assert.ok(Number.isFinite(value));
+  for(const event of all.flat())for(const value of [event.pitch,event.duration,event.volume,event.cutoff,event.pan,event.send,event.attack])if(value!==undefined)assert.ok(Number.isFinite(value));
   assert.ok(all.filter(events=>events.some(event=>event.stem==='lead')).length<LOOP_STEPS/2,'lead has intentional rests');
   assert.ok(all.slice(16*16,32*16).flat().length!==all.slice(32*16,48*16).flat().length,'acts change texture');
   signatures.add(digest([JSON.stringify(all)]));
   rhythms.add(digest(all.map((events,n)=>`${n}:${events.map(event=>`${event.stem}/${event.kind}`).join(',')}`)));
   assert.equal(REALM_TRACKS[level].acts.length,4);
+  if(level!=='lava')assert.equal(jsonDigest(all),nonLavaBaseline[level].pattern,`${level} composition remains unchanged`);
  }
- assert.equal(signatures.size,3);assert.equal(rhythms.size,3,'different rhythms, not transpositions');
+ assert.equal(signatures.size,4);assert.equal(rhythms.size,4,'different rhythms, not transpositions');
 });
 
 test('new engines schedule all bars, release voice chains and buses, and reject use after stop',async()=>{
  const signatures=new Set();
- for(const level of ['forest','desert','ice']){
+ for(const level of ['forest','desert','ice','lava']){
   const {context,log}=fakeContext(),engine=makeRealmMusicEngine(context,level,38),step=60/REALM_TRACKS[level].bpm/4;
   for(let n=0;n<LOOP_STEPS;n++)engine.schedule(n,.1+n*step);
   assert.ok(engine.voiceCount()>0);
   signatures.add(digest(log));
+  if(level!=='lava')assert.equal(jsonDigest(log),nonLavaBaseline[level].trace,`${level} engine events remain unchanged`);
   await engine.stop();assert.equal(engine.voiceCount(),0);
   assert.ok(log.some(event=>event.endsWith('.disconnect')));
   assert.throws(()=>engine.schedule(0,200),/stopped/);
  }
- assert.equal(signatures.size,3);
+ assert.equal(signatures.size,4);
  const legacy=makeVaultRunnerEngine(fakeContext().context);legacy.schedule(0,.1);await legacy.stop();assert.equal(legacy.voiceCount(),0);assert.throws(()=>legacy.schedule(1,.2),/stopped/);
+});
+
+test('Molten Crown is a sparse C Phrygian/diminished descent with bounded voices and a four-bar C pedal',()=>{
+ assert.deepEqual(REALM_TRACKS.lava,{title:'Molten Crown',bpm:104,key:'C Phrygian / diminished',acts:['Ash Gate','Hollow Furnace',"Moloch's Shadow",'Final Descent']});
+ const all=Array.from({length:LOOP_STEPS},(_,n)=>realmPattern('lava',n)),events=all.flat();
+ assert.equal(events.length,446,'sparse full-loop event budget');
+ assert.ok(events.filter(x=>x.stem==='drums').every(x=>x.kind==='kick'),'heartbeat has no busy hat, backbeat, or fill');
+ assert.ok(events.filter(x=>x.stem==='bass').every(x=>[31,36,37].includes(x.pitch)));
+ const pads=events.filter(x=>x.stem==='air'&&x.attack!==undefined);assert.equal(pads.length,80);
+ assert.ok(pads.every(x=>x.attack>=.7&&x.attack<=1.1&&x.cutoff>=450&&x.cutoff<=750&&x.duration>x.attack));
+ for(let bar=3;bar<64;bar+=4){const pedal=all[bar*16+8];assert.ok(pedal.some(x=>x.stem==='bass'&&x.pitch===36));assert.ok(pedal.some(x=>x.stem==='air'&&x.pitch===48));}
+ const step=60/104/4,timeline=[];for(let n=0;n<all.length;n++)for(const event of all[n]){const t=n*step,d=event.kind==='note'?(event.duration??.18)+.02:.31;timeline.push([t,1],[t+d,-1]);}
+ timeline.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);let voices=0,peak=0;for(const [,delta] of timeline){voices+=delta;peak=Math.max(peak,voices);}assert.ok(peak<=8,`peak scheduled voices ${peak}`);
+ const {context,log}=fakeContext(),engine=makeRealmMusicEngine(context,'lava');engine.schedule(0,.1);
+ assert.ok(log.some(row=>row.endsWith('.exp:0.018:1.05')),'first pad uses a 0.95-second attack');
+ assert.ok(log.some(row=>row.endsWith('.frequency=1200')),'shared Lava delay is lowpassed');
+ assert.ok(log.some(row=>row.endsWith('.gain=0.3'))&&log.some(row=>row.endsWith('.gain=0.2'))&&log.some(row=>row.endsWith('.gain=0.17')),'Lava FX use the approved mix');
 });
 
 test('music transport has one context and interval across starts, mute, hide and restore',async()=>{

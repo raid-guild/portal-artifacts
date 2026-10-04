@@ -6,7 +6,7 @@ const result = await build({ entryPoints:['src/game.ts'],bundle:true,platform:'n
 const { Game, ENEMY_CAP } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`);
 
 test('three heroes start with distinct primary weapons',()=>{
-  assert.deepEqual(['ranger','wizard','dwarf'].map(h=>new Game(h).slots[0]),['thornbow','arcwand','scattergun']);
+  assert.deepEqual(['ranger','wizard','dwarf'].map(h=>new Game(h).slots[0]),['thornbow','arcwand','runeaxes']);
 });
 test('forest begins with a real elemental choice and class mastery applies only at construction',()=>{
   const g=new Game('ranger','forest',{vitality:1,agility:1,bombRecharge:1});
