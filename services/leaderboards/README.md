@@ -131,10 +131,28 @@ static game continues with local scores. The current services are
 `portal-artifact-leaderboards` and `Tapper-Postgres` in the RaidGuild Playground
 production project, and `portal-artifacts` in DarkFactory production.
 
+### Upgrading an existing version 1 deployment
+
+Keep the registered Portal module, launch secret, callback, and proxy settings.
+In a coordinated deployment window, run the additive schema migration as an
+administrator, grant the restricted runtime role SELECT/INSERT/UPDATE/DELETE on
+`artifact_leaderboards.raid_profiles`, then deploy the updated API and static
+game. The new API accepts completion of in-flight version 1 Raid runs for the
+remainder of their two-hour lifetime; it starts only version 2 runs. Version 1
+scores remain visible on the Legacy board. If the API is rolled back during an
+active version 2 run, the old API cannot finish that run or save its checkpoint
+progress. Preserve the new columns and profile table during rollback so scores
+and progress already saved remain intact. This repository change does not run
+the production migration or deploy services.
+
+### Initial installation
+
 1. With administrator database credentials, run the updated `npm run migrate`
-   against Tapper-Postgres. This adds nullable `artifact_leaderboards.runs.details`
-   as JSONB; it is safe to run again and leaves existing Cosmic runs intact. The
-   runtime role already needs CRUD on `runs` and need not receive DDL rights.
+   against Tapper-Postgres. This adds nullable `runs.details`, `runs.run_config`,
+   and `runs.progress` JSONB columns plus `artifact_leaderboards.raid_profiles`.
+   It is safe to run again and leaves existing Cosmic runs intact. Grant the
+   runtime role CRUD on `raid_profiles` as well as its existing tables; it does
+   not need DDL rights.
 2. Generate a unique random secret of at least 32 characters. Set the same value
    as `RAID_SURVIVOR_LAUNCH_SECRET` on the backend Railway service and Portal.
    Keep `COSMIC_LAUNCH_SECRET` and all existing variables. Deploy the backend
@@ -158,12 +176,22 @@ production project, and `portal-artifacts` in DarkFactory production.
    audience `raid-survivor`, dedicated secret key, 120-second token lifetime,
    and handle/profile claims only. Test a Portal launch and a submitted run.
 
-Raid's finish body is `{version:"1",character,durationMs,stats}` with integer
-`kills`, `elites`, `bosses`, `chests`, and `level`. The server derives score
-from the game's rules, stores canonical counters in `details`, and returns public
-entries containing only `displayName`, `score`, `character`, `kills`, and
-`durationMs`. A player may start 60 Raid runs per hour regardless of Cosmic
-starts. The same two-hour run lifetime and transaction controls apply.
+Raid version 2 starts a run with `{version:"2",character,level}`. Level is
+`training`, `forest`, `desert`, or `ice`. Checkpoints use cumulative `{durationMs,kills,monsters}`;
+each monster has `encountered`, `kills`, and `counterKills` counters. The server
+validates monotonic counters and elapsed wall time, then grants a class's
+Training milestone at 180 seconds, Forest at 300, Desert at 420, or Ice at 540
+once per class. Each of the first three milestones unlocks the next realm.
+Class skills cost one milestone credit per rank, are capped at two ranks per
+skill, and are captured when a new run starts. Mastery purchases include
+`{character,skill,rank,expectedRevision}`; exact retries are idempotent. The finish body
+includes the same final checkpoint and canonical kill/level statistics. The
+server derives the score, preserving the original scoring formula in all realms.
+Public boards accept `?level=all|training|forest|desert|ice|legacy`; `legacy` contains
+version 1 Raid scores. A player may start 60 Raid runs per hour regardless of
+Cosmic starts. A renewed Portal session for the same account can finish its own
+run during the two-hour lifetime. Guests store progression and scores locally;
+guest progression does not merge into a Portal account.
 
 If ranked setup must be rolled back, set the Raid module to guest launch or
 remove the Raid secret from the backend. Local play and Cosmic ranked scores

@@ -28,6 +28,24 @@ test('60Hz drawing ceiling preserves elapsed presentation time across refresh ra
   }
 });
 
+test('near-60Hz RAF jitter draws every callback instead of alternating at 30 FPS',()=>{
+  for(const steps of [[.016,.017333333333333333],[1/59.94],[1/60-.0007,1/60+.0003,1/60+.0007,1/60-.0003]]){
+    const cadence=new RenderCadence();let draws=0,total=0,wall=0,lastDraw=0,maxDrawGap=0;
+    for(let i=0;i<600;i++){const dt=steps[i%steps.length];wall+=dt;const elapsed=cadence.advance(dt);if(elapsed!==null){draws++;total+=elapsed;maxDrawGap=Math.max(maxDrawGap,wall-lastDraw);lastDraw=wall;}}
+    assert.ok(draws>=598,`draws ${draws} for ${steps}`);
+    assert.ok(maxDrawGap<.034,`gap ${maxDrawGap}`);
+    assert.ok(Math.abs(total-wall)<1e-8,'all real presentation time delivered');
+  }
+});
+
+test('a real 80ms hitch renders once, passes through elapsed time, and reset clears cadence',()=>{
+  const cadence=new RenderCadence();assert.equal(cadence.advance(1/60),1/60);
+  assert.equal(cadence.advance(.08),.08,'one draw for one callback');
+  const next=cadence.advance(1/60);assert.equal(next,1/60);
+  cadence.reset();assert.equal(cadence.advance(1/120),null);
+  assert.ok(cadence.advance(1/120)!==null);
+});
+
 test('GPU transfers only populated instance prefixes after shrinking and growing',()=>{
   const mesh=new InstancedMesh(new PlaneGeometry(1,1),new MeshBasicMaterial(),2400);
   mesh.setColorAt(0,new Color());

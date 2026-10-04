@@ -1,0 +1,15 @@
+export const RAID_VERSION: string;
+export const LEVELS: Record<'training'|'forest'|'desert'|'ice', {id:string;name:string;milestoneMs:number;unlocks:string|null;scoreMultiplier:number}>;
+export const HERO_IDS: readonly string[];
+export const SKILLS: readonly string[];
+export const MONSTERS_CHAIN_ID: number;
+export const MONSTERS_CONTRACT: string;
+export const MONSTERS: Record<'rageipede'|'xorn'|'efreeti'|'deathwisp'|'buraq'|'chuul'|'dogmole', {realm:'forest'|'desert'|'ice';tokenId:number;name:string;size:string;alignment:string;actions:string;ability:string;weakness:string;locomotion:string;language:string}>;
+export function emptyProfile(): any;
+export function normalizeProfile(value:any): any;
+export function credits(profile:any, hero:string): number;
+export function purchase(profile:any, hero:string, skill:string, expectedRevision:number, rank?:number): any;
+export function monsterStage(record:any): number;
+export function validateRunConfig(body:any, profile:any): any;
+export function validateMonsterProgress(value:any, previous?:any): any;
+export function applyProgress(profile:any, config:any, progress:any, previous?:any): {profile:any;progress:any};

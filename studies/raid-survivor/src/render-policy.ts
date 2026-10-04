@@ -16,8 +16,11 @@ export class RenderCadence {
   advance(dt: number): number | null {
     this.carry += dt; this.elapsed += dt;
     const period = 1 / 60;
-    if (this.carry + 1e-9 < period) return null;
-    this.carry = Math.max(0, this.carry - Math.floor((this.carry + 1e-9) / period) * period);
+    // Browser RAF timestamps commonly alternate just below/above 16.67 ms.
+    // Allow a small early draw and retain its negative remainder so the next
+    // callback pays back the borrowed time without falling to 30 FPS.
+    if (this.carry < period - .00125) return null;
+    this.carry = this.carry >= period * 2 ? this.carry % period : this.carry - period;
     const elapsed = this.elapsed; this.elapsed = 0;
     return elapsed;
   }

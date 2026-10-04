@@ -24,3 +24,11 @@ CREATE INDEX IF NOT EXISTS runs_ranking ON artifact_leaderboards.runs (game, ver
 CREATE INDEX IF NOT EXISTS runs_player_started ON artifact_leaderboards.runs (player_id, started_at);
 
 ALTER TABLE artifact_leaderboards.runs ADD COLUMN IF NOT EXISTS details jsonb;
+ALTER TABLE artifact_leaderboards.runs ADD COLUMN IF NOT EXISTS run_config jsonb;
+ALTER TABLE artifact_leaderboards.runs ADD COLUMN IF NOT EXISTS progress jsonb;
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.raid_profiles (
+  player_id bigint PRIMARY KEY REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  profile jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS raid_runs_level_ranking ON artifact_leaderboards.runs (game,version,(run_config->>'level'),score DESC,submitted_at,id) WHERE submitted_at IS NOT NULL;
