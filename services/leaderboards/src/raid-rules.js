@@ -37,7 +37,7 @@ function deriveUnlocks(profile,oldUnlocked=[]) {
   const reached=(level,seconds)=>HERO_IDS.some(hero=>profile.checkpoints[level][hero].includes(`${level}-${seconds}`));
   if(reached('training',180))unlocked.add('forest');
   if(reached('training',300))heroes.add('warrior');
-  if(reached('forest',300))unlocked.add('desert');
+  if(reached('forest',300)){unlocked.add('desert');heroes.add('rogue');}
   if(reached('forest',420))heroes.add('tavern-keeper');
   if(reached('desert',420))unlocked.add('ice');
   if(reached('ice',540))unlocked.add('lava');
@@ -52,6 +52,7 @@ export function normalizeProfile(value) {
   if(!value || typeof value!=='object' || ![2,3].includes(value.schemaVersion))return result;
   result.revision=Number.isSafeInteger(value.revision)&&value.revision>=0?value.revision:0;
   for(const level of levels)for(const hero of HERO_IDS){
+    if(value.schemaVersion===2&&!['ranger','wizard','dwarf'].includes(hero))continue;
     const valid=new Set(CHECKPOINTS[level].map(row=>row.checkpointId));
     if(value.schemaVersion===3 && Array.isArray(value.checkpoints?.[level]?.[hero]))
       result.checkpoints[level][hero]=[...new Set(value.checkpoints[level][hero].filter(id=>valid.has(id)))];
@@ -59,6 +60,7 @@ export function normalizeProfile(value) {
       result.checkpoints[level][hero].unshift(CHECKPOINTS[level][0].checkpointId);
   }
   for(const hero of HERO_IDS)for(const skill of SKILLS){
+    if(value.schemaVersion===2&&!['ranger','wizard','dwarf'].includes(hero))continue;
     const rank=value.skills?.[hero]?.[skill];
     result.skills[hero][skill]=Number.isSafeInteger(rank)&&rank>=0&&rank<=2?rank:0;
   }
@@ -69,7 +71,7 @@ export function normalizeProfile(value) {
     if(result.perks[hero].includes(selected))result.equippedPerk[hero]=selected;
   }
   if(Array.isArray(value.purchases))result.purchases=value.purchases.filter(row=>
-    HERO_IDS.includes(row?.hero)&&Number.isSafeInteger(row?.expectedRevision)&&row.expectedRevision>=0&&
+    HERO_IDS.includes(row?.hero)&&(value.schemaVersion===3||['ranger','wizard','dwarf'].includes(row?.hero))&&Number.isSafeInteger(row?.expectedRevision)&&row.expectedRevision>=0&&
     ((SKILLS.includes(row.skill)&&[1,2].includes(row.rank))||!!perkFor(row.hero,row.perkId))
   ).slice(-128).map(row=>({...row}));
   if(Array.isArray(value.equips))result.equips=value.equips.filter(row=>

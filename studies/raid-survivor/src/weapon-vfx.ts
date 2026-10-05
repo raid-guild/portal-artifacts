@@ -1,12 +1,12 @@
 import {WEAPONS, type Effect, type Projectile} from './game';
 
-export type ProjectileVisual = 'arrow'|'arc-bolt'|'rune-pellet'|'tankard'|'briar-fragment'|'rune-axe'|'generic';
+export type ProjectileVisual = 'arrow'|'arc-bolt'|'rune-pellet'|'tankard'|'briar-fragment'|'rune-axe'|'spirit-lantern'|'twin-dagger'|'generic';
 export function projectileVisual(p:Pick<Projectile,'kind'|'bombFragment'>):ProjectileVisual {
   if(p.bombFragment)return 'briar-fragment';
-  return p.kind==='thornbow'?'arrow':p.kind==='arcwand'?'arc-bolt':p.kind==='scattergun'?'rune-pellet':p.kind==='runeaxes'?'rune-axe':p.kind==='tankard'?'tankard':'generic';
+  return p.kind==='thornbow'?'arrow':p.kind==='arcwand'?'arc-bolt':p.kind==='scattergun'?'rune-pellet':p.kind==='runeaxes'?'rune-axe':p.kind==='tankard'?'tankard':p.kind==='spiritlantern'?'spirit-lantern':p.kind==='twindaggers'?'twin-dagger':'generic';
 }
-const CELL=64, SLOTS=16, DIRECTIONS=32;
-const slots:Record<ProjectileVisual,number>={arrow:0,'arc-bolt':1,'rune-pellet':2,tankard:3,'briar-fragment':4,'rune-axe':5,generic:6};
+const CELL=64, SLOTS=18, DIRECTIONS=32;
+const slots:Record<ProjectileVisual,number>={arrow:0,'arc-bolt':1,'rune-pellet':2,tankard:3,'briar-fragment':4,'rune-axe':5,'spirit-lantern':6,'twin-dagger':7,generic:8};
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 
 /** One tiny atlas, prepared once. Draws are deterministic and never touch combat state. */
@@ -34,7 +34,9 @@ export class WeaponVfx {
     for(let i=0;i<5;i++)cell(6+i,()=>{const arc=(100+i*5)*Math.PI/180;c.strokeStyle='#bb773d';c.lineWidth=9;c.beginPath();c.arc(32,32,25,-arc/2,arc/2);c.stroke();c.strokeStyle='#e5f5f3';c.lineWidth=5;c.beginPath();c.arc(32,32,28,-arc/2,arc/2);c.stroke();c.strokeStyle='#fff8d0';c.lineWidth=2;c.beginPath();c.arc(32,32,30,-arc/2,arc/2);c.stroke();});
     for(let i=0;i<4;i++)cell(11+i,()=>{const r=8+i*5;for(let k=0;k<8;k++){const a=k*Math.PI/4;const x=32+Math.cos(a)*r,y=32+Math.sin(a)*r;c.fillStyle=k%2?'#ffecc2':'#d89a43';const size=7-i;c.fillRect(Math.round(x-size/2),Math.round(y-size/2),size,size);}if(i<2){c.fillStyle='#fff6d9';c.fillRect(26,27,12,10);}});
     cell(15,()=>{c.fillStyle='#50302b';c.fillRect(8,28,42,9);c.fillStyle='#db9a52';c.fillRect(10,30,39,5);polygon([[40,18],[53,12],[60,26],[55,32],[60,38],[53,52],[40,46],[45,32]],'#e5edf1');polygon([[44,20],[52,17],[56,27],[50,32],[56,37],[52,47],[44,44],[48,32]],'#8a91ad');c.fillStyle='#f9d778';c.fillRect(46,28,7,8);c.fillStyle='#f8edcc';c.fillRect(11,27,5,11);});
-    this.directions.width=CELL*DIRECTIONS;this.directions.height=CELL*6;this.cacheDirections();
+    cell(16,()=>{polygon([[7,32],[22,17],[42,17],[56,32],[42,47],[22,47]],'#3f7c79');polygon([[12,32],[25,21],[39,21],[51,32],[39,43],[25,43]],'#a9ffe3');c.fillStyle='#f5fff2';c.fillRect(28,24,8,16);c.fillRect(24,28,16,8);});
+    cell(17,()=>{polygon([[5,31],[44,26],[60,32],[44,38]],'#c9c4bd');polygon([[29,29],[49,28],[56,32],[49,36],[29,35]],'#fff2e4');c.fillStyle='#a93551';c.fillRect(6,27,17,10);c.fillStyle='#f0889c';c.fillRect(17,30,11,4);});
+    this.directions.width=CELL*DIRECTIONS;this.directions.height=CELL*8;this.cacheDirections();
     this.ready=new Promise(resolve=>{this.finishLoad=resolve;});
     const image=this.image=new Image();
     image.onload=()=>{
@@ -54,10 +56,10 @@ export class WeaponVfx {
   }
   private cacheDirections(onlySlot?:number){
     const c=this.directions.getContext('2d')!;
-    for(let slot=onlySlot??0;slot<=(onlySlot??5);slot++)for(let i=0;i<DIRECTIONS;i++){
-      const aspect=slot===0?.62:slot===1?.65:slot===4?8/13:slot===5?.8:1;
+    for(let slot=onlySlot??0;slot<=(onlySlot??7);slot++)for(let i=0;i<DIRECTIONS;i++){
+      const aspect=slot===0?.62:slot===1?.65:slot===4?8/13:slot===5?.8:slot===7?.45:1;
       c.clearRect(i*CELL,slot*CELL,CELL,CELL);c.save();c.translate(i*CELL+CELL/2,slot*CELL+CELL/2);c.rotate(i*Math.PI*2/DIRECTIONS);c.imageSmoothingEnabled=false;
-      c.drawImage(this.atlas,(slot===5?15:slot)*CELL,0,CELL,CELL,-CELL/2,-CELL*aspect/2,CELL,CELL*aspect);c.restore();
+      c.drawImage(this.atlas,(slot===5?15:slot===6?16:slot===7?17:slot)*CELL,0,CELL,CELL,-CELL/2,-CELL*aspect/2,CELL,CELL*aspect);c.restore();
     }
   }
   private releaseImage(){if(this.image){this.image.onload=this.image.onerror=null;this.image=null;}this.finishLoad?.();this.finishLoad=null;}
@@ -65,6 +67,8 @@ export class WeaponVfx {
     if(this.dead)return;
     const visual=projectileVisual(p),slot=slots[visual];let width:number,height:number;
     if(visual==='arrow'){width=clamp(scale*1.05,20,34);height=width*.62;}
+    else if(visual==='spirit-lantern'){width=height=clamp(scale*1.15,20,32);}
+    else if(visual==='twin-dagger'){width=clamp(scale*.95,18,29);height=width*.45;}
     else if(visual==='rune-axe'){width=height=clamp(scale*1.4,22,38);}
     else if(visual==='tankard'){width=height=clamp(scale*1.3,22,32);}
     else if(visual==='arc-bolt'){width=clamp(p.radius*scale*6,24,40);height=width*.65;}
@@ -74,7 +78,7 @@ export class WeaponVfx {
     const angle=Math.atan2(-p.vy,p.vx)+((visual==='tankard'||visual==='rune-axe')&&!reducedMotion?elapsed*10:0);
     // Performance mode keeps the same silhouettes using small fills for the high-volume shots.
     // Tankards keep their artwork; their slow fire rate makes image drawing inexpensive.
-    if(_lean&&visual!=='tankard'&&visual!=='rune-axe'&&visual!=='generic'){
+    if(_lean&&visual!=='tankard'&&visual!=='rune-axe'&&visual!=='spirit-lantern'&&visual!=='twin-dagger'&&visual!=='generic'){
       c.save();c.translate(x,y);c.rotate(angle);c.shadowBlur=0;
       if(visual==='arrow'){
         c.fillStyle='#c09052';c.fillRect(-width*.75,-1,width*.55,2);
@@ -93,6 +97,7 @@ export class WeaponVfx {
       const cachedAngle=index*Math.PI*2/DIRECTIONS,anchor=visual==='arrow'?width*26/64:0;
       const smoothing=c.imageSmoothingEnabled,shadow=c.shadowBlur;c.imageSmoothingEnabled=false;c.shadowBlur=0;
       if(visual==='rune-axe'&&p.runeGold){c.save();c.translate(x,y);c.rotate(Math.atan2(-p.vy,p.vx));c.fillStyle='rgba(255,216,119,.65)';c.fillRect(-width*1.1,-2,width*.75,4);c.fillStyle='rgba(255,240,177,.85)';c.fillRect(-width*.65,-1,width*.3,2);c.restore();}
+      if(visual==='twin-dagger'&&p.damage>=34){c.save();c.translate(x,y);c.rotate(Math.atan2(-p.vy,p.vx));c.fillStyle='rgba(227,42,84,.65)';c.fillRect(-width*1.25,-2,width*.85,4);c.restore();}
       c.drawImage(this.directions,index*CELL,slot*CELL,CELL,CELL,x-width/2-Math.cos(cachedAngle)*anchor,y-width/2-Math.sin(cachedAngle)*anchor,width,width);
       c.imageSmoothingEnabled=smoothing;c.shadowBlur=shadow;return;
     }

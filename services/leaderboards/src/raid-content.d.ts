@@ -1,4 +1,4 @@
-export type HeroId='ranger'|'wizard'|'dwarf'|'warrior'|'tavern-keeper';
+export type HeroId='ranger'|'wizard'|'dwarf'|'warrior'|'tavern-keeper'|'healer'|'rogue';
 export type LevelId='training'|'forest'|'desert'|'ice'|'lava';
 export type SkillId='vitality'|'agility'|'bombRecharge';
 export type Checkpoint={checkpointId:string;thresholdMs:number};

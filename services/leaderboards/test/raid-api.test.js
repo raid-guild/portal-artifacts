@@ -241,6 +241,16 @@ test('two concurrent v3 runs snapshot one target; one account award survives ret
   assert.deepEqual((await retry.json()).profile.checkpoints.training.ranger,['training-180']);
 });
 
+test('Healer starts immediately and retroactive Forest credit unlocks Rogue ranked starts',async()=>{
+  const {cookie}=await launch();
+  const healer=await post('/runs',cookie,{version:VERSION,character:'healer',level:'training'});assert.equal(healer.status,201);
+  assert.equal((await post('/runs',cookie,{version:VERSION,character:'rogue',level:'training'})).status,400);
+  const accountId=(await (await fetch(base+'/session',{headers:{Cookie:cookie}})).json()).accountId;
+  const profile=(await healer.json()).profile;profile.unlockedHeroes=['ranger','wizard','dwarf'];profile.checkpoints.forest.wizard=['forest-300'];
+  await pool.query('UPDATE artifact_leaderboards.raid_profiles SET profile=$2 WHERE player_id=$1',[accountId,profile]);
+  const rogue=await post('/runs',cookie,{version:VERSION,character:'rogue',level:'training'});assert.equal(rogue.status,201);const body=await rogue.json();assert.equal(body.config.character,'rogue');assert.ok(body.profile.unlockedHeroes.includes('rogue'));assert.ok(body.profile.unlockedHeroes.includes('healer'));
+});
+
 test('v3 perk purchases and equip are revision safe, idempotent, and frozen per run',async()=>{
   const {cookie}=await launch();const initial=await (await post('/runs',cookie,config)).json();
   const accountId=(await (await fetch(base+'/session',{headers:{Cookie:cookie}})).json()).accountId;

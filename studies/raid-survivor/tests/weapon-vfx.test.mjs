@@ -14,6 +14,7 @@ const shot=(kind='tankard')=>Object.freeze({kind,vx:3,vy:4,radius:.3});
 test('visuals follow weapon identity and bomb fragments keep their own appearance',()=>{
   assert.deepEqual(['thornbow','arcwand','scattergun','runeaxes','tankard','comet'].map(kind=>projectileVisual({kind})),['arrow','arc-bolt','rune-pellet','rune-axe','tankard','generic']);
   assert.equal(projectileVisual({kind:'thornbow',bombFragment:true}),'briar-fragment');
+  assert.deepEqual(['spiritlantern','twindaggers'].map(kind=>projectileVisual({kind})),['spirit-lantern','twin-dagger']);
 });
 test('fallback and loaded artwork share a bounded cache; drawing never allocates images or consumes randomness',async()=>{
   const f=fixture(),v=new WeaponVfx('mug.png'),c=f.context();
@@ -50,4 +51,9 @@ test('Rune Axes use one cached atlas draw in either graphics mode, including ran
   assert.equal(f.draws.length,2);assert.equal(f.canvases.length,canvases);assert.equal(f.images.length,images);
   assert.ok(f.draws.every(args=>args[0]===v.directions),'both modes draw the cached directional axe');
   v.dispose();
+});
+test('Lantern and dagger use cached silhouettes in both graphics modes',()=>{
+  const f=fixture(),v=new WeaponVfx('mug.png'),c=f.context(),canvases=f.canvases.length,images=f.images.length;f.draws.length=0;
+  for(const kind of ['spiritlantern','twindaggers'])for(const lean of [true,false])v.drawProjectile(c,{...shot(kind),damage:34},50,60,26,1,false,lean);
+  assert.equal(f.draws.length,4);assert.ok(f.draws.every(args=>args[0]===v.directions));assert.equal(f.canvases.length,canvases);assert.equal(f.images.length,images);v.dispose();
 });
