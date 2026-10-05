@@ -110,7 +110,17 @@ Goatman rig, a long-slide bowling scene, and the original drop/stairs experiment
 Tests, editable Blender source, and regeneration instructions live in
 `studies/ragdoll-lab/`; its `dist` symlink points to the canonical public source.
 
+## Powder study
+
+`public/powder-study/` is a standalone Three.js falling-sand study with
+reactive materials and branching plant growth. The `studies/powder-study/dist`
+symlink points to the canonical published source; its README covers local
+preview, controls, source provenance, and simulation tests.
+
 ## Published artifacts
+
+- `powder-study/` — Interactive particle world with paintable sand, water,
+  fire, acid, seeds, and four experiment presets.
 
 - `jelly-garden/` — Cute interactive soft-body creatures with safe stretching,
   springy landings, and controls for softness, damping, gravity, and mesh view.
