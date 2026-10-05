@@ -1,0 +1,20 @@
+{
+  "cell": {
+    "w": 54,
+    "h": 68
+  },
+  "names": [
+    "idle-down",
+    "idle-up",
+    "idle-left",
+    "idle-right",
+    "attack-down",
+    "attack-up",
+    "attack-left",
+    "attack-right",
+    "frozen",
+    "disconnected"
+  ],
+  "source": "assets-src/characters/rogue-redhood.png",
+  "notes": "One generated pose; mirrored left facing, same idle/attack pose. Nearest-neighbor packed to 54x68 cells."
+}

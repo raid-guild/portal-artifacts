@@ -1,7 +1,7 @@
 export const RAID_VERSION = '3';
 export const LEGACY_RAID_VERSION = '2';
-export const HERO_IDS = Object.freeze(['ranger','wizard','dwarf','warrior','tavern-keeper']);
-export const STARTER_HERO_IDS = Object.freeze(['ranger','wizard','dwarf']);
+export const HERO_IDS = Object.freeze(['ranger','wizard','dwarf','healer','warrior','tavern-keeper','rogue']);
+export const STARTER_HERO_IDS = Object.freeze(['ranger','wizard','dwarf','healer']);
 export const SKILLS = Object.freeze(['vitality','agility','bombRecharge']);
 export const LEVELS = Object.freeze({
   training: Object.freeze({id:'training',name:'Guild Training',milestoneMs:180000,unlocks:'forest',scoreMultiplier:1}),
@@ -36,7 +36,7 @@ const perk=(id,name,description,effect)=>Object.freeze({id,name,description,cost
 export const PERKS=Object.freeze({
   ranger:Object.freeze([
     perk('ranger-thorn-precision','Thorn Precision','Thornbow deals 15% more beyond 6 units.',{primaryDamageMultiplier:1.15,primaryDamageCondition:'range>6'}),
-    perk('ranger-scout-dash','Scout Dash','Dashing pulls loot farther for 2 seconds.',{dashMagnetSeconds:2,pickupMagnetBonus:1.5}),
+    perk('ranger-scout-dash','Scout Dash','Dashing pulls XP and treasure farther for 2 seconds.',{dashMagnetSeconds:2,pickupMagnetBonus:1.5}),
     perk('ranger-focused-barrage','Focused Barrage','Narrower bomb wave with 45% more damage.',{bombDamageMultiplier:1.45,bombRadiusMultiplier:.7}),
   ]),
   wizard:Object.freeze([
@@ -58,6 +58,16 @@ export const PERKS=Object.freeze({
     perk('tavern-fire-mastery','Fire Mastery','Tankard deals 15% more below half health.',{primaryDamageMultiplier:1.15,primaryDamageCondition:'hp<50%'}),
     perk('tavern-hearty-meal','Hearty Meal','Food restores 50% more health.',{foodHealMultiplier:1.5}),
     perk('tavern-healing-bomb','Healing Bomb','Bomb heals up to 25 health with reduced damage.',{bombHeal:25,bombDamageMultiplier:.65}),
+  ]),
+  healer:Object.freeze([
+    perk('healer-guiding-light','Guiding Light','Spirit Lantern deals 15% more below half health.',{primaryDamageMultiplier:1.15,primaryDamageCondition:'hp<50%'}),
+    perk('healer-pilgrim-step','Pilgrim Step','Sanctuary grants 15% movement speed for 2 seconds.',{bombSpeedSeconds:2,bombSpeedMultiplier:1.15}),
+    perk('healer-gentle-sanctuary','Gentle Sanctuary','Sanctuary heals 20 health total with 25% less damage.',{bombHeal:20,bombDamageMultiplier:.75}),
+  ]),
+  rogue:Object.freeze([
+    perk('rogue-hunters-edge',"Hunter's Edge",'Twin Daggers deal 15% more to elites and bosses.',{primaryDamageMultiplier:1.15,primaryDamageCondition:'elite-or-boss'}),
+    perk('rogue-forager-dash','Forager Dash','Dashing pulls XP and treasure farther for 2 seconds.',{dashMagnetSeconds:2,pickupMagnetBonus:1.5}),
+    perk('rogue-crimson-burst','Crimson Burst','Scarlet Veil deals 35% more damage in a tighter radius.',{bombDamageMultiplier:1.35,bombRadiusMultiplier:.8}),
   ]),
 });
 export const perkFor=(hero,id)=>PERKS[hero]?.find(perk=>perk.id===id)??null;

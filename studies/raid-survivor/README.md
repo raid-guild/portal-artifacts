@@ -30,9 +30,9 @@ audition each loop and run an offline four-bar boundary check.
 
 ## Checkpoint progression
 
-Each run starts in one selected realm. Five heroes can be selected from a roster:
-Ranger, Wizard, Dwarf, Warrior, and Tavern Keeper. Warrior unlocks after the
-Training 05:00 checkpoint; Tavern Keeper after Forest 07:00. Molten Vault stays
+Each run starts in one selected realm. Seven heroes can be selected from a roster:
+Ranger, Wizard, Dwarf, and Healer start available. Warrior unlocks after
+Training 05:00, Rogue after Forest 05:00, and Tavern Keeper after Forest 07:00. Molten Vault stays
 hidden until Ice 09:00.
 
 The next unclaimed checkpoint for that hero and realm is fixed when a run starts.
@@ -41,7 +41,7 @@ run awards only its first eligible checkpoint. The next target requires a new
 run. Checkpoint ladders are Training 03:00/05:00/07:00/09:00/12:00, Forest
 05:00/07:00/09:00/12:00, Desert 07:00/09:00/12:00, Ice 09:00/12:00, and
 Molten Vault 12:00. Training 03:00 unlocks Forest; Forest 05:00 unlocks
-Desert; Desert 07:00 unlocks Ice. A claimed 12:00 target masters that realm
+Desert and Rogue; Desert 07:00 unlocks Ice. A claimed 12:00 target masters that realm
 for the hero; Molten Vault 12:00 grants class mastery. Surviving 12 minutes
 allows score banking or endless play regardless of the current checkpoint.
 
@@ -50,6 +50,13 @@ granting +5% starting health, +3% speed, or 5% faster bomb recharge. Each
 hero also has three perks at three credits each; one purchased perk can be
 equipped per run. Skills, perk, and checkpoint target are snapshotted at run
 start and never change during active play.
+
+Ordinary food first drops from an eligible kill after 12 seconds, then at most
+once every 22 seconds before 03:00 or every 30 seconds afterward. Only two
+food pickups may be on the ground at once; each lasts 25 seconds and restores
+18 health. Food has a fixed short 1.25-unit pull, so magnet upgrades and dash
+magnet perks extend XP and treasure reach without collecting distant food.
+The Tavern Keeper's Hearty Meal perk still raises food healing to 27.
 
 The Monster Book tracks Rageipede #315, Xorn #3421, Efreeti #8883, Deathwisp
 #1201, Buraq #83, Chuul #9189, and Dogmole #8965 from
@@ -245,6 +252,17 @@ inward as they fly. Damage rises from 24 to 36, flight life from 0.68 to
 `dwarf-scatter-mastery` saved perk ID displays as Rune Mastery and applies to
 the new primary weapon. The development weapon gallery shows real rank-one
 and rank-five curved volleys alongside the other weapon art.
+
+Healer starts with Spirit Lantern (0.52-second cooldown), whose rank-four and
+rank-five volleys fire two piercing spirits. Lantern kills while injured can
+leave a healing wisp: at most one every six seconds, three live at once. Wisps
+last 12 seconds, stay where they spawn, and restore up to four health when
+collected. Sanctuary heals 12 health once and clears nearby enemy shots.
+Rogue's Twin Daggers alternate between hands every 0.32 seconds; later ranks
+pierce one or two targets. Scarlet Veil deals bomb damage and grants one second
+of ordinary invulnerability. Each class has three permanent perks. The local
+`/raid-survivor/hero-qa.html` fixture previews both ranks, wisps, bombs,
+facing, death art, and a small enemy crowd; it is excluded from production.
 
 Development-only `/raid-survivor/weapon-qa.html` provides a gallery, 650-projectile stress view, reduced-motion controls, and an old/new draw comparison. It is excluded from the production build. The comparison includes synchronous canvas readback and measures desktop-browser drawing, not device FPS. A 388px-wide test with 650 shots (12 mugs) measured 3.2ms old / 10.9ms new median with performance mode; full-mode testing at 1080px measured 9.7ms old / 8.1ms new. These stress results show that cosmetic cost remains material at the projectile cap; validate real late-game play on Pixel 8 before claiming equal mobile performance.
 

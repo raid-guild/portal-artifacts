@@ -7,7 +7,7 @@ const step=(profile,config,ms,previous={})=>applyProgress(profile,config,{durati
 test('five per-hero ladders hold fifteen immutable checkpoint opportunities',()=>{
   assert.deepEqual(Object.keys(LEVELS),['training','forest','desert','ice','lava']);
   assert.deepEqual(Object.values(CHECKPOINTS).map(rows=>rows.length),[5,4,3,2,1]);
-  assert.deepEqual(HERO_IDS,['ranger','wizard','dwarf','warrior','tavern-keeper']);
+  assert.deepEqual(HERO_IDS,['ranger','wizard','dwarf','healer','warrior','tavern-keeper','rogue']);
   assert.equal(Object.values(CHECKPOINTS).flat().length,15);
   assert.equal(Object.values(PERKS).every(rows=>rows.length===3&&rows.every(row=>row.cost===3)),true);
 });
@@ -33,7 +33,7 @@ test('account unlocks follow any hero, with 12-minute realm and Lava class maste
   };
   grant('wizard','training',180000);assert.ok(profile.unlocked.includes('forest'));
   grant('wizard','training',300000);assert.ok(profile.unlockedHeroes.includes('warrior'));
-  grant('warrior','forest',300000);assert.ok(profile.unlocked.includes('desert'));
+  grant('warrior','forest',300000);assert.ok(profile.unlocked.includes('desert'));assert.ok(profile.unlockedHeroes.includes('rogue'));
   grant('warrior','forest',420000);assert.ok(profile.unlockedHeroes.includes('tavern-keeper'));
   grant('dwarf','desert',420000);assert.ok(profile.unlocked.includes('ice'));
   grant('ranger','ice',540000);assert.ok(profile.unlocked.includes('lava'));
@@ -65,6 +65,17 @@ test('fifteen credits fund six capped ranks and three owned perks, only one equi
   assert.equal(credits(profile,'ranger'),0);
   assert.throws(()=>purchasePerk(profile,'ranger',PERKS.wizard[0].id,profile.revision,'wrong-hero-perk'));
   assert.equal(normalizeProfile(prior).equippedPerk.ranger,PERKS.ranger[1].id);
+});
+test('Healer starts, Rogue unlocks retroactively at Forest 05:00, and both own full ladders',()=>{
+  let profile=emptyProfile();assert.ok(profile.unlockedHeroes.includes('healer'));assert.ok(!profile.unlockedHeroes.includes('rogue'));
+  assert.equal(start(profile,'healer').character,'healer');assert.throws(()=>start(profile,'rogue'));
+  const oldV3={...profile,unlockedHeroes:['ranger','wizard','dwarf'],checkpoints:{...profile.checkpoints,forest:{...profile.checkpoints.forest,wizard:['forest-300']}}};
+  profile=normalizeProfile(oldV3);assert.ok(profile.unlockedHeroes.includes('healer'));assert.ok(profile.unlockedHeroes.includes('rogue'));assert.ok(profile.unlocked.includes('desert'));assert.equal(start(profile,'rogue').character,'rogue');
+  for(const hero of ['healer','rogue']){const full=emptyProfile();for(const level of Object.keys(CHECKPOINTS))full.checkpoints[level][hero]=CHECKPOINTS[level].map(row=>row.checkpointId);const normalized=normalizeProfile(full);assert.equal(credits(normalized,hero),15);assert.equal(PERKS[hero].length,3);}
+});
+test('v2 migration remains in its historical hero scope while adding a fresh Healer slot',()=>{
+  const v2={schemaVersion:2,milestones:{training:{ranger:true,healer:true}},skills:{healer:{vitality:2,agility:2,bombRecharge:2}},unlockedHeroes:['rogue']};
+  const profile=normalizeProfile(v2);assert.deepEqual(profile.checkpoints.training.ranger,['training-180']);assert.deepEqual(profile.checkpoints.training.healer,[]);assert.equal(credits(profile,'healer'),0);assert.equal(profile.skills.healer.vitality,0);assert.ok(profile.unlockedHeroes.includes('healer'));assert.ok(!profile.unlockedHeroes.includes('rogue'));
 });
 test('idempotent requests preserve revisions and conflict on reused IDs or stale revisions',()=>{
   let profile=emptyProfile();profile.checkpoints.training.ranger=['training-180','training-300','training-420'];profile=normalizeProfile(profile);

@@ -1,8 +1,8 @@
 import { obstaclesFor, sweepObstacles, moveWithObstacles, projectOutside, iceLineClear, segmentCircleT, waypointFor, emptyHit, type MoveResult, type Obstacle } from './obstacles';
 import { RAID_VERSION, PERKS, lavaBossSchedule, type PerkEffect } from '../../../services/leaderboards/src/raid-content.js';
 
-export type Hero = 'ranger' | 'wizard' | 'dwarf' | 'warrior' | 'tavern-keeper';
-export type Weapon = 'thornbow' | 'arcwand' | 'scattergun' | 'runeaxes' | 'chain' | 'orbit' | 'comet' | 'cleaver' | 'tankard';
+export type Hero = 'ranger' | 'wizard' | 'dwarf' | 'warrior' | 'tavern-keeper' | 'healer' | 'rogue';
+export type Weapon = 'thornbow' | 'arcwand' | 'scattergun' | 'runeaxes' | 'chain' | 'orbit' | 'comet' | 'cleaver' | 'tankard' | 'spiritlantern' | 'twindaggers';
 export type EnemyKind = 'rat' | 'cultist' | 'brute' | 'wisp' | 'boss' | 'rageipede' | 'xorn' | 'efreeti' | 'deathwisp' | 'buraq' | 'chuul' | 'dogmole' | 'tosculi' | 'seahag' | 'hezrou';
 export type LevelId = 'training' | 'forest' | 'desert' | 'ice' | 'lava';
 export type Mastery = { vitality: number; agility: number; bombRecharge: number };
@@ -15,7 +15,7 @@ export type Projectile = Vec & { vx: number; vy: number; damage: number; radius:
 export type EnemyShot = Vec & { vx: number; vy: number; life: number; damage: number; radius: number; boss: boolean; poison?: boolean; seaHag?:'green'|'amber' };
 export type Strike = Vec & { delay: number; radius: number; damage: number; source: Weapon };
 export type Shrine = Vec & { id: number; active: boolean };
-export type Pickup = Vec & { kind: 'xp' | 'heart' | 'chest'; value: number; life: number };
+export type Pickup = Vec & { kind: 'xp' | 'heart' | 'chest' | 'wisp'; value: number; life: number };
 export type Effect = Vec & { kind: 'hit' | 'burst' | 'ring' | 'zap' | 'text' | 'comet' | 'slash' | 'splash'; angle?:number; arc?:number; life: number; max: number; color: number; size: number; text?: string; x2?: number; y2?: number };
 export type Hazard = Vec & { radius: number; delay: number; duration: number; damage: number; sourceId: number; kind: 'hex' | 'boss' | 'ground' | 'lane'; x2?:number; y2?:number };
 export type Nightman = Vec & { radius: number; warningRemaining: number };
@@ -55,8 +55,10 @@ export const HEROES: Record<Hero, { name: string; role: string; weapon: Weapon; 
   ranger: { name: 'Ranger', role: 'THE THORNBOW', weapon: 'thornbow', health: 100, speed: 8.2, color: 0x83d69b, copy: 'Rapid piercing arrows. Fast feet and a steady aim.' },
   wizard: { name: 'Wizard', role: 'THE ARC WAND', weapon: 'arcwand', health: 85, speed: 7.7, color: 0xa595ff, copy: 'Volatile bolts bloom into arcane shockwaves.' },
   dwarf: { name: 'Dwarf', role: 'THE RUNE AXES', weapon: 'runeaxes', health: 135, speed: 6.8, color: 0xffbb73, copy: 'Curving runic axes carve a path through the crowd. Sturdy as the mountain.' },
+  healer: { name: 'Healer', role: 'THE SPIRIT LANTERN', weapon: 'spiritlantern', health: 95, speed: 7.8, color: 0x9cf4d5, copy: 'Lantern kills leave distant wisps. Collect them to heal.' },
   warrior: { name: 'Warrior', role: 'THE GUILD CLEAVER', weapon: 'cleaver', health: 120, speed: 7.1, color: 0xff947a, copy: 'Broad steel sweeps a path through the horde.' },
   'tavern-keeper': { name: 'Tavern Keeper', role: 'THE FLYING TANKARD', weapon: 'tankard', health: 110, speed: 7.3, color: 0xffd482, copy: 'Flying tankards splash the crowd. Last call restores courage.' },
+  rogue: { name: 'Rogue', role: 'THE TWIN DAGGERS', weapon: 'twindaggers', health: 90, speed: 8.4, color: 0xf2849d, copy: 'Rapid alternating daggers and a crimson veil reward daring movement.' },
 };
 export const WEAPONS: Record<Weapon, { name: string; icon: string; desc: string; color: number; cooldown: number }> = {
   thornbow: { name: 'Thornbow', icon: '➶', desc: 'Piercing arrows split at higher ranks', color: 0x8ff8b0, cooldown: .27 },
@@ -68,6 +70,8 @@ export const WEAPONS: Record<Weapon, { name: string; icon: string; desc: string;
   comet: { name: 'Falling Star', icon: '☄', desc: 'Call down a blazing meteor', color: 0xff8f72, cooldown: 2.1 },
   cleaver: { name: 'Guild Cleaver', icon: '⚔', desc: 'A broad close-range sweep', color: 0xffa37d, cooldown: .7 },
   tankard: { name: 'Flying Tankard', icon: '☷', desc: 'Throw a tankard that splashes on impact', color: 0xffd885, cooldown: .74 },
+  spiritlantern: { name: 'Spirit Lantern', icon: '✧', desc: 'Piercing lantern spirits leave healing wisps on fallen foes', color: 0xa9ffe3, cooldown: .52 },
+  twindaggers: { name: 'Twin Daggers', icon: '⚔', desc: 'Fast alternating daggers cut through the front line', color: 0xff879a, cooldown: .32 },
 };
 export const WORLD = 180;
 export const ENEMY_CAP = 2400;
@@ -127,6 +131,9 @@ export class Game {
   enemyShots: EnemyShot[] = [];
   strikes: Strike[] = [];
   pickups: Pickup[] = [];
+  private lastFoodDropAt = -Infinity;
+  private lastHealingWispAt = -Infinity;
+  private nextDaggerSide = -1;
   effects: Effect[] = [];
   hazards: Hazard[] = [];
   weapons: Partial<Record<Weapon, number>> = {};
@@ -385,8 +392,10 @@ export class Game {
     this.bombWave = { age: 0, radius: 0, previousRadius: 0, hit: new Set(), chained: new Set(), aimX:this.aim.x, aimY:this.aim.y };
     if(this.perk?.bombSpeedSeconds)this.perkSpeed=this.perk.bombSpeedSeconds;
     if(this.perk?.bombGuardSeconds)this.perkGuard=this.perk.bombGuardSeconds;
-    const bombHeal=this.perk?.bombHeal??(this.hero==='tavern-keeper'?8:0);
+    const bombHeal=this.perk?.bombHeal??(this.hero==='healer'?12:this.hero==='tavern-keeper'?8:0);
     if(bombHeal){const amount=Math.min(bombHeal,this.player.maxHealth-this.player.health);this.player.health+=amount;if(amount>0)this.onEvent?.('heal');}
+    if(this.hero==='healer')this.enemyShots=this.enemyShots.filter(shot=>distanceSq(shot,this.player)>2.5**2);
+    if(this.hero==='rogue')this.player.invuln=Math.max(this.player.invuln,1);
     this.onEvent?.('bomb');
     return true;
   }
@@ -397,7 +406,7 @@ export class Game {
     wave.previousRadius = wave.radius;
     wave.radius = this.bombRadius * Math.min(1, wave.age / .6);
     const p = this.player;
-    const base = { ranger: 48, wizard: 54, dwarf: 66, warrior: 60, 'tavern-keeper': 46 }[this.hero] * (1 + this.bombRanks.damage * .25)*(this.perk?.bombDamageMultiplier??1);
+    const base = { ranger: 48, wizard: 54, dwarf: 66, warrior: 60, 'tavern-keeper': 46, healer:42, rogue:48 }[this.hero] * (1 + this.bombRanks.damage * .25)*(this.perk?.bombDamageMultiplier??1);
     this.forNearby(p.x, p.y, wave.radius + 3, enemy => {
       if (enemy.hp <= 0 || wave.hit.has(enemy.id)) return;
       const distance = Math.sqrt(distanceSq(enemy, p));
@@ -432,8 +441,8 @@ export class Game {
       const distance=Math.sqrt(distanceSq(enemy,this.player)),condition=this.perk.primaryDamageCondition;
       if(condition==='range>6'&&distance>6||condition==='elite-or-boss'&&(enemy.elite||enemy.kind==='boss')||condition==='range<3'&&distance<3||condition==='hp>75%'&&this.player.health>this.player.maxHealth*.75||condition==='hp<50%'&&this.player.health<this.player.maxHealth*.5)amount*=this.perk.primaryDamageMultiplier;
     }
-    const counter=(enemy.kind==='rageipede'||enemy.kind==='deathwisp'||enemy.kind==='hezrou')&&this.runes.light||(enemy.kind==='xorn'||enemy.kind==='efreeti'||enemy.kind==='tosculi'||enemy.kind==='seahag')&&this.runes.freeze||enemy.kind==='chuul'&&this.runes.flames||enemy.kind==='buraq'&&source==='bomb'||enemy.kind==='dogmole'&&['thornbow','scattergun','runeaxes','orbit','cleaver','bomb'].includes(source);
-    if(enemy.special==='devourer'&&enemy.specialState==='charge'&&!this.runes.freeze&&['arcwand','chain','comet'].includes(source)){this.effect({x:enemy.x,y:enemy.y,kind:'ring',life:.2,max:.2,color:0x8cd9ff,size:enemy.radius*1.5});return;}
+    const counter=(enemy.kind==='rageipede'||enemy.kind==='deathwisp'||enemy.kind==='hezrou')&&this.runes.light||(enemy.kind==='xorn'||enemy.kind==='efreeti'||enemy.kind==='tosculi'||enemy.kind==='seahag')&&this.runes.freeze||enemy.kind==='chuul'&&this.runes.flames||enemy.kind==='buraq'&&source==='bomb'||enemy.kind==='dogmole'&&['thornbow','scattergun','runeaxes','orbit','cleaver','twindaggers','bomb'].includes(source);
+    if(enemy.special==='devourer'&&enemy.specialState==='charge'&&!this.runes.freeze&&['arcwand','chain','comet','spiritlantern'].includes(source)){this.effect({x:enemy.x,y:enemy.y,kind:'ring',life:.2,max:.2,color:0x8cd9ff,size:enemy.radius*1.5});return;}
     if(counter&&['xorn','efreeti','tosculi','seahag'].includes(enemy.kind)&&enemy.freezeImmune<=0){enemy.frozen=.5;enemy.freezeImmune=3;if(enemy.specialState==='windup'||enemy.specialState==='charge'){enemy.specialState='recovery';enemy.specialTimer=Math.max(enemy.specialTimer,.5);}}
     enemy.hp -= amount * (1 + this.passives.damage * .18)*(counter?1.25:1);
     enemy.flash = .12;
@@ -445,6 +454,10 @@ export class Game {
     if (enemy.kind === 'boss') { this.stats.bosses++; this.onEvent?.('bossDead'); }
     this.combo++; this.comboTime = 3;
     this.score += enemy.kind === 'boss' ? 600 : enemy.elite ? 75 : 10;
+    if(this.hero==='healer'&&source==='spiritlantern'&&this.player.health<this.player.maxHealth&&this.elapsed-this.lastHealingWispAt>=6&&this.pickups.length<MAX_PICKUPS&&this.pickups.reduce((n,item)=>n+Number(item.kind==='wisp'),0)<3){
+      const pos=projectOutside(this.level,enemy.x,enemy.y,.65,false,this.moveResult);
+      if(pos.x>=.65&&pos.x<=WORLD-.65&&pos.y>=.65&&pos.y<=WORLD-.65&&distanceSq(pos,this.player)>=2.75**2){this.pickups.push({x:pos.x,y:pos.y,kind:'wisp',value:4,life:12});this.lastHealingWispAt=this.elapsed;}
+    }
     const count = enemy.kind === 'boss' ? 22 : enemy.elite ? 5 : 1;
     for (let i = 0; i < count && this.pickups.length < MAX_PICKUPS; i++) {const pos=projectOutside(this.level,enemy.x+rand(-1,1),enemy.y+rand(-1,1),.65,false,this.moveResult);this.pickups.push({ x: pos.x, y: pos.y, kind: 'xp', value: enemy.kind === 'boss' ? 4 : enemy.elite ? 3 : 1, life: 25 });}
     const chestChance = enemy.elite ? (enemy.kind === 'brute' ? .45 : .30) : enemy.kind === 'brute' ? .08 : 0;
@@ -454,7 +467,10 @@ export class Game {
       else { const xp = this.pickups.findIndex(item => item.kind === 'xp'); if (xp >= 0) this.pickups[xp] = chest; }
       this.lastChestTime = this.elapsed;
     }
-    else if (this.pickups.length < MAX_PICKUPS && Math.random() < .018) {const pos=projectOutside(this.level,enemy.x,enemy.y,.65,false,this.moveResult);this.pickups.push({ x: pos.x, y: pos.y, kind: 'heart', value: 18, life: 25 });}
+    else if (this.elapsed >= 12 && this.elapsed-this.lastFoodDropAt >= (this.elapsed < 180 ? 22 : 30) && this.pickups.length < MAX_PICKUPS && this.pickups.reduce((n,item)=>n+Number(item.kind==='heart'),0)<2) {
+      const pos=projectOutside(this.level,enemy.x,enemy.y,.65,false,this.moveResult);
+      this.pickups.push({ x: pos.x, y: pos.y, kind: 'heart', value: 18, life: 25 });this.lastFoodDropAt=this.elapsed;
+    }
     this.effect({ x: enemy.x, y: enemy.y, kind: 'burst', life: .45, max: .45, color: enemy.kind === 'boss' ? 0xffc76a : 0xff7a9a, size: enemy.radius * 2.5 });
     this.onEvent?.('kill');
   }
@@ -484,6 +500,12 @@ export class Game {
         this.projectile(p.x,p.y,angle+offset,13,damage,weapon,.29,rank>=3?1:0,life);
         if(this.projectiles.length>before){const axe=this.projectiles[before];axe.turnRate=-2*offset/life;axe.runeGold=rank>=5;}
       }
+    } else if (weapon === 'spiritlantern') {
+      const count=rank>=4?2:1,damage=[24,29,34,37,40][rank-1],life=.9;
+      for(let i=0;i<count;i++)this.projectile(p.x,p.y,angle+(count===1?0:i===0?-.07:.07),17,damage,weapon,.27,rank>=3?1:0,life);
+    } else if (weapon === 'twindaggers') {
+      const side=this.nextDaggerSide;this.nextDaggerSide=-side;
+      this.projectile(p.x-Math.sin(angle)*side*.16,p.y+Math.cos(angle)*side*.16,angle,25,[18,22,26,30,34][rank-1],weapon,.18,rank>=5?2:rank>=3?1:0,.65);
     } else if (weapon === 'cleaver') {
       const reach=2.5+rank*.32, arc=(95+rank*5)*Math.PI/180, hits:Enemy[]=[];
       this.forNearby(p.x,p.y,reach+3,enemy=>{
@@ -908,10 +930,12 @@ export class Game {
     for (const item of this.pickups) {
       item.life -= dt; if (item.life <= 0) continue;
       const dx = p.x - item.x, dy = p.y - item.y, d = Math.hypot(dx, dy);
-      if (d < magnet) { const pull = Math.min(d, (7 + 20 / Math.max(.2, d)) * dt); item.x += dx / (d || 1) * pull; item.y += dy / (d || 1) * pull; }
+      const pullRadius=item.kind==='heart'?1.25:item.kind==='wisp'?0:magnet;
+      if (d < pullRadius) { const pull = Math.min(d, (7 + 20 / Math.max(.2, d)) * dt); item.x += dx / (d || 1) * pull; item.y += dy / (d || 1) * pull; }
       if (d < .8) {
         if (item.kind === 'xp') this.xp += item.value;
         else if (item.kind === 'heart') { const healed=Math.min(item.value*(this.perk?.foodHealMultiplier??1),p.maxHealth-p.health);p.health+=healed;this.effect({x:p.x,y:p.y,kind:'text',life:1,max:1,color:0xbaffd1,size:1,text:`FOOD +${Math.ceil(healed)} HP`});this.onEvent?.('heal'); }
+        else if (item.kind === 'wisp') { const healed=Math.min(item.value,p.maxHealth-p.health);p.health+=healed;if(healed>0){this.effect({x:p.x,y:p.y,kind:'text',life:1,max:1,color:0x9ffff0,size:1,text:`SPIRIT +${Math.ceil(healed)} HP`});this.onEvent?.('heal');} }
         else if(this.awaitingReward) { pickups.push(item); continue; }
         else { this.stats.chests++; this.score += 120; this.openReward(true); this.onEvent?.('chest'); }
       } else pickups.push(item);
@@ -936,7 +960,7 @@ export class Game {
     const list: Reward[] = [];
     const available = Array.from(new Set<Weapon>([...(['thornbow','arcwand','scattergun','chain','orbit','comet'] as Weapon[]),HEROES[this.hero].weapon]));
     for (const w of available) {
-      if((w==='cleaver'||w==='tankard'||w==='runeaxes')&&HEROES[this.hero].weapon!==w)continue;
+      if((w==='cleaver'||w==='tankard'||w==='runeaxes'||w==='spiritlantern'||w==='twindaggers')&&HEROES[this.hero].weapon!==w)continue;
       const rank = this.weapons[w] || 0;
       if (rank < 5 && (rank || this.slots.length < 3 || this.backpack.length < 3)) list.push({ kind: 'weapon', id: w, name: rank ? `${WEAPONS[w].name} +${rank + 1}` : WEAPONS[w].name, detail: rank ? `Rank ${rank + 1} · ${rank >= 3 ? 'evolved strike' : 'power and cadence'}` : WEAPONS[w].desc, rarity: rank >= 3 || chest && rank >= 2 ? 'epic' : rank >= 1 ? 'rare' : 'common', icon: WEAPONS[w].icon });
     }
@@ -981,7 +1005,7 @@ export class Game {
     this.spawnClock = this.chestClock = -1000;
     this.escortDebt = 0;
     this.enemies = []; this.enemyShots = []; this.hazards = []; this.effects = [];
-    this.projectiles = []; this.strikes = []; this.pickups = []; this.slots = [];
+    this.projectiles = []; this.strikes = []; this.pickups = []; this.slots = [];this.lastHealingWispAt=-Infinity;this.lastFoodDropAt=-Infinity;this.nextDaggerSide=-1;
     this.awaitingReward = false; this.cleared = false; this.dead = false; this.paused = true;
     this.player.health = this.player.maxHealth; this.player.invuln = 1e9;
     const enemy = kind === 'juggernaut' ? this.spawnEnemy('brute', true) :
