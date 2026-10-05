@@ -61,6 +61,12 @@ Editable Three.js source and the Blender asset library are in
 See the study README for rebuild instructions. All runtime assets are served
 from this origin under the existing Content Security Policy.
 
+## Jelly Garden study
+
+`public/jelly-garden/` contains the published Three.js soft-body playground.
+Editable source, spring simulation tests, local fonts, and subpath rebuild
+instructions are in `studies/jelly-garden/`.
+
 ## FIELD spatial horror study
 
 `public/field/` is the standalone FIELD demo. Editable Blender assets, scripts and regression checks are in `studies/field/`; its `dist` symlink points to the published source. See the study README for controls and local development.
@@ -105,6 +111,9 @@ Tests, editable Blender source, and regeneration instructions live in
 `studies/ragdoll-lab/`; its `dist` symlink points to the canonical public source.
 
 ## Published artifacts
+
+- `jelly-garden/` — Cute interactive soft-body creatures with safe stretching,
+  springy landings, and controls for softness, damping, gravity, and mesh view.
 
 - `ragdoll-lab/` — Ragdoll bowling with a long slide, ten targets, draggable
   characters, adjustable grip, and a rigged Goatman/Mannequin comparison.
