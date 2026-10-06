@@ -63,8 +63,10 @@ from this origin under the existing Content Security Policy.
 
 ## Jelly Garden study
 
-`public/jelly-garden/` contains the published Three.js soft-body playground.
-Editable source, spring simulation tests, local fonts, and subpath rebuild
+`public/jelly-garden/` contains the published Three.js soft-body playground:
+a bendable RaidGuild mark and three garden creatures with translucent surfaces,
+weighted landings, orbitable camera, and an optional Keep them up challenge.
+Editable source, physics and round tests, local fonts, and subpath rebuild
 instructions are in `studies/jelly-garden/`.
 
 ## FIELD spatial horror study
@@ -122,8 +124,9 @@ preview, controls, source provenance, and simulation tests.
 - `powder-study/` — Interactive particle world with paintable sand, water,
   fire, acid, seeds, and four experiment presets.
 
-- `jelly-garden/` — Cute interactive soft-body creatures with safe stretching,
-  springy landings, and controls for softness, damping, gravity, and mesh view.
+- `jelly-garden/` — A squishy RaidGuild mark and three jelly creatures with
+  liquid-like ripples, weighted landings, draggable camera, physics controls,
+  and an optional Keep them up challenge.
 
 - `ragdoll-lab/` — Ragdoll bowling with a long slide, ten targets, draggable
   characters, adjustable grip, and a rigged Goatman/Mannequin comparison.
