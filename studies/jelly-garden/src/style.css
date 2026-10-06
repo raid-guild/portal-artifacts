@@ -22,3 +22,38 @@
 .builder-credit:hover{background:#fff4e9;border-color:#bd482d}.builder-credit:focus-visible{outline:3px solid #bd482d;outline-offset:3px}
 @media(max-width:850px){.builder-credit{right:16px;bottom:235px;width:146px;padding:9px 11px;gap:8px}.builder-credit img{width:28px;height:27px}}
 @media(max-width:540px){.builder-credit{bottom:222px}.model-note{width:min(190px,calc(100% - 190px))}}
+.mode-switch{position:absolute;left:50%;top:0;transform:translateX(-50%);display:flex;gap:4px;padding:4px;border:1px solid #e7d9cd;border-radius:999px;background:#fffaf2e6;box-shadow:0 6px 22px #b9957b1c;pointer-events:auto}
+.mode-switch button{border:0;border-radius:999px;background:transparent;color:#816f65;padding:8px 14px;font:800 13px/1 'Nunito',sans-serif;white-space:nowrap}
+.mode-switch button[aria-pressed=true]{background:#bd482d;color:#fff9f3;box-shadow:0 3px 9px #9c4b3550}
+.mode-switch button:focus-visible{outline:3px solid #bd482d;outline-offset:2px}
+@media(max-width:850px){.mode-switch{top:50px}.intro{top:126px}}
+@media(max-width:540px){.mode-switch{top:45px}.mode-switch button{font-size:12px;padding:7px 11px}.intro{top:118px}}
+.view-actions{display:flex;gap:8px;margin-top:12px}
+.view-actions button{flex:1;min-width:0;padding:9px 5px;border:1px solid #e5d6ca;border-radius:11px;background:#fff9f2;color:#715d52;font-size:12px;font-weight:800;white-space:nowrap}
+.view-actions button[aria-pressed=true]{background:#d9957e;color:#fff;border-color:#d9957e}
+.view-actions button:hover{border-color:#d9957e}
+.view-actions button:focus-visible{outline:3px solid #bd482d;outline-offset:2px}
+#scene canvas{cursor:grab;touch-action:none}
+@media(max-width:850px){.view-actions{margin-top:8px}.view-actions button{padding:7px 4px}.scene-label{bottom:250px}.model-note{bottom:290px}.builder-credit{bottom:290px}}
+@media(max-width:540px){.scene-label{bottom:270px}.model-note{bottom:310px}.builder-credit{bottom:310px}}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.keep-card{position:absolute;z-index:3;left:4.7%;top:352px;width:224px;padding:11px 13px 10px;border:1px solid #ecd9cb;border-radius:17px;background:#fffaf1dc;box-shadow:0 10px 30px #ae896926;backdrop-filter:blur(10px)}
+.keep-head{display:flex;justify-content:space-between;align-items:center;font:900 15px/1.2 'Nunito',sans-serif;color:#9e533d}.keep-head span{color:#e6a484}
+.keep-card button{width:100%;margin:8px 0 7px;padding:7px 11px;border:0;border-radius:10px;background:#bd482d;color:#fffaf1;font-size:13px;font-weight:800}.keep-card button:hover{background:#a83f29}.keep-card button:disabled{background:#d5b9a9;cursor:wait}.keep-card button:focus-visible{outline:3px solid #bd482d;outline-offset:2px}
+.keep-scores{display:flex;justify-content:space-between;gap:5px;color:#826f62;font-size:11px;font-weight:700}.keep-scores span{display:flex;flex-direction:column;gap:1px}.keep-scores output{color:#57463e;font-size:13px;font-weight:900}.keep-last{margin:6px 0 0;min-height:1.2em;color:#a06b5a;font-size:11px;line-height:1.2}
+@media(max-width:850px){.keep-card{left:auto;right:12px;top:112px;width:178px;padding:9px 10px}.keep-head{font-size:14px}.keep-card button{margin:5px 0;padding:6px;font-size:14px}.keep-scores{font-size:11px}.keep-scores output{font-size:14px}.keep-last{font-size:11px}}
+@media(max-width:540px){.keep-card{width:170px}}
+
+/* Desktop copy and challenge share one flow, so font wrapping cannot overlap. */
+.intro-stack{position:absolute;z-index:3;top:120px;left:4.7%;width:260px;display:flex;flex-direction:column;gap:12px;pointer-events:none}
+.intro-stack .intro{position:static;max-width:250px}
+.intro-stack .intro p{margin-bottom:0}
+.intro-stack .keep-card{position:static;width:224px;pointer-events:auto}
+@media(max-width:850px){
+  .intro-stack{display:contents}
+  .intro-stack .intro{position:absolute;top:126px;left:18px}
+  .intro-stack .keep-card{position:absolute;top:112px;right:12px;left:auto;width:178px}
+}
+@media(max-width:540px){.intro-stack .intro{top:118px;max-width:180px}.intro-stack .keep-card{width:170px}}
+@media(max-width:540px){.intro .eyebrow{display:block;max-width:100%}}

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addImpactVelocity, advanceSquash, eventVariant, JellySlosh, JellyWaves, responseFor } from './jelly-response.js';
 
 export const FIXED_DT = 1 / 60;
 const clamp = THREE.MathUtils.clamp;
@@ -68,16 +69,14 @@ export class SmoothSkin {
     this.geometry.setIndex(fine);
     this.update();
   }
-  update(source=this.shell.positions) {
+  update(source=this.shell.positions,recompute=true) {
     const target=this.geometry.attributes.position.array;
     for(let i=0;i<this.stencils.length;i++) {
       let x=0,y=0,z=0;
       for(const [j,w] of this.stencils[i]) {const k=j*3;x+=source[k]*w;y+=source[k+1]*w;z+=source[k+2]*w;}
       target[i*3]=x;target[i*3+1]=y;target[i*3+2]=z;
     }
-    this.geometry.attributes.position.needsUpdate=true;
-    this.geometry.computeVertexNormals();
-    this.geometry.computeBoundingSphere();
+    if(recompute){this.geometry.attributes.position.needsUpdate=true;this.geometry.computeVertexNormals();this.geometry.computeBoundingSphere()}
   }
 }
 
@@ -88,7 +87,13 @@ export class SoftShell {
     this.rest=Float32Array.from(this.geometry.attributes.position.array);
     this.positions=Float32Array.from(this.rest);
     this.previous=Float32Array.from(this.rest);
+    this.base=Float32Array.from(this.rest);
+    this.basePrevious=Float32Array.from(this.rest);
+    this.unwaved=Float32Array.from(this.rest);
     this.safe=Float32Array.from(this.rest);
+    this.eventCount=0;this.eventSeed=radius*3.71;
+    this.waves=new JellyWaves(this.rest,Float32Array.from(this.geometry.attributes.normal.array),radius,{seed:this.eventSeed});
+    this.slosh=new JellySlosh(radius);
     this.edges=[];
     this.grab=null;
     this.grabIndex=-1;
@@ -111,11 +116,11 @@ export class SoftShell {
     }
   }
 
-  orientedVolume(p,a,b,c){
+  orientedVolume(p,a,b,c,centerY=0){
     const abx=p[b]-p[a],aby=p[b+1]-p[a+1],abz=p[b+2]-p[a+2];
     const acx=p[c]-p[a],acy=p[c+1]-p[a+1],acz=p[c+2]-p[a+2];
     const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nz=abx*acy-aby*acx;
-    return (nx*(p[a]+p[b]+p[c])+ny*(p[a+1]+p[b+1]+p[c+1])+nz*(p[a+2]+p[b+2]+p[c+2]))/3;
+    return (nx*(p[a]+p[b]+p[c])+ny*(p[a+1]+p[b+1]+p[c+1]-3*centerY)+nz*(p[a+2]+p[b+2]+p[c+2]))/3;
   }
   nearest(point){let best=Infinity,index=0;for(let i=0;i<this.positions.length;i+=3){const d=(this.positions[i]-point.x)**2+(this.positions[i+1]-point.y)**2+(this.positions[i+2]-point.z)**2;if(d<best){best=d;index=i/3}}return index}
   minimumY(){let min=Infinity;for(let i=1;i<this.positions.length;i+=3)min=Math.min(min,this.positions[i]);return min}
@@ -131,7 +136,7 @@ export class SoftShell {
       const w=Math.exp(-.5*(d/(radius*.64))**2);
       if(w>.015)weights.push([i,w]);
     }
-    this.grab={origin,normal,weights,base:Float32Array.from(this.positions),desired:new THREE.Vector3(),smoothed:new THREE.Vector3()};
+    this.grab={origin,normal,weights,base:Float32Array.from(this.base),desired:new THREE.Vector3(),smoothed:new THREE.Vector3()};
   }
   updateGrab(point){
     if(!this.grab)return;
@@ -143,49 +148,39 @@ export class SoftShell {
     desired.copy(tangent).addScaledVector(normal,radial);
     this.grabTarget.copy(origin).add(desired);
   }
-  endGrab(){this.grab=null;this.grabIndex=-1}
+  endGrab(){if(this.grab&&this.grab.desired.lengthSq()>.01){this.eventCount++;this.waves.setEvent(this.eventCount);this.slosh.excite(this.grab.desired,Math.min(1.5,this.grab.desired.length()/this.radius))}this.grab=null;this.grabIndex=-1}
 
   impact(speed){
-    if(speed<=.006)return;
-    // Speed is in local units per fixed step; q' uses units per second.
-    this.squashVelocity-=Math.min(6.5,speed/FIXED_DT*3.2);
+    this.squashVelocity=addImpactVelocity(this.squashVelocity,speed,this.radius);
+    if(speed>.003){this.eventCount++;this.waves.setEvent(this.eventCount);const angle=eventVariant(this.eventSeed,this.eventCount).angle;this.slosh.excite(new THREE.Vector3(Math.cos(angle),0,Math.sin(angle)),Math.min(1.5,speed/.045))}
   }
-  applyScale(before,after){
-    const sy=after/before,sx=Math.sqrt(before/after);
-    for(const arr of [this.positions,this.previous])for(let i=0;i<arr.length;i+=3){arr[i]*=sx;arr[i+1]*=sy;arr[i+2]*=sx}
-  }
-  updateSquash(dt=FIXED_DT,softness=.65,damping=.38){
-    const before=this.squash;
-    const omega=16-softness*5;
-    const zeta=.42+damping*.5;
-    this.squashVelocity+=(-omega*omega*(this.squash-1)-2*zeta*omega*this.squashVelocity)*dt;
-    this.squash=clamp(this.squash+this.squashVelocity*dt,.68,1.13);
-    if((this.squash===.68&&this.squashVelocity<0)||(this.squash===1.13&&this.squashVelocity>0))this.squashVelocity=0;
-    if(Math.abs(this.squash-1)<.0001&&Math.abs(this.squashVelocity)<.001){this.squash=1;this.squashVelocity=0}
-    if(this.squash!==before)this.applyScale(before,this.squash);
-  }
-  target(i){const sy=this.squash,sx=1/Math.sqrt(sy);return [this.rest[i]*sx,this.rest[i+1]*sy,this.rest[i+2]*sx]}
-  valid(p=this.positions){
+  addWave(anchor,strength=1){this.waves.add(anchor,strength)}
+  validBase(p=this.base){
     for(const v of p)if(!Number.isFinite(v))return false;
-    const sx=1/Math.sqrt(this.squash),sy=this.squash;
-    for(const [a,b] of this.edges){const ai=a*3,bi=b*3;const dx=p[ai]-p[bi],dy=p[ai+1]-p[bi+1],dz=p[ai+2]-p[bi+2];const target=Math.hypot((this.rest[ai]-this.rest[bi])*sx,(this.rest[ai+1]-this.rest[bi+1])*sy,(this.rest[ai+2]-this.rest[bi+2])*sx);const ratio=Math.hypot(dx,dy,dz)/target;if(ratio<.42||ratio>1.85)return false}
+    for(const [a,b,length] of this.edges){const ai=a*3,bi=b*3;const dx=p[ai]-p[bi],dy=p[ai+1]-p[bi+1],dz=p[ai+2]-p[bi+2];const ratio=Math.hypot(dx,dy,dz)/length;if(ratio<.42||ratio>1.85)return false}
     for(const [a,b,c,sign,rest] of this.triangles)if(this.orientedVolume(p,a,b,c)*sign<rest*.035)return false;
     return true;
   }
-  reset(){this.positions.set(this.rest);this.previous.set(this.rest);this.safe.set(this.rest);this.endGrab();this.squash=1;this.squashVelocity=0;this.contactStrength=0;this.updateGeometry()}
+  valid(){
+    if(!this.validBase())return false;
+    for(const v of this.positions)if(!Number.isFinite(v))return false;
+    const centerY=-this.radius*(1-this.squash);
+    for(const [a,b,c,sign] of this.triangles)if(this.orientedVolume(this.positions,a,b,c,centerY)*sign<=0)return false;
+    return true;
+  }
+  reset(){this.grab=null;this.grabIndex=-1;this.positions.set(this.rest);this.previous.set(this.rest);this.base.set(this.rest);this.basePrevious.set(this.rest);this.unwaved.set(this.rest);this.safe.set(this.rest);this.squash=1;this.squashVelocity=0;this.contactStrength=0;this.eventCount=0;this.waves.reset();this.slosh.reset();this.updateGeometry()}
   updateGeometry(){this.geometry.attributes.position.array.set(this.positions);this.geometry.attributes.position.needsUpdate=true}
 
-  step({softness=.65,damping=.38,gravity=.55,centerY=1,floorAt=()=>.08,collisions=[]}={}){
-    this.updateSquash(FIXED_DT,softness,damping);
-    this.safe.set(this.positions);
-    const p=this.positions,old=this.previous,retention=.995-damping*.095;
-    for(let i=0;i<p.length;i+=3){for(let k=0;k<3;k++){const v=clamp((p[i+k]-old[i+k])*retention,-.10,.10);old[i+k]=p[i+k];p[i+k]+=v}p[i+1]-=.00075*gravity}
-    let contact=0;
+  step({softness=.65,damping=.38,gravity=.55,contactLoad=0,centerY=1,floorAt=()=>.08,collisions=[]}={}){
+    this.previous.set(this.positions);
+    advanceSquash(this,softness,damping,contactLoad,this.radius);
+    this.safe.set(this.base);
+    const p=this.base,old=this.basePrevious,retention=.995-damping*.095;
+    for(let i=0;i<p.length;i+=3){for(let k=0;k<3;k++){const v=clamp((p[i+k]-old[i+k])*retention,-.10,.10);old[i+k]=p[i+k];p[i+k]+=v}}
     for(let iteration=0;iteration<7;iteration++){
       const strength=.75-softness*.3;
-      for(const [a,b] of this.edges){
+      for(const [a,b,target] of this.edges){
         const ai=a*3,bi=b*3,dx=p[bi]-p[ai],dy=p[bi+1]-p[ai+1],dz=p[bi+2]-p[ai+2],dist=Math.hypot(dx,dy,dz)||1;
-        const target=Math.hypot((this.rest[ai]-this.rest[bi])/Math.sqrt(this.squash),(this.rest[ai+1]-this.rest[bi+1])*this.squash,(this.rest[ai+2]-this.rest[bi+2])/Math.sqrt(this.squash));
         const desired=clamp(dist,target*.52,target*1.55);
         const amount=(dist-desired+(desired-target)*strength)/dist*.5;
         p[ai]+=dx*amount;p[ai+1]+=dy*amount;p[ai+2]+=dz*amount;
@@ -193,21 +188,33 @@ export class SoftShell {
       }
       const shape=.027-softness*.011;
       for(let i=0;i<p.length;i+=3){
-        const [tx,ty,tz]=this.target(i);
-        p[i]+=(tx-p[i])*shape;p[i+1]+=(ty-p[i+1])*shape;p[i+2]+=(tz-p[i+2])*shape;
-        const surface=floorAt(p[i],p[i+2]);
-        if(centerY+p[i+1]<surface){const push=surface-centerY-p[i+1];contact=Math.max(contact,push);p[i+1]+=push;old[i+1]=p[i+1]}
+        p[i]+=(this.rest[i]-p[i])*shape;p[i+1]+=(this.rest[i+1]-p[i+1])*shape;p[i+2]+=(this.rest[i+2]-p[i+2])*shape;
         for(const o of collisions){const dx=p[i]-o.x,dy=p[i+1]-o.y,dz=p[i+2]-o.z,dist=Math.hypot(dx,dy,dz)||1;if(dist<o.radius){const push=(o.radius-dist)/dist*.4;p[i]+=dx*push;p[i+1]+=dy*push;p[i+2]+=dz*push;old[i]+=dx*push;old[i+1]+=dy*push;old[i+2]+=dz*push}}
       }
-      if(this.grab){const g=this.grab;g.smoothed.lerp(g.desired,.24);for(const [i,w] of g.weights){const gain=.18*w;for(let k=0;k<3;k++)p[i+k]+=(g.base[i+k]+g.smoothed.getComponent(k)*w-p[i+k])*gain}}
+      if(this.grab){const g=this.grab;g.smoothed.lerp(g.desired,1-Math.exp(-responseFor(softness,damping).grabFrequency*FIXED_DT));for(const [i,w] of g.weights){const gain=.18*w;for(let k=0;k<3;k++)p[i+k]+=(g.base[i+k]+g.smoothed.getComponent(k)*w-p[i+k])*gain}}
     }
-    if(!this.valid()){
+    if(!this.validBase()){
       const candidate=Float32Array.from(p);let accepted=false;
-      for(let alpha=.5;alpha>=1/1024;alpha*=.5){for(let i=0;i<p.length;i++)p[i]=this.safe[i]+(candidate[i]-this.safe[i])*alpha;if(this.valid()){accepted=true;break}}
+      for(let alpha=.5;alpha>=1/1024;alpha*=.5){for(let i=0;i<p.length;i++)p[i]=this.safe[i]+(candidate[i]-this.safe[i])*alpha;if(this.validBase()){accepted=true;break}}
       if(!accepted)p.set(this.safe);
       old.set(p); // rejected motion cannot reappear as Verlet velocity
     }
-    this.contactStrength=Math.min(1,contact*4);
+    this.slosh.step(softness,damping);
+    this.waves.step();
+    const sx=Math.min(responseFor(softness,damping).lateralLimit,1/Math.sqrt(this.squash));
+    for(const sloshScale of [1,.5,0]){
+      this.unwaved.set(p);this.slosh.apply(this.unwaved,this.rest,sloshScale);
+      for(let i=0;i<p.length;i+=3){this.positions[i]=this.unwaved[i]*sx;this.positions[i+1]=-this.radius+(this.unwaved[i+1]+this.radius)*this.squash;this.positions[i+2]=this.unwaved[i+2]*sx}
+      if(this.valid())break;
+    }
+    this.unwaved.set(this.positions);
+    if(this.waves.packets.length){
+      this.safe.set(this.positions);
+      for(const scale of [1,.5,.25,0]){
+        this.positions.set(this.safe);this.waves.apply(this.positions,softness,damping,scale);
+        if(this.valid())break;
+      }
+    }
     this.updateGeometry();
   }
 }
