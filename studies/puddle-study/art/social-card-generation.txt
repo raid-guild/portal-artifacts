@@ -1,0 +1,10 @@
+Tool: built-in image_gen (opaque PNG)
+Asset: puddle-social-v1.png
+Purpose: social link unfurl / illustrative game cover, not a gameplay screenshot.
+
+Use case: ads-marketing.
+Asset type: Open Graph social link preview / illustrated game cover, opaque wide landscape approximately 1.91:1, ideally 1536 x 804 or equivalent.
+Create original cover art for "PUDDLE", an experimental living-material game. A small fleshy muted-coral puddle with an irregular flowing outline, a single darker internal brain visible through its softly translucent flesh, extends a thin organic tendril across a pale sand floating terrace toward a small pale-turquoise pool in a shallow collecting basin. The brain is an internal organ, NOT an eye. No face. The tendril is part of the flesh, no rope or mechanical tool. Include a simple low gate and a few calm impossible biological plants. Behind, a slender spiral tower and a grown architectural arch, with enormous open pale turquoise sky. The floating world is visibly suspended with empty space around it.
+Style: 1970s European ligne-claire science-fiction printed illustration, precise thin dark ink contours, flat unmodulated pastel color fields, subtle paper grain. Muted coral, sand, pale turquoise, dusty violet. Clear readable silhouettes, quiet eerie alien ecology, organic but not grotesque, neither cute mascot nor monster. No gradients, no gloss, no cinematic lighting, no photorealistic rendering, no anime eyes.
+Composition: spacious graphic game-cover design. One strong puddle silhouette in the foreground, tendril clearly visible, distant architecture small against huge sky. All key elements inside generous crop-safe margins; keep the central 80 percent legible at thumbnail size.
+Text verbatim: large elegant thin black uppercase title "PUDDLE", with a small understated line "A LIVING MATERIAL STUDY". Put lettering in open sky without overlapping the creature or architecture. No other text, no fake game interface, no watermark.
