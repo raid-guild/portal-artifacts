@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eeeee7" />
+    <meta name="description" content="A small Three.js study of a housefly moving through a webpage. Tune its turns, speed, attraction, and response to your cursor." />
+    <link rel="canonical" href="https://portal-artifacts-production.up.railway.app/housefly-study/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RaidGuild Artifacts" />
+    <meta property="og:title" content="Housefly Study — A fly in the interface" />
+    <meta property="og:description" content="Watch a housefly roam a 3D webpage. Tune its speed, depth, random turns, attraction spots, and response to your cursor." />
+    <meta property="og:url" content="https://portal-artifacts-production.up.railway.app/housefly-study/" />
+    <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/housefly-study/housefly-social-v1.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A housefly crosses the pale Housefly Study interface beside the title A fly in the interface." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Housefly Study — A fly in the interface" />
+    <meta name="twitter:description" content="Watch a housefly roam a 3D webpage. Tune its speed, depth, random turns, attraction spots, and response to your cursor." />
+    <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/housefly-study/housefly-social-v1.png" />
+    <meta name="twitter:image:alt" content="A housefly crosses the pale Housefly Study interface beside the title A fly in the interface." />
+    <link rel="icon" type="image/svg+xml" href="/housefly-study/favicon.svg" />
+    <title>Housefly Study — Field Notes 01</title>
+    <script type="module" crossorigin src="/housefly-study/assets/index-BgZl770E.js"></script>
+    <link rel="stylesheet" crossorigin href="/housefly-study/assets/index-BQq-_nuI.css">
+  </head>
+  <body>
+    <canvas id="world" aria-hidden="true"></canvas>
+    <div id="spot-layer" aria-label="Attraction spots"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Housefly Study, back to top">
+        <span class="brand-mark" aria-hidden="true">✳</span>
+        <span>FIELD NOTES <em>/</em> 001</span>
+      </a>
+      <span class="topbar-right"><span class="live-dot"></span> LIVE SIMULATION <span class="topbar-divider">/</span> THREE.JS</span>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="title">
+        <div class="hero-copy">
+          <p class="eyebrow">BEHAVIOR STUDY <span>—</span> MUSCA DOMESTICA</p>
+          <h1 id="title">A fly in the<br /><i>interface.</i></h1>
+          <p class="intro">One small creature. An entire page to explore. Change the conditions and watch its decisions unfold.</p>
+          <div class="hero-actions">
+            <a href="#field-notes" class="text-link">EXPLORE THE FIELD NOTES <span aria-hidden="true">↗</span></a>
+            <span class="action-divider"></span>
+            <span>MOVE YOUR CURSOR TO STARTLE IT</span>
+          </div>
+        </div>
+        <div class="hero-index" aria-hidden="true">
+          <span>FIG. 01</span>
+          <span>FLIGHT VOLUME<br />100 × 100 × DEPTH</span>
+        </div>
+        <div class="hero-crosshair crosshair-a" aria-hidden="true">+</div>
+        <div class="hero-crosshair crosshair-b" aria-hidden="true">+</div>
+      </section>
+
+      <section id="field-notes" class="notes-section" aria-labelledby="notes-title">
+        <div class="section-head"><span>02 / OBSERVATION</span><span>SCROLL WHILE IT FLIES ↑</span></div>
+        <div class="notes-grid">
+          <div>
+            <p class="eyebrow">THE EXPERIMENT</p>
+            <h2 id="notes-title">Watch what<br />draws it in.</h2>
+          </div>
+          <div class="notes-body">
+            <p>The fly wanders, makes sudden course corrections, investigates the green markers, and reacts to your cursor. Its apparent size changes as it moves toward and away from you.</p>
+            <p>Drag an attraction marker anywhere on the page. Adjust its pull in the flight controls. Turn on a trail to see the path it leaves behind.</p>
+            <div class="note-key">
+              <div><span class="key-swatch green"></span> ATTRACTION SPOT</div>
+              <div><span class="key-swatch orange"></span> FLIGHT TRAIL</div>
+              <div><span class="key-swatch dark"></span> PAGE PLANE</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer class="footer"><span>HOUSEFLY STUDY / 2026</span><span>AN INTERACTIVE FIELD NOTE</span></footer>
+    </main>
+
+    <div class="depth-gauge" aria-label="Fly depth in the flight volume">
+      <div class="gauge-head"><span>FLIGHT DEPTH</span><span id="depth-motion">APPROACHING</span></div>
+      <div class="gauge-track"><span id="depth-marker"></span></div>
+      <div class="gauge-foot"><span>FAR</span><output id="depth-value" aria-live="off">35%</output><span>NEAR</span></div>
+    </div>
+
+    <button id="panel-toggle" class="panel-toggle" type="button" aria-expanded="true" aria-controls="controls">
+      <span class="toggle-icon">✳</span><span>FLIGHT CONTROLS</span><span id="panel-chevron">−</span>
+    </button>
+    <aside id="controls" class="control-panel" aria-label="Flight controls">
+      <div class="panel-head">
+        <div><p class="panel-kicker">FIELD INSTRUMENTS</p><h2>Flight controls</h2></div>
+        <span class="panel-number">01—10</span>
+      </div>
+      <div class="status-line"><span><span class="live-dot"></span> <span id="status-text">CRUISING</span></span><span id="speed-readout">25 u/s</span></div>
+
+      <div class="control-group">
+        <label for="preset">BEHAVIOR PRESET</label>
+        <select id="preset">
+          <option value="default">Field study</option>
+          <option value="calm">Calm</option>
+          <option value="restless">Restless</option>
+          <option value="curious">Curious</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="control-group"><div class="label-row"><label for="speed">FLIGHT SPEED</label><output for="speed" id="speed-value">25</output></div><input id="speed" type="range" min="5" max="80" value="25" /></div>
+      <div class="control-group"><div class="label-row"><label for="depthTravel">DEPTH TRAVEL</label><output for="depthTravel" id="depthTravel-value">40%</output></div><input id="depthTravel" type="range" min="0" max="100" value="40" /></div>
+      <div class="control-group"><div class="label-row"><label for="turnFrequency">TURN FREQUENCY</label><output for="turnFrequency" id="turnFrequency-value">0.8/s</output></div><input id="turnFrequency" type="range" min="0" max="3" step="0.1" value="0.8" /></div>
+      <div class="control-group"><div class="label-row"><label for="turnSharpness">TURN SHARPNESS</label><output for="turnSharpness" id="turnSharpness-value">60%</output></div><input id="turnSharpness" type="range" min="0" max="100" value="60" /></div>
+      <div class="control-group"><div class="label-row"><label for="attractionStrength">ATTRACTION</label><output for="attractionStrength" id="attractionStrength-value">50%</output></div><input id="attractionStrength" type="range" min="0" max="100" value="50" /></div>
+      <div class="control-group"><label for="cursorResponse">CURSOR RESPONSE</label><select id="cursorResponse"><option value="flee">Flee</option><option value="investigate">Investigate</option><option value="ignore">Ignore</option></select></div>
+
+      <details id="advanced">
+        <summary>MORE VARIABLES <span>+</span></summary>
+        <div class="control-group"><div class="label-row"><label for="burstMultiplier">BURST MULTIPLIER</label><output for="burstMultiplier" id="burstMultiplier-value">1.8×</output></div><input id="burstMultiplier" type="range" min="1" max="3" step="0.1" value="1.8" /></div>
+        <div class="control-group"><div class="label-row"><label for="attractionRadius">ATTRACTION RADIUS</label><output for="attractionRadius" id="attractionRadius-value">25u</output></div><input id="attractionRadius" type="range" min="5" max="60" value="25" /></div>
+        <div class="control-group"><div class="label-row"><label for="cursorSensitivity">CURSOR SENSITIVITY</label><output for="cursorSensitivity" id="cursorSensitivity-value">50%</output></div><input id="cursorSensitivity" type="range" min="0" max="100" value="50" /></div>
+        <label class="check-row"><input id="randomTurns" type="checkbox" checked /><span>Random turns</span></label>
+        <label class="check-row"><input id="showTrail" type="checkbox" /><span>Flight trail</span></label>
+        <label class="check-row"><input id="showDiagnostics" type="checkbox" /><span>Diagnostics</span></label>
+      </details>
+      <div class="spot-controls">
+        <div class="spot-title"><span>ATTRACTION SPOTS</span><span id="spot-count">01 / 03</span></div>
+        <p>Drag a green marker into the fly's path.</p>
+        <button id="add-spot" class="outline-button" type="button">+ ADD SPOT</button>
+        <div id="selected-spot" hidden>
+          <div class="label-row"><label for="spot-depth">SELECTED SPOT DEPTH</label><output for="spot-depth" id="spot-depth-value">45%</output></div>
+          <input id="spot-depth" type="range" min="0" max="100" value="45" />
+          <div class="label-row"><label for="spot-strength">SPOT STRENGTH</label><output for="spot-strength" id="spot-strength-value">100%</output></div>
+          <input id="spot-strength" type="range" min="0" max="200" value="100" />
+          <button id="remove-spot" class="remove-button" type="button">REMOVE SELECTED SPOT ↗</button>
+        </div>
+      </div>
+      <div class="transport">
+        <button id="pause" type="button">Ⅱ <span>PAUSE</span></button>
+        <button id="step" type="button" disabled>▷│ <span>STEP</span></button>
+        <button id="slow" type="button" aria-pressed="false">¼ <span>SLOW</span></button>
+      </div>
+      <div class="reset-row"><button id="reset-flight" type="button">RESET FLIGHT</button><button id="restore-defaults" type="button">RESTORE DEFAULTS</button></div>
+      <div id="diagnostics" class="diagnostics" hidden></div>
+    </aside>
+  </body>
+</html>

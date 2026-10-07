@@ -25,6 +25,10 @@
 	header @puddle Access-Control-Allow-Origin "*"
 	header @puddle Cache-Control "no-cache"
 
+	@housefly path /housefly-study /housefly-study/*
+	header @housefly Access-Control-Allow-Origin "*"
+	header @housefly Cache-Control "no-cache"
+
 	@raid path /raid-survivor /raid-survivor/*
 	header @raid Access-Control-Allow-Origin "*"
 	header @raid Cache-Control "no-cache"
