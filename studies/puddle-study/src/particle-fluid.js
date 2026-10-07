@@ -1,4 +1,4 @@
-import {resolveParticle,segmentBlockedBySolid} from './colliders.js';
+import {resolveParticle,segmentBlockedBySolid,groundAt} from './colliders.js';
 
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const key=(x,y,z)=>`${x},${y},${z}`;
@@ -102,18 +102,20 @@ export class ParticleFluid {
     const approach=(v,target,delta)=>v+clamp(target-v,-delta,delta);
     this.brainDrive.x=power?approach(this.brainDrive.x,centering?0:ux*maxSpeed,accel*h):0;
     this.brainDrive.z=power?approach(this.brainDrive.z,centering?0:uz*maxSpeed,accel*h):0;
-    const toward=anchor?{x:anchor.x-p.x,z:anchor.z-p.z}:{x:0,z:0};
+    const hold=anchor||input.holdPosition;
+    const toward=hold?{x:hold.x-p.x,z:hold.z-p.z}:{x:0,z:0};
     const horizontal={x:this.brainDrive.x+clamp(toward.x*3.3,-1.8*s,1.8*s)*power,
       z:this.brainDrive.z+clamp(toward.z*3.3,-1.8*s,1.8*s)*power};
     const attachedFraction=Math.min(1,this.attachedCount/Math.max(1,this.massReferenceCount-1));
-    let targetY=anchor?this.radius+.16*s+(1.25*s-this.radius-.16*s)*Math.cbrt(attachedFraction):this.radius+.16*s;
+    const ground=groundAt(p.x,p.z,colliders).height;
+    let targetY=ground+(anchor?this.radius+.16*s+(1.25*s-this.radius-.16*s)*Math.cbrt(attachedFraction):this.radius+.16*s);
     if(anchor){
       // The core can rise only as the body below it rises. Reserved coat
       // particles alone cannot support a hovering brain above a flat pool.
       const support=this.particles.filter((q,i)=>i!==this.brainIndex&&!this.coatIndices.includes(i)&&
         !q.feedstock&&q.component===p.component&&Math.hypot(q.x-anchor.x,q.z-anchor.z)<.53*s)
         .map(q=>q.y).sort((a,b)=>a-b);
-      const supported=support.length>=8?support[Math.floor(support.length*.65)]+.23*s:this.radius+.18*s;
+      const supported=support.length>=8?support[Math.floor(support.length*.65)]+.23*s:ground+this.radius+.18*s;
       targetY=Math.min(targetY,supported);
     }
     const roof=colliders.find(c=>c.type==='roof');
@@ -268,7 +270,7 @@ export class ParticleFluid {
         const along=((p.x-center.x)*ux+(p.z-center.z)*uz)/this.size;
         const lead=clamp(1+.10*along,.82,1.14);
         if(canDrive&&!input.puddle){const drive=input.push?6:1;p.vx+=ux*7.5*speed*lead*drive*h;p.vz+=uz*7.5*speed*lead*drive*h;}
-        if(input.puddle&&!p.feedstock&&!input.contract){
+        if(input.puddle&&!p.feedstock&&!input.contract&&!hooks.controls?.(i)){
           const dx=center.x-p.x,dz=center.z-p.z,d=Math.hypot(dx,dz),dead=.19*this.size;
           if(d>dead){
             const spatial=Math.hypot(dx,center.y-p.y,dz);
@@ -278,7 +280,7 @@ export class ParticleFluid {
             p.vz+=(dz/d*gain-p.vz*.8*falloff)*h;
           }
         }
-        if(input.contract&&!p.feedstock&&i!==this.brainIndex){
+        if(input.contract&&!p.feedstock&&i!==this.brainIndex&&!hooks.controls?.(i)){
           const attached=p.component===brainComponent;
           const target=attached?(this.contractAnchor||center):center;
           const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);
@@ -298,15 +300,16 @@ export class ParticleFluid {
             const fullness=Math.min(1,this.attachedCount/Math.max(1,this.massReferenceCount-1));
             const rim=(.62+.34*Math.cbrt(fullness))*this.size;
             const profile=clamp(1-radial/rim,0,1);
-            const desired=this.radius+.014*this.size+profile*(.16+.9*Math.cbrt(fullness))*this.size;
+            const desired=groundAt(target.x,target.z,colliders).height+this.radius+.014*this.size+profile*(.16+.9*Math.cbrt(fullness))*this.size;
             if(profile>0){
               const lift=clamp((desired-p.y)*48-p.vy*4,-12*this.size,24*this.size);
               p.vy+=lift*h;
             }
           }
         }
+        hooks.forces?.(p,i,h);
         p.vy-=7.2*h;
-        const floor=p.y<=r+.02;
+        const floor=p.y<=groundAt(p.x,p.z,colliders).height+r+.02;
         const drag=floor?.968:.993;
         p.vx*=drag;p.vy*=.995;p.vz*=drag;
         if(floor&&!speed){p.vx*=.88;p.vz*=.88;}
@@ -353,9 +356,18 @@ export class ParticleFluid {
       // Ownership for the claim uses this frame's actual solid-clear graph.
       // A fragment that just broke away cannot collect a drop on behalf of the brain.
       this.updateComponents(colliders);
-      this.claimFeedstock(colliders);
+      if(input.expireFragments)this.expireFragments();
+      if(!input.shed)this.claimFeedstock(colliders);
     }
     this.updateComponents(input.puddle?colliders:[]);
+  }
+  expireFragments(grace=2.5){
+    // A broken living piece gets a chance to reconnect before becoming inert.
+    for(let i=0;i<this.particles.length;i++){
+      const p=this.particles[i];
+      if(i===this.brainIndex||this.coatIndices.includes(i)||p.feedstock||p.component===this.brain.component)continue;
+      if(this.time-p.lastBrain>=grace){p.feedstock=true;p.shedLocked=false;}
+    }
   }
   claimFeedstock(colliders){
     // Contact with brain-connected flesh, rather than the distant attraction field,
@@ -365,6 +377,14 @@ export class ParticleFluid {
     const reach=this.range*.75;
     for(const p of this.particles){
       if(!p.feedstock)continue;
+      // Give a release time to peel away. A failed release touching the body
+      // can rejoin after the grace period; holding Shed pauses all absorption.
+      if(p.shedLocked){
+        const separated=!this.particles.some(q=>!q.feedstock&&Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<this.range);
+        if(!separated&&this.time-(p.shedAt??this.time)<1.2)continue;
+        p.shedLocked=false;
+        if(separated)continue;
+      }
       if(owned.some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<reach&&
         !segmentBlockedBySolid(q,p,colliders,this.radius*.35)))p.feedstock=false;
     }

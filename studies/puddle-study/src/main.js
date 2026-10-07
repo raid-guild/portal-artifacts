@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import './style.css';
-import { PuddleSimulation, GROWTH, PUDDLE_FIELD, DT } from './simulation.js';
+import {setupMusic} from './music.js';
+const disposeMusic=setupMusic();
+if(import.meta.hot)import.meta.hot.dispose(disposeMusic);
+import { PuddleSimulation, GROWTH, PUDDLE_FIELD, PRESSURE, DT } from './simulation.js';
 import { createParticleSurface } from './particle-surface.js';
-import {GAP} from './colliders.js';
+import {GAP,FUNNEL,groundAt} from './colliders.js';
 import {movementAxes} from './movement.js';
 
 const sim = new PuddleSimulation();
-sim.selectTest('field');
+sim.setupRetrieval();
 const canvas = document.querySelector('#world');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -34,6 +37,36 @@ terraceShape.bezierCurveTo(-6.56,4.7,-8.1,4.39,-8.41,3.47);
 terraceShape.bezierCurveTo(-8.65,1.22,-8.73,-1.94,-8.3,-4.15);
 const terrace = add(new THREE.ExtrudeGeometry(terraceShape,{depth:.58,bevelEnabled:false,curveSegments:5}),[mat(sand),mat(0x8d8a83)]);
 terrace.rotation.x=Math.PI/2;
+const flatTerraceGeometry=terrace.geometry;
+const basinShape=terraceShape.clone(),basinHole=new THREE.Path();
+basinHole.absarc(FUNNEL.x,FUNNEL.z,FUNNEL.radius,0,Math.PI*2,true);
+basinShape.holes.push(basinHole);
+const basinTerraceGeometry=new THREE.ExtrudeGeometry(basinShape,{depth:.58,bevelEnabled:false,curveSegments:24});
+const pressureGroup=new THREE.Group();scene.add(pressureGroup);
+const basin=add(new THREE.CylinderGeometry(FUNNEL.radius,FUNNEL.bottomRadius,FUNNEL.depth,64,1,true),
+  mat(0xc5b8aa,{side:THREE.DoubleSide}),pressureGroup);
+basin.position.set(FUNNEL.x,-FUNNEL.depth/2,FUNNEL.z);
+const plate=add(new THREE.CylinderGeometry(FUNNEL.bottomRadius,FUNNEL.bottomRadius,.045,48),mat(0x9faea4),pressureGroup);
+plate.position.set(FUNNEL.x,-FUNNEL.depth-.018,FUNNEL.z);
+for(const [radius,y] of [[FUNNEL.radius,.012],[FUNNEL.bottomRadius,-FUNNEL.depth+.012]]){
+  const ring=add(new THREE.TorusGeometry(radius,.013,4,64),mat(ink),pressureGroup);
+  ring.rotation.x=Math.PI/2;ring.position.set(FUNNEL.x,y,FUNNEL.z);
+}
+const pressureGate=add(new THREE.BoxGeometry(PRESSURE.gateWidth,PRESSURE.gateHeight,4.6),
+  mat(0xa5bfba,{transparent:true,opacity:.8}),pressureGroup);
+pressureGate.position.set(PRESSURE.gateX,PRESSURE.gateHeight/2,0);
+pressureGate.add(new THREE.LineSegments(new THREE.EdgesGeometry(pressureGate.geometry),lineMat()));
+for(const z of [-3.3,3.3]){
+  const wall=add(new THREE.BoxGeometry(.5,1.3,2),mat(0xb5c5b7),pressureGroup);
+  wall.position.set(PRESSURE.gateX,.65,z);
+  wall.add(new THREE.LineSegments(new THREE.EdgesGeometry(wall.geometry),lineMat(ink,.65)));
+}
+const signalPoints=[new THREE.Vector3(FUNNEL.x, .028, -FUNNEL.radius),
+  new THREE.Vector3(FUNNEL.x,.028,-2),new THREE.Vector3(PRESSURE.gateX,.028,-2)];
+const signalLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(signalPoints),lineMat(0x9a7778));pressureGroup.add(signalLine);
+const pressureExit=add(new THREE.TorusGeometry(.5,.025,5,40),mat(0x8aaea5),pressureGroup);
+pressureExit.rotation.x=Math.PI/2;pressureExit.position.set(3,.05,0);
+
 const contourPts = terraceShape.getPoints(95).map(p=>new THREE.Vector3(p.x,.025,p.y));
 scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(contourPts),lineMat()));
 
@@ -111,15 +144,30 @@ const toggleParticles=()=>{particleDebug.visible=!particleDebug.visible;
   document.querySelector('#particles-toggle').textContent=particleDebug.visible?'P / HIDE PARTICLES':'P / SHOW PARTICLES';};
 document.querySelector('#particles-toggle').addEventListener('click',toggleParticles);
 
+const aim={x:FUNNEL.x,z:FUNNEL.z},raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+const aimRing=add(new THREE.TorusGeometry(.16,.015,5,24),mat(0x9c6760));aimRing.rotation.x=Math.PI/2;
+const aimLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+  new THREE.LineDashedMaterial({color:0x8f8274,dashSize:.09,gapSize:.09,transparent:true,opacity:.6}));scene.add(aimLine);
+function aimFromPointer(e){
+  const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+  raycaster.setFromCamera(pointer,camera);
+  const hits=raycaster.intersectObjects([terrace,...(sim.selectedTest==='pressure'?[basin,plate]:[])],false);
+  if(hits.length){aim.x=hits[0].point.x;aim.z=hits[0].point.z;}
+}
+function cast(){if(sim.selectedTest==='pressure')sim.castTendril(aim);}
+canvas.addEventListener('pointermove',aimFromPointer);
+canvas.addEventListener('pointerdown',e=>{if(e.button===0&&sim.selectedTest==='pressure'){aimFromPointer(e);cast();}});
+const castButton=document.querySelector('#cast');castButton.addEventListener('click',cast);
 const keys=new Set(),touchMove=new Set(),blockedUntilRelease=new Set();
-let pulling=false,pushing=false;
+let pulling=false,pushing=false,shedding=false;
+const shedButton=document.querySelector('#shed');
 const pullButton=document.querySelector('#pull');
 const applyMaterial=()=>{sim.fluid.cohesion=Number(document.querySelector('#cohesion').value);
   sim.fluid.viscosity=Number(document.querySelector('#viscosity').value);};
 for(const id of ['cohesion','viscosity'])document.getElementById(id).addEventListener('input',applyMaterial);
 function clearInputs(){
   for(const key of keys)blockedUntilRelease.add(key);
-  keys.clear();touchMove.clear();pulling=false;pushing=false;
+  keys.clear();touchMove.clear();pulling=false;pushing=false;shedding=false;
   pullButton.setAttribute('aria-pressed','false');
 }
 function syncOozeButton(){
@@ -127,20 +175,26 @@ function syncOozeButton(){
   b.classList.toggle('selected',sim.oozeForward);
   b.textContent=sim.oozeForward?'STOP OOZING':'OOZE FORWARD';
 }
-function resetStudy(size=sim.size){clearInputs();sim.reset(size);applyMaterial();syncOozeButton();}
+function resetStudy(size=sim.size){clearInputs();if(sim.retrievalSetup)sim.setupRetrieval();else sim.reset(size);applyMaterial();syncOozeButton();}
+document.querySelector('#retrieval-setup').addEventListener('click',()=>{clearInputs();sim.setupRetrieval();aim.x=FUNNEL.x;aim.z=FUNNEL.z;applyMaterial();});
+document.querySelector('#shedding-setup').addEventListener('click',()=>{clearInputs();sim.retrievalSetup=false;sim.reset(1);aim.x=FUNNEL.x;aim.z=FUNNEL.z;applyMaterial();});
 window.addEventListener('blur',clearInputs);
 window.addEventListener('keydown',e=>{
+  if(e.target.closest?.('.music-controls')||e.target.matches?.('input,select,textarea'))return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(blockedUntilRelease.has(e.code))return;
   keys.add(e.code);
   if(e.repeat)return;
   if(e.code==='KeyR')resetStudy();
   if(e.code==='KeyP')toggleParticles();
+  if(e.code==='KeyE')cast();
 });
 window.addEventListener('keyup',e=>{keys.delete(e.code);blockedUntilRelease.delete(e.code);});
 document.querySelector('#reset').addEventListener('click',()=>resetStudy());
 pullButton.addEventListener('pointerdown',e=>{pulling=true;pullButton.setPointerCapture(e.pointerId);});
 for(const type of ['pointerup','pointercancel','lostpointercapture'])pullButton.addEventListener(type,()=>pulling=false);
+shedButton.addEventListener('pointerdown',e=>{shedding=true;shedButton.setPointerCapture(e.pointerId);});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])shedButton.addEventListener(type,()=>shedding=false);
 const pushButton=document.querySelector('#push');
 pushButton.addEventListener('pointerdown',e=>{pushing=true;pushButton.setPointerCapture(e.pointerId);});
 for(const type of ['pointerup','pointercancel','lostpointercapture'])pushButton.addEventListener(type,()=>pushing=false);
@@ -163,15 +217,30 @@ document.querySelector('#ooze-forward').addEventListener('click',()=>{
 });
 
 function updateSkin(){
+  const pressure=sim.selectedTest==='pressure';
+  pressureGroup.visible=pressure;
+  terrace.geometry=pressure?basinTerraceGeometry:flatTerraceGeometry;
+  pressureGate.position.y=PRESSURE.gateHeight/2+sim.pressure.opening;
+  plate.material.color.setHex(sim.pressure.active?0x739f8c:0x9faea4);
+  signalLine.material.color.setHex(sim.pressure.active?0x487f70:0x9a7778);
+  shedButton.hidden=!pressure;castButton.hidden=!pressure;
+  document.querySelector('#retrieval-controls').classList.toggle('active',pressure);
+  aimRing.visible=pressure;aimLine.visible=pressure&&!sim.tendril.active;
+  const ay=groundAt(aim.x,aim.z,sim.activeColliders()).height+.04;
+  aimRing.position.set(aim.x,ay,aim.z);
+  const line=aimLine.geometry.attributes.position;
+  line.setXYZ(0,sim.brain.x,sim.brain.y,sim.brain.z);line.setXYZ(1,aim.x,ay,aim.z);line.needsUpdate=true;
+  aimLine.computeLineDistances();
+  aimRing.material.color.setHex(sim.tendril.active?0x739f8c:0x9c6760);
   gapGroup.visible=sim.selectedTest==='gap';
   growthGroup.visible=sim.selectedTest==='growth';
   document.querySelector('#gap-controls').classList.toggle('active',sim.selectedTest==='gap');
   if(surfaceTick++%3===0){
     const growth=sim.selectedTest==='growth',field=sim.selectedTest==='field';
     const colliders=sim.activeColliders(),particles=sim.fluid.particles;
-    bodySurface.update(growth||field?particles.filter(p=>!p.feedstock):particles,colliders,sim.fluid.radius);
-    supplySurface.mesh.visible=growth;
-    if(growth)supplySurface.update(particles.filter(p=>p.feedstock),colliders,sim.fluid.radius);
+    bodySurface.update(growth||field||pressure?particles.filter(p=>!p.feedstock):particles,colliders,sim.fluid.radius);
+    supplySurface.mesh.visible=growth||pressure;
+    if(growth||pressure)supplySurface.update(particles.filter(p=>p.feedstock),colliders,sim.fluid.radius);
     fieldSurfaces.forEach((surface,patchId)=>{
       const pool=field?particles.filter(p=>p.feedstock&&p.patchId===patchId):[];
       surface.mesh.visible=pool.length>0;
@@ -191,8 +260,8 @@ let headingMode='';
 function updateHud(){
   const mode=sim.selectedTest;
   if(mode!==headingMode){
-    const titles={field:'FIELD',growth:'GROWTH',gap:'LOW GAP'};
-    const descriptions={field:'Gather the small living puddles scattered across the terrace.',
+    const titles={field:'FIELD',growth:'GROWTH',gap:'LOW GAP',pressure:'TENDRILS'};
+    const descriptions={pressure:'Cast a little of yourself. Draw the loose flesh home.',field:'Gather the small living puddles scattered across the terrace.',
       growth:'A small living puddle grows by gathering the falling flesh.',
       gap:'Lead the living puddle through a low passage.'};
     document.querySelector('header h1').innerHTML=`PUDDLE <em>/</em> ${titles[mode]}`;
@@ -200,7 +269,12 @@ function updateHud(){
     headingMode=mode;
   }
   let title='',hint='';
-  if(mode==='field'){
+  if(mode==='pressure'){
+    title=sim.pressure.complete?'THROUGH':sim.pressure.active?'WEIGHT HELD':sim.materialState==='shedding'?'SHEDDING':'FILL THE BASIN';
+    hint=sim.pressure.complete?'Your deposit holds the gate. Press R to try another amount.':
+      sim.pressure.active?'Leave the green flesh in the basin. Go around it and ooze under the raised gate.':
+      'Approach the basin rim. Hold F to shed; loose flesh drains down. Leave 48 on the plate to raise the gate.';
+  }else if(mode==='field'){
     title=sim.field.loose?'GATHERING':'FIELD ABSORBED';
     hint=sim.field.loose?'Move across the terrace. Touch a small puddle to draw its flesh into your body.':
       'All the loose puddles have joined the brain-connected body. Press R to scatter them again.';
@@ -216,28 +290,44 @@ function updateHud(){
       sim.gapStage==='under'?'Keep moving forward; the low roof presses the body flat.':
       'Move right or tap Ooze Forward. The brain lowers before the roof; the flesh follows underneath.';
   }
+  if(mode==='pressure'){
+    const t=sim.tendril;
+    if(t.active){title=t.state.toUpperCase();hint='Hold Space to pull the strand and collected flesh home. Walking too far away can break it.';}
+    else if(t.state==='broken'){title='STRAND BROKEN';hint='The connection stretched or caught on an obstacle. Disconnected flesh turns green; cast again to recover it.';}
+    else if(t.state==='need flesh'){title='MORE FLESH NEEDED';hint='Keep more than the minimum coating to cast a tendril. Gather loose flesh, or load Retrieval Setup.';}
+    else if(sim.retrievalSetup){title=sim.pressure.weight?'CAST INTO THE BASIN':'FLESH RECOVERED';hint='Click the green basin to cast, or aim and press E. Hold Space to pull flesh home. F still sheds.';}
+  }
+  document.querySelector('#tendril-status').hidden=mode!=='pressure';
+  document.querySelector('#tendril-status').textContent=sim.tendril.active?
+    `STRAND ${sim.tendril.length.toFixed(1)} / FLESH CLAIMED ${sim.tendril.recovered}`:'CLICK TO CAST · SPACE TO RETRIEVE';
   document.querySelector('#mode').textContent=title;
   document.querySelector('#message').textContent=hint;
   const count=sim.fluid.particles.length,growth=mode==='growth',field=mode==='field',gap=mode==='gap';
-  document.querySelector('#flesh-label').textContent=gap?'FLESH THROUGH':field?'CONNECTED FLESH':'SIZE GOAL';
+  document.querySelector('#flesh-label').textContent=mode==='pressure'?'PLATE WEIGHT':gap?'FLESH THROUGH':field?'CONNECTED FLESH':'SIZE GOAL';
   document.querySelector('#reach-label').textContent='BRAIN POWER';
-  document.querySelector('#flesh').textContent=gap?`${Math.round(sim.fleshThrough*100)}%`:
+  document.querySelector('#flesh').textContent=mode==='pressure'?`${sim.pressure.weight} / ${PRESSURE.threshold}`:gap?`${Math.round(sim.fleshThrough*100)}%`:
     field?`${sim.fluid.attachedCount} / ${PUDDLE_FIELD.capacity-1}`:`${sim.fluid.attachedCount} / ${GROWTH.goal}`;
-  document.querySelector('#flesh-fill').style.width=`${gap?sim.fleshThrough*100:field?
+  document.querySelector('#flesh-fill').style.width=`${mode==='pressure'?Math.min(100,sim.pressure.weight/PRESSURE.threshold*100):gap?sim.fleshThrough*100:field?
     sim.fluid.attachedCount/(PUDDLE_FIELD.capacity-1)*100:
     Math.min(100,sim.fluid.attachedCount/GROWTH.goal*100)}%`;
   document.querySelector('#reach').textContent=`${Math.round(sim.fluid.brainPower*100)}%`;
   document.querySelector('#reach-fill').style.width=`${sim.fluid.brainPower*100}%`;
   document.querySelector('#growth-supply-row').hidden=gap;
   if(!gap){
-    document.querySelector('#growth-supply-row span').textContent=field?'LOOSE FLESH':sim.growth.emitted>=GROWTH.capacity-GROWTH.seedCount?'DRIP ENDED':'LOOSE SUPPLY';
-    document.querySelector('#growth-supply').textContent=String(field?sim.field.loose:sim.fluid.particles.filter(q=>q.feedstock).length);
+    document.querySelector('#growth-supply-row span').textContent=mode==='pressure'?'BODY FLESH':field?'LOOSE FLESH':sim.growth.emitted>=GROWTH.capacity-GROWTH.seedCount?'DRIP ENDED':'LOOSE SUPPLY';
+    document.querySelector('#growth-supply').textContent=String(mode==='pressure'?sim.fluid.particles.filter(p=>!p.feedstock).length-1:field?sim.field.loose:sim.fluid.particles.filter(q=>q.feedstock).length);
   }
   document.querySelector('.size-controls').hidden=!gap;
   pullButton.setAttribute('aria-pressed',String(pulling||keys.has('Space')));
+  shedButton.setAttribute('aria-pressed',String(shedding||keys.has('KeyF')));
 }
 function updateWorldLabels(){
   const v=new THREE.Vector3();
+  v.set(FUNNEL.x,.15,FUNNEL.z-1.5).project(camera);
+  const label=document.getElementById('pressure-label');
+  label.textContent=`BASIN / ${sim.pressure.weight} OF ${PRESSURE.threshold}`;
+  label.style.left=`${(v.x*.5+.5)*innerWidth}px`;label.style.top=`${(-v.y*.5+.5)*innerHeight}px`;
+  label.style.display=sim.selectedTest==='pressure'?'block':'none';
   v.set(GROWTH.spoutX,GROWTH.spoutY+1.05,GROWTH.spoutZ).project(camera);
   const growthLabel=document.getElementById('growth-spout-label');
   growthLabel.style.left=`${(v.x*.5+.5)*innerWidth}px`;
@@ -251,7 +341,7 @@ function updateWorldLabels(){
 }
 function resize(){
   const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);
-  const vertical=sim.selectedTest==='field'?Math.max(16,22*h/w):w<760?17:11.5,aspect=w/h;
+  const vertical=['field','pressure'].includes(sim.selectedTest)?Math.max(16,22*h/w):w<760?17:11.5,aspect=w/h;
   camera.left=-vertical*aspect/2;camera.right=vertical*aspect/2;camera.top=vertical/2;camera.bottom=-vertical/2;camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize);resize();
@@ -264,8 +354,8 @@ function frame(now){
   const forward=camera.getWorldDirection(new THREE.Vector3());forward.y=0;forward.normalize();
   const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);right.y=0;right.normalize();
   const {x,z}=movementAxes(sim.selectedTest,horizontal,vertical,right,forward);
-  while(acc>=DT){sim.step({x,z,contract:pulling||keys.has('Space'),push:pushing||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;}
-  if(sim.selectedTest==='field'){
+  while(acc>=DT){sim.step({x,z,contract:pulling||keys.has('Space'),shed:shedding||keys.has('KeyF'),push:pushing||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;}
+  if(['field','pressure'].includes(sim.selectedTest)){
     camera.position.set(6.8,18.5,22.5);camera.lookAt(0,.7,0);
   }else if(innerWidth<760){
     const focusX=sim.brain.x+1.05;
