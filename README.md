@@ -10,6 +10,7 @@ Create a stable directory beneath `public` with an `index.html` file:
 public/
   artifact-slug/
     index.html
+    artifact-social-v1.png
 ```
 
 After a change is merged to `main`, Railway deploys it at:
@@ -20,6 +21,61 @@ https://<artifact-domain>/artifact-slug/
 
 Published paths are durable. Do not rename or remove them. Use a versioned path
 when an existing article must retain the original artifact.
+
+### Include a link unfurl
+
+Every new artifact must include a cover image and static link-preview metadata
+so sharing its URL produces a useful unfurl. Include this work in the artifact's
+PR, alongside its editable source and published build.
+
+Create a cover that matches the artifact's visual style and remains readable at
+thumbnail size. Use image generation for illustrated cover art, or a deliberately
+composed screenshot when that represents the artifact better. Aim for a wide
+image around 1.91:1 (for example, 1200 × 630), leave crop-safe margins, and keep
+the file reasonably small. Use PNG or JPEG. For generated artwork, preserve the
+tool name and exact prompt in the study's `art/` directory, and identify concept
+art as such rather than describing it as a gameplay screenshot.
+
+Save the image in the artifact's published directory. For build-based studies,
+also keep it in the source public-assets directory so rebuilding preserves it.
+Use a versioned filename such as `artifact-social-v1.png`; update the metadata
+when replacing it with a new version.
+
+Put the following tags in the initial HTML `<head>`, not in client-side
+JavaScript. Replace the example slug, title, description, image name, dimensions,
+and alt text with the artifact's actual values. Canonical, `og:url`, and image
+URLs must be absolute production URLs, never localhost or filesystem paths.
+
+```html
+<title>Artifact title</title>
+<meta name="description" content="A short description of the experience.">
+<link rel="canonical" href="https://portal-artifacts-production.up.railway.app/artifact-slug/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="RaidGuild Artifacts">
+<meta property="og:title" content="Artifact title">
+<meta property="og:description" content="A short description of the experience.">
+<meta property="og:url" content="https://portal-artifacts-production.up.railway.app/artifact-slug/">
+<meta property="og:image" content="https://portal-artifacts-production.up.railway.app/artifact-slug/artifact-social-v1.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Describe the cover's subject and scene.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Artifact title">
+<meta name="twitter:description" content="A short description of the experience.">
+<meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/artifact-slug/artifact-social-v1.png">
+<meta name="twitter:image:alt" content="Describe the cover's subject and scene.">
+```
+
+Before opening the PR, inspect the cover and verify that the built HTML contains
+these tags, the image is included in the published output, and its format and
+dimensions match the metadata. Commit both source and rebuilt output. After
+deployment, check that the public page and image URLs load without authentication
+and inspect a shared-link preview; existing previews may remain cached.
+
+See [Puddle's source HTML](studies/puddle-study/index.html) and
+[image-generation record](studies/puddle-study/art/social-card-generation.txt)
+for a complete example.
 
 ## Security boundary
 
