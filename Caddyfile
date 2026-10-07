@@ -21,6 +21,10 @@
 	header @cosmic Access-Control-Allow-Origin "*"
 	header @cosmic Cache-Control "no-cache"
 
+	@puddle path /puddle-study /puddle-study/*
+	header @puddle Access-Control-Allow-Origin "*"
+	header @puddle Cache-Control "no-cache"
+
 	@raid path /raid-survivor /raid-survivor/*
 	header @raid Access-Control-Allow-Origin "*"
 	header @raid Cache-Control "no-cache"
