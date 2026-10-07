@@ -107,6 +107,13 @@ beneath a roof), with brain-led movement, grounded contraction, and the original
 Soft Signal background music. Editable source, tests, build instructions, and
 bundled dependency licenses are in [`studies/puddle-study/`](studies/puddle-study/README.md).
 
+## Housefly study
+
+`public/housefly-study/` contains a standalone Three.js housefly flight study at
+`/housefly-study/`. Editable source, simulation tests, local fonts, bundled
+dependency licenses, and rebuild instructions are in
+[`studies/housefly-study/`](studies/housefly-study/README.md).
+
 ## Portal motion study
 
 `public/portal-motion/` contains the built portal animation. Editable source is in
@@ -185,6 +192,10 @@ symlink points to the canonical published source; its README covers local
 preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
+
+- `housefly-study/` — A procedural housefly flies through a 3D volume over a
+  scrollable page, with adjustable depth, turns, speed, cursor response, and
+  draggable attraction spots.
 
 - `puddle-study/` — A brain-led living puddle that absorbs scattered pools or
   falling drops, casts and retrieves tendrils, sheds flesh onto weight switches,
