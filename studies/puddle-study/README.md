@@ -1,0 +1,55 @@
+# Puddle material study
+
+A self-contained Three.js study of a living particle puddle on a floating terrace. The visible brain stays coated by real flesh particles and leads movement. Its power comes from flesh currently connected to it; loose pieces draw in more weakly with distance. Marching Cubes gives the moving particles a single translucent body.
+
+The app opens on **Puddle Field**, with twelve separate small pools to absorb. **Growth** starts with the same tiny body facing a steady drip. **Low Gap** starts with a full body facing a low, roofed passage: the brain lowers before entering, stays under the roof with its particle coating, and draws the flesh through. The gap readout counts flesh that has fully passed the far edge. These are interactive material studies rather than scored levels.
+
+## Develop, test, and publish
+
+Requires Node.js 20.19+ and npm. From this directory:
+
+```sh
+npm ci
+npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
+```
+
+Open `http://127.0.0.1:5180/puddle-study/`.
+
+```sh
+npm test
+npm run build
+npm run preview -- --port 5181
+```
+
+The tests cover particle coating and connected mass, absorption, grown-body
+contraction and release, screen-relative controls, and Low Gap passage. The
+simulation tests can take several minutes.
+
+The build replaces **only** `../../public/puddle-study/`. Preview it at
+`http://127.0.0.1:5181/puddle-study/`, or serve the repository's `public/`
+directory through its Caddy configuration. Commit editable source and the
+rebuilt `public/puddle-study/` together. The deployed route is `/puddle-study/`;
+the existing artifact service publishes the checked-in build after merge.
+
+All JavaScript, fonts, and styles are served from the artifact's own origin.
+There are no accounts, backend calls, Portal cookies, or external font requests.
+Caddy applies public-asset CORS headers only to `/puddle-study/`, allowing ES
+modules and fonts to load inside Portal's `sandbox="allow-scripts"` iframe.
+Three.js and font licenses are included in `public/licenses/` here and copied
+to `/puddle-study/licenses/` by the build. Font packages are locked alongside
+the original study's Three.js and Vite versions.
+
+## Controls
+
+- WASD, arrow keys, or the touch pad: move the brain. The other particles follow through local forces.
+- Hold Space or **Hold to contract**: gather the material into a mound; release to flatten. Near the Low Gap, the brain's rise is limited by the roof.
+- Shift or **Push harder**: faster movement.
+- **Ooze Forward** in Low Gap: move right automatically. Press again to stop. It also stops after the brain and at least 90% of the flesh pass the roof.
+- R: reset the active study. P: show or hide individual particles.
+- Cohesion and viscosity sliders tune the material. S/M/L body sizes are available in Low Gap.
+
+The simulation is deliberately approximate. Particle spacing and a 48-cell Marching Cubes field limit fine surface detail; the surface refreshes every third render frame. Attraction cannot pass through solids, and distant fragments can take time to rejoin.
+
+Each study is capped at 297 particles. Separate surface fields keep unabsorbed
+pools readable. This is a gameplay material approximation, not a fluid solver
+for scientific use; the largest body can form a long elastic tail in Low Gap.

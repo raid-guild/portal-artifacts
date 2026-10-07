@@ -42,6 +42,14 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
+## Puddle material study
+
+`public/puddle-study/` is a living particle puddle study at `/puddle-study/`.
+It includes Puddle Field (absorb scattered pools), Growth (feed from a drip),
+and Low Gap (flow beneath a roof), with brain-led movement and grounded
+contraction. Editable source, tests, build instructions, and bundled dependency
+licenses are in [`studies/puddle-study/`](studies/puddle-study/README.md).
+
 ## Portal motion study
 
 `public/portal-motion/` contains the built portal animation. Editable source is in
@@ -120,6 +128,9 @@ symlink points to the canonical published source; its README covers local
 preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
+
+- `puddle-study/` — A brain-led living puddle that absorbs scattered pools or
+  falling drops, contracts into a grounded mound, and flows through a low gap.
 
 - `powder-study/` — Interactive particle world with paintable sand, water,
   fire, acid, seeds, and four experiment presets.
