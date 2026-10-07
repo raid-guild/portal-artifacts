@@ -45,10 +45,11 @@ Open <http://localhost:8080>.
 ## Puddle material study
 
 `public/puddle-study/` is a living particle puddle study at `/puddle-study/`.
-It includes Puddle Field (absorb scattered pools), Growth (feed from a drip),
-and Low Gap (flow beneath a roof), with brain-led movement and grounded
-contraction. Editable source, tests, build instructions, and bundled dependency
-licenses are in [`studies/puddle-study/`](studies/puddle-study/README.md).
+It includes Tendrils (cast, retrieve, shed, and operate a weight basin), Puddle
+Field (absorb scattered pools), Growth (feed from a drip), and Low Gap (flow
+beneath a roof), with brain-led movement, grounded contraction, and the original
+Soft Signal background music. Editable source, tests, build instructions, and
+bundled dependency licenses are in [`studies/puddle-study/`](studies/puddle-study/README.md).
 
 ## Portal motion study
 
@@ -130,7 +131,8 @@ preview, controls, source provenance, and simulation tests.
 ## Published artifacts
 
 - `puddle-study/` — A brain-led living puddle that absorbs scattered pools or
-  falling drops, contracts into a grounded mound, and flows through a low gap.
+  falling drops, casts and retrieves tendrils, sheds flesh onto weight switches,
+  contracts, and flows through a low gap, with Soft Signal background music.
 
 - `powder-study/` — Interactive particle world with paintable sand, water,
   fire, acid, seeds, and four experiment presets.

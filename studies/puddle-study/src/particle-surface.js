@@ -1,5 +1,5 @@
 import {MarchingCubes} from 'three/addons/objects/MarchingCubes.js';
-import {pointInsideSolid} from './colliders.js';
+import {pointInsideSolid,groundAt} from './colliders.js';
 
 // A scalar field built from local, finite-radius kernels. The field has no
 // topology of its own, so separated particle groups produce separate lobes.
@@ -46,7 +46,7 @@ export function createParticleSurface(material,resolution=48){
       const i=iz*n*n+iy*n+ix;
       if(field[i]<mesh.isolation*.2)continue;
       const x=cx-sx+ix*invX,y=cy-sy+iy*invY,z=cz-sz+iz*invZ;
-      if(y<.01||pointInsideSolid(x,y,z,colliders,.012))field[i]=0;
+      if(y<groundAt(x,z,colliders).height+.01||pointInsideSolid(x,y,z,colliders,.012))field[i]=0;
     }
     mesh.update();
   }

@@ -17,3 +17,12 @@
 .material-controls{position:absolute;right:42px;top:365px;width:220px;padding:9px 11px;background:rgba(241,231,214,.74);border:1px solid rgba(40,54,52,.38);font:9px 'DM Mono',monospace;letter-spacing:.06em;color:#385458}.material-controls label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0}.material-controls input{width:104px;accent-color:#b7726b}.material-controls button{font:inherit;font-size:8px;letter-spacing:.06em;margin-top:6px;border:1px solid #607679;background:#e9d5bb;color:#385458;cursor:pointer;padding:5px}
 .size-controls{top:327px}
 @media(max-width:760px){.size-controls{top:300px}.material-controls{right:12px;top:338px;width:154px;padding:5px 7px;font-size:7px}.material-controls input{width:65px}.material-controls label{margin:2px 0}}
+
+.controls button[aria-pressed="true"]{background:#b5cbbd}
+@media(min-width:761px){.instructions{bottom:18px}.controls{bottom:45px}}
+@media(max-width:760px){.test-controls{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+#tendril-status{font-size:8px;line-height:1.5;letter-spacing:.02em;margin-top:12px;color:#527367}
+@media(min-width:761px){.controls{max-width:650px}.controls button{padding:10px}}
+
+.music-controls{position:absolute;right:42px;top:485px;width:220px;padding:10px 11px;background:rgba(241,231,214,.8);border:1px solid rgba(40,54,52,.38);font:9px 'DM Mono',monospace;color:#385458}.music-controls button{font:inherit;background:#e9d5bb;color:#385458;border:1px solid #607679;padding:6px;cursor:pointer}.music-controls button[aria-pressed="true"]{background:#a9c9bf}.music-controls label{display:flex;align-items:center;justify-content:space-between;margin-top:8px}.music-controls input{width:135px;accent-color:#b7726b}#music-status{font-size:8px;margin-top:9px;line-height:1.4}@media(max-width:760px){.music-controls{right:12px;top:414px;width:154px;padding:6px;font-size:8px}.music-controls input{width:95px}#music-status{font-size:7px}}

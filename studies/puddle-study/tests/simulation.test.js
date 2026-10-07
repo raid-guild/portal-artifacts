@@ -401,10 +401,10 @@ test('Marching Cubes creates a finite nonempty surface from actual particles',()
 });
 
 
-test('only the three live demonstrations can be selected',()=>{
+test('only the four live demonstrations can be selected',()=>{
   const sim=new PuddleSimulation();
-  for(const mode of ['field','growth','gap'])assert.equal(sim.selectTest(mode),true);
-  for(const mode of ['bone','puddle-post','around','grippy','slippery','pressure']){
+  for(const mode of ['pressure','field','growth','gap'])assert.equal(sim.selectTest(mode),true);
+  for(const mode of ['bone','puddle-post','around','grippy','slippery']){
     assert.equal(sim.selectTest(mode),false);
     assert.equal(sim.selectedTest,'gap');
   }

@@ -5,6 +5,19 @@ export const GAP = {
 };
 export const GAP_COLLIDERS=[GAP.roof,GAP.leftWall,GAP.rightWall];
 export const TERRACE_BOUNDARY={type:'boundary',minX:-7.45,maxX:7.45,minZ:-4.15,maxZ:4.15};
+// A depression in the terrace, with a flat collecting floor and conical sides.
+export const FUNNEL={type:'funnel',x:-2.5,z:0,radius:1.5,bottomRadius:.62,depth:.85};
+export function groundAt(x,z,colliders=[]){
+  for(const c of colliders){
+    if(c.type!=='funnel')continue;
+    const dx=x-c.x,dz=z-c.z,d=Math.hypot(dx,dz);
+    if(d>=c.radius)continue;
+    if(d<=c.bottomRadius)return {height:-c.depth,dx:0,dz:0};
+    const slope=c.depth/(c.radius-c.bottomRadius);
+    return {height:-c.depth+(d-c.bottomRadius)*slope,dx:slope*dx/d,dz:slope*dz/d};
+  }
+  return {height:0,dx:0,dz:0};
+}
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // Segment/solid visibility for forces that reach farther than particle contacts.
 // The boundary contains the scene and does not hide one particle from another.
@@ -18,6 +31,16 @@ export function segmentBlockedBySolid(a,b,colliders,clearance=0){
   const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
   for(const c of colliders){
     if(c.type==='boundary')continue;
+    if(c.type==='funnel'){
+      // Only below-floor segments can intersect the basin wall.
+      if(Math.min(a.y,b.y)>=clearance)continue;
+      const steps=Math.max(2,Math.ceil(Math.hypot(dx,dy,dz)/.06));
+      for(let i=0;i<=steps;i++){
+        const t=i/steps,x=a.x+dx*t,z=a.z+dz*t;
+        if(a.y+dy*t<groundAt(x,z,[c]).height+clearance)return true;
+      }
+      continue;
+    }
     if(c.type==='box'||c.type==='roof'){
       let span=[0,1];
       span=interval(a.x,dx,c.minX-clearance,c.maxX+clearance,span);
@@ -45,7 +68,15 @@ export function segmentBlockedBySolid(a,b,colliders,clearance=0){
 
 export function resolveParticle(p,r,colliders){
   let hits=0;
-  if(p.y<r+.008){p.y=r+.008;if(p.vy<0)p.vy=0;hits++;}
+  for(let pass=0;pass<3;pass++){
+    const g=groundAt(p.x,p.z,colliders),norm2=1+g.dx*g.dx+g.dz*g.dz;
+    const penetration=g.height+r*Math.sqrt(norm2)+.008-p.y;
+    if(penetration<=0)break;
+    const correction=penetration/norm2;
+    p.x-=g.dx*correction;p.z-=g.dz*correction;p.y+=correction;
+    if(norm2===1&&p.vy<0)p.vy=0;
+    hits++;
+  }
   for(const c of colliders){
     if(c.type==='boundary'){
       const x=clamp(p.x,c.minX+r,c.maxX-r),z=clamp(p.z,c.minZ+r,c.maxZ-r);
