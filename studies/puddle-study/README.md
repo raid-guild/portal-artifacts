@@ -64,3 +64,7 @@ The tendril is an actively driven arrangement of the fluid particles with short 
 **Soft Signal** is the demo soundtrack: the approved 87-second, 88 BPM full-song mix, including the wordless bridge and guitar solo. Tap **Music Off** to enable looping playback; the level starts at 25%. Playback pauses while the page is hidden and continues on return. Resetting the material or switching studies does not restart the song.
 
 `public/audio/soft-signal.mp3` is encoded at 192 kbps from `soft-signal-surreal-explore-88bpm.wav`. The editable original Web Audio composition and listening/export app are preserved in `music-source/`. Gameplay mood variations remain available in that authoring app; the demo uses the approved Exploring mix.
+
+## Link preview
+
+The HTML includes static Open Graph and large-image Twitter card tags with absolute production URLs. `public/puddle-social-v1.png` is the 1734 × 907 illustrated cover, generated with built-in image_gen. The exact prompt and provenance are recorded in `art/social-card-generation.txt`. The artwork is concept cover art, not a gameplay screenshot.
