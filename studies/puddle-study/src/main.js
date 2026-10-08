@@ -17,7 +17,9 @@ import { PuddleSimulation, GROWTH, PUDDLE_FIELD, PRESSURE, DT } from './simulati
 import { createSurfacePipeline } from './surface-pipeline.js';
 import {GAP,FUNNEL,groundAt,segmentBlockedBySolid} from './colliders.js';
 import {movementAxes} from './movement.js';
-import {canStartControl,startPointerControl} from './game-input.js';
+import {canStartControl} from './game-input.js';
+import {bindHoldButton,bindPullButton} from './touch-actions.js';
+import {TouchJoystick} from './touch-joystick.js';
 import {FollowGardenCamera,cameraPointVisible,gardenMovementBasis} from './game-camera.js';
 
 const sim = new PuddleSimulation();
@@ -220,13 +222,29 @@ function cast(pointerAim=false){
     sim.castTendril(target);
   }
 }
-canvas.addEventListener('pointermove',aimFromPointer);
-canvas.addEventListener('pointerdown',e=>{if(e.button===0&&(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel))){
-  const hit=aimFromPointer(e);if(hit)cast(true);
+const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
+  if(!canStartControl(sim))return;
+  const hit=aimFromPointer({clientX:x,clientY:y});
+  if(hit){if(sim.selectedTest==='pressure')sim.castTendril({...aim});
+    else if(sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel))sim.castTendril({...aim});}
+
 }});
+canvas.addEventListener('pointermove',e=>{if(e.pointerType==='touch')joystick.move(e.pointerId,e.clientX,e.clientY);else aimFromPointer(e);});
+canvas.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch'){
+    if(!canStartControl(sim))return;
+    e.preventDefault();joystick.down(e.pointerId,e.clientX,e.clientY,performance.now());canvas.setPointerCapture(e.pointerId);return;
+  }
+  if(e.button===0&&(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel))){
+    const hit=aimFromPointer(e);if(hit)cast(true);
+  }
+});
+canvas.addEventListener('pointerup',e=>{if(e.pointerType==='touch')joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());});
+for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{
+  if(e.pointerType==='touch'&&joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);
+});
 const castButton=document.querySelector('#cast');castButton.addEventListener('click',cast);
-const keys=new Set(),touchMove=new Set(),blockedUntilRelease=new Set();
-let pushing=false,shedding=false;
+const keys=new Set(),blockedUntilRelease=new Set();
 const pullGesture=new PullGesture(()=>{
   if(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel)&&sim.garden.phase==='playing'&&sim.gardenInputArmed)
     sim.tendril.toggleRecall();
@@ -238,7 +256,7 @@ const applyMaterial=()=>{sim.fluid.cohesion=Number(document.querySelector('#cohe
 for(const id of ['cohesion','viscosity'])document.getElementById(id).addEventListener('input',applyMaterial);
 function clearInputs(){
   for(const key of keys)blockedUntilRelease.add(key);
-  keys.clear();touchMove.clear();pullGesture.cancel();sim.tendril.recalling=false;pushing=false;shedding=false;
+  keys.clear();joystick.cancel();pullHold.clear();shedHold.clear();pushHold.clear();pullGesture.cancel();sim.tendril.recalling=false;
   hasGardenAim=false;
   pullButton.setAttribute('aria-pressed','false');
 }
@@ -262,10 +280,28 @@ const gameShell=setupGameShell(sim,{clearInputs,onStart:()=>{disposeMusic.begin(
     localView.setEditing(false);localView.setPlaying(true);},
   onCameraToggle:toggleCamera,cameraMode:()=>cameraMode,
   onChange:()=>{
+    syncStudyMenu();
     if(!sim.isLocalGarden&&localView){localView.dispose();localView=null;}
     if(sim.selectedTest!=='garden'||sim.fluid!==cameraFluid&&!sim.descending)followCamera.initialized=false;
     cameraFluid=sim.fluid;applyMaterial();resize();
   }});
+const studyMenu=document.querySelector('#study-menu'),studyMenuBody=document.querySelector('#study-menu-body');
+const studyPanels=['.test-controls','.gap-controls','#retrieval-controls','.readout','.size-controls','.material-controls','.music-controls'];
+function syncStudyMenu(){
+  const compact=matchMedia('(pointer: coarse), (max-width: 760px), (max-width: 1000px) and (max-height: 500px)').matches;
+  const inStudy=sim.selectedTest!=='garden';
+  if(!compact||!inStudy){studyMenu.hidden=true;document.querySelector('#study-menu-toggle').setAttribute('aria-expanded','false');
+    for(const selector of studyPanels){const node=document.querySelector(selector);if(node?.parentElement===studyMenuBody)document.querySelector('#app').append(node);}return;}
+  for(const selector of studyPanels){const node=document.querySelector(selector);if(node&&node.parentElement!==studyMenuBody)studyMenuBody.append(node);}
+}
+document.querySelector('#study-menu-toggle').addEventListener('click',()=>{clearInputs();syncStudyMenu();studyMenu.hidden=false;
+  document.querySelector('#study-menu-toggle').setAttribute('aria-expanded','true');});
+document.querySelector('#study-menu-close').addEventListener('click',()=>{studyMenu.hidden=true;
+  document.querySelector('#study-menu-toggle').setAttribute('aria-expanded','false');});
+document.querySelector('#study-menu-reset').addEventListener('click',()=>{resetStudy();studyMenu.hidden=true;
+  document.querySelector('#study-menu-toggle').setAttribute('aria-expanded','false');});
+window.addEventListener('resize',syncStudyMenu);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearInputs();});
 window.addEventListener('blur',clearInputs);
 window.addEventListener('keydown',e=>{
   if(document.documentElement.classList.contains('booting'))return;
@@ -282,25 +318,12 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{if(e.code==='Space')pullGesture.up('keyboard',performance.now());keys.delete(e.code);blockedUntilRelease.delete(e.code);});
 document.querySelector('#reset').addEventListener('click',()=>resetStudy());
-pullButton.addEventListener('pointerdown',e=>startPointerControl(sim,e,()=>{
-  pullGesture.down(`pointer-${e.pointerId}`,performance.now());pullButton.setPointerCapture(e.pointerId);}));
-pullButton.addEventListener('pointerup',e=>{if(canStartControl(sim))pullGesture.up(`pointer-${e.pointerId}`,performance.now());else pullGesture.cancel();});
-for(const type of ['pointercancel','lostpointercapture'])pullButton.addEventListener(type,()=>pullGesture.cancel());
+const pullHold=bindPullButton(pullButton,pullGesture,()=>canStartControl(sim));
 pullButton.addEventListener('click',e=>{if(e.detail===0&&canStartControl(sim)&&
   (sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel)))sim.tendril.toggleRecall();});
-shedButton.addEventListener('pointerdown',e=>startPointerControl(sim,e,()=>{
-  shedding=true;shedButton.setPointerCapture(e.pointerId);}));
-for(const type of ['pointerup','pointercancel','lostpointercapture'])shedButton.addEventListener(type,()=>shedding=false);
+const shedHold=bindHoldButton(shedButton,()=>canStartControl(sim));
 const pushButton=document.querySelector('#push');
-pushButton.addEventListener('pointerdown',e=>startPointerControl(sim,e,()=>{
-  pushing=true;pushButton.setPointerCapture(e.pointerId);}));
-for(const type of ['pointerup','pointercancel','lostpointercapture'])pushButton.addEventListener(type,()=>pushing=false);
-for(const b of document.querySelectorAll('[data-move]')){
-  const dir=b.dataset.move;
-  b.addEventListener('pointerdown',e=>startPointerControl(sim,e,()=>{
-    touchMove.add(dir);b.setPointerCapture(e.pointerId);}));
-  for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>touchMove.delete(dir));
-}
+const pushHold=bindHoldButton(pushButton,()=>canStartControl(sim));
 for(const b of document.querySelectorAll('[data-size]'))b.addEventListener('click',()=>{
   resetStudy(Number(b.dataset.size));
   document.querySelectorAll('[data-size]').forEach(x=>x.classList.toggle('selected',x===b));
@@ -315,6 +338,7 @@ for(const b of document.querySelectorAll('[data-test]'))b.addEventListener('clic
   applyMaterial();
   document.querySelectorAll('[data-test]').forEach(x=>x.classList.toggle('selected',x===b));
   syncOozeButton();resize();
+  syncStudyMenu();
 });
 document.querySelector('#ooze-forward').addEventListener('click',()=>{
   sim.oozeForward=!sim.oozeForward;syncOozeButton();
@@ -484,7 +508,7 @@ function updateHud(){
   document.querySelector('.size-controls').hidden=!gap;
   pullButton.setAttribute('aria-pressed',String(pullGesture.holding||sim.tendril.recalling));
   pullButton.querySelector('span').textContent=sim.tendril.active?`Tap: ${sim.tendril.recalling?'pause':'recall'} / Hold: contract`:'Hold to contract';
-  shedButton.setAttribute('aria-pressed',String(shedding||keys.has('KeyF')));
+  shedButton.setAttribute('aria-pressed',String(shedHold.active||keys.has('KeyF')));
 }
 function updateWorldLabels(){
   const v=new THREE.Vector3();
@@ -522,8 +546,8 @@ function frame(now){
   const idle=sim.selectedTest==='garden'&&['title','paused','complete'].includes(sim.garden.phase);
   if(idle){acc=0;if(now-lastIdleDraw<100){requestAnimationFrame(frame);return;}lastIdleDraw=now;}
   if(!idle)acc+=elapsed;
-  const horizontal=(keys.has('KeyD')||keys.has('ArrowRight')||touchMove.has('right')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')||touchMove.has('left')?1:0);
-  const vertical=(keys.has('KeyW')||keys.has('ArrowUp')||touchMove.has('up')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')||touchMove.has('down')?1:0);
+  const horizontal=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0)+joystick.vector.x;
+  const vertical=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-joystick.vector.y;
   const basis=sim.selectedTest==='garden'?gardenMovementBasis():null;
   const forward=basis?.forward||camera.getWorldDirection(new THREE.Vector3());
   const right=basis?.right||new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
@@ -532,7 +556,7 @@ function frame(now){
   const contracting=pullGesture.update(now);
   const physicsStart=perfEnabled?performance.now():0;
   let steps=0;
-  while(acc>=DT){const draining=sim.selectedTest==='garden'&&sim.garden.phase==='draining';sim.step({x:draining?0:x,z:draining?0:z,contract:draining?false:contracting,shed:shedding||keys.has('KeyF'),push:pushing||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;steps++;}
+  while(acc>=DT){const draining=sim.selectedTest==='garden'&&sim.garden.phase==='draining';sim.step({x:draining?0:x,z:draining?0:z,contract:draining?false:contracting,shed:shedHold.active||keys.has('KeyF'),push:pushHold.active||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;steps++;}
   const physicsMs=perfEnabled?performance.now()-physicsStart:0;
   if(sim.selectedTest==='garden'){
     const descend=sim.descending&&sim.garden.phase==='arriving'?

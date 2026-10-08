@@ -14,6 +14,8 @@ import {setupPickupAudio} from './pickup-audio.js';
 import {createLocalLevelLibrary,localStorageForPage,localPageQuery} from './local-levels.js';
 import {createPrintedMaterialLibrary} from './printed-material.js';
 import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
+import {TouchJoystick} from './touch-joystick.js';
+import {bindHoldButton,bindPullButton} from './touch-actions.js';
 
 const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
@@ -33,7 +35,12 @@ if(requestedLevel){const entry=localLibrary.get(requestedLevel);
 let history=new DraftHistory(draft),selected=null,tool='select',playing=false,sim=null,view=null,
   drag=null,aim=null,pendingPreview=false,frameCount=0,orbit={azimuth:.19,elevation:.85,distance:22.5},
   pointerPose=null,brushStart=null,paintMode='fill';
-const keys=new Set(),touchKeys=new Set(),canvas=$('world'),scene=new THREE.Scene();scene.background=new THREE.Color(0xc6dfd9);
+const keys=new Set(),canvas=$('world'),scene=new THREE.Scene();scene.background=new THREE.Color(0xc6dfd9);
+const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
+  if(!playing||sim?.garden.phase!=='playing'||!sim.gardenInputArmed||!sim.gardenLevel.tendrils)return;
+  if(aimAt({clientX:x,clientY:y})){const target={...aim};sim.castTendril(target);}
+
+}});
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
 const printLibrary=createPrintedMaterialLibrary();
 const camera=new THREE.PerspectiveCamera(42,1,.1,160),target=new THREE.Vector3(0,.5,0),raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
@@ -54,7 +61,8 @@ scene.add(body.mesh);
 const brain=new THREE.Mesh(new THREE.SphereGeometry(.072,12,8),new THREE.MeshBasicMaterial({color:0x795952}));scene.add(brain);
 const aimRing=new THREE.Mesh(new THREE.TorusGeometry(.22,.018,5,32),new THREE.MeshBasicMaterial({color:0x805976}));
 aimRing.rotation.x=-Math.PI/2;scene.add(aimRing);aimRing.visible=false;
-const music=setupMusic(),audio=setupPickupAudio();let recall=false,shedHeld=false;
+const music=setupMusic(),audio=setupPickupAudio();let recall=false;
+const editorMusicPanel=document.querySelector('.stage-panel > .music-controls');
 const pull=new PullGesture(()=>{recall=true;});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),snap=n=>$('snap').checked?Math.round(n*4)/4:Math.round(n*100)/100;
 function status(message){$('status').textContent=message;}
@@ -135,10 +143,10 @@ function fitCamera(){orbit.distance=Math.max(orbit.distance,fitDistance());updat
 function updateCamera(){const elev=clamp(orbit.elevation,.12,1.55),az=orbit.azimuth,d=orbit.distance;
   camera.position.set(target.x+Math.sin(az)*Math.cos(elev)*d,target.y+Math.sin(elev)*d,target.z+Math.cos(az)*Math.cos(elev)*d);
   camera.up.set(0,1,0);camera.lookAt(target);camera.updateMatrixWorld();}
-let firstResize=true;
+let firstResize=true,prePlayDistance=null;
 function resize(){const rect=$('app').getBoundingClientRect();if(!rect.width||!rect.height)return;
   renderer.setSize(rect.width,rect.height,false);camera.aspect=rect.width/rect.height;camera.updateProjectionMatrix();
-  if(firstResize){firstResize=false;fitCamera();}else updateCamera();}
+  if(firstResize){firstResize=false;fitCamera();}else if(playing)fitCamera();else updateCamera();}
 new ResizeObserver(resize).observe($('app'));
 $('top-view').onclick=()=>{orbit={azimuth:0,elevation:1.54,distance:19.5};fitCamera();};
 $('tower-view').onclick=()=>{orbit={azimuth:.19,elevation:.85,distance:22.5};fitCamera();};
@@ -223,7 +231,10 @@ $('paint-rectangle').onchange=()=>{paintMode='rectangle';activePaintFace=null;$(
   $('paint-selection').textContent='Selected face: none';ghost.visible=false;status('Drag a rectangle on one flat face.');};
 $('paint-apply').onclick=()=>{if(activePaintFace&&tool.startsWith('paint-'))paint(paintArea(activePaintFace.face,activePaintFace.point,activePaintFace.point,'fill'));
   activePaintFace=null;$('paint-apply').disabled=true;$('paint-selection').textContent='Selected face: none';ghost.visible=false;};
-canvas.addEventListener('pointerdown',e=>{if(playing){if(e.button===0&&sim.gardenLevel.tendrils&&sim.garden.phase==='playing'&&aimAt(e))cast();return;}
+canvas.addEventListener('pointerdown',e=>{if(playing){if(e.pointerType==='touch'){
+    if(sim.garden.phase!=='playing'||!sim.gardenInputArmed)return;
+    e.preventDefault();joystick.down(e.pointerId,e.clientX,e.clientY,performance.now());canvas.setPointerCapture(e.pointerId);
+  }else if(e.button===0&&sim.gardenLevel.tendrils&&sim.garden.phase==='playing'&&aimAt(e))cast();return;}
   if(e.button===2||e.altKey){drag={mode:'orbit',clientX:e.clientX,clientY:e.clientY,az:orbit.azimuth,el:orbit.elevation};canvas.setPointerCapture(e.pointerId);return;}
   const id=tool.startsWith('paint-')?null:hitHandle(e);
   const p=pointFromEvent(e);
@@ -248,7 +259,8 @@ canvas.addEventListener('pointerdown',e=>{if(playing){if(e.button===0&&sim.garde
   else place(tool,p);
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointermove',e=>{if(playing){if(sim.gardenLevel.tendrils)aimAt(e);return;}
+canvas.addEventListener('pointermove',e=>{if(playing){if(e.pointerType==='touch')joystick.move(e.pointerId,e.clientX,e.clientY);
+  else if(sim.gardenLevel.tendrils)aimAt(e);return;}
   if(drag?.mode==='orbit'){orbit.azimuth=drag.az+(e.clientX-drag.clientX)*.007;orbit.elevation=clamp(drag.el+(e.clientY-drag.clientY)*.006,.12,1.55);updateCamera();return;}
   const p=drag?.mode==='move'?dragPoint(e,drag.planeY):pointFromEvent(e);
   if(drag?.mode==='paint'){showPaintPreview(paintArea(drag.face,brushStart,paintPlanePoint(e,drag.face),'rectangle'));return;}
@@ -265,7 +277,8 @@ canvas.addEventListener('pointermove',e=>{if(playing){if(sim.gardenLevel.tendril
       drag.moved=true;renderHandles();pendingPreview=true;}}
   else{ghost.visible=tool!=='select'&&tool!=='erase';if(ghost.visible)ghost.position.set(p.x,p.y+.05,p.z);}
 });
-canvas.addEventListener('pointerup',e=>{if(drag?.mode==='move'&&drag.moved){
+canvas.addEventListener('pointerup',e=>{if(playing){if(e.pointerType==='touch')joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());return;}
+  if(drag?.mode==='move'&&drag.moved){
     if($('snap-high').checked)snapDraftObjectToHighest(draft,selected);
     commit('Object moved.');}
   if(drag?.mode==='move-paint'&&drag.moved)commit('Paint moved on its face.');
@@ -275,7 +288,9 @@ canvas.addEventListener('pointerup',e=>{if(drag?.mode==='move'&&drag.moved){
   if(tool.startsWith('paint-')&&paintMode==='fill'&&activePaintFace)
     showPaintPreview(paintArea(activePaintFace.face,null,null,'fill'));
   else ghost.visible=false;});
-canvas.addEventListener('pointercancel',()=>{if((drag?.mode==='move'||drag?.mode==='move-paint')&&drag.moved){draft=copy(history.states[history.index]);pendingPreview=true;renderEditor();}drag=null;brushStart=null;ghost.visible=false;});
+canvas.addEventListener('pointercancel',e=>{if(playing){joystick.cancel(e.pointerId);return;}
+  if((drag?.mode==='move'||drag?.mode==='move-paint')&&drag.moved){draft=copy(history.states[history.index]);pendingPreview=true;renderEditor();}drag=null;brushStart=null;ghost.visible=false;});
+canvas.addEventListener('lostpointercapture',e=>{if(playing&&e.pointerType==='touch'&&joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);});
 function addField(label,value,change,{step=.1,min,max}={}){const wrap=document.createElement('label');wrap.textContent=label;
   const input=document.createElement('input');input.type='number';input.value=Number(value.toFixed(3));input.step=step;
   if(min!==undefined)input.min=min;if(max!==undefined)input.max=max;
@@ -429,11 +444,14 @@ $('file').onchange=async()=>{const file=$('file').files[0];if(!file)return;try{i
   const imported=importDraft(await file.text());draft=imported;linkedLevelId=null;linkedDocument=null;
   selected=null;tool='select';commit('Imported '+draft.name+'.');}
   catch(e){status('Import failed: '+e.message);}};
-function clearInput(){keys.clear();touchKeys.clear();pull.cancel();recall=false;shedHeld=false;}
-function togglePlay(){if(!playing){const result=validateDraft(draft);if(result.errors.length)return status(result.errors[0]);playing=true;rebuild(true);music.begin();audio.unlock();}
-  else{playing=false;rebuild(false);}
+function clearInput(){keys.clear();joystick.cancel();contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();recall=false;}
+function togglePlay(){clearInput();if(!playing){const result=validateDraft(draft);if(result.errors.length)return status(result.errors[0]);
+    prePlayDistance=orbit.distance;playing=true;rebuild(true);music.begin();audio.unlock();}
+  else{playing=false;if(prePlayDistance!==null)orbit.distance=prePlayDistance;prePlayDistance=null;rebuild(false);}
   document.body.classList.toggle('playing',playing);$('play').textContent=playing?'■ Back to edit':'▶ Play test';
-  $('restart').hidden=!playing;$('play-hud').hidden=!playing;$('touch').hidden=!playing;
+  $('restart').hidden=!playing;$('play-hud').hidden=!playing;$('touch').hidden=!playing;$('back-to-edit').hidden=!playing;
+  $('play-settings').hidden=!playing;
+  if(playing)$('play-settings-audio').append(editorMusicPanel);else document.querySelector('.stage-panel').append(editorMusicPanel);
   $('edit-panel').inert=playing;document.querySelector('.inspector').inert=playing;
   $('view-title').textContent=playing?'Play test · '+draft.name:'3D garden easel';
   for(const id of ['preset','load-preset','undo','redo','save','save-level','save-level-new','export','import'])$(id).disabled=playing||
@@ -441,8 +459,10 @@ function togglePlay(){if(!playing){const result=validateDraft(draft);if(result.e
   $('undo').disabled=playing||history.index===0;
   $('redo').disabled=playing||history.index===history.states.length-1;
   $('play-help').textContent=playing?'WASD / arrows move · hold Space gathers · tap Space recalls · E casts · F sheds flesh · Shift runs · Escape returns.':'Right-drag or Alt-drag orbits; wheel zooms. Select, move, and paint directly in 3D.';
-  status(playing?'Play test started. Return to edit whenever you like.':'Returned to your exact draft.');last=performance.now();acc=0;}
-$('play').onclick=togglePlay;$('restart').onclick=()=>{if(playing){rebuild(true);status('Test restarted.');last=performance.now();acc=0;}};
+  status(playing?'Play test started. Return to edit whenever you like.':'Returned to your exact draft.');last=performance.now();acc=0;requestAnimationFrame(resize);}
+$('play').onclick=togglePlay;$('restart').onclick=()=>{if(playing){clearInput();rebuild(true);status('Test restarted.');last=performance.now();acc=0;}};
+$('play-settings-restart').onclick=()=>{$('restart').click();$('play-settings').open=false;};
+$('back-to-edit').onclick=()=>{if(playing)togglePlay();};
 function aimAt(e){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
   raycaster.setFromCamera(pointer,camera);const hit=view&&raycaster.intersectObjects(view.group.children,true).find(h=>h.object.userData.pickableTerrain);
   if(hit)aim={x:hit.point.x,z:hit.point.z};return !!hit;}
@@ -463,24 +483,24 @@ window.addEventListener('keydown',e=>{if(editingInput(e))return;
   if(e.code==='KeyE')cast();});
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')pull.up('keyboard',performance.now());});
 window.addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{clearInput();acc=0;last=performance.now();});
-for(const button of document.querySelectorAll('[data-move]')){button.addEventListener('pointerdown',e=>{e.preventDefault();touchKeys.add(button.dataset.move);button.setPointerCapture(e.pointerId);});
-  for(const name of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(name,()=>touchKeys.delete(button.dataset.move));}
-$('contract').addEventListener('pointerdown',e=>{e.preventDefault();if(sim.garden.phase==='playing'){pull.down('touch',performance.now());$('contract').setPointerCapture(e.pointerId);}});
-$('contract').addEventListener('pointerup',()=>pull.up('touch',performance.now()));$('contract').addEventListener('pointercancel',()=>pull.cancel());
-$('shed').addEventListener('pointerdown',e=>{e.preventDefault();if(playing&&sim.garden.phase==='playing'){shedHeld=true;$('shed').setPointerCapture(e.pointerId);}});
-for(const event of ['pointerup','pointercancel','lostpointercapture'])$('shed').addEventListener(event,()=>{shedHeld=false;});
-function updateHUD(){const s=sim.garden;$('score').textContent=`${s.gemCount}/${s.gems.length} gems · ${s.goldCount}/${s.gold.length} gold · ${sim.fluid.attachedCount} attached flesh`;
+const canTouchAct=()=>playing&&sim?.garden.phase==='playing'&&sim.gardenInputArmed;
+const contractHold=bindPullButton($('contract'),pull,canTouchAct);
+const shedHold=bindHoldButton($('shed'),canTouchAct);
+const runHold=bindHoldButton($('run'),canTouchAct);
+function updateHUD(){const s=sim.garden;$('score').textContent=matchMedia('(pointer: coarse), (max-width: 680px), (max-width: 1000px) and (max-height: 500px)').matches?
+  `◇ ${s.gemCount}/${s.gems.length} · ● ${s.goldCount}/${s.gold.length}`:
+  `${s.gemCount}/${s.gems.length} gems · ${s.goldCount}/${s.gold.length} gold · ${sim.fluid.attachedCount} attached flesh`;
   $('play-message').textContent=s.phase==='complete'?'Garden complete. Return to editing or restart.':gardenHint(sim).join(' · ')+(draft.tendrils?` · ${sim.tendril.count}/3 strands`:'');}
 let last=performance.now(),acc=0;
 function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
   if(pendingPreview&&!playing){rebuild(false);pendingPreview=false;}
   if(playing&&sim&&!document.hidden){acc=Math.min(acc+elapsed,DT*4);
-    const horizontal=Number(keys.has('KeyD')||keys.has('ArrowRight')||touchKeys.has('right'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')||touchKeys.has('left'));
-    const vertical=Number(keys.has('KeyW')||keys.has('ArrowUp')||touchKeys.has('up'))-Number(keys.has('KeyS')||keys.has('ArrowDown')||touchKeys.has('down'));
+    const horizontal=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joystick.vector.x;
+    const vertical=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joystick.vector.y;
     const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);right.y=0;right.normalize();
     const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);forward.y=0;forward.normalize();
     const axes=movementAxes('garden',horizontal,vertical,right,forward),contract=pull.update(now);
-    while(acc>=DT){sim.step({...axes,contract,shed:keys.has('KeyF')||shedHeld,push:keys.has('ShiftLeft')||keys.has('ShiftRight'),recallToggle:recall});recall=false;acc-=DT;}
+    while(acc>=DT){sim.step({...axes,contract,shed:keys.has('KeyF')||shedHold.active,push:keys.has('ShiftLeft')||keys.has('ShiftRight')||runHold.active,recallToggle:recall});recall=false;acc-=DT;}
     if(frameCount++%3===0)updateParticles();updateHUD();audio.update(sim.garden);}
   if(view&&sim)view.update(sim,camera);
   aimRing.visible=playing&&!!draft.tendrils&&!!aim&&sim.garden.phase==='playing';

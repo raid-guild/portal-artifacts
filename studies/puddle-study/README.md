@@ -56,13 +56,13 @@ For repeatable CPU measurements, run `node bench/performance.mjs --save /tmp/pud
 
 - Escape: pause or resume the garden.
 - The garden starts with the perspective **Camera: Follow** view. Press C or use the camera button beside Menu to switch to the original wide **Camera: Tower** view; the choice persists between floors. Movement directions stay fixed as the view follows the living body. Material studies keep their original camera.
-- WASD, arrow keys, or the touch pad: move the brain. The other particles follow through local forces.
-- Click/tap the board or press E at the pointer aim: cast a tendril in the Tendrils test, up to three using the available flesh. Casting another pauses recall. Tap Space to recall all strands; tap again to pause. **Retrieval Setup** refills the practice basin using the same total particle budget.
+- WASD or arrow keys move the brain. On touch screens, press anywhere on the garden and drag in the direction you want to ooze. The other particles follow through local forces.
+- Click the board or press E at the pointer aim to cast a tendril; on touch screens, double tap a valid spot on the garden. Up to three strands use the available flesh. Casting another pauses recall. Tap Space or Contract to recall all strands; tap again to pause. **Retrieval Setup** refills the practice basin using the same total particle budget.
 - Hold Space or the **contract** button: gather the material into a mound; release to flatten. Near the Low Gap, the brain's rise is limited by the roof.
 - Hold F or **Hold to shed** in Weight Garden, Passage Garden, or Tendrils: release flesh locally, reducing body mass and power. Release to stop. Shedding takes priority over contraction.
-- In Reach Garden, click/tap a green channel or press E to cast a tendril from the body. Up to three can be out at once. Tap Space to recall or pause recall; hold Space to contract while recall continues. F does not shed on this level.
+- In Reach Garden, click a green channel, double tap it on touch screens, or press E to cast a tendril from the body. Up to three can be out at once. Tap Space to recall or pause recall; hold Space to contract while recall continues. F does not shed on this level.
 - In Grip Garden, press D/right along the west ramp and marked face, or A/left at the east marked face, to climb with connected flesh. Release to sag; the smooth aqua patch carries momentum toward its edge. E and F are inactive there.
-- Shift or **Run**: faster movement while held; nearby connected flesh follows the brain through turns.
+- Shift or **Run**: faster movement while held; nearby connected flesh follows the brain through turns. On touch screens, Contract, Run, and Shed are thumb buttons. The compact HUD shows collection counts and Menu; Menu contains audio, camera, and controls. Workshop play tests use the same touch controls and offer Back to edit.
 - **Ooze Forward** in Low Gap: move right automatically. Press again to stop. It also stops after the brain and at least 90% of the flesh pass the roof.
 - R: restart the current level or active study. P: show or hide individual particles.
 - Cohesion and viscosity sliders tune the material. S/M/L body sizes are available in Low Gap.
