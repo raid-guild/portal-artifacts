@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Puddle — A living material study</title>
-<meta name="description" content="Ooze, grow, shed, and cast tendrils across a floating alien terrace. An interactive living-material study with the original Soft Signal soundtrack.">
+<html lang="en" class="booting">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Puddle — Gathering Garden</title>
+<meta name="description" content="Guide a living puddle through five floating gardens. Gather flesh, absorb gems, cast tendrils, shape your own levels, and descend the tower to Soft Signal.">
 <link rel="canonical" href="https://portal-artifacts-production.up.railway.app/puddle-study/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="RaidGuild Artifacts">
-<meta property="og:title" content="Puddle — A living material study">
-<meta property="og:description" content="Ooze, grow, shed, and cast tendrils across a floating alien terrace. An interactive living-material study with the original Soft Signal soundtrack.">
+<meta property="og:title" content="Puddle — Five Tower Gardens">
+<meta property="og:description" content="Guide a living puddle through five floating gardens. Gather flesh, absorb gems, cast tendrils, shape your own levels, and descend the tower to Soft Signal.">
 <meta property="og:url" content="https://portal-artifacts-production.up.railway.app/puddle-study/">
 <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/puddle-study/puddle-social-v1.png">
 <meta property="og:image:type" content="image/png">
@@ -14,21 +14,64 @@
 <meta property="og:image:height" content="907">
 <meta property="og:image:alt" content="A coral puddle with a visible inner brain extends a tendril toward a turquoise basin beneath floating spiral towers in a pastel alien sky.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Puddle — A living material study">
-<meta name="twitter:description" content="Ooze, grow, shed, and cast tendrils across a floating alien terrace. An interactive living-material study with the original Soft Signal soundtrack.">
+<meta name="twitter:title" content="Puddle — Five Tower Gardens">
+<meta name="twitter:description" content="Guide a living puddle through five floating gardens. Gather flesh, absorb gems, cast tendrils, shape your own levels, and descend the tower to Soft Signal.">
 <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/puddle-study/puddle-social-v1.png">
 <meta name="twitter:image:alt" content="A coral puddle with a visible inner brain extends a tendril toward a turquoise basin beneath floating spiral towers in a pastel alien sky.">
+<style>
+  /* Critical boot styles load with the document, before Vite's module CSS. */
+  html,body{margin:0;min-height:100%;background:#c7e2df}
+  html.booting #app{visibility:hidden}
+  #boot-screen{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;
+    background:#c7e2df;color:#31494a;font-family:Arial,sans-serif}
+  #boot-screen[hidden]{display:none}
+  .boot-card{width:min(430px,100%);padding:36px 40px;background:#eee6d4;border:1px solid #536c68;
+    box-shadow:8px 8px 0 #60767918}
+  .boot-mark{font:11px/1.4 monospace;letter-spacing:.18em;color:#607b77}
+  .boot-title{font-size:clamp(48px,12vw,70px);font-weight:300;letter-spacing:-.08em;line-height:1;margin:18px 0}
+  .boot-title span{color:#b5766f}
+  .boot-message{font:12px/1.6 monospace;color:#536c68;margin:0}
+  #boot-retry{margin-top:22px;padding:10px 16px;border:1px solid #536c68;background:#a9c9bf;color:#31494a;
+    font:12px monospace;cursor:pointer}
+  #boot-retry[hidden]{display:none}
+</style>
+<script>
+  // This handler is available even when the module or its stylesheet cannot load.
+  window.puddleBootFail=function(){
+    if(!document.documentElement.classList.contains('booting'))return;
+    var message=document.getElementById('boot-message');
+    var retry=document.getElementById('boot-retry');
+    if(message)message.textContent='The garden could not load. Please retry.';
+    if(retry)retry.hidden=false;
+  };
+  window.addEventListener('error',function(event){
+    if(event.error||event.target&&event.target.tagName==='SCRIPT')window.puddleBootFail();
+  },true);
+  window.addEventListener('unhandledrejection',window.puddleBootFail);
+  window.addEventListener('DOMContentLoaded',function(){
+    document.getElementById('boot-retry').addEventListener('click',function(){location.reload();});
+    window.setTimeout(window.puddleBootFail,20000);
+  });
+</script>
 </head>
-<body><div id="app">
-  <canvas id="world" aria-label="Puddle material and low gap study"></canvas><div class="grain"></div>
+<body>
+<div id="boot-screen" role="status" aria-live="polite"><div class="boot-card">
+  <div class="boot-mark">A LIVING MATERIAL</div>
+  <div class="boot-title">Puddle<span>.</span></div>
+  <p class="boot-message" id="boot-message">Gathering the garden…</p>
+  <button id="boot-retry" type="button" hidden>Retry</button>
+</div></div>
+<noscript><style>html.booting #app{display:none}</style><div style="position:fixed;inset:0;z-index:10001;display:grid;place-items:center;padding:24px;background:#c7e2df;color:#31494a;font:16px Arial,sans-serif">Enable JavaScript to explore Puddle.</div></noscript>
+<div id="app">
+  <canvas id="world" aria-label="Puddle game and material studies"></canvas><div class="grain"></div>
   <header><div class="eyebrow">MATERIAL STUDY / 04</div><h1>PUDDLE <em>/</em> FIELD</h1><p>Gather the small living puddles scattered across the terrace.</p></header>
-  <div class="test-controls" aria-label="Choose a test"><button data-test="pressure" class="selected">TENDRILS</button><button data-test="field">PUDDLE FIELD</button><button data-test="growth">GROWTH</button><button data-test="gap">LOW GAP</button></div>
+  <div class="test-controls" aria-label="Choose a test"><button data-test="pressure" class="selected">TENDRILS</button><button data-test="field">PUDDLE FIELD</button><button data-test="growth">GROWTH</button><button data-test="gap">LOW GAP</button><button data-test="grip">GRIP &amp; SLIDE</button></div>
   <div class="gap-controls" id="gap-controls"><button id="ooze-forward">OOZE FORWARD</button></div>
   <div class="gap-controls" id="retrieval-controls"><button id="retrieval-setup">RETRIEVAL SETUP</button><button id="shedding-setup">EMPTY BASIN</button></div><div class="world-label" id="pressure-label">WEIGHT BASIN</div><div class="world-label" id="growth-spout-label">FLESH DRIP</div><div class="world-label" id="gap-label">LOW GAP <span>/ FLOW UNDER</span></div>
   <div class="plate-label">THE QUIET TERRACE <span>01 / ∞</span></div>
-  <aside class="readout"><div id="mode" class="mode">GATHERING</div><div id="message">Move with WASD or arrows. Hold Space to gather the body.</div><div class="meters"><div><span id="flesh-label">CONNECTED FLESH</span><b id="flesh">0 / 296</b></div><div class="meter"><i id="flesh-fill"></i></div><div><span id="reach-label">BRAIN POWER</span><b id="reach">0%</b></div><div class="meter"><i id="reach-fill"></i></div><div id="growth-supply-row"><span>LOOSE FLESH</span><b id="growth-supply">280</b></div></div><div id="tendril-status"></div></aside>
-  <nav class="controls" aria-label="Actions"><button id="pull"><kbd>SPACE</kbd><span>Hold to contract</span></button><button id="cast"><kbd>E</kbd><span>Cast tendril</span></button><button id="shed"><kbd>F</kbd><span>Hold to shed</span></button><button id="push"><kbd>SHIFT</kbd><span>Push harder</span></button><button id="reset"><kbd>R</kbd><span>Reset</span></button></nav>
-  <div class="instructions">WASD / ARROWS TO OOZE <span>·</span> HOLD SPACE TO CONTRACT <span>·</span> RELEASE TO RELAX <span>·</span> P SHOW PARTICLES</div>
+  <aside class="readout"><div id="mode" class="mode">GATHERING</div><div id="message">Move with WASD or arrows. Hold Space to gather the body.</div><div class="meters"><div><span id="flesh-label">CONNECTED FLESH</span><b id="flesh">0 / 296</b></div><div class="meter"><i id="flesh-fill"></i></div><div><span id="reach-label">BRAIN POWER</span><b id="reach">0%</b></div><div class="meter"><i id="reach-fill"></i></div><div id="growth-supply-row"><span>LOOSE FLESH</span><b id="growth-supply">280</b></div></div><div id="tendril-status" aria-live="polite"></div></aside>
+  <nav class="controls" aria-label="Actions"><button id="pull"><kbd>SPACE</kbd><span>Hold to contract</span></button><button id="cast"><kbd>E</kbd><span>Cast tendril</span></button><button id="shed"><kbd>F</kbd><span>Hold to shed</span></button><button id="push"><kbd>SHIFT</kbd><span>Run</span></button><button id="reset"><kbd>R</kbd><span>Reset</span></button></nav>
+  <div class="instructions">WASD / ARROWS TO OOZE <span>·</span> TAP SPACE TO RECALL <span>·</span> HOLD TO CONTRACT <span>·</span> P SHOW PARTICLES</div>
   <div class="touch-pad"><button data-move="up">↑</button><div><button data-move="left">←</button><button data-move="down">↓</button><button data-move="right">→</button></div></div>
   <div class="material-controls"><label>COHESION <input id="cohesion" type="range" min="0" max="0.45" step="0.01" value="0.16"></label><label>VISCOSITY <input id="viscosity" type="range" min="0" max="0.6" step="0.01" value="0.22"></label><button id="particles-toggle" type="button">P / SHOW PARTICLES</button></div>
   <section class="music-controls" aria-label="Background music"><button id="music-toggle" aria-pressed="false">MUSIC OFF</button><label>LEVEL <input id="music-volume" aria-label="Music volume" type="range" min="0" max="100" value="25"></label><div id="music-status" aria-live="polite">Soft Signal · tap to listen</div><audio id="soundtrack" loop preload="none"></audio></section>

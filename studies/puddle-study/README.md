@@ -1,63 +1,75 @@
-# Puddle material study
+# Puddle — Five Tower Gardens
 
-A self-contained Three.js study of a living particle puddle on a floating terrace. The visible brain stays coated by real flesh particles and leads movement. Its power comes from flesh currently connected to it; loose pieces draw in more weakly with distance. Marching Cubes gives the moving particles a single translucent body.
+The published game lives at `/puddle-study/`. Its start screen links to the
+Level Workshop at `/puddle-study/editor.html` and the Soft Signal music study at
+`/puddle-study/music-source/`.
 
-The app opens on **Tendrils / Retrieval Setup**, with loose green flesh holding the basin gate open and the brain on the far side. Click the basin, or aim with the pointer and press E, to cast a thin strand of existing body particles. Hold Space to retrieve the strand and the flesh it contacts; release to pause. The brain stays in the body. Casting reserves a limited amount of real flesh, protects the brain coating, and cannot create mass. A strand caught on a solid or stretched beyond its limit breaks; disconnected living flesh becomes green after 2.5 seconds.
+The start screen also links to **Music studies** (Soft Signal’s mixer and composition controls) and the **Level editor** (Level Workshop). Both open in a new tab and are included in the production build.
+
+A local Three.js study of a living particle puddle on a floating terrace. The visible brain stays coated by real flesh particles and leads movement. Its power comes from flesh currently connected to it; loose pieces draw in more weakly with distance. Marching Cubes gives the moving particles a single translucent body.
+
+The app opens on a start screen for **Gathering Garden**, the first playable tutorial level. Choose **Begin** to descend two short steps from the raised right start, then follow the upper lane left and gather two pools of loose flesh, surround the first violet gem, descend the broad stairs at the far left, then return right along the lower lane for two more pools, two gems, a low lintel, two short transverse columns of pale stone pillars, and the exit funnel. The pillars span the lower lane before the exit, leaving narrow aligned gaps. The exposed upper edge also permits an early drop that skips optional collectibles. The small start platform is at height 2.16. Two 0.27 ramps descend to the upper lane at 1.62; six more descend through the left corridor to the lower lane at 0. Gold and gem pickups give a brief visible burst. Gold requires contact with living, brain-connected flesh. Gems sample material around their sides and above their tip for sustained coverage; merely pressing Space or touching one with the brain is insufficient. Hold Space near a gem to form a mound, and release to flatten again.
+
+Each level can be finished with missing collectibles. All three gems and all 17 gold pieces earn 100% for that level. Continue follows the drain down one storey into the next garden, retaining earlier scores while rebuilding a 297-particle body for the new puzzle. The pink living flesh pours vertically through a small open chute mouth above each new high start, while green supply remains on the floor. Weight Garden turns through three heights toward the camera and asks for 48 real shed particles on its middle basin plate to open a gate. **Passage Garden** needs 64 shed particles on a wider plate, then asks the replenished body to flatten through a long low passage. **Reach Garden** keeps the three-height return route but places three green pools in shallow upper channels. Stand near the marked casting bank, click a channel or press E to send one of up to three real-flesh tendrils, then tap Space to recall them or hold Space to contract. On-foot gathering remains possible. Exposed ledges offer shortcuts that skip optional points. **Grip Garden** adds a ribbed sage ramp in front of a tall raised platform. Press D along the west ramp and against its ribbed face to climb with the coated brain and connected flesh; the east face also grips from the other side with A. Releasing lets the body sag; the pale aqua strip spans the middle terrace and carries momentum toward the exposed edge. The final result offers **New game** or **Keep exploring** and shows all five level scores. Escape pauses. Physics and collection stop on the title, pause, arrival, descent, and result screens; input remains locked until the arrival settles. Each level uses 297 real particles: 65 initially owned and 232 in four green pools. There are no enemies or destructive hazards.
+
+The campaign design rule is that every playable storey starts on its highest terrace, then has meaningful height change and a switchback route with visible depth, rather than a single flat board. A chute or transition may link the previous drain to a different start position. Gameplay geometry and decorative art remain separate. `src/garden-level.js` defines collision and collection; `src/garden-view.js` and `src/weight-garden-view.js` render their playable floors; `src/garden-scenery.js` loads the v3 Y-up spine and alternating facade exports plus the retained drain/trim and the garden-only sky from `public/art/`. A modeled pierced bone lattice, alternate forked arcades, coral/sage growth, fine seams, and a shared ink-stone texture add detail without changing gameplay. The stone swatch at `public/art/textures/stone-ink-v1.png` loads once with mirrored triplanar mapping and a procedural fallback; violet shaft stone uses a lighter print profile. Gems and gold have flat face-by-face tones plus local etched marks as they rotate; floor edges and stair nosings have sparse worn chips. The exit collar replaces the fallback visual rim and lining only after it loads. `GAMEPLAY-HANDOFF.md` and `public/art/tower/README.md` record the art boundary and asset coordinates.
+
+The **Levels** button on the start and pause menus shows the best finished score for each garden. A result of at least 50% of that level's gold and gems permanently unlocks the next level on this device. Below that mark, the completion card offers **Retry level** and **Keep exploring**; later improvement can still unlock the next floor. Restarting, choosing **New game**, or selecting a level leaves saved unlocks and best scores intact. Local storage failures fall back to progress for the current session. Development builds show an explicit **play any level** option; published builds use the saved unlock rules, including for Grip & Slide practice. The level editor remains unrestricted.
+
+The **Level Workshop** is a single 3D editing view. Begin with a blank flat garden or load any of the five campaign layouts, then click to place pieces, drag a selected piece to move it, right-drag or Alt-drag to orbit, and use the wheel to zoom. **Clear all objects** removes every piece, including start and exit, while keeping the board and settings; Undo restores them in one step. R rotates the selected ramp or span by a quarter turn; Delete removes it. The inspector edits physical width, depth, height, clearance, and particle share. Tools include pillars, stackable walkable blocks, low gaps, four-direction ramps, flesh pools, gems, gold, basin depressions, **Label**, and slippery/sticky/normal surface tools. A label is optional display text: click a surface to place it, then edit its text and height in the inspector; it has no collision or scoring effect. For paint, choose **Fill a face** (the default), click the top or exterior wall, inspect its highlighted extent, then press **Fill selected face**. Choose **Drag rectangle** to mark only part of that face; a click without a drag makes no mark. Painting another material on the same face replaces only the overlap, and normal paint clears the selected area. Painted patches can be selected, moved on their owner face, resized in the inspector, or removed. Slippery paint is turquoise and follows the height of the support it was painted on, including ramps and raised blocks; sticky wall paint enables climbing. Curved sides, undersides, and cut interiors cannot be painted. A basin clicked onto a sufficiently broad, thick block or pillar cuts a physical bowl into that piece. Its rim must stay fully supported, and the inspector reports an invalid draft if a cut or narrow edge removes that support. The **Snap height to highest surface** option and the selected object's snap button move pieces vertically while retaining their thickness. **Cut box** and **Cut cylinder** subtract from committed static blocks, pillars, low gaps, stairs, and grip structures. Their inspector accepts independent X, Y, and Z rotations in degrees; the wireframe cutter is visible only while editing. Cuts leave real openings for flesh, brain, and tendrils, with remaining surfaces supporting particles. Terrain, board boundaries, and moving gates remain uncut. The editor and local play use the same printed stone, wall, pillar, and collectible materials as the campaign. Tendrils are available in all editor gardens. The total flesh budget is explicit: starting particles plus the remainder distributed among pools by weight. Unfinished drafts can be saved and exported as version 3 source JSON; committed triangles are rebuilt on import. Versions 1 and 2 migrate on import. Only structurally safe drafts can be play-tested. **Clear all objects** removes every authored object, including start and exit, while keeping the board settings. Undo restores the whole draft; play testing stays disabled until a new start and exit are placed. Undo/redo preserves whole editing gestures, and leaving a play test returns to the exact draft.
+
+**Save to Local Levels** creates a named, playable copy of the Workshop draft; later saves update that exact level, while **Save as new** makes a separate copy even if the name is the same. The ordinary draft autosave remains separate. Open **Levels → Local Levels** from the game start or pause menu to play or edit saved levels with the full garden controls. Local results stay separate from campaign unlocks and are stored for the saved gameplay revision; changing the layout starts a new best score, while renaming or editing labels preserves it. Local levels show only labels the author added, never campaign tutorial callouts. An unfinished draft can still be saved or exported, but its Play card explains what must be repaired. Existing Workshop autosaves are copied into Local Levels once and remain untouched. For isolated testing without changing personal saves, open both editor and game with `?storage=test&session=your-name`.
+
+Choose **Material studies** from the menu to open **Tendrils / Retrieval Setup**, with loose green flesh holding the basin gate open and the brain on the far side. Click the basin, or aim with the pointer and press E, to cast a thin strand of existing body particles. Cast up to three tendrils. Tap Space to automatically recall all strands and the flesh they contact; tap again to pause. Hold Space to contract the body too; recall continues after release. The brain stays in the body. Casting reserves a limited amount of real flesh, protects the brain coating, and cannot create mass. A strand caught on a solid or stretched beyond its limit breaks; disconnected living flesh becomes green after 2.5 seconds.
+
+**Grip & Slide** in Material studies opens the actual Grip Garden for direct practice, with its normal arrival and controls. The campaign’s Begin still starts Level 1.
 
 **Empty Basin** returns to the shedding setup. Approach the rim, hold F to leave flesh behind, and let the conical floor drain it onto the weight plate. At 48 particles the gate rises; it releases below 36. Move around the basin and under the gate while the deposit holds it open. Shedding preserves the brain and its 16 coating particles. Loose flesh becomes green and can be collected again after it separates. Absorption pauses while shedding; a release that stays touching the body can rejoin after a 1.2-second grace period. Reconnecting a broken living fragment before its 2.5-second deadline keeps it alive.
 
-**Puddle Field** has twelve separate small pools to absorb. **Growth** starts with the same tiny body facing a steady drip. **Low Gap** starts with a full body facing a low, roofed passage: the brain lowers before entering, stays under the roof with its particle coating, and draws the flesh through. The gap readout counts flesh that has fully passed the far edge. These are interactive material studies rather than scored levels.
+**Puddle Field** has twelve separate small pools to absorb. **Growth** starts with the same tiny body facing a steady drip. **Low Gap** starts with a full body facing a low, roofed passage: the brain lowers before entering, stays under the roof with its particle coating, and draws the flesh through. The gap readout counts flesh that has fully passed the far edge. These remain unscored physics studies alongside the playable garden.
 
-## Develop, test, and publish
+## Run
 
-Requires Node.js 20.19+ and npm. From this directory:
+Requires Node.js 20.19 or newer. From this directory:
 
 ```sh
 npm ci
 npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
 ```
 
-Open `http://127.0.0.1:5180/puddle-study/`.
+Open `http://127.0.0.1:5180/puddle-study/`. `npm test` runs the particle,
+growth, gap, shedding, tendril, garden, editor, local-level, and rendering
+checks. `npm run build` writes all three entry points and their assets to
+`../../public/puddle-study/`. Commit that published directory with this editable
+source. To preview the production paths locally, run `npm run preview -- --port
+5181` and open `http://127.0.0.1:5181/puddle-study/`.
 
-```sh
-npm test
-npm run build
-npm run preview -- --port 5181
-```
+All runtime assets, styles, fonts, audio, and the Manifold WebAssembly module
+are served from this artifact's own origin. Third-party notices are copied
+from `public/licenses/` to the published build. The source public directory
+also contains the generated cover, modeled scenery, and stone print texture;
+their provenance is recorded in `art/` and the adjacent asset READMEs.
 
-The tests cover particle coating and connected mass, absorption, grown-body
-contraction and release, screen-relative controls, Low Gap passage, shedding,
-pressure switches, and tendril retrieval. The
-simulation tests can take several minutes.
-
-The build replaces **only** `../../public/puddle-study/`. Preview it at
-`http://127.0.0.1:5181/puddle-study/`, or serve the repository's `public/`
-directory through its Caddy configuration. Commit editable source and the
-rebuilt `public/puddle-study/` together. The deployed route is `/puddle-study/`;
-the existing artifact service publishes the checked-in build after merge.
-
-All JavaScript, fonts, and styles are served from the artifact's own origin.
-There are no accounts, backend calls, Portal cookies, or external font requests.
-Caddy applies public-asset CORS headers only to `/puddle-study/`, allowing ES
-modules and fonts to load inside Portal's `sandbox="allow-scripts"` iframe.
-Three.js and font licenses are included in `public/licenses/` here and copied
-to `/puddle-study/licenses/` by the build. Font packages are locked alongside
-the original study's Three.js and Vite versions.
+For repeatable CPU measurements, run `node bench/performance.mjs --save /tmp/puddle-before.json` before a code change and `node bench/performance.mjs --compare /tmp/puddle-before.json` after it. The bounded field, pressure, Level 1, Level 3, and passage scenarios report mean and 95th-percentile physics and surface times; comparison checks exact particle state and surface output hashes. Browser timing is available only with `?perf=1`: the hidden-by-default overlay reports actual FPS, frame interval percentiles, missed refresh intervals, fixed physics steps, living-body mesh rate and age, worker build time, and draw calls. Node CPU timings are not browser FPS measurements.
 
 ## Controls
 
+- Escape: pause or resume the garden.
+- The garden starts with the perspective **Camera: Follow** view. Press C or use the camera button beside Menu to switch to the original wide **Camera: Tower** view; the choice persists between floors. Movement directions stay fixed as the view follows the living body. Material studies keep their original camera.
 - WASD, arrow keys, or the touch pad: move the brain. The other particles follow through local forces.
-- Click/tap the board or press E at the pointer aim: cast one tendril in the Tendrils test. Hold Space to retrieve it; releasing Space pauses retrieval. **Retrieval Setup** refills the practice basin using the same total particle budget.
-- Hold Space or **Hold to contract** without a tendril: gather the material into a mound; release to flatten. Near the Low Gap, the brain's rise is limited by the roof.
-- Hold F or **Hold to shed** in Tendrils: release flesh locally, reducing body mass and power. Release to stop. Shedding takes priority over contraction.
-- Shift or **Push harder**: faster movement.
+- Click/tap the board or press E at the pointer aim: cast a tendril in the Tendrils test, up to three using the available flesh. Casting another pauses recall. Tap Space to recall all strands; tap again to pause. **Retrieval Setup** refills the practice basin using the same total particle budget.
+- Hold Space or the **contract** button: gather the material into a mound; release to flatten. Near the Low Gap, the brain's rise is limited by the roof.
+- Hold F or **Hold to shed** in Weight Garden, Passage Garden, or Tendrils: release flesh locally, reducing body mass and power. Release to stop. Shedding takes priority over contraction.
+- In Reach Garden, click/tap a green channel or press E to cast a tendril from the body. Up to three can be out at once. Tap Space to recall or pause recall; hold Space to contract while recall continues. F does not shed on this level.
+- In Grip Garden, press D/right along the west ramp and marked face, or A/left at the east marked face, to climb with connected flesh. Release to sag; the smooth aqua patch carries momentum toward its edge. E and F are inactive there.
+- Shift or **Run**: faster movement while held; nearby connected flesh follows the brain through turns.
 - **Ooze Forward** in Low Gap: move right automatically. Press again to stop. It also stops after the brain and at least 90% of the flesh pass the roof.
-- R: reset the active setup. P: show or hide individual particles.
+- R: restart the current level or active study. P: show or hide individual particles.
 - Cohesion and viscosity sliders tune the material. S/M/L body sizes are available in Low Gap.
 
-The simulation is deliberately approximate. Particle spacing and a 48-cell Marching Cubes field limit fine surface detail; the surface refreshes every third render frame. Attraction cannot pass through solids, and distant fragments can take time to rejoin.
+The simulation is deliberately approximate. Particle spacing and a 48-cell Marching Cubes field limit fine surface detail. A persistent worker builds the same field off the render thread; the renderer shows each completed mesh and smoothly tracks the current body between builds without changing particle physics. Jobs coalesce to the newest snapshot, and resets discard obsolete results. If a worker cannot start, surface generation falls back to the synchronous renderer cadence. Attraction cannot pass through solids, and distant fragments can take time to rejoin.
 
-The tendril is an actively driven arrangement of the fluid particles with short elastic neighbor constraints, not a separate decorative rope. Contact claims loose flesh through the same particle graph as ordinary absorption. Retraction guides acquired material along the strand while solid collision and the sloped floor still resolve every particle. This prototype uses one strand at a time.
+The tendril is an actively driven arrangement of the fluid particles with short elastic neighbor constraints, not a separate decorative rope. Contact claims loose flesh through the same particle graph as ordinary absorption. Retraction guides acquired material along the strand while solid collision and the sloped floor still resolve every particle. Up to three strands reserve distinct flesh particles from the same finite body. Each collected particle belongs to one strand. The HUD shows strand count, recall state, and insufficient-flesh feedback.
 
 ## Background music
 

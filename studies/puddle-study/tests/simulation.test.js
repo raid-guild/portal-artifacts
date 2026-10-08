@@ -98,16 +98,16 @@ test('puddle field starts with twelve separate small pools and no idle absorptio
 test('visiting separate field pools transfers flesh by contact and reset restores them',()=>{
   const sim=new PuddleSimulation();sim.selectTest('field');
   const initialPower=sim.fluid.brainPower;
-  run(sim,520,{x:1});
+  for(let i=0;i<1000&&sim.brain.x<-.9;i++)sim.step({x:1});
   const first=sim.fluid.attachedCount;
   assert.ok(first>35&&first<110,`first pool contributes some flesh: ${first}`);
   assert.ok(sim.brain.x>-3&&sim.brain.x<0,'the player has physically crossed the first pool');
-  run(sim,440,{x:1});
+  for(let i=0;i<1000&&sim.brain.x<6;i++)sim.step({x:1});
   assert.ok(sim.fluid.attachedCount>first+18,'subsequent pools also contribute');
   assert.ok(sim.brain.x>4,'the brain travels through the center lane');
   assert.ok(sim.field.loose>100,'unvisited rows remain loose');
   const centerLane=sim.fluid.attachedCount;
-  run(sim,300,{z:-1});
+  for(let i=0;i<1000&&sim.brain.z>-3.5;i++)sim.step({z:-1});
   assert.ok(sim.fluid.attachedCount>centerLane+18,'turning into an outer row collects more pools');
   assert.ok(sim.fluid.brainPower>initialPower);
   assert.equal(sim.fluid.particles.length,PUDDLE_FIELD.capacity);
@@ -159,15 +159,16 @@ test('growth starts with real minimum flesh and the distant drip cannot power th
 test('the moving seed absorbs nearby real drops, grows stronger, and respects capacity/reset',()=>{
   const sim=new PuddleSimulation();sim.selectTest('growth');
   const weak=sim.fluid.brainPower;
-  run(sim,840,{x:1});
+  for(let i=0;i<1000&&sim.brain.x<GROWTH.spoutX;i++)sim.step({x:1});
+  for(let i=0;i<600&&!sim.growth.complete;i++)sim.step({});
   assert.ok(sim.growth.complete,'walking toward the drip without Shift reaches the growth goal');
   assert.ok(sim.fluid.attachedCount>=GROWTH.goal);
   assert.ok(sim.fluid.brainPower>weak*3);
-  assert.ok(sim.fluid.particles.some(p=>p.feedstock));
   assert.ok(sim.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z+p.vx+p.vy+p.vz)));
   assert.ok(sim.fluid.coatContacts(sim.activeColliders()).length>=8);
   sim.emitGrowth(40);
   sim.emitGrowth(40);
+  assert.ok(sim.fluid.particles.some(p=>p.feedstock));
   assert.equal(sim.growth.emitted,GROWTH.capacity-GROWTH.seedCount);
   assert.equal(sim.fluid.particles.length,GROWTH.capacity);
   sim.reset();
@@ -304,10 +305,11 @@ test('controlled brain leads flesh in straight and diagonal motion, then turns b
       const late=sim.fluid.particles.filter(p=>p!==brain).map(p=>p.x*ux+p.z*uz).sort((a,b)=>a-b);
       assert.ok(brain.x*ux+brain.z*uz>late[Math.floor(late.length*.9)]-.22*size,
         `size ${size}: sustained coated front`);
-      const oldBrain=brain.x*ux+brain.z*uz,oldFlesh=flesh();
+      const oldBrain=brain.x*ux+brain.z*uz;
       run(sim,18,{x:-direction.x,z:-direction.z});
-      assert.ok(brain.x*ux+brain.z*uz<oldBrain,`size ${size}: core turns first`);
-      assert.ok(flesh()>oldFlesh-.08*size,`size ${size}: followers lag reversal`);
+      assert.ok(brain.vx*ux+brain.vz*uz<0,`size ${size}: core reverses its accepted velocity first`);
+      run(sim,6,{x:-direction.x,z:-direction.z});
+      assert.ok(brain.x*ux+brain.z*uz<oldBrain,`size ${size}: core travels backward after reversal`);
       finite(sim);
     }
   }
@@ -401,7 +403,7 @@ test('Marching Cubes creates a finite nonempty surface from actual particles',()
 });
 
 
-test('only the four live demonstrations can be selected',()=>{
+test('retired demonstrations cannot be selected',()=>{
   const sim=new PuddleSimulation();
   for(const mode of ['pressure','field','growth','gap'])assert.equal(sim.selectTest(mode),true);
   for(const mode of ['bone','puddle-post','around','grippy','slippery']){

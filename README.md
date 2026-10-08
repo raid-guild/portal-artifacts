@@ -98,14 +98,18 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
-## Puddle material study
+## Puddle — Five Tower Gardens
 
-`public/puddle-study/` is a living particle puddle study at `/puddle-study/`.
-It includes Tendrils (cast, retrieve, shed, and operate a weight basin), Puddle
-Field (absorb scattered pools), Growth (feed from a drip), and Low Gap (flow
-beneath a roof), with brain-led movement, grounded contraction, and the original
-Soft Signal background music. Editable source, tests, build instructions, and
-bundled dependency licenses are in [`studies/puddle-study/`](studies/puddle-study/README.md).
+`public/puddle-study/` is a five-level game at `/puddle-study/`. Guide a living
+particle puddle down a floating tower, gather flesh, collect gold and gems,
+cast tendrils, shed weight onto switches, and navigate low gaps and gripping or
+slippery surfaces. The start screen offers level selection, local progress,
+the Level Workshop with playable saved levels, and the Soft Signal music study.
+The editor supports raised terraces, ramps, paintable surfaces, basins, and
+solid cutters. Recent work keeps the growing blob fluid while reducing costly
+collision searches and moving surface generation off the render thread.
+Editable source, tests, build instructions, and bundled dependency licenses
+are in [`studies/puddle-study/`](studies/puddle-study/README.md).
 
 ## Housefly study
 
@@ -197,9 +201,9 @@ preview, controls, source provenance, and simulation tests.
   scrollable page, with adjustable depth, turns, speed, cursor response, and
   draggable attraction spots.
 
-- `puddle-study/` — A brain-led living puddle that absorbs scattered pools or
-  falling drops, casts and retrieves tendrils, sheds flesh onto weight switches,
-  contracts, and flows through a low gap, with Soft Signal background music.
+- `puddle-study/` — Five floating garden levels, collectible gems and gold,
+  tendrils, shedding and grip puzzles, local level editing and play, plus Soft
+  Signal background music.
 
 - `powder-study/` — Interactive particle world with paintable sand, water,
   fire, acid, seeds, and four experiment presets.

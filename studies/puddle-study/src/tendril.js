@@ -7,13 +7,13 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
 export class Tendril {
   constructor(fluid){this.fluid=fluid;this.state='ready';this.indices=[];this.members=new Set();this.cargo=new Set();this.length=0;this.recovered=0;this.strain=0;}
   get active(){return this.indices.length>0;}
-  cast(aim,colliders){
+  cast(aim,colliders,reserved=new Set()){
     if(this.active)return false;
     const f=this.fluid,b=f.brain,dx=aim.x-b.x,dz=aim.z-b.z,d=Math.hypot(dx,dz);
     if(!Number.isFinite(d)||d<.45)return false;
     f.samplePairs();f.updateComponents(colliders);
     const candidates=f.particles.map((p,i)=>({p,i})).filter(({p,i})=>
-      i!==f.brainIndex&&!f.coatIndices.includes(i)&&!p.feedstock&&p.component===b.component&&distance(p,b)<1.55*f.size);
+      i!==f.brainIndex&&!f.coatIndices.includes(i)&&!reserved.has(i)&&!p.feedstock&&p.component===b.component&&distance(p,b)<1.55*f.size);
     if(candidates.length<12){this.state='need flesh';return false;}
     this.ux=dx/d;this.uz=dz/d;
     const count=Math.min(candidates.length-4,40,Math.max(12,Math.ceil(d/.14)+3));
@@ -46,13 +46,13 @@ export class Tendril {
       this.target={x:b.x+this.ux*this.length,z:b.z+this.uz*this.length};}
     else{this.length=Math.min(span,this.length+dt*4.2);this.state=this.length<span-.05?'casting':this.cargo.size?'contact':'extended';}
     this.colliders=colliders;
-    this.wasLoose=new Set(this.fluid.particles.filter(p=>p.feedstock));
     if(pulling&&this.length<.3&&[...this.cargo].every(p=>distance(p,b)<.8))this.release();
   }
   controls(i){return this.active&&(this.members.has(i)||this.cargo.has(this.fluid.particles[i]));}
   guide(t){
     const f=this.fluid,b=f.brain,x=b.x+this.ux*this.length*t,z=b.z+this.uz*this.length*t;
-    return {x,z,y:groundAt(x,z,this.colliders).height+f.radius+.055};
+    const floor=groundAt(x,z,this.colliders).height+f.radius+.055;
+    return {x,z,y:Math.max(floor,b.y+(floor-b.y)*Math.min(1,this.length*t/.8))};
   }
   forces(p,i,h){
     if(!this.active)return;
@@ -85,7 +85,6 @@ export class Tendril {
   finish(dt,colliders){
     if(!this.active)return;
     const f=this.fluid,b=f.brain;
-    for(const p of this.wasLoose||[])if(!p.feedstock&&p.component===b.component){this.cargo.add(p);this.recovered++;}
     for(const p of this.cargo)if(p.feedstock||distance(p,b)<.45)this.cargo.delete(p);
     let broken=this.age>1.4&&distance(f.particles[this.indices.at(-1)],this.guide(1))>.75*f.size;
     for(let j=0;j<this.indices.length;j++){
@@ -94,5 +93,57 @@ export class Tendril {
     }
     this.strain=broken?this.strain+dt:Math.max(0,this.strain-dt*2);
     if(this.age>.7&&this.strain>.4)this.release('broken');
+  }
+}
+
+
+export class TendrilGroup {
+  constructor(fluid){this.fluid=fluid;this.strands=[];this.recalling=false;this.lastState='ready';this.feedback='';this.feedbackUntil=0;this.recovered=0;}
+  get active(){return this.strands.some(s=>s.active);}
+  get count(){return this.strands.filter(s=>s.active).length;}
+  get indices(){return this.strands.flatMap(s=>s.indices);}
+  get length(){return this.strands.reduce((sum,s)=>sum+s.length,0);}
+  get state(){return this.active?(this.recalling?'retrieving':this.strands.some(s=>s.state==='casting')?'casting':this.strands.some(s=>s.cargo.size)?'contact':'extended'):this.lastState;}
+  reject(message){this.feedback=message;this.feedbackUntil=this.fluid.time+2;return false;}
+  cast(aim,colliders){
+    if(this.count>=3)return this.reject('Three tendrils out — recall to free one');
+    const reserved=new Set(this.indices);
+    this.strands.forEach(s=>s.cargo.forEach(p=>reserved.add(this.fluid.particles.indexOf(p))));
+    const strand=new Tendril(this.fluid);
+    if(!strand.cast(aim,colliders,reserved)){
+      if(!this.active)this.lastState=strand.state;
+      return this.reject(strand.state==='need flesh'?'Not enough flesh — gather or recall':'Aim farther from the body');
+    }
+    if(!this.active)this.brainAnchor={x:this.fluid.brain.x,z:this.fluid.brain.z};
+    this.strands.push(strand);this.recalling=false;this.feedback='';this.lastState='ready';return true;
+  }
+  toggleRecall(){if(this.active)this.recalling=!this.recalling;}
+  release(state='ready'){this.strands.forEach(s=>s.release(state));this.strands=[];this.recalling=false;this.lastState=state;this.feedback='';}
+  controls(i){return this.strands.some(s=>s.controls(i));}
+  prepare(dt,contracting,colliders,moving=false){
+    if(!this.active)return;
+    if(contracting)this.recalling=true;
+    if(moving)this.brainAnchor={x:this.fluid.brain.x,z:this.fluid.brain.z};
+    this.wasLoose=new Set(this.fluid.particles.filter(p=>p.feedstock));
+    this.strands.forEach(s=>s.prepare(dt,this.recalling,colliders,moving));
+  }
+  forces(p,i,h){const strand=this.strands.find(s=>s.controls(i));strand?.forces(p,i,h);}
+  solve(){this.strands.forEach(s=>s.solve());}
+  finish(dt,colliders){
+    const f=this.fluid,b=f.brain,active=this.strands.filter(s=>s.active);
+    // Each newly connected particle has exactly one owner, even where streams meet.
+    for(const p of this.wasLoose||[]){
+      if(p.feedstock||p.component!==b.component||distance(p,b)<.45||active.some(s=>s.cargo.has(p)))continue;
+      let nearest=null,best=Infinity;
+      for(const s of active)for(const i of s.indices){const d=distance(p,f.particles[i]);if(d<best){best=d;nearest=s;}}
+      if(nearest){nearest.cargo.add(p);nearest.recovered++;this.recovered++;}
+    }
+    this.strands.forEach(s=>s.finish(dt,colliders));
+    const ended=this.strands.filter(s=>!s.active);
+    if(ended.some(s=>s.state==='broken')){this.lastState='broken';this.reject(this.active?'A tendril broke — the others are still available':'Tendril broke — gather flesh and cast again');}
+    else if(ended.length)this.lastState='ready';
+    this.strands=this.strands.filter(s=>s.active);
+    if(!this.active)this.recalling=false;
+    this.wasLoose=null;
   }
 }
