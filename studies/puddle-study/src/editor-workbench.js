@@ -141,7 +141,7 @@ function gapColliders(o){
   const make=(lo,hi)=>axis==='z'?{type:'box',minX:o.minX,maxX:o.maxX,minY:o.base??0,maxY:o.top,minZ:lo,maxZ:hi}:
     {type:'box',minX:lo,maxX:hi,minY:o.base??0,maxY:o.top,minZ:o.minZ,maxZ:o.maxZ};
   return [roof,...(axis==='z'?[make(o.minZ,o.minZ+width),make(o.maxZ-width,o.maxZ)]:
-    [make(o.minX,o.minX+width),make(o.maxX-width,o.maxX)])];
+    [make(o.minX,o.minX+width),make(o.maxX-width,o.maxX)])].map(c=>({...c,sourceId:o.id}));
 }
 
 function stairColliders(o){
@@ -160,9 +160,11 @@ function paintOwner(paint,objects){
   if(o.kind==='pillar')return {type:'cylinder',x:o.x,z:o.z,radius:o.radius,
     base:o.base??0,height:(o.base??0)+o.height};
   if(o.kind==='stairs')return stairColliders(o)[0];
+  if(o.kind==='lowgap')return {type:'roof',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,
+    bottom:o.bottom,top:o.top};
   if(o.kind==='legacy-roof'||o.kind==='legacy-passage')return {type:'roof',minX:o.minX,maxX:o.maxX,
     minZ:o.minZ,maxZ:o.maxZ,bottom:o.bottom,top:o.top};
-  if(o.kind==='grip')return Math.abs((o.platform.maxY??0)-paint.base)<.2?
+  if(o.kind==='grip')return paint.part==='platform'||!paint.part&&Math.abs((o.platform.maxY??0)-paint.base)<.2?
     {...o.platform,type:'box'}:{...o.ramp,type:'grip-ramp'};
   return null;
 }
@@ -188,9 +190,11 @@ export function compileDraft(draft){
         height:(o.base??0)+o.height,...(o.base?{base:o.base}:{}),...(o.sourceId?{sourceId:o.sourceId}:{})};
         Object.defineProperty(post,'editorId',{value:o.id});(level.posts??=[]).push(post);break;}
       case 'legacy-roof':level.roof={type:'roof',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,bottom:o.bottom,top:o.top};
+        Object.defineProperty(level.roof,'sourceId',{value:o.id});
         Object.defineProperty(level.roof,'editorId',{value:o.id});break;
       case 'legacy-passage':level.passage={type:'roof',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,bottom:o.bottom,top:o.top,
-        ...(o.approachBothSides?{approachBothSides:true}:{})};
+          ...(o.approachBothSides?{approachBothSides:true}:{})};
+        Object.defineProperty(level.passage,'sourceId',{value:o.id});
         Object.defineProperty(level.passage,'editorId',{value:o.id});break;
       case 'pressure-basin':level.basin={type:'funnel',x:o.x,z:o.z,radius:o.radius,bottomRadius:o.bottomRadius,depth:o.depth,holdsFeedstock:true};break;
       case 'pressure-gate':level.gate={x:o.x,width:o.width,height:o.height,opening:o.opening,minZ:o.minZ,maxZ:o.maxZ,
@@ -199,6 +203,7 @@ export function compileDraft(draft){
         bottomRadius:o.bottomRadius,depth:o.depth,...(o.targetId?{raised:true,base:o.base,targetId:o.targetId}:{})});break;
       case 'casting-bank':level.castingBank={x:o.x,z:o.z};break;
       case 'grip':level.grip={ramp:o.ramp,platform:o.platform,climbHeight:o.climbHeight};
+        Object.defineProperty(level.grip.platform,'sourceId',{value:o.id});
         Object.defineProperty(level.grip.ramp,'editorId',{value:o.id});
         Object.defineProperty(level.grip.platform,'editorId',{value:o.id});break;
       case 'slippery':level.slip={type:'slip',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ};break;
@@ -210,18 +215,22 @@ export function compileDraft(draft){
       case 'paint':if(o.surface==='sticky'&&o.face&&o.face!=='floor')wallPaint.push(o);
         else level.editorFixtures.push({type:o.surface==='slippery'?'slip':'sticky-paint',
           minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,face:'floor',base:o.base??0,
-          targetId:o.targetId||null,owner:paintOwner(o,objects)});break;
+          sourceId:o.id,targetId:o.targetId||null,owner:paintOwner(o,objects)});break;
     }
   }
   for(const paint of wallPaint){
-    const boxes=[...level.editorFixtures.filter(c=>c.type==='box'),...(level.grip?[level.grip.platform]:[])];
+    const boxes=[...level.editorFixtures.filter(c=>c.type==='box'||c.type==='roof'),
+      ...[level.roof,level.passage,level.grip?.platform].filter(Boolean)];
     for(const box of boxes){
       if(paint.targetId&&box.sourceId!==paint.targetId)continue;
       const minX=Math.max(box.minX,paint.minX),maxX=Math.min(box.maxX,paint.maxX),
         minZ=Math.max(box.minZ,paint.minZ),maxZ=Math.min(box.maxZ,paint.maxZ);
       if(minX>=maxX||minZ>=maxZ)continue;
+      const minY=Math.max(box.minY??box.bottom??0,paint.minY??paint.base??0),
+        maxY=Math.min(box.maxY??box.top,paint.maxY??box.maxY??box.top);
+      if(maxY-minY<.02)continue;
       level.editorFixtures.push({type:'sticky-wall',sourceId:paint.id,targetId:paint.targetId||null,face:paint.face,axis:['east','west'].includes(paint.face)?'x':'z',
-        minX,maxX,minZ,maxZ,minY:Math.max(box.minY??0,paint.base??0),maxY:box.maxY});
+        minX,maxX,minZ,maxZ,minY,maxY});
     }
   }
   const cutters=objects.filter(o=>o.kind==='cutter');
@@ -503,7 +512,7 @@ export function resizeDraftFootprint(draft,id,dimension,size){
   const after=solidFootprint(o),scaleX=(after.maxX-after.minX)/(old.maxX-old.minX),
     scaleZ=(after.maxZ-after.minZ)/(old.maxZ-old.minZ);
   for(const coat of attachedPaint(draft,id)){
-    if(o.kind==='grip'&&Math.abs((coat.base??0)-o.platform.maxY)>.2)continue;
+    if(o.kind==='grip'&&(coat.part==='ramp'||!coat.part&&Math.abs((coat.base??0)-o.platform.maxY)>.2))continue;
     const minX=after.minX+(coat.minX-old.minX)*scaleX,
       maxX=after.minX+(coat.maxX-old.minX)*scaleX,
       minZ=after.minZ+(coat.minZ-old.minZ)*scaleZ,
@@ -562,6 +571,7 @@ export function deleteDraftObject(draft,id){const before=draft.objects.length;
   draft.objects=draft.objects.filter(o=>o.id!==id&&o.targetId!==id);
   return draft.objects.length!==before;
 }
+export function clearDraftObjects(draft){const count=draft.objects.length;draft.objects=[];return count;}
 function duplicateOffset(draft,source){
   const bowls=attachedBasins(draft,source.id);if(!bowls.length)return {dx:.5,dz:.5};
   const footprint=solidFootprint(source)||
@@ -604,11 +614,18 @@ export function resetDraftPaint(draft,area){
       (area.targetId?object.targetId!==area.targetId:!!object.targetId)||
       object.face!==(area.face??'floor')||!area.targetId&&Math.abs((object.base??0)-(area.base??0))>.18){kept.push(object);continue;}
     const o=object;
-    const pieces=[{minX:o.minX,maxX:Math.min(o.maxX,area.minX),minZ:o.minZ,maxZ:o.maxZ},
-      {minX:Math.max(o.minX,area.maxX),maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ},
-      {minX:Math.max(o.minX,area.minX),maxX:Math.min(o.maxX,area.maxX),minZ:o.minZ,maxZ:Math.min(o.maxZ,area.minZ)},
-      {minX:Math.max(o.minX,area.minX),maxX:Math.min(o.maxX,area.maxX),minZ:Math.max(o.minZ,area.maxZ),maxZ:o.maxZ}]
-      .filter(p=>p.maxX-p.minX>.02&&p.maxZ-p.minZ>.02);
+    const vertical=o.face!=='floor';
+    const owner=draft.objects.find(item=>item.id===o.targetId);
+    const lowY=o.minY??o.base??0,highY=o.maxY??(owner?.maxY??owner?.top??owner?.platform?.maxY??lowY);
+    if(vertical&&(highY<=area.minY||lowY>=area.maxY)){kept.push(o);continue;}
+    const along=vertical&&['east','west'].includes(o.face)?'Z':'X',cross=vertical?'Y':'Z',
+      old={...o,minY:lowY,maxY:highY};
+    const lo=`min${along}`,hi=`max${along}`,clo=`min${cross}`,chi=`max${cross}`;
+    const pieces=[{[lo]:old[lo],[hi]:Math.min(old[hi],area[lo]),[clo]:old[clo],[chi]:old[chi]},
+      {[lo]:Math.max(old[lo],area[hi]),[hi]:old[hi],[clo]:old[clo],[chi]:old[chi]},
+      {[lo]:Math.max(old[lo],area[lo]),[hi]:Math.min(old[hi],area[hi]),[clo]:old[clo],[chi]:Math.min(old[chi],area[clo])},
+      {[lo]:Math.max(old[lo],area[lo]),[hi]:Math.min(old[hi],area[hi]),[clo]:Math.max(old[clo],area[chi]),[chi]:old[chi]}]
+      .filter(p=>p[hi]-p[lo]>.02&&p[chi]-p[clo]>.02);
     pieces.forEach((rect,i)=>kept.push({...o,...rect,id:i?nextId(draft):o.id}));
   }
   draft.objects=kept;

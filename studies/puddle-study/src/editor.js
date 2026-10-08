@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import './editor.css';
 import {createBlankDraft,draftFromPreset,compileDraft,validateDraft,exportDraft,importDraft,DraftHistory,
-  addDraftObject,moveDraftObject,rotateDraftObject,deleteDraftObject,duplicateDraftObject,draftPosition,resetDraftPaint,resizeDraftFootprint,alignAttachedBasinHeight,placedObjectDefaults,unsupportedFunnelAt,snapDraftObjectToHighest,WorkbenchSimulation} from './editor-workbench.js';
+  addDraftObject,moveDraftObject,rotateDraftObject,deleteDraftObject,clearDraftObjects,duplicateDraftObject,draftPosition,resetDraftPaint,resizeDraftFootprint,alignAttachedBasinHeight,placedObjectDefaults,unsupportedFunnelAt,snapDraftObjectToHighest,WorkbenchSimulation} from './editor-workbench.js';
 import {createEditorStageView,editorStageHitInfo} from './editor-stage-view.js';
 import {createSurfacePipeline} from './surface-pipeline.js';
 import {gardenColliders,arrivalPosition,drainPosition,gardenHint} from './garden-level.js';
@@ -13,6 +13,7 @@ import {setupMusic} from './music.js';
 import {setupPickupAudio} from './pickup-audio.js';
 import {createLocalLevelLibrary,localStorageForPage,localPageQuery} from './local-levels.js';
 import {createPrintedMaterialLibrary} from './printed-material.js';
+import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
 
 const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
@@ -31,7 +32,7 @@ if(requestedLevel){const entry=localLibrary.get(requestedLevel);
   else startup='That local level was not found; your draft is safe.';}
 let history=new DraftHistory(draft),selected=null,tool='select',playing=false,sim=null,view=null,
   drag=null,aim=null,pendingPreview=false,frameCount=0,orbit={azimuth:.19,elevation:.85,distance:22.5},
-  pointerPose=null,brushStart=null;
+  pointerPose=null,brushStart=null,paintMode='fill';
 const keys=new Set(),touchKeys=new Set(),canvas=$('world'),scene=new THREE.Scene();scene.background=new THREE.Color(0xc6dfd9);
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
 const printLibrary=createPrintedMaterialLibrary();
@@ -78,6 +79,8 @@ function renderHandles(){clearHandles();if(playing)return;
   for(const o of draft.objects){const p=positionOf(o);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.z))continue;
     const material=markerMaterials.get(o.kind)||markerMaterials.get('block');
     const m=new THREE.Mesh(handleGeo,material);m.position.set(p.x,o.kind==='cutter'?o.y:o.kind==='label'?o.base+o.offset:
+      o.kind==='paint'&&o.face!=='floor'?((o.minY??o.base??0)+(o.maxY??draft.objects.find(item=>item.id===o.targetId)?.maxY??2))/2:
+      o.kind==='paint'?o.base+.15:
       o.kind==='pillar'?(o.base??0)+o.height+.28:
       o.kind==='basin'&&Number.isFinite(o.base)?o.base+.3:
       Math.max(0,groundAt(p.x,p.z,gardenColliders(level)).height)+.35,p.z);
@@ -146,7 +149,11 @@ const tools=[['select','Select / move'],['erase','Erase'],['pillar','Pillar'],['
   ['basin','Basin · shallow clay depression'],['cutter-box','Cut box'],['cutter-cylinder','Cut cylinder'],
   ['paint-slip','Paint slippery'],['paint-sticky','Paint sticky'],['paint-normal','Paint normal']];
 function renderTools(){$('tools').replaceChildren(...tools.map(([key,name])=>{const button=document.createElement('button');button.textContent=name;
-  button.classList.toggle('active',tool===key);button.setAttribute('aria-pressed',String(tool===key));button.onclick=()=>{tool=key;renderTools();status(key==='select'?'Click or drag a piece.':`Click the garden to use ${name.toLowerCase()}.`);};return button;}));}
+  button.classList.toggle('active',tool===key);button.setAttribute('aria-pressed',String(tool===key));button.onclick=()=>{tool=key;activePaintFace=null;$('paint-apply').disabled=true;
+    $('paint-apply').textContent=key==='paint-normal'?'Clear selected face':'Fill selected face';
+    $('paint-selection').textContent='Selected face: none';ghost.visible=false;
+    ghost.material.wireframe=false;ghost.material.opacity=.48;renderTools();
+    status(key.startsWith('paint-')?paintMode==='fill'?'Click a flat face, then choose Fill selected face.':'Drag a rectangle on one flat face.':key==='select'?'Click or drag a piece.':`Click the garden to use ${name.toLowerCase()}.`);};return button;}));}
 function pointFromEvent(e){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
   raycaster.setFromCamera(pointer,camera);const hit=view&&raycaster.intersectObjects(view.group.children,true)
     .find(h=>h.object.userData.pickableTerrain);
@@ -155,6 +162,9 @@ function pointFromEvent(e){const rect=canvas.getBoundingClientRect();pointer.set
   const face=Math.abs(n.y)>.55?'floor':Math.abs(n.x)>Math.abs(n.z)?(n.x>0?'east':'west'):(n.z>0?'south':'north');
   const b=draft.boundary,source=editorStageHitInfo(hit);return {x:snap(clamp(p.x,b.minX+.2,b.maxX-.2)),y:p.y,z:snap(clamp(p.z,b.minZ+.2,b.maxZ-.2)),
     face,...source};}
+function hitPaintPatch(e){if(!view)return null;const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+  raycaster.setFromCamera(pointer,camera);return raycaster.intersectObjects(view.group.children,true)
+    .find(h=>h.object.userData.editorPaintId||h.object.userData.pickableTerrain)?.object.userData.editorPaintId||null;}
 function hitHandle(e){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
   raycaster.setFromCamera(pointer,camera);return raycaster.intersectObjects(handles.children,false)[0]?.object.userData.editorId||null;}
 function dragPoint(e,height){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
@@ -176,51 +186,96 @@ function place(kind,p){if((kind==='exit'||kind==='basin'&&!p.targetId)&&
   selected=object.id;commit(`${kind==='stairs'?'Ramp':kind} placed.`);}
 function erase(id=selected){if(!id||!deleteDraftObject(draft,id))return;selected=null;commit('Object removed.');}
 function rotateSelection(){if(!selected||!rotateDraftObject(draft,selected))return;commit('Rotated a quarter turn.');}
-function paint(a,b){const minX=Math.min(a.x,b.x)-.08,maxX=Math.max(a.x,b.x)+.08,
-  minZ=Math.min(a.z,b.z)-.08,maxZ=Math.max(a.z,b.z)+.08,
-  base=Math.max(0,a.face==='floor'?a.y:a.supportBase);
-  if(a.face!==b.face||a.targetId!==b.targetId||!a.targetId&&Math.abs(a.y-b.y)>.22){
-    status('Keep one paint stroke on the same face and supporting piece.');return;}
-  if(tool==='paint-slip'&&a.face!=='floor'){status('Slippery paint works on floors and block tops. Choose one of those surfaces.');return;}
-  if(tool==='paint-normal'){resetDraftPaint(draft,{minX,maxX,minZ,maxZ,base,face:a.face,targetId:a.targetId});selected=null;commit('Surface reset to normal.');return;}
-  const object=addDraftObject(draft,'paint',{surface:tool==='paint-slip'?'slippery':'sticky',face:a.face,
-    minX,maxX,minZ,maxZ,base,...(a.targetId?{targetId:a.targetId}:{})});selected=object.id;commit('Surface painted.');}
+let activePaintFace=null;
+function paint(area){if(!area)return;
+  resetDraftPaint(draft,area);
+  if(tool==='paint-normal'){selected=null;commit('Paint cleared from this area.');return;}
+  const object=addDraftObject(draft,'paint',{...area,surface:tool==='paint-slip'?'slippery':'sticky'});
+  selected=object.id;commit('Surface painted.');}
+function paintPlanePoint(e,face){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
+  raycaster.setFromCamera(pointer,camera);const n=new THREE.Vector3(face.face==='west'?-1:face.face==='east'?1:0,
+    face.face==='floor'?1:0,face.face==='north'?-1:face.face==='south'?1:0),
+    edge=face.face==='floor'?face.base:face.edge,
+    onPlane=face.face==='floor'?new THREE.Vector3(0,edge,0):
+      ['east','west'].includes(face.face)?new THREE.Vector3(edge,0,0):new THREE.Vector3(0,0,edge);
+  const p=new THREE.Vector3();return raycaster.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n,onPlane),p)?p:null;}
+function showPaintPreview(area){if(!area){ghost.visible=false;return;}ghost.visible=true;
+  ghost.material.wireframe=paintMode==='fill'&&!!activePaintFace;
+  ghost.material.opacity=ghost.material.wireframe ? .95 : .48;
+  ghost.material.color.setHex(ghost.material.wireframe?0x23484c:tool==='paint-slip'?0x4aaec5:tool==='paint-sticky'?0x7da987:0xb77972);
+  if(area.face==='floor'){ghost.position.set((area.minX+area.maxX)/2,area.base+.055,(area.minZ+area.maxZ)/2);
+    ghost.scale.set((area.maxX-area.minX)/.6,1,(area.maxZ-area.minZ)/.6);}
+  else{const y=(area.minY+area.maxY)/2;
+    ghost.position.set((area.minX+area.maxX)/2,y,(area.minZ+area.maxZ)/2);
+    ghost.scale.set(Math.max(.06,area.maxX-area.minX)/.6,(area.maxY-area.minY)/.06,Math.max(.06,area.maxZ-area.minZ)/.6);}}
+function selectPaintFace(p){const face=paintFaceForHit(draft,p);if(face.error){activePaintFace=null;$('paint-apply').disabled=true;
+    $('paint-selection').textContent='Selected face: none';ghost.visible=false;status(face.error);return null;}
+  if(tool==='paint-slip'&&face.face!=='floor'){activePaintFace=null;$('paint-apply').disabled=true;
+    $('paint-selection').textContent='Selected face: none';status('Slippery paint works on floors and tops.');return null;}
+  activePaintFace={face,point:p};$('paint-apply').disabled=false;showPaintPreview(paintArea(face,p,p,'fill'));
+  const owner=face.targetId?draft.objects.find(o=>o.id===face.targetId):null;
+  $('paint-selection').textContent=`Selected face: ${owner?.kind||'terrain'} · ${face.face==='floor'?'top':face.face+' wall'}`;
+  status(`${face.face==='floor'?'Top':face.face+' wall'} selected${owner?' on '+owner.kind:''}. Choose ${tool==='paint-normal'?'Clear selected face':'Fill selected face'} to apply.`);
+  return face;}
+$('paint-fill').onchange=()=>{paintMode='fill';activePaintFace=null;$('paint-apply').disabled=true;
+  $('paint-selection').textContent='Selected face: none';ghost.visible=false;status('Click a flat face, then choose Fill selected face.');};
+$('paint-rectangle').onchange=()=>{paintMode='rectangle';activePaintFace=null;$('paint-apply').disabled=true;
+  $('paint-selection').textContent='Selected face: none';ghost.visible=false;status('Drag a rectangle on one flat face.');};
+$('paint-apply').onclick=()=>{if(activePaintFace&&tool.startsWith('paint-'))paint(paintArea(activePaintFace.face,activePaintFace.point,activePaintFace.point,'fill'));
+  activePaintFace=null;$('paint-apply').disabled=true;$('paint-selection').textContent='Selected face: none';ghost.visible=false;};
 canvas.addEventListener('pointerdown',e=>{if(playing){if(e.button===0&&sim.gardenLevel.tendrils&&sim.garden.phase==='playing'&&aimAt(e))cast();return;}
   if(e.button===2||e.altKey){drag={mode:'orbit',clientX:e.clientX,clientY:e.clientY,az:orbit.azimuth,el:orbit.elevation};canvas.setPointerCapture(e.pointerId);return;}
-  const id=hitHandle(e);
+  const id=tool.startsWith('paint-')?null:hitHandle(e);
   const p=pointFromEvent(e);
   if(!p&&!id){if(tool==='select'){selected=null;renderEditor();return;}
     status('Place on the visible garden floor or a supported top.');return;}
   if(e.button!==0)return;
   if(tool!=='select'&&tool!=='erase'&&!tool.startsWith('paint-')&&p?.face!=='floor'){
     status('Place new pieces on a floor or supported top.');return;}
-  if(tool==='select'){selected=id;const planeY=p?.y??(selectedObject()?.base??0),start=id?dragPoint(e,planeY):null;
-    drag=id&&start?{mode:'move',start,planeY,origin:positionOf(selectedObject()),moved:false}:null;
+  if(tool==='select'){selected=id||hitPaintPatch(e);const current=selectedObject();
+    if(current?.kind==='paint'){
+      const center={targetId:current.targetId||null,face:current.face,x:(current.minX+current.maxX)/2,
+        y:current.face==='floor'?current.base:((current.minY??current.base??0)+(current.maxY??draft.objects.find(item=>item.id===current.targetId)?.maxY??2))/2,
+        z:(current.minZ+current.maxZ)/2,part:current.part};
+      const face=paintFaceForHit(draft,center),start=face.error?null:paintPlanePoint(e,face);
+      drag=start?{mode:'move-paint',start,face,origin:copy(current),moved:false}:null;
+    }else{const planeY=p?.y??(current?.base??0),start=id?dragPoint(e,planeY):null;
+      drag=id&&start?{mode:'move',start,planeY,origin:positionOf(current),moved:false}:null;}
     renderEditor();if(drag)canvas.setPointerCapture(e.pointerId);}
   else if(tool==='erase')erase(id);
-  else if(tool.startsWith('paint-')){if(tool==='paint-slip'&&p.face!=='floor'){
-    status('Slippery paint works on floors and block tops. Choose one of those surfaces.');return;}
-    brushStart=p;drag={mode:'paint'};canvas.setPointerCapture(e.pointerId);}
+  else if(tool.startsWith('paint-')){const face=selectPaintFace(p);if(!face)return;
+    if(paintMode==='rectangle'){brushStart=p;drag={mode:'paint',face};canvas.setPointerCapture(e.pointerId);}}
   else place(tool,p);
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointermove',e=>{if(playing){if(sim.gardenLevel.tendrils)aimAt(e);return;}
   if(drag?.mode==='orbit'){orbit.azimuth=drag.az+(e.clientX-drag.clientX)*.007;orbit.elevation=clamp(drag.el+(e.clientY-drag.clientY)*.006,.12,1.55);updateCamera();return;}
-  const p=drag?.mode==='move'?dragPoint(e,drag.planeY):pointFromEvent(e);if(!p)return;pointerPose=p;
+  const p=drag?.mode==='move'?dragPoint(e,drag.planeY):pointFromEvent(e);
+  if(drag?.mode==='paint'){showPaintPreview(paintArea(drag.face,brushStart,paintPlanePoint(e,drag.face),'rectangle'));return;}
+  if(tool.startsWith('paint-')&&paintMode==='fill'&&activePaintFace){showPaintPreview(paintArea(activePaintFace.face,null,null,'fill'));return;}
+  if(drag?.mode==='move-paint'){
+    const hit=paintPlanePoint(e,drag.face),object=selectedObject();if(!hit||!object)return;
+    Object.assign(object,drag.origin);
+    if(movePaintWithinFace(draft,object,hit.x-drag.start.x,hit.y-drag.start.y,hit.z-drag.start.z)){
+      drag.moved=true;showPaintPreview(object);}return;}
+  if(!p)return;pointerPose=p;
   if(drag?.mode==='move'){const x=drag.origin.x+p.x-drag.start.x,z=drag.origin.z+p.z-drag.start.z;
     if(moveDraftObject(draft,selected,snap(x),snap(z))){
       const object=selectedObject();if(object?.kind==='label')object.base=p.y;
       drag.moved=true;renderHandles();pendingPreview=true;}}
-  else if(drag?.mode==='paint'){ghost.visible=true;ghost.position.set((brushStart.x+p.x)/2,(brushStart.y+p.y)/2+.05,(brushStart.z+p.z)/2);
-    ghost.scale.set(Math.max(.15,Math.abs(p.x-brushStart.x)),1,Math.max(.15,Math.abs(p.z-brushStart.z)));}
   else{ghost.visible=tool!=='select'&&tool!=='erase';if(ghost.visible)ghost.position.set(p.x,p.y+.05,p.z);}
 });
 canvas.addEventListener('pointerup',e=>{if(drag?.mode==='move'&&drag.moved){
     if($('snap-high').checked)snapDraftObjectToHighest(draft,selected);
     commit('Object moved.');}
-  if(drag?.mode==='paint'){const p=pointFromEvent(e);if(p)paint(brushStart,p);}
-  drag=null;brushStart=null;ghost.visible=false;});
-canvas.addEventListener('pointercancel',()=>{if(drag?.mode==='move'&&drag.moved){draft=copy(history.states[history.index]);pendingPreview=true;renderEditor();}drag=null;brushStart=null;ghost.visible=false;});
+  if(drag?.mode==='move-paint'&&drag.moved)commit('Paint moved on its face.');
+  if(drag?.mode==='paint'){const area=paintArea(drag.face,brushStart,paintPlanePoint(e,drag.face),'rectangle');
+    if(area)paint(area);else status('Drag across the face to size a rectangle. A click alone does not paint.');}
+  drag=null;brushStart=null;
+  if(tool.startsWith('paint-')&&paintMode==='fill'&&activePaintFace)
+    showPaintPreview(paintArea(activePaintFace.face,null,null,'fill'));
+  else ghost.visible=false;});
+canvas.addEventListener('pointercancel',()=>{if((drag?.mode==='move'||drag?.mode==='move-paint')&&drag.moved){draft=copy(history.states[history.index]);pendingPreview=true;renderEditor();}drag=null;brushStart=null;ghost.visible=false;});
 function addField(label,value,change,{step=.1,min,max}={}){const wrap=document.createElement('label');wrap.textContent=label;
   const input=document.createElement('input');input.type='number';input.value=Number(value.toFixed(3));input.step=step;
   if(min!==undefined)input.min=min;if(max!==undefined)input.max=max;
@@ -247,7 +302,7 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
   const choice=(label,value,options,change)=>{const wrap=document.createElement('label');wrap.textContent=label+' ';
     const select=document.createElement('select');for(const v of options){const item=document.createElement('option');item.value=v;item.textContent=v;select.append(item);}
     select.value=value;select.onchange=()=>{change(select.value);commit();};wrap.append(select);panel.append(wrap);};
-  if(['block','lowgap','legacy-roof','legacy-passage','slippery','paint'].includes(o.kind))rect();
+  if(['block','lowgap','legacy-roof','legacy-passage','slippery'].includes(o.kind))rect();
   if(o.kind==='block'){number('Base height',o.minY??0,n=>{const delta=n-(o.minY??0);o.minY=n;o.maxY+=delta;
       alignAttachedBasinHeight(draft,o.id,o.maxY);},{min:0,max:8});
     number('Height',o.maxY-(o.minY??0),n=>{o.maxY=(o.minY??0)+n;
@@ -294,8 +349,28 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
       if(o.ramp.axis==='x')o.ramp.maxHeight=o.ramp.minHeight+n;else o.ramp.southHeight=o.ramp.northHeight+n;},{min:.1,max:2});}
   if(o.kind==='paint'){
     choice('Surface',o.surface,['slippery','sticky'],n=>{o.surface=n;});
-    choice('Paint face',o.face??'floor',['floor','north','south','east','west'],n=>{o.face=n;});
-    number('Surface height',o.base??0,n=>{o.base=n;},{min:0,max:8});}
+    const owner=draft.objects.find(item=>item.id===o.targetId);
+    const bounds=owner?.kind==='block'||['legacy-roof','legacy-passage','lowgap'].includes(owner?.kind)?owner:
+      owner?.kind==='grip'?owner.platform:owner?.kind==='pillar'?{minX:owner.x-owner.radius,maxX:owner.x+owner.radius,minZ:owner.z-owner.radius,maxZ:owner.z+owner.radius}:
+      owner?.kind==='stairs'?{minX:owner.x-(owner.axis==='x'?owner.run:owner.width)/2,
+        maxX:owner.x+(owner.axis==='x'?owner.run:owner.width)/2,
+        minZ:owner.z-(owner.axis==='z'?owner.run:owner.width)/2,
+        maxZ:owner.z+(owner.axis==='z'?owner.run:owner.width)/2}:draft.boundary;
+    const resize=(axis,n)=>{const lo=`min${axis}`,hi=`max${axis}`,center=(o[lo]+o[hi])/2;
+      o[lo]=Math.max(bounds[lo],center-n/2);o[hi]=Math.min(bounds[hi],center+n/2);};
+    if(o.face==='floor'){
+      number('Patch width',o.maxX-o.minX,n=>resize('X',n),{min:.12,max:bounds.maxX-bounds.minX});
+      number('Patch depth',o.maxZ-o.minZ,n=>resize('Z',n),{min:.12,max:bounds.maxZ-bounds.minZ});
+      if(!owner)number('Terrain height',o.base??0,n=>{o.base=n;},{min:0,max:8});
+    }else{
+      const axis=['east','west'].includes(o.face)?'Z':'X';
+      number('Wall patch width',o[`max${axis}`]-o[`min${axis}`],n=>resize(axis,n),
+        {min:.12,max:bounds[`max${axis}`]-bounds[`min${axis}`]});
+      const top=owner?.maxY??owner?.top??owner?.platform?.maxY??8,bottom=owner?.minY??owner?.bottom??owner?.platform?.minY??0;
+      number('Wall patch height',(o.maxY??top)-(o.minY??bottom),n=>{
+        const center=((o.minY??bottom)+(o.maxY??top))/2;o.minY=Math.max(bottom,center-n/2);o.maxY=Math.min(top,center+n/2);
+      },{min:.12,max:top-bottom});
+    }}
   if(o.kind==='cutter'){
     number('Center Y',o.y,n=>{o.y=n;},{min:-8,max:20});
     choice('Shape',o.shape,['box','cylinder'],n=>{o.shape=n;
@@ -319,6 +394,7 @@ function renderEditor(){updateLinkedStatus();const errors=validateDraft(draft).e
   $('preset').value=String(draft.presetId||0);$('name').value=draft.name;$('total').value=draft.totalFlesh;
   $('seed').value=draft.startingFlesh;
   $('undo').disabled=history.index===0;$('redo').disabled=history.index===history.states.length-1;
+  $('clear-all').disabled=playing||draft.objects.length===0;
   const poolBudget=draft.totalFlesh-draft.startingFlesh,poolCount=draft.objects.filter(o=>o.kind==='flesh').length;
   $('play').disabled=errors.length>0;$('budget').textContent=`${draft.startingFlesh} starting · ${poolBudget} ${poolCount?'assigned to pools':'pool budget (add flesh pools)'}`;
   $('validation').replaceChildren();for(const text of errors){const li=document.createElement('li');li.className='error';li.textContent=text;$('validation').append(li);}
@@ -332,6 +408,10 @@ $('seed').onchange=()=>{draft.startingFlesh=Number($('seed').value);commit();};
 
 $('undo').onclick=()=>{draft=history.undo();selected=null;renderEditor();pendingPreview=true;persist();status('Undid the last edit.');};
 $('redo').onclick=()=>{draft=history.redo();selected=null;renderEditor();pendingPreview=true;persist();status('Redid the edit.');};
+$('clear-all').onclick=()=>{if(playing||!draft.objects.length)return;
+  clearDraftObjects(draft);selected=null;activePaintFace=null;brushStart=null;drag=null;ghost.visible=false;
+  $('paint-apply').disabled=true;$('paint-selection').textContent='Selected face: none';
+  commit('All objects cleared. Add a start and exit before play testing.');};
 $('save').onclick=()=>status(memory?'Temporary session · export to keep this draft.':
   persist()?'Draft saved locally.':'Local save unavailable; export a file instead.');
 $('save-level').onclick=()=>{if(memory){status('Temporary session · export JSON to keep this level.');return;}

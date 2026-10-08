@@ -11,6 +11,7 @@
 <nav class="toolbar" aria-label="Editor actions">
 <label>Start from <select id="preset"><option value="0">Blank flat garden</option><option value="1">Gathering Garden</option><option value="2">Weight Garden</option><option value="3">Passage Garden</option><option value="4">Reach Garden</option><option value="5">Grip Garden</option></select></label>
 <button id="load-preset">Load</button><button id="undo">Undo</button><button id="redo">Redo</button>
+<button id="clear-all">Clear all objects</button>
 <button id="save">Save draft</button><button id="save-level">Save to Local Levels</button><button id="save-level-new">Save as new</button><span id="linked-level" aria-live="polite">Unsaved local level</span><button id="export">Export JSON</button><button id="import">Import JSON</button><input id="file" type="file" accept=".json,application/json" hidden>
 <button id="play" class="primary">▶ Play test</button><button id="restart" hidden>Restart test</button>
 </nav>
@@ -18,7 +19,8 @@
 <aside id="edit-panel"><div class="panel-title"><h2>Build</h2><label><input type="checkbox" id="snap" checked> Snap · ¼ unit</label></div>
 <label><input type="checkbox" id="snap-high"> Snap height to highest surface</label>
 <div id="tools" role="group" aria-label="Placement tools"></div>
-<p class="hint">Click the 3D garden to place or select. Drag a selected piece to move it. Drag with a surface brush to paint an area. Right-drag or Alt-drag orbits; wheel zooms.</p>
+<fieldset id="paint-controls" aria-label="Paint area"><legend>Paint area</legend><label><input id="paint-fill" type="radio" name="paint-mode" checked> Fill a face</label><label><input id="paint-rectangle" type="radio" name="paint-mode"> Drag rectangle</label><span id="paint-selection" role="status" aria-live="polite">Selected face: none</span><button id="paint-apply" disabled>Fill selected face</button></fieldset>
+<p class="hint">Choose a paint tool, then click a face and use Fill selected face. Or choose Drag rectangle to size a patch on that face. Right-drag or Alt-drag orbits; wheel zooms.</p>
 <div class="camera-actions"><button id="top-view">Top</button><button id="tower-view">Tower</button><button id="reset-view">Reset view</button></div>
 <section id="level-settings"><h2>Garden settings</h2><label>Name <input id="name" maxlength="60"></label>
 <div class="fields"><label>Total flesh <input id="total" type="number" min="17" max="297" step="1"></label><label>Starting flesh <input id="seed" type="number" min="17" max="297" step="1"></label></div>

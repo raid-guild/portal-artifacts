@@ -58,20 +58,24 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     m.userData.editorId=c.sourceId||c.editorId||null;m.userData.supportBase=minimum;
     m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),ink));return m;};
   const paintTiles=(c,material,face='floor')=>{
-    const tiles=[],size=.085,solid=level.csgSolid;
+    const tiles=[],solid=level.csgSolid;
     const u0=face==='floor'?c.minX:['west','east'].includes(face)?c.minZ:c.minX,
       u1=face==='floor'?c.maxX:['west','east'].includes(face)?c.maxZ:c.maxX,
-      v0=face==='floor'?c.minZ:c.minY,v1=face==='floor'?c.maxZ:c.maxY;
+      v0=face==='floor'?c.minZ:c.minY,v1=face==='floor'?c.maxZ:c.maxY,
+      size=Math.max(.085,Math.sqrt((u1-u0)*(v1-v0)/10000));
     const point=(u,v,inside=false)=>{
       if(face==='floor'){
         const h=paintSurfaceHeight(c,u,v,colliders);
-        return h===null?null:[u,h+(inside?-.025:.022),v];
+        return h===null||!c.targetId&&c.base!==undefined&&Math.abs(h-c.base)>.2?null:
+          [u,h+(inside?-.025:.022),v];
       }
       if(face==='west'||face==='east')return [face==='west'?c.minX+(inside?.025:-.008):c.maxX+(inside?-.025:.008),v,u];
       return [u,v,face==='north'?c.minZ+(inside?.025:-.008):c.maxZ+(inside?-.025:.008)];
     };
     for(let u=u0;u<u1-.001;u+=size)for(let v=v0;v<v1-.001;v+=size){
       const U=Math.min(u1,u+size),V=Math.min(v1,v+size),sample=point((u+U)/2,(v+V)/2,true);
+      if(face==='floor'&&!c.targetId&&colliders.some(item=>item.type==='funnel'&&!item.raised&&
+        Math.hypot((u+U)/2-item.x,(v+V)/2-item.z)<item.radius+size*.75))continue;
       if(!sample||solid&&c.targetId&&!solidInside(solid,...sample))continue;
       const a=point(u,v),b=point(U,v),cc=point(u,V),d=point(U,V);
       if(!a||!b||!cc||!d)continue;
@@ -80,6 +84,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     }
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(tiles,3));
     geometry.computeVertexNormals();const mesh=add(geometry,material);
+    mesh.userData.editorPaintId=c.sourceId||null;
     if(material==='slip'&&face==='floor'){
       const h=(x,z)=>(paintSurfaceHeight(c,x,z,colliders)??c.base??0)+.039,
         outline=new THREE.BufferGeometry();
