@@ -30,3 +30,26 @@
 body.playing-game:has(.in-menu) .controls,body.playing-game:has(.in-menu) .instructions,body.playing-game:has(.in-menu) .touch-pad{visibility:hidden}
 body.playing-game:has(.in-menu) .music-controls{z-index:13;bottom:24px;right:24px}
 @media(max-width:760px){.game-top{top:15px;left:16px;right:16px;align-items:flex-start}.game-top h2{font-size:17px}.game-score{gap:7px;flex-wrap:wrap;justify-content:flex-end;max-width:190px;font-size:9px}#game-shell .game-score button{padding:7px 8px;font-size:9px}.game-hint{bottom:210px;left:12px;right:12px;max-width:none;padding:10px 12px;font-size:12px}.playing-game .controls{right:12px;bottom:69px}.playing-game .instructions{left:12px;bottom:14px;max-width:calc(100vw - 24px);font-size:8px}.playing-game .music-controls{right:12px;bottom:164px;width:154px}.playing-game .music-controls label,.playing-game #music-status{display:none}.playing-game .music-controls{padding:0;border:0;background:none;width:auto}.playing-game .touch-pad{bottom:63px}.game-card{padding:28px}.game-card h1{font-size:56px}.game-card p{font-size:15px}#game-level-screen h1{font-size:42px}.game-level-row{padding:9px;gap:7px}.game-level-row b{font-size:11px}.game-level-row small{font-size:9px}#game-shell .game-level-row button{min-width:62px;padding:8px}body.playing-game:has(.in-menu) .music-controls{bottom:18px;right:18px}.garden-label{display:none}}
+
+.game-settings{border-top:1px solid #a7b9ae;margin-top:20px;padding-top:14px;font:11px/1.5 'DM Mono',monospace}
+.game-settings summary{cursor:pointer;min-height:36px;display:list-item}
+.game-settings p{font-size:11px;line-height:1.5;margin:4px 0 12px}
+.game-settings #game-settings-audio .music-controls{position:static;width:100%;margin-top:12px;display:block}
+.game-settings #game-settings-audio .music-controls input{width:min(180px,58vw)}
+@media (pointer:coarse), (max-width:760px), (max-width:1000px) and (max-height:500px){
+  .game-top{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));gap:5px}
+  .game-top>div:first-child{display:none}
+  .game-score{width:100%;justify-content:flex-end;gap:8px;flex-wrap:nowrap;font-size:10px}
+  .game-score #game-camera{display:none}
+  #game-shell .game-score #game-menu{min-width:48px;min-height:48px;padding:6px 9px;font-size:10px}
+  #game-shell .game-score #game-menu kbd{display:none}
+  .game-hint,.playing-game .instructions,.playing-game .garden-label{display:none!important}
+  .playing-game .controls{bottom:max(12px,env(safe-area-inset-bottom));right:max(12px,env(safe-area-inset-right))}
+  body.playing-game .music-controls{display:none!important}
+  body.playing-game .game-settings .music-controls{display:block!important;background:rgba(241,231,214,.8);border:1px solid #607679;padding:9px}
+  .game-card{width:min(480px,calc(100vw - 20px));max-height:calc(100dvh - 20px);padding:24px}
+}
+@media (pointer:coarse), (max-width:760px), (max-width:1000px) and (max-height:500px){
+  body.playing-game .game-settings .music-controls label{display:flex!important}
+  body.playing-game .game-settings #music-status{display:block!important}
+}

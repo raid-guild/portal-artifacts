@@ -14,3 +14,10 @@ test('cancel never taps and mixed sources finish only on final release',()=>{
   g.down('key',200);g.down('pointer',210);g.up('key',250);assert.equal(taps,0);
   g.up('pointer',300);assert.equal(taps,1);
 });
+test('canceling one pointer preserves a keyboard hold without recalling',()=>{
+  let taps=0;const g=new PullGesture(()=>taps++);
+  g.down('keyboard',0);g.down('pointer-4',10);g.cancelSource('pointer-4');
+  assert.equal(g.sources.has('keyboard'),true);assert.equal(taps,0);
+  assert.equal(g.update(230),true);g.up('keyboard',250);assert.equal(taps,0);
+  g.down('pointer-5',300);g.cancelSource('pointer-5');g.up('pointer-5',350);assert.equal(taps,0);
+});
