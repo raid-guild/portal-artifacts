@@ -8,7 +8,20 @@ export function createParticleSurface(material,resolution=48){
   mesh.isolation=.72;
   mesh.frustumCulled=false;
   const n=resolution,field=mesh.field;
-  function update(particles,colliders,radius=.067){
+  let previous=null;
+  function update(particles,colliders,radius=.067,{maskTerrain=true}={}){
+    const colliderKey=JSON.stringify(colliders.map(c=>c.type==='editor-solid-mesh'?
+      {type:c.type,revision:c.revision}:c));
+    const same=previous&&previous.radius===radius&&previous.maskTerrain===maskTerrain&&
+      previous.colliderKey===colliderKey&&previous.particles.length===particles.length&&
+      particles.every((p,i)=>p===previous.particles[i]&&p.x===previous.coords[i*3]&&
+        p.y===previous.coords[i*3+1]&&p.z===previous.coords[i*3+2]);
+    if(same)return;
+    const coords=new Float64Array(particles.length*3);
+    for(let i=0;i<particles.length;i++){
+      const p=particles[i];coords[i*3]=p.x;coords[i*3+1]=p.y;coords[i*3+2]=p.z;
+    }
+    previous={radius,maskTerrain,colliderKey,particles:[...particles],coords};
     if(!particles.length){mesh.reset();mesh.update();return;}
     const support=Math.max(.21,radius*3.4);
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
@@ -42,11 +55,19 @@ export function createParticleSurface(material,resolution=48){
       }
     }
     // Mask the interior of fixtures; a lobe may slide along their faces.
+    const groundColumns=maskTerrain?new Float64Array(n*n).fill(NaN):null;
     for(let iz=1;iz<n-1;iz++)for(let iy=1;iy<n-1;iy++)for(let ix=1;ix<n-1;ix++){
       const i=iz*n*n+iy*n+ix;
       if(field[i]<mesh.isolation*.2)continue;
       const x=cx-sx+ix*invX,y=cy-sy+iy*invY,z=cz-sz+iz*invZ;
-      if(y<groundAt(x,z,colliders).height+.01||pointInsideSolid(x,y,z,colliders,.012))field[i]=0;
+      let below=false;
+      if(maskTerrain){
+        const column=iz*n+ix;
+        let ground=groundColumns[column];
+        if(Number.isNaN(ground)){ground=groundAt(x,z,colliders).height;groundColumns[column]=ground;}
+        below=y<ground+.01;
+      }
+      if(below||pointInsideSolid(x,y,z,colliders,.012))field[i]=0;
     }
     mesh.update();
   }

@@ -20,7 +20,7 @@
 
 .controls button[aria-pressed="true"]{background:#b5cbbd}
 @media(min-width:761px){.instructions{bottom:18px}.controls{bottom:45px}}
-@media(max-width:760px){.test-controls{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:760px){.test-controls{grid-template-columns:repeat(5,minmax(0,1fr))}}
 
 #tendril-status{font-size:8px;line-height:1.5;letter-spacing:.02em;margin-top:12px;color:#527367}
 @media(min-width:761px){.controls{max-width:650px}.controls button{padding:10px}}

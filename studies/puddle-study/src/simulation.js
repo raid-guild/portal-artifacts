@@ -1,6 +1,7 @@
-import {Tendril} from './tendril.js';
+import {GARDEN,GARDEN_LEVELS,createGarden,seedGarden,gardenColliders,gardenCanCast,updateGarden} from './garden-level.js';
+import {TendrilGroup} from './tendril.js';
 import {ParticleFluid} from './particle-fluid.js';
-import {GAP,GAP_COLLIDERS,TERRACE_BOUNDARY,FUNNEL} from './colliders.js';
+import {GAP,GAP_COLLIDERS,TERRACE_BOUNDARY,FUNNEL,groundAt} from './colliders.js';
 
 export const DT=1/60;
 export const GROWTH={startX:-2.4,spoutX:2.4,spoutZ:0,spoutY:1.3,seedCount:17,capacity:297,interval:.5,perDrip:4,goal:120};
@@ -12,25 +13,51 @@ export const PRESSURE={startX:-4.8,rate:42,threshold:48,releaseThreshold:36,
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 export class PuddleSimulation {
-  constructor({size=1}={}){this.selectedTest='puddle';this.reset(size);}
+  constructor({size=1}={}){this.selectedTest='puddle';this.gardenLevelId=1;this.completedLevels={};this.practiceLevel=false;this.reset(size);}
   get body(){return this.fluid.centroid();}
   get brain(){return this.fluid.brain;}
+  get gardenLevel(){return this.localRun?.level||GARDEN_LEVELS[this.gardenLevelId-1]||null;}
+  get isLocalGarden(){return !!this.localRun;}
+  startGarden(levelId=1,{newGame=false,practice=false}={}){
+    if(!Number.isInteger(levelId)||!GARDEN_LEVELS[levelId-1])return false;
+    this.localRun=null;
+    if(newGame){this.completedLevels={};this.practiceLevel=practice;}
+    this.selectedTest='garden';this.gardenLevelId=levelId;this.descending=false;this.reset(1);
+    this.gardenInputArmed=false;
+    this.garden.phase='arriving';this.garden.arrivalTime=0;
+    return true;
+  }
+  startLocalGarden(level,{id,revision}={}){
+    if(!level?.start||!level?.exit||!id||!Number.isInteger(revision)||revision<1)return false;
+    this.localRun={id,revision,level};this.selectedTest='garden';this.gardenLevelId=1;
+    this.practiceLevel=false;this.descending=false;this.reset(1);
+    this.gardenInputArmed=false;this.garden.phase='arriving';this.garden.arrivalTime=0;return true;
+  }
+  restartGarden(){if(this.localRun)return this.startLocalGarden(this.localRun.level,this.localRun);
+    return this.startGarden(this.gardenLevelId);}
+  continueGarden(){if(this.localRun||this.gardenLevelId>=GARDEN_LEVELS.length||this.garden.phase!=='complete')return false;
+    const next=this.gardenLevelId+1;
+    this.completedLevels[this.gardenLevelId]={gems:this.garden.gemCount,gold:this.garden.goldCount,totalGold:this.garden.gold.length};
+    this.startGarden(next);this.descending=true;return true;}
   reset(size=this.size){
     this.size=size;
-    const x=this.selectedTest==='field'?PUDDLE_FIELD.startX:this.selectedTest==='growth'?GROWTH.startX:
+    this.gardenInputArmed=true;
+    const x=this.selectedTest==='garden'?this.gardenLevel.start.x:this.selectedTest==='field'?PUDDLE_FIELD.startX:this.selectedTest==='growth'?GROWTH.startX:
       this.selectedTest==='pressure'?PRESSURE.startX:this.selectedTest==='gap'?-2.1*size:0;
-    const supply=this.selectedTest==='field'?PUDDLE_FIELD:this.selectedTest==='growth'?GROWTH:null;
-    this.fluid=new ParticleFluid({x,z:0,size,
+    const supply=this.selectedTest==='garden'?this.gardenLevel:this.selectedTest==='field'?PUDDLE_FIELD:this.selectedTest==='growth'?GROWTH:null;
+    this.fluid=new ParticleFluid({x,z:this.selectedTest==='garden'?this.gardenLevel.start.z:0,size,
       ...(supply?{seedCount:supply.seedCount,massReferenceCount:supply.capacity}:{})});
-    this.tendril=new Tendril(this.fluid);
+    this.tendril=new TendrilGroup(this.fluid);
+    this.gardenTendrilUsed=false;
     this.growth={elapsed:0,emitted:0,absorbed:0,complete:false};
     this.field={absorbed:0,loose:PUDDLE_FIELD.capacity-PUDDLE_FIELD.seedCount};
     this.pressure={shed:0,credit:0,weight:0,active:false,opening:0,complete:false};
     this.oozeForward=false;this.materialState='oozing';this.relaxTime=0;
     this.fleshThrough=0;this.brainThrough=false;this.gapStage='approach';
     if(this.selectedTest==='field')this.seedField();
+    if(this.selectedTest==='garden'){this.garden=createGarden(this.gardenLevel);seedGarden(this.fluid,this.gardenLevel);}
   }
-  selectTest(test){if(!['field','growth','gap','pressure','puddle'].includes(test))return false;
+  selectTest(test){if(!['field','growth','gap','pressure','puddle','garden'].includes(test))return false;
     this.retrievalSetup=false;this.selectedTest=test;this.reset(test==='gap'?this.size:1);return true;}
   seedField(){
     PUDDLE_FIELD.patches.forEach(([x,z],patchId)=>{
@@ -71,9 +98,16 @@ export class PuddleSimulation {
     });
     f.samplePairs();f.updateComponents(this.activeColliders());this.updatePressure(1);this.retrievalSetup=true;
   }
-  castTendril(aim){return this.selectedTest==='pressure'&&this.tendril.cast(aim,this.activeColliders());}
+  castTendril(aim){
+    if(!aim||!(this.selectedTest==='pressure'||this.selectedTest==='garden'&&gardenCanCast(this.gardenLevel)&&
+      this.garden.phase==='playing'&&this.gardenInputArmed))return false;
+    const cast=this.tendril.cast(aim,this.activeColliders());
+    if(cast&&this.selectedTest==='garden')this.gardenTendrilUsed=true;
+    return cast;
+  }
   shed(dt){
-    this.pressure.credit+=dt*PRESSURE.rate;
+    const cfg=this.selectedTest==='garden'?this.gardenLevel.gate||PRESSURE:PRESSURE;
+    this.pressure.credit+=dt*cfg.rate;
     const f=this.fluid,b=f.brain;
     const candidates=f.particles.map((p,i)=>({p,i})).filter(({p,i})=>
       i!==f.brainIndex&&!f.coatIndices.includes(i)&&!p.feedstock&&p.component===b.component)
@@ -89,21 +123,26 @@ export class PuddleSimulation {
     if(!candidates.length)this.pressure.credit=0;
   }
   updatePressure(dt){
-    const state=this.pressure,r=this.fluid.radius;
+    const state=this.pressure,r=this.fluid.radius,cfg=this.selectedTest==='garden'?this.gardenLevel.gate:PRESSURE,
+      basin=this.selectedTest==='garden'?this.gardenLevel.basin:FUNNEL;
+    const plateHeight=groundAt(basin.x,basin.z,this.activeColliders()).height;
     state.weight=this.fluid.particles.filter(p=>
-      Math.hypot(p.x-FUNNEL.x,p.z-FUNNEL.z)<FUNNEL.bottomRadius+.04&&
-      p.y<-FUNNEL.depth+r+.23).length;
-    if(state.weight>=PRESSURE.threshold)state.active=true;
-    else if(state.weight<PRESSURE.releaseThreshold)state.active=false;
-    let target=state.active?PRESSURE.opening:0;
+      (this.selectedTest!=='garden'||p.feedstock&&p.shedAt!==undefined)&&
+      Math.hypot(p.x-basin.x,p.z-basin.z)<basin.bottomRadius+.04&&
+      p.y<plateHeight+r+.23).length;
+    if(state.weight>=cfg.threshold)state.active=true;
+    else if(state.weight<cfg.releaseThreshold)state.active=false;
+    let target=state.active?cfg.opening:0;
     // Pause a closing gate while flesh occupies the passage.
     if(target<state.opening&&this.fluid.particles.some(p=>
-      Math.abs(p.x-PRESSURE.gateX)<PRESSURE.gateWidth/2+r+.05&&Math.abs(p.z)<2.3+r&&
-      p.y+r>target&&p.y-r<state.opening))target=state.opening;
+      Math.abs(p.x-(cfg.gateX??cfg.x))<(cfg.gateWidth??cfg.width)/2+r+.05&&
+      p.z>(cfg.minZ??-2.3)-r&&p.z<(cfg.maxZ??2.3)+r&&
+      p.y+r>(cfg.base??0)+target&&p.y-r<(cfg.base??0)+state.opening))target=state.opening;
     state.opening+=clamp(target-state.opening,-dt*.65,dt*.65);
-    state.complete=this.brain.x>PRESSURE.gateX+.8;
+    state.complete=this.selectedTest==='garden'?this.brain.x>cfg.x+.8:this.brain.x>PRESSURE.gateX+.8;
   }
   activeColliders(){
+    if(this.selectedTest==='garden')return gardenColliders(this.gardenLevel,this.pressure.opening);
     if(this.selectedTest==='pressure')return [TERRACE_BOUNDARY,FUNNEL,
       {type:'roof',minX:PRESSURE.gateX-PRESSURE.gateWidth/2,maxX:PRESSURE.gateX+PRESSURE.gateWidth/2,
         minZ:-2.3,maxZ:2.3,bottom:this.pressure.opening,top:this.pressure.opening+PRESSURE.gateHeight},
@@ -112,26 +151,36 @@ export class PuddleSimulation {
     return this.selectedTest==='gap'?[TERRACE_BOUNDARY,...GAP_COLLIDERS]:[TERRACE_BOUNDARY];}
   step(input={},dt=DT){
     if(!(dt>0))return this;
+    if(this.selectedTest==='garden'&&!['playing','draining','arriving','settling'].includes(this.garden.phase))return this;
     dt=clamp(dt,0,DT);
-    const shedding=this.selectedTest==='pressure'&&!!input.shed;
+    if(this.selectedTest==='garden'&&this.garden.phase==='arriving'){updateGarden(this,dt);return this;}
+    if(this.selectedTest==='garden'&&this.garden.phase==='draining'){updateGarden(this,dt);return this;}
+    const settling=this.selectedTest==='garden'&&this.garden.phase==='settling';
+    if(settling)input={};
+    if(this.selectedTest==='garden'&&!settling&&!this.gardenInputArmed){
+      if(input.x||input.z||input.contract||input.shed||input.push||input.recallToggle)input={};
+      else this.gardenInputArmed=true;
+    }
+    const gatedGarden=this.selectedTest==='garden'&&!!this.gardenLevel.gate;
+    const editorShed=this.selectedTest==='garden'&&!!this.gardenLevel.editorCanShed;
+    const shedding=(this.selectedTest==='pressure'||gatedGarden||editorShed)&&!!input.shed;
     if(shedding){if(this.tendril.active)this.tendril.release('released');this.shed(dt);}else this.pressure.credit=0;
-    const retrieving=!!input.contract&&this.tendril.active&&!shedding;
-    const contracting=!!input.contract&&!shedding&&!retrieving;
+    if(input.recallToggle&&!shedding&&(this.selectedTest==='pressure'||this.selectedTest==='garden'&&gardenCanCast(this.gardenLevel)))this.tendril.toggleRecall();
+    const contracting=!!input.contract&&!shedding;
     const colliders=this.activeColliders();
     const source=this.selectedTest==='gap'&&this.oozeForward?{x:1,z:0}:input;
     const speed=Math.hypot(source.x||0,source.z||0);
-    this.tendril.prepare(dt,retrieving,colliders,speed>0);
+    this.tendril.prepare(dt,contracting,colliders,speed>0);
     this.emitGrowth(dt);
     if(contracting){this.materialState='contracting';this.relaxTime=1.5;}
     else if(this.relaxTime>0){this.relaxTime=Math.max(0,this.relaxTime-dt);this.materialState='relaxing';}
     else this.materialState='oozing';
     this.fluid.step(dt,{x:speed?(source.x||0)/speed:0,z:speed?(source.z||0)/speed:0,
-      holdPosition:this.tendril.active?this.tendril.brainAnchor:null,push:!!input.push,shed:shedding,expireFragments:this.selectedTest==='pressure',puddle:true,growth:this.selectedTest!=='gap',contract:contracting},colliders,this.tendril.active?{
+      holdPosition:this.tendril.active?this.tendril.brainAnchor:null,push:!!input.push,shed:shedding,expireFragments:this.selectedTest==='pressure'||gatedGarden||editorShed||this.selectedTest==='garden'&&!!(this.gardenLevel.tendrils||this.gardenLevel.grip||this.gardenTendrilUsed),puddle:true,growth:this.selectedTest!=='gap',contract:contracting},colliders,this.tendril.active?{
         controls:i=>this.tendril.controls(i),forces:(p,i,h)=>this.tendril.forces(p,i,h),solve:()=>this.tendril.solve()}:{});
     this.tendril.finish(dt,colliders);
-    if(this.selectedTest==='pressure'){
-      this.updatePressure(dt);if(shedding)this.materialState='shedding';
-    }
+    if(this.selectedTest==='pressure'||gatedGarden)this.updatePressure(dt);
+    if(shedding)this.materialState='shedding';
     if(this.selectedTest==='growth'){
       this.growth.absorbed=Math.max(0,this.fluid.attachedCount-(GROWTH.seedCount-1));
       this.growth.complete=this.fluid.attachedCount>=GROWTH.goal;
@@ -148,6 +197,7 @@ export class PuddleSimulation {
       this.gapStage=this.brainThrough&&this.fleshThrough>=.9?'through':this.brain.x>GAP.roof.minX-this.fluid.radius?'under':'approach';
       if(this.gapStage==='through')this.oozeForward=false;
     }
+    if(this.selectedTest==='garden')updateGarden(this,dt);
     return this;
   }
 }

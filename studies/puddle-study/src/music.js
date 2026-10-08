@@ -2,9 +2,9 @@
 export function setupMusic(){
   const audio=document.querySelector('#soundtrack'),button=document.querySelector('#music-toggle');
   const volume=document.querySelector('#music-volume'),status=document.querySelector('#music-status');
-  audio.src=`${import.meta.env.BASE_URL}audio/soft-signal.mp3`;
+  audio.src=`${import.meta.env?.BASE_URL??'/'}audio/soft-signal.mp3`;
   audio.volume=Number(volume.value)/100;
-  let enabled=false,request=0;
+  let enabled=false,request=0,userChose=false;
   function render(message){
     button.textContent=enabled?'MUSIC ON':'MUSIC OFF';
     button.setAttribute('aria-pressed',String(enabled));
@@ -23,7 +23,7 @@ export function setupMusic(){
     }
   }
   function toggle(){
-    enabled=!enabled;
+    userChose=true;enabled=!enabled;
     if(enabled)void play();else{request++;audio.pause();render();}
   }
   function changeVolume(){audio.volume=Number(volume.value)/100;}
@@ -35,6 +35,8 @@ export function setupMusic(){
   button.addEventListener('click',toggle);volume.addEventListener('input',changeVolume);
   document.addEventListener('visibilitychange',visibility);audio.addEventListener('error',failure);
   render();
-  return ()=>{request++;enabled=false;audio.pause();button.removeEventListener('click',toggle);
+  const dispose=()=>{request++;enabled=false;audio.pause();button.removeEventListener('click',toggle);
     volume.removeEventListener('input',changeVolume);document.removeEventListener('visibilitychange',visibility);audio.removeEventListener('error',failure);};
+  dispose.begin=()=>{if(!userChose)enabled=true;if(enabled&&audio.paused)void play();};
+  return dispose;
 }

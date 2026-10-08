@@ -59,7 +59,8 @@ test('a real deposit holds the gate after the reduced body leaves and crosses',(
   run(s,130,{z:1});run(s,230,{x:1});run(s,90,{z:-1});run(s,400,{x:1});
   assert.equal(s.pressure.complete,true);
   assert.equal(s.pressure.active,true);assert.equal(s.pressure.opening,PRESSURE.opening);
-  assert.ok(s.fluid.attachedCount<200);assert.equal(s.fluid.particles.length,297);
+  assert.ok(s.fluid.attachedCount<297-PRESSURE.threshold,'the basin keeps enough real flesh to hold its plate');
+  assert.equal(s.fluid.particles.length,297);
   assert.ok(s.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z)));
   assert.ok(s.fluid.coatContacts(s.activeColliders()).length>=8);
   s.reset();assert.equal(s.pressure.weight,0);assert.equal(s.pressure.opening,0);

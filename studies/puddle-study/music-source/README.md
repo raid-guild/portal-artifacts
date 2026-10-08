@@ -8,4 +8,5 @@ The published game uses the approved Exploring mix in `../public/audio/soft-sign
 ffmpeg -i soft-signal-surreal-explore-88bpm.wav -codec:a libmp3lame -b:a 192k -metadata title='Soft Signal' ../public/audio/soft-signal.mp3
 ```
 
-These are synthesized instruments, not sampled recordings. The authoring app has an optional Google Fonts stylesheet; the published game bundles its fonts locally.
+These are synthesized instruments, not sampled recordings. The published music
+study and game bundle their fonts locally.

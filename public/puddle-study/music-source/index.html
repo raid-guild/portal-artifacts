@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Soft Signal — a puddle music study</title>  <script type="module" crossorigin src="/puddle-study/assets/music-w83bI1tZ.js"></script>
+  <link rel="modulepreload" crossorigin href="/puddle-study/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="stylesheet" crossorigin href="/puddle-study/assets/music-CW4oFbpu.css">
+</head>
+<body>
+<main>
+  <header><a class="brand" href="./">QUIET TERRACE <span>/ SOUND STUDY 01</span></a><span class="edition">A SONG IN EIGHT LAYERS</span></header>
+  <section class="intro"><div><p class="eyebrow">MUSIC FOR SOMETHING ALIVE</p><h1>Soft Signal<span>.</span></h1></div><p class="lede">A small voice finds a world to move through.<br>Bent strings. Wordless mouths. A journey home.</p></section>
+  <section class="instrument" aria-label="Music player">
+    <div class="landscape"><svg id="scene" viewBox="0 0 920 290" role="img" aria-label="A coral organism on a floating terrace, responding to the music">
+      <path class="architecture" d="M705 133V23h26v91m-13-91v82m-63 36V69q0-33-30-33t-30 33v96" fill="none"/>
+      <path class="platform-side" d="M91 173 466 119 825 177 450 250 91 197Z"/>
+      <path class="platform" d="M91 173 463 99 825 177 450 223Z"/>
+      <path class="seam" d="m625 147 61 10-88 21-39-9m-398 20 43-8 64 9"/>
+      <ellipse class="pool-shadow" cx="447" cy="171" rx="81" ry="21"/>
+      <g id="organism"><path id="body-shape" d="M365 163C372 146 400 144 417 149 430 120 462 124 473 144 501 140 533 152 527 164 543 186 493 190 466 185 436 200 403 192 397 184 367 185 352 174 365 163Z"/><ellipse cx="444" cy="152" rx="10" ry="8" class="core"/></g>
+      <path class="plant" d="M261 141q-18-25-8-40m7 25q-21-1-24-13m22 4q20-5 20-19"/>
+      <circle class="satellite" cx="565" cy="185" r="5"/><circle class="satellite" cx="577" cy="188" r="3"/>
+    </svg><div class="scene-caption"><span id="scene-name">EXPLORING</span><span id="clock">00:00 / 00:51</span></div></div>
+    <div class="phrase" aria-label="Signature melody: D, A, B flat, E, D">
+      <div class="phrase-label">THE SIGNATURE <span>low · reach · catch · return</span></div>
+      <div class="notes"><div data-note="0"><b>D</b><span>gather</span></div><div data-note="1"><b>A</b><span>reach</span></div><div data-note="2"><b>B♭</b><span>catch</span></div><div data-note="3"><b>E</b><span>fall</span></div><div data-note="4"><b>D</b><span>settle</span></div></div>
+    </div>
+    <div class="transport"><div class="play-actions"><button id="play" class="primary">Play song <span>↗</span></button><button id="hook">Hear the hook</button><button id="restart" class="restart" aria-label="Restart song">↺</button></div><div class="status"><span class="signal" aria-hidden="true"><i id="level"></i></span><span id="status" role="status">Ready to listen</span></div><button id="export" class="quiet">Export song .wav ↓</button></div>
+  </section>
+  <section class="arrangement" aria-label="Song sections">
+    <div class="section-heading"><h2>The journey</h2><span id="section-now">Awakening · 32 bars</span></div>
+    <div id="sections" class="sections"></div>
+    <div class="featured-passages"><span>A STRANGER TURN</span><button data-passage="56">Hear the wordless bridge ↗</button><button data-passage="95">Hear the guitar solo ↗</button><p>Two synthesized visitors: a shifting vowel and a string that bends out of shape.</p></div>
+    <div class="song-progress" role="progressbar" aria-label="Song position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="song-progress"></i></div>
+  </section>
+  <section class="layers" aria-label="Song layers">
+    <div class="section-heading"><div><h2>Listen inside the song</h2><p>Mute or solo a voice. The song keeps moving. Export captures this mix.</p></div><button id="reset-mix" class="quiet">Restore mix ↺</button></div>
+    <div id="layer-mixer" class="layer-mixer"></div>
+  </section>
+  <section class="settings" aria-label="Composition controls">
+    <div class="variations"><h2>How does it move?</h2><div class="mode-buttons" role="group" aria-label="Musical variation"><button data-mode="explore" aria-pressed="true">Exploring</button><button data-mode="contract" aria-pressed="false">Contracting</button><button data-mode="grow" aria-pressed="false">Growing</button><button data-mode="shed" aria-pressed="false">Shedding</button></div><p id="mode-description">A hollow little phrase, suspended over breath and scattered wooden taps.</p></div>
+    <div class="mix"><label for="tempo">PACE <output id="tempo-value">88 BPM</output></label><input id="tempo" type="range" min="60" max="120" step="1" value="88"><label for="volume">LISTENING LEVEL <output id="volume-value">55%</output></label><input id="volume" type="range" min="0" max="100" step="1" value="55"><p class="mix-note">The hook changes character; the arrangement keeps its place.</p></div>
+  </section>
+  <footer><span>CERAMIC · FM REEDS · WORDLESS VOICE · BENT STRINGS</span><span>Made for a living puddle. No sampled soundtrack audio.</span></footer>
+</main>
+</body></html>
