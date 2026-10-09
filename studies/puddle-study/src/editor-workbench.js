@@ -44,6 +44,53 @@ function boardErrors(draft){
   }
   return errors;
 }
+// Check the shape of untrusted JSON before compilation or geometry sampling.
+// This only rejects malformed data; an unfinished but well-formed draft can
+// still be imported and repaired in the Workshop.
+function objectShapeErrors(objects){
+  if(!Array.isArray(objects)||objects.length>300)return ['Keep no more than 300 objects.'];
+  const errors=[],ids=new Set();
+  const known=new Set(['start','exit','flesh','gem','gold','pillar','legacy-roof','legacy-passage',
+    'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap',
+    'stairs','paint','pit','cutter','label']);
+  const numeric=new Set(['x','y','z','base','offset','radius','bottomRadius','depth','width','height',
+    'minX','maxX','minY','maxY','minZ','maxZ','bottom','top','run','rise','steps','weight',
+    'opening','threshold','releaseThreshold','rate','climbHeight','supportWidth',
+    'northHeight','southHeight','minHeight','maxHeight']);
+  const rect=o=>o&&['minX','maxX','minZ','maxZ'].every(key=>finite(o[key]))&&
+    o.minX<o.maxX&&o.minZ<o.maxZ;
+  for(const o of objects){
+    if(!o||typeof o!=='object'||Array.isArray(o)){errors.push('Each object must be a level piece.');continue;}
+    if(!known.has(o.kind)){errors.push('Unknown object type cannot be play-tested.');continue;}
+    if(typeof o.id!=='string'||!o.id||ids.has(o.id))errors.push('Every object needs a unique stable ID.');
+    ids.add(o.id);
+    if(o.targetId!==undefined&&(typeof o.targetId!=='string'||!o.targetId))
+      errors.push(`${o.kind} needs a valid target ID.`);
+    const visit=(value,depth=0)=>{
+      if(depth>8){errors.push('An object is too deeply nested.');return;}
+      if(!value||typeof value!=='object')return;
+      for(const [key,entry] of Object.entries(value)){
+        if(numeric.has(key)&&!finite(entry))errors.push(`${o.kind} has an unsafe ${key}.`);
+        if(entry&&typeof entry==='object')visit(entry,depth+1);
+      }
+    };
+    visit(o);
+    if(['start','exit','flesh','gem','gold','pillar','pressure-basin','basin',
+      'casting-bank','stairs','pit','cutter','label'].includes(o.kind)&&!point(o))
+      errors.push(`${o.kind} needs finite X and Z coordinates.`);
+    if(['block','lowgap','legacy-roof','legacy-passage','paint','slippery'].includes(o.kind)&&!rect(o))
+      errors.push(`${o.kind} needs a positive footprint.`);
+    if(o.kind==='pressure-gate'&&(!finite(o.x)||!finite(o.minZ)||!finite(o.maxZ)||o.minZ>=o.maxZ))
+      errors.push('Pressure gate needs finite position and span.');
+    if(o.kind==='grip'&&(!rect(o.ramp)||!rect(o.platform)||!finite(o.platform.minY)||
+      !finite(o.platform.maxY)||o.platform.maxY<=o.platform.minY))
+      errors.push('Grip needs a finite ramp and raised platform.');
+    if(o.kind==='cutter'&&(!finite(o.y)||!o.rotation||
+      !['x','y','z'].every(key=>finite(o.rotation[key]))))
+      errors.push('A cutter needs finite height and XYZ rotation.');
+  }
+  return [...new Set(errors)];
+}
 function circleTouchesBox(o,box){
   const x=Math.max(box.minX,Math.min(o.x,box.maxX)),z=Math.max(box.minZ,Math.min(o.z,box.maxZ));
   return Math.hypot(o.x-x,o.z-z)<o.radius;
@@ -311,6 +358,8 @@ export function compileDraft(draft){
 export function validateDraft(draft){
   const errors=[],warnings=[];
   if(!draft||typeof draft!=='object')return {errors:['Not a garden draft.'],warnings};
+  if(!Number.isInteger(draft.presetId??0)||draft.presetId<0||draft.presetId>7)
+    errors.push('Choose a valid source preset (0–7).');
   if(typeof draft.name!=='string'||!draft.name.trim()||draft.name.length>60)errors.push('Give this garden a name of up to 60 characters.');
   if(!Array.isArray(draft.objects)||draft.objects.length>300)errors.push('Keep no more than 300 objects.');
   if(!Number.isInteger(draft.totalFlesh)||draft.totalFlesh<17||draft.totalFlesh>297||
@@ -319,6 +368,8 @@ export function validateDraft(draft){
   if(!finite(draft.targetTime??DEFAULT_TARGET_TIME)||(draft.targetTime??DEFAULT_TARGET_TIME)<=0||
     (draft.targetTime??DEFAULT_TARGET_TIME)>600)errors.push('Target time must be from 1 to 600 seconds.');
   errors.push(...boardErrors(draft));
+  const shapeErrors=objectShapeErrors(draft.objects);
+  if(shapeErrors.length)return {errors:[...new Set([...errors,...shapeErrors])],warnings};
   const objects=Array.isArray(draft.objects)?draft.objects:[],ids=new Set();
   const known=new Set(['start','exit','flesh','gem','gold','pillar','legacy-roof','legacy-passage',
     'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap','stairs','paint','pit','cutter','label']);
@@ -423,6 +474,7 @@ export function importDraft(text){
   else throw new Error('Use a version 1, 2, or 3 Puddle level file.');
   if(!draft||!Array.isArray(draft.objects))throw new Error('The level draft is missing its objects.');
   const unsafe=boardErrors(draft);if(unsafe.length)throw new Error(unsafe.join(' '));
+  const malformed=objectShapeErrors(draft.objects);if(malformed.length)throw new Error(malformed.join(' '));
   const raisedError=raisedFixtureError(draft.objects);if(raisedError)throw new Error(raisedError);
   if(!Number.isSafeInteger(draft.nextObjectId)||draft.nextObjectId<1)
     draft.nextObjectId=1;

@@ -1,0 +1,17 @@
+{
+  "name": "puddle-builder-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate.mjs"
+  },
+  "dependencies": {
+    "manifold-3d": "3.5.4",
+    "three": "0.180.0",
+    "three-mesh-bvh": "0.9.16"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

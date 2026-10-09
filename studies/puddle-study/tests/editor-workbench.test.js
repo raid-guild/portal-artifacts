@@ -71,6 +71,22 @@ test('malformed imported terrain is rejected before simulation samples nested st
   const unfinished=fresh();unfinished.objects=unfinished.objects.filter(o=>o.kind!=='exit');
   assert.deepEqual(importDraft(exportDraft(unfinished)),unfinished,'safe unfinished work remains importable');
 });
+test('malformed agent-authored pieces are rejected before collider compilation',()=>{
+  const mutations=[
+    draft=>draft.objects.push(null),
+    draft=>{delete draft.objects[0].x;},
+    draft=>draft.objects.push({id:'bad-block',kind:'block',minX:'left',maxX:1,minZ:0,maxZ:1,minY:0,maxY:1}),
+    draft=>draft.objects.push({id:'bad-cut',kind:'cutter',shape:'box',x:0,y:1,z:0,
+      width:1,height:1,depth:1,rotation:{x:'sideways',y:0,z:0}}),
+    draft=>draft.objects.push({id:'bad-paint',kind:'paint',surface:'lava',face:'floor',
+      minX:0,maxX:1,minZ:0,maxZ:1,base:0,targetId:42}),
+  ];
+  for(const mutate of mutations){
+    const draft=fresh();mutate(draft);
+    assert.ok(validateDraft(draft).errors.length);
+    assert.throws(()=>importDraft(exportDraft(draft)));
+  }
+});
 test('vertical slippery paint is rejected instead of becoming a floor slip patch',()=>{
   const d=fresh();addDraftObject(d,'block',{minX:-1,maxX:1,minZ:-1,maxZ:1,minY:0,maxY:1});
   addDraftObject(d,'paint',{surface:'slippery',face:'east',minX:.9,maxX:1.1,minZ:-.5,maxZ:.5,base:0});
