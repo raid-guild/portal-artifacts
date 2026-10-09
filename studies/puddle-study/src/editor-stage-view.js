@@ -46,6 +46,10 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     gem:new THREE.MeshBasicMaterial({color:0x9f84b0}),gold:new THREE.MeshBasicMaterial({color:0xd4a84f}),
     start:new THREE.MeshBasicMaterial({color:0xb86d69}),slip:new THREE.MeshBasicMaterial({color:0x76c6cf,
       side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
+    lava:new THREE.MeshBasicMaterial({color:0xe3582c,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
+    lavaCrust:new THREE.MeshBasicMaterial({color:0x74241d,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}),
+    pit:new THREE.MeshBasicMaterial({color:0x172026,side:THREE.BackSide}),
+    pitRim:new THREE.MeshBasicMaterial({color:0x544446,side:THREE.DoubleSide}),
     grip:new THREE.MeshBasicMaterial({color:0x8cae96,side:THREE.DoubleSide}),
     cutter:new THREE.MeshBasicMaterial({color:0xb66a67,wireframe:true,transparent:true,opacity:.58,depthWrite:false})};
   for(const [name,role] of Object.entries({floor:'floor',block:'wall',roof:'lintel',pillar:'wall',
@@ -74,7 +78,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     };
     for(let u=u0;u<u1-.001;u+=size)for(let v=v0;v<v1-.001;v+=size){
       const U=Math.min(u1,u+size),V=Math.min(v1,v+size),sample=point((u+U)/2,(v+V)/2,true);
-      if(face==='floor'&&!c.targetId&&colliders.some(item=>item.type==='funnel'&&!item.raised&&
+      if(face==='floor'&&!c.targetId&&colliders.some(item=>['funnel','pit'].includes(item.type)&&!item.raised&&
         Math.hypot((u+U)/2-item.x,(v+V)/2-item.z)<item.radius+size*.75))continue;
       if(!sample||solid&&c.targetId&&!solidInside(solid,...sample))continue;
       const a=point(u,v),b=point(U,v),cc=point(u,V),d=point(U,V);
@@ -85,6 +89,26 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(tiles,3));
     geometry.computeVertexNormals();const mesh=add(geometry,material);
     mesh.userData.editorPaintId=c.sourceId||null;
+    if(material==='lava'&&face==='floor'){
+      const cracks=[],crust=[];
+      for(let x=c.minX+.13;x<c.maxX-.12;x+=.35)for(let z=c.minZ+.13;z<c.maxZ-.12;z+=.35){
+        const h=paintSurfaceHeight(c,x,z,colliders);
+        if(h===null||!c.targetId&&Math.abs(h-(c.base??h))>.2||
+          colliders.some(item=>['funnel','pit'].includes(item.type)&&Math.hypot(x-item.x,z-item.z)<item.radius+.12))continue;
+        const length=Math.min(.18,c.maxX-x-.02),bend=(Math.sin(x*8+z*13)+1)*.04;
+        cracks.push(x,h+.048,z,x+length*.55,h+.048,z+bend,
+          x+length*.55,h+.048,z+bend,x+length,h+.048,z-bend*.4);
+        const y=h+.054,wide=.045;
+        crust.push(x,y,z-wide,x+length*.55,y,z+bend-wide,
+          x,y,z+wide,x+length*.55,y,z+bend-wide,x+length*.55,y,z+bend+wide,x,y,z+wide,
+          x+length*.55,y,z+bend-wide,x+length,y,z-bend*.4-wide*.5,
+          x+length*.55,y,z+bend+wide,x+length,y,z-bend*.4-wide*.5,x+length,y,z-bend*.4+wide*.5);
+      }
+      if(cracks.length){const veins=new THREE.BufferGeometry();veins.setAttribute('position',new THREE.Float32BufferAttribute(cracks,3));
+        group.add(new THREE.LineSegments(veins,new THREE.LineBasicMaterial({color:0x74241d,transparent:true,opacity:.8})));}
+      if(crust.length){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(crust,3));
+        add(geo,'lavaCrust').renderOrder=2;}
+    }
     if(material==='slip'&&face==='floor'){
       const h=(x,z)=>(paintSurfaceHeight(c,x,z,colliders)??c.base??0)+.039,
         outline=new THREE.BufferGeometry();
@@ -101,7 +125,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
   if(t.type==='flat'){
     const shape=new THREE.Shape();shape.moveTo(b.minX,b.minZ);shape.lineTo(b.maxX,b.minZ);
     shape.lineTo(b.maxX,b.maxZ);shape.lineTo(b.minX,b.maxZ);shape.closePath();
-    for(const c of colliders.filter(c=>c.type==='funnel'&&!c.raised)){
+    for(const c of colliders.filter(c=>['funnel','pit'].includes(c.type)&&!c.raised)){
       const hole=new THREE.Path();hole.absarc(c.x,c.z,c.radius,0,Math.PI*2,true);shape.holes.push(hole);
     }
     const geo=new THREE.ShapeGeometry(shape,40),vertices=geo.attributes.position;
@@ -115,7 +139,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     // Reserve whole grid cells around every physical funnel, then replace
     // each reserved rectangle with one exact circular cutout. This keeps the
     // authoring floor pickable without capping the visible bowl.
-    const patches=colliders.filter(c=>c.type==='funnel'&&!c.raised).map(c=>{
+    const patches=colliders.filter(c=>['funnel','pit'].includes(c.type)&&!c.raised).map(c=>{
       const edge=(v,min,max,round)=>Math.max(min,Math.min(max,min+round((v-min)/step)*step));
       return {cut:c,minX:edge(c.x-c.radius,b.minX,b.maxX,Math.floor),maxX:edge(c.x+c.radius,b.minX,b.maxX,Math.ceil),
         minZ:edge(c.z-c.radius,b.minZ,b.maxZ,Math.floor),maxZ:edge(c.z+c.radius,b.minZ,b.maxZ,Math.ceil)};
@@ -179,6 +203,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     }else if(c.type==='sticky-wall')paintTiles(c,'grip',c.face);
     else if(c.type==='sticky-paint'&&c.face==='floor')paintTiles(c,'grip');
     else if(c.type==='slip')paintTiles({...c,base:c.base??groundAt((c.minX+c.maxX)/2,(c.minZ+c.maxZ)/2,colliders).height},'slip');
+    else if(c.type==='lava')paintTiles(c,'lava');
     else if(c.type==='editor-stairs'){
       const axis=c.axis,length=axis==='x'?c.maxX-c.minX:c.maxZ-c.minZ,
         cx=(c.minX+c.maxX)/2,cz=(c.minZ+c.maxZ)/2;
@@ -193,6 +218,12 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
           [c.minX,c.base+c.rise*(c.reverse?1-fraction:fraction)+.045,position,c.maxX,c.base+c.rise*(c.reverse?1-fraction:fraction)+.045,position];
         geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));group.add(new THREE.LineSegments(geo,ink));
       }
+    }
+    else if(c.type==='pit'){
+      const h=groundAt(c.x,c.z,[t]).height;
+      const wall=add(new THREE.CylinderGeometry(c.radius,c.radius,.3,48,1,true),'pit',c.x,h-.15,c.z);
+      wall.userData.editorId=c.sourceId||null;
+      const rim=add(new THREE.TorusGeometry(c.radius,.035,5,48),'pitRim',c.x,h+.015,c.z);rim.rotation.x=Math.PI/2;
     }
     else if(c.type==='funnel'){
       const h=c.raised?c.base:groundAt(c.x,c.z,[t]).height;
@@ -211,9 +242,9 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
       THREE.MathUtils.degToRad(r.z||0),'XYZ');
     m.visible=false;cutterGhosts.push(m);
   }
-  const gems=(level.gems||[]).map(g=>add(new THREE.OctahedronGeometry(.33),'gem',g.x,gardenFixtureHeight(level,g.x,g.z)+.34,g.z));
-  const gold=(level.gold||[]).map(([x,z])=>add(new THREE.OctahedronGeometry(.14),'gold',x,gardenFixtureHeight(level,x,z)+.14,z));
-  const pools=(level.pools||[]).map(([x,z])=>add(new THREE.SphereGeometry(.4,14,8),'flesh',x,gardenFixtureHeight(level,x,z)+.18,z));
+  const gems=(level.gems||[]).map(g=>add(new THREE.OctahedronGeometry(.33),'gem',g.x,gardenFixtureHeight(level,g.x,g.z,g.base)+.34,g.z));
+  const gold=(level.gold||[]).map(([x,z,base])=>add(new THREE.OctahedronGeometry(.14),'gold',x,gardenFixtureHeight(level,x,z,base)+.14,z));
+  const pools=(level.pools||[]).map(([x,z,base])=>add(new THREE.SphereGeometry(.4,14,8),'flesh',x,gardenFixtureHeight(level,x,z,base)+.18,z));
   const start=level.start?add(new THREE.ConeGeometry(.23,.5,8),'start',level.start.x,
     gardenFixtureHeight(level,level.start.x,level.start.z)+.3,level.start.z):null;
   const root=labelRoot||(typeof document!=='undefined'?document.querySelector('#app'):null);

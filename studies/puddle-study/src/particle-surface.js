@@ -3,7 +3,7 @@ import {pointInsideSolid,groundAt} from './colliders.js';
 
 // A scalar field built from local, finite-radius kernels. The field has no
 // topology of its own, so separated particle groups produce separate lobes.
-export function createParticleSurface(material,resolution=48){
+export function createParticleSurface(material,resolution=48,{filterColliders=true}={}){
   const mesh=new MarchingCubes(resolution,material,false,false,22000);
   mesh.isolation=.72;
   mesh.frustumCulled=false;
@@ -34,6 +34,27 @@ export function createParticleSurface(material,resolution=48){
     const sx=Math.max(.55,(maxX-minX)/2+margin),sy=Math.max(.42,(maxY-minY)/2+margin),sz=Math.max(.55,(maxZ-minZ)/2+margin);
     const cx=(minX+maxX)/2,cy=(minY+maxY)/2,cz=(minZ+maxZ)/2;
     mesh.position.set(cx,cy,cz);mesh.scale.set(sx,sy,sz);
+    // Only these collider types can affect groundAt. Preserve their order:
+    // groundAt uses first-match terrain and first-match funnel semantics.
+    const groundColliders=filterColliders?colliders.filter(c=>
+      c.type==='terraces'||c.type==='switchback'||c.type==='depth-terraces'||
+      c.type==='grip-ramp'||c.type==='editor-stairs'||c.type==='funnel'||c.type==='pit'):colliders;
+    const bounds={minX:cx-sx,maxX:cx+sx,minY:cy-sy,maxY:cy+sy,minZ:cz-sz,maxZ:cz+sz};
+    // The solid mask only asks whether a voxel is inside. Reject primitives
+    // whose complete bounds cannot touch this surface; keep authored meshes
+    // because their runtime bounds are resolved by the solid query itself.
+    const overlaps=(a,b)=>!(Number.isFinite(a)&&Number.isFinite(b))||!(b<bounds.minX||a>bounds.maxX);
+    const overlapsY=(a,b)=>!(Number.isFinite(a)&&Number.isFinite(b))||!(b<bounds.minY||a>bounds.maxY);
+    const overlapsZ=(a,b)=>!(Number.isFinite(a)&&Number.isFinite(b))||!(b<bounds.minZ||a>bounds.maxZ);
+    const solidColliders=filterColliders?colliders.filter(c=>{
+      if(c.type==='editor-solid-mesh')return true;
+      if(c.type==='box'||c.type==='roof')return overlaps(c.minX,c.maxX)&&
+        overlapsY(c.type==='roof'?c.bottom:c.minY,c.type==='roof'?c.top:c.maxY)&&
+        overlapsZ(c.minZ,c.maxZ);
+      if(c.type==='cylinder')return overlaps(c.x-c.radius,c.x+c.radius)&&
+        overlapsY(c.base??0,c.height)&&overlapsZ(c.z-c.radius,c.z+c.radius);
+      return false;
+    }):colliders;
     mesh.reset();
     const toI=(v,c,s)=>Math.floor(((v-c)/s+1)*n/2);
     const invX=2*sx/n,invY=2*sy/n,invZ=2*sz/n;
@@ -64,10 +85,10 @@ export function createParticleSurface(material,resolution=48){
       if(maskTerrain){
         const column=iz*n+ix;
         let ground=groundColumns[column];
-        if(Number.isNaN(ground)){ground=groundAt(x,z,colliders).height;groundColumns[column]=ground;}
+        if(Number.isNaN(ground)){ground=groundAt(x,z,groundColliders).height;groundColumns[column]=ground;}
         below=y<ground+.01;
       }
-      if(below||pointInsideSolid(x,y,z,colliders,.012))field[i]=0;
+      if(below||pointInsideSolid(x,y,z,solidColliders,.012))field[i]=0;
     }
     mesh.update();
   }

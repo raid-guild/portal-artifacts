@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {GARDEN_LEVELS,arrivalPosition,drainPosition} from './garden-level.js';
+import {GARDEN_LEVELS,arrivalPosition,drainPosition,gardenWorldOffset} from './garden-level.js';
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const AZIMUTH=Math.hypot(5,26);
@@ -22,7 +22,7 @@ export function cameraPointVisible(projected,margin=.96){
 
 export function sampleGardenCameraFrame(sim){
   const fluid=sim.fluid,brain=fluid.brain,level=sim.gardenLevel,phase=sim.garden.phase;
-  const worldY=-(sim.gardenLevelId-1)*7.2;
+  const worldY=sim.isLocalGarden?0:gardenWorldOffset(sim.gardenLevelId);
   const presented=(p,index)=>phase==='arriving'?arrivalPosition(p,index,sim.garden.arrivalTime,level,fluid.coatIndices):
     phase==='draining'?drainPosition(p,sim.garden.drainTime,level):p;
   const shownBrain=presented(brain,fluid.brainIndex);

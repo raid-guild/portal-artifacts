@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN} from './garden-level.js';
+import {GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN,HOLLOW_CROWN,EMBER_CASCADE,gardenWorldOffset} from './garden-level.js';
 import {groundAt} from './colliders.js';
 
 const files={spine:'tower-spine-v3.glb',facadeA:'storey-facade-a-v3.glb',facadeB:'storey-facade-b-v3.glb',
@@ -79,7 +79,7 @@ function makeDetails(root,level,decorate){
   }
   // Rear ribs meet the existing spine and deck instead of floating between
   // its arches.
-  const rearZ=level.boundary.minZ-.33,high=level.terrain.upperHeight??level.terrain.frontHeight;
+  const rearZ=level.boundary.minZ-.33,high=level.terrain.upperHeight??level.terrain.frontHeight??level.start.y??0;
   for(const x of [-7.6,-3.1,3.1,7.6]){
     // Short rooted gussets, seated against the underside of the rear lip.
     ribs.push(cylinderBetween([x,high-.035,rearZ],[x-.42,high-.82,rearZ-.3],.17,.07));
@@ -155,7 +155,8 @@ function makeArchitectureFallback(root,level,decorate){
   side.name=`fallback-side-${level.id}`;rear.name=`fallback-rear-${level.id}`;
   root.add(side,rear);
   const t=level.terrain,b=level.boundary;
-  const bands=t.type==='switchback'?[[b.minZ,t.frontZ,t.upperHeight],[t.frontZ,b.maxZ,0]]:
+  const bands=t.type==='flat'?[[b.minZ,b.maxZ,0]]:
+    t.type==='switchback'?[[b.minZ,t.frontZ,t.upperHeight],[t.frontZ,b.maxZ,0]]:
     [[b.minZ,t.frontZ,t.frontHeight],[t.frontZ,t.rearZ,t.middleHeight],[t.rearZ,b.maxZ,0]];
   const rails=[];
   for(const [z0,z1,height] of bands)for(const x of [-9.21,9.21]){
@@ -163,7 +164,7 @@ function makeArchitectureFallback(root,level,decorate){
     g.translate(x,height+.075,(z0+z1)/2);rails.push(g);
   }
   side.add(new THREE.Mesh(join(rails),stone(0xe0cdb4,decorate)));
-  const high=t.upperHeight??t.frontHeight,rearZ=b.minZ-.28,arches=[];
+  const high=t.upperHeight??t.frontHeight??level.start.y??0,rearZ=b.minZ-.28,arches=[];
   for(const [a,c] of [[-9.4,-2.75],[2.75,9.4]]){
     const mid=(a+c)/2;
     const curve=new THREE.CatmullRomCurve3([
@@ -176,13 +177,15 @@ function makeArchitectureFallback(root,level,decorate){
   return {side,rear};
 }
 
-export function setGardenStoreyVisibility(upperDetails,lowerStorey,loaded,levelId=1,showPredecessor=false,thirdStorey=null,fourthStorey=null,fifthStorey=null){
+export function setGardenStoreyVisibility(upperDetails,lowerStorey,loaded,levelId=1,showPredecessor=false,thirdStorey=null,fourthStorey=null,fifthStorey=null,sixthStorey=null,seventhStorey=null){
   const upperVisible=levelId===1||levelId===2&&showPredecessor;
   upperDetails.visible=upperVisible;
   lowerStorey.visible=levelId===2||levelId===3&&showPredecessor;
   if(thirdStorey)thirdStorey.visible=levelId===3||levelId===4&&showPredecessor;
   if(fourthStorey)fourthStorey.visible=levelId===4||levelId===5&&showPredecessor;
-  if(fifthStorey)fifthStorey.visible=levelId===5;
+  if(fifthStorey)fifthStorey.visible=levelId===5||levelId===6&&showPredecessor;
+  if(sixthStorey)sixthStorey.visible=levelId===6||levelId===7&&showPredecessor;
+  if(seventhStorey)seventhStorey.visible=levelId===7;
   for(const key of ['trim','collar'])if(loaded.has(key))loaded.get(key).visible=upperVisible;
 }
 
@@ -195,12 +198,14 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
   const thirdStorey=new THREE.Group();thirdStorey.position.y=-14.4;root.add(thirdStorey);
   const fourthStorey=new THREE.Group();fourthStorey.position.y=-21.6;root.add(fourthStorey);
   const fifthStorey=new THREE.Group();fifthStorey.position.y=-28.8;root.add(fifthStorey);
+  const sixthStorey=new THREE.Group();sixthStorey.position.y=-36;root.add(sixthStorey);
+  const seventhStorey=new THREE.Group();seventhStorey.position.y=gardenWorldOffset(7);root.add(seventhStorey);
   const lowerFallbacks=[upperFallback];
   for(const [storey,level] of [[lowerStorey,WEIGHT_GARDEN],[thirdStorey,PASSAGE_GARDEN],
-    [fourthStorey,REACH_GARDEN],[fifthStorey,GRIP_GARDEN]])lowerFallbacks.push(makeDetails(storey,level,decorate));
+    [fourthStorey,REACH_GARDEN],[fifthStorey,GRIP_GARDEN],[sixthStorey,HOLLOW_CROWN],[seventhStorey,EMBER_CASCADE]])lowerFallbacks.push(makeDetails(storey,level,decorate));
   const architectureFallbacks=[
     [upperDetails,GARDEN],[lowerStorey,WEIGHT_GARDEN],[thirdStorey,PASSAGE_GARDEN],
-    [fourthStorey,REACH_GARDEN],[fifthStorey,GRIP_GARDEN],
+    [fourthStorey,REACH_GARDEN],[fifthStorey,GRIP_GARDEN],[sixthStorey,HOLLOW_CROWN],[seventhStorey,EMBER_CASCADE],
   ].map(([storey,level])=>makeArchitectureFallback(storey,level,decorate));
   // A small open chute mouth marks the new high landing without obscuring the
   // pink stream. It is decorative; the moving particles remain the only body.
@@ -218,6 +223,9 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
   const fifthChute=chute.clone(true);
   fifthChute.position.set(GRIP_GARDEN.start.x,0,GRIP_GARDEN.start.z);
   fifthStorey.add(fifthChute);
+  const sixthChute=chute.clone(true);sixthChute.position.set(HOLLOW_CROWN.start.x,
+    HOLLOW_CROWN.start.y-2.16,HOLLOW_CROWN.start.z);sixthStorey.add(sixthChute);
+  const seventhChute=chute.clone(true);seventhChute.position.set(EMBER_CASCADE.start.x,EMBER_CASCADE.start.y-2.16,EMBER_CASCADE.start.z);seventhStorey.add(seventhChute);
   const loaded=new Map(),loader=new GLTFLoader(),skyLoader=new THREE.TextureLoader();
   const requestAsset=loadAsset||((url,onLoad,onError)=>loader.load(url,onLoad,undefined,onError));
   const requestSky=loadSky||((url,onLoad,onError)=>skyLoader.load(url,onLoad,undefined,onError));
@@ -247,7 +255,7 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
     if(key==='facadeA'||key==='facadeB'){
       const destinations=key==='facadeA'?
         [[upperDetails,0],[thirdStorey,2],[fifthStorey,4]]:
-        [[lowerStorey,1],[fourthStorey,3]];
+        [[lowerStorey,1],[fourthStorey,3],[sixthStorey,5],[seventhStorey,6]];
       for(const [storey,index] of destinations){storey.add(gltf.scene.clone(true));lowerFallbacks[index].visible=false;}
     }else if(key==='sideL1'){
       upperDetails.add(gltf.scene.clone(true));architectureFallbacks[0].side.visible=false;
@@ -260,7 +268,7 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
       upperDetails.add(gltf.scene.clone(true));architectureFallbacks[0].rear.visible=false;
     }
     else if(key==='rearDepth'){
-      for(const [storey,index] of [[lowerStorey,1],[thirdStorey,2],[fourthStorey,3],[fifthStorey,4]]){
+      for(const [storey,index] of [[lowerStorey,1],[thirdStorey,2],[fourthStorey,3],[fifthStorey,4],[sixthStorey,5],[seventhStorey,6]]){
         storey.add(gltf.scene.clone(true));architectureFallbacks[index].rear.visible=false;
       }
     }else root.add(gltf.scene);
@@ -281,6 +289,7 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
       fifthCollar.position.x=GRIP_GARDEN.exit.x-GARDEN.exit.x;
       fifthCollar.position.z=GRIP_GARDEN.exit.z-GARDEN.exit.z-fifthStorey.position.z;
       fifthStorey.add(fifthCollar);
+      const seventhCollar=gltf.scene.clone(true);seventhCollar.position.x=EMBER_CASCADE.exit.x-GARDEN.exit.x;seventhCollar.position.z=EMBER_CASCADE.exit.z-GARDEN.exit.z-seventhStorey.position.z;seventhStorey.add(seventhCollar);
     }
     if(key==='spine'||key==='facadeA'||key==='facadeB')structuralReady=true;
     if(key==='collar')onExitReady(true);
@@ -299,7 +308,7 @@ export function createGardenScenery(scene,{onExitReady=()=>{},printLibrary,loadA
     get loadedCount(){return loaded.size;},
     update(active,width,height,levelId=1,showUpperDuringDescent=false,skyOnly=false){
       root.visible=active&&!skyOnly;
-      setGardenStoreyVisibility(upperDetails,lowerStorey,loaded,levelId,showUpperDuringDescent,thirdStorey,fourthStorey,fifthStorey);
+      setGardenStoreyVisibility(upperDetails,lowerStorey,loaded,levelId,showUpperDuringDescent,thirdStorey,fourthStorey,fifthStorey,sixthStorey,seventhStorey);
       if(active&&sky){
         const aspect=width/height;
         if(aspect>skyAspect){sky.repeat.set(1,skyAspect/aspect);sky.offset.set(0,(1-sky.repeat.y)/2);}

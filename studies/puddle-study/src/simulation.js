@@ -2,6 +2,7 @@ import {GARDEN,GARDEN_LEVELS,createGarden,seedGarden,gardenColliders,gardenCanCa
 import {TendrilGroup} from './tendril.js';
 import {ParticleFluid} from './particle-fluid.js';
 import {GAP,GAP_COLLIDERS,TERRACE_BOUNDARY,FUNNEL,groundAt} from './colliders.js';
+import {updateHazards} from './hazards.js';
 
 export const DT=1/60;
 export const GROWTH={startX:-2.4,spoutX:2.4,spoutZ:0,spoutY:1.3,seedCount:17,capacity:297,interval:.5,perDrip:4,goal:120};
@@ -35,9 +36,24 @@ export class PuddleSimulation {
   }
   restartGarden(){if(this.localRun)return this.startLocalGarden(this.localRun.level,this.localRun);
     return this.startGarden(this.gardenLevelId);}
+  respawnGarden(cause='pit'){
+    if(this.selectedTest!=='garden')return false;
+    const prior=this.garden,items={gold:prior.gold.filter(o=>o.collected).map(o=>o.id),
+      gems:prior.gems.filter(o=>o.collected).map(o=>o.id)};
+    const playElapsed=prior.playElapsed,deaths=(prior.deaths||0)+1,elapsed=prior.elapsed;
+    this.reset(1);
+    for(const gold of this.garden.gold)if(items.gold.includes(gold.id)){gold.collected=true;this.garden.goldCount++;}
+    for(const gem of this.garden.gems)if(items.gems.includes(gem.id)){gem.collected=true;gem.progress=1;this.garden.gemCount++;}
+    this.garden.playElapsed=playElapsed;this.garden.elapsed=elapsed;this.garden.deaths=deaths;
+    this.garden.phase='arriving';this.garden.arrivalTime=0;this.gardenInputArmed=false;
+    this.garden.notice=cause==='lava'?'The heat scattered your body':'You fell into a pit';
+    return true;
+  }
   continueGarden(){if(this.localRun||this.gardenLevelId>=GARDEN_LEVELS.length||this.garden.phase!=='complete')return false;
     const next=this.gardenLevelId+1;
-    this.completedLevels[this.gardenLevelId]={gems:this.garden.gemCount,gold:this.garden.goldCount,totalGold:this.garden.gold.length};
+    this.completedLevels[this.gardenLevelId]={gems:this.garden.gemCount,gold:this.garden.goldCount,
+      totalGold:this.garden.gold.length,totalGems:this.garden.gems.length,
+      ...(Number.isFinite(this.garden.finishElapsed)?{elapsed:this.garden.finishElapsed,target:this.gardenLevel.targetTime}:{})};
     this.startGarden(next);this.descending=true;return true;}
   reset(size=this.size){
     this.size=size;
@@ -131,7 +147,7 @@ export class PuddleSimulation {
       Math.hypot(p.x-basin.x,p.z-basin.z)<basin.bottomRadius+.04&&
       p.y<plateHeight+r+.23).length;
     if(state.weight>=cfg.threshold)state.active=true;
-    else if(state.weight<cfg.releaseThreshold)state.active=false;
+    else if(state.weight<cfg.releaseThreshold&&!cfg.latch)state.active=false;
     let target=state.active?cfg.opening:0;
     // Pause a closing gate while flesh occupies the passage.
     if(target<state.opening&&this.fluid.particles.some(p=>
@@ -179,6 +195,7 @@ export class PuddleSimulation {
       holdPosition:this.tendril.active?this.tendril.brainAnchor:null,push:!!input.push,shed:shedding,expireFragments:this.selectedTest==='pressure'||gatedGarden||editorShed||this.selectedTest==='garden'&&!!(this.gardenLevel.tendrils||this.gardenLevel.grip||this.gardenTendrilUsed),puddle:true,growth:this.selectedTest!=='gap',contract:contracting},colliders,this.tendril.active?{
         controls:i=>this.tendril.controls(i),forces:(p,i,h)=>this.tendril.forces(p,i,h),solve:()=>this.tendril.solve()}:{});
     this.tendril.finish(dt,colliders);
+    if(this.selectedTest==='garden'&&!settling&&updateHazards(this,dt,colliders))return this;
     if(this.selectedTest==='pressure'||gatedGarden)this.updatePressure(dt);
     if(shedding)this.materialState='shedding';
     if(this.selectedTest==='growth'){

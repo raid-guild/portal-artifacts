@@ -18,14 +18,14 @@ function go(s,x,z){for(let i=0;i<1100;i++){
 function gem(s){run(s,220,{contract:true});run(s,60);}
 
 test('three authored levels validate IDs and preserve independent results through both descents',()=>{
-  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,5);
-  assert.equal(s.startGarden(0),false);assert.equal(s.startGarden(6),false);assert.equal(s.startGarden(1.5),false);
+  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,7);
+  assert.equal(s.startGarden(0),false);assert.equal(s.startGarden(7),false);assert.equal(s.startGarden(1.5),false);
   s.startGarden(1);s.garden.phase='complete';s.garden.goldCount=11;s.garden.gemCount=2;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,2);assert.equal(s.descending,true);
   s.garden.phase='complete';s.garden.goldCount=13;s.garden.gemCount=1;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,3);assert.equal(s.descending,true);
-  assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17});
-  assert.deepEqual(s.completedLevels[2],{gems:1,gold:13,totalGold:17});
+  assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17,totalGems:3});
+  assert.deepEqual(s.completedLevels[2],{gems:1,gold:13,totalGold:17,totalGems:3});
   assert.equal(s.fluid.particles.length,297);assert.equal(s.fluid.particles.filter(p=>!p.feedstock).length,65);
   const shown=arrivalPosition(s.brain,s.fluid.brainIndex,0,PASSAGE_GARDEN,s.fluid.coatIndices);
   assert.ok(shown.y>s.brain.y+2);assert.ok(Math.abs(shown.z-PASSAGE_GARDEN.start.z)<.1);

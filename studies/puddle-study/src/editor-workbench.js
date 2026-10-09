@@ -3,6 +3,7 @@ import {PuddleSimulation} from './simulation.js';
 import {commitEditorSolid} from './editor-solid.js';
 import {solidInside,solidRay,disposeEditorSolid} from './editor-solid-physics.js';
 import {groundAt} from './colliders.js';
+import {DEFAULT_TARGET_TIME,CAMPAIGN_TARGETS} from './game-score.js';
 
 const copy=value=>JSON.parse(JSON.stringify(value));
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<=1000;
@@ -95,7 +96,7 @@ function raisedBasinError(level,objects){
 
 export function createBlankDraft(){
   return {name:'New garden',presetId:0,boundary:{type:'boundary',minX:-9,maxX:9,minZ:-6,maxZ:4.8},
-    terrain:{type:'flat',height:0},totalFlesh:297,startingFlesh:65,tendrils:true,
+    terrain:{type:'flat',height:0},totalFlesh:297,startingFlesh:65,targetTime:DEFAULT_TARGET_TIME,tendrils:true,
     nextObjectId:3,objects:[
       {id:'object-1',kind:'start',x:7,z:-2.6},
       {id:'object-2',kind:'exit',type:'funnel',x:-7,z:2.6,radius:.95,bottomRadius:.36,depth:.9},
@@ -103,13 +104,46 @@ export function createBlankDraft(){
 }
 
 export function draftFromPreset(id){
-  const source=GARDEN_LEVELS[id-1];if(!source)throw new Error('Choose a garden preset (1–5).');
+  if(id==='hazards'){
+    const draft=createBlankDraft();draft.name='Hazards garden';draft.presetId=0;draft.targetTime=45;
+    draft.objects.push({id:'object-3',kind:'pit',x:0,z:-2.3,radius:.85},
+      {id:'object-4',kind:'paint',surface:'lava',face:'floor',minX:-4.5,maxX:-3,minZ:-1.8,maxZ:0,base:0},
+      {id:'object-5',kind:'flesh',x:4,z:1.6,weight:1},
+      {id:'object-6',kind:'gold',x:2,z:2.4},
+      {id:'object-7',kind:'gem',x:-5.8,z:2.4});
+    draft.nextObjectId=8;return draft;
+  }
+  const source=GARDEN_LEVELS[id-1];if(!source)throw new Error('Choose a garden preset (1–7).');
   const l=copy(source),draft={name:l.name,presetId:id,boundary:l.boundary,terrain:l.terrain,
-    totalFlesh:l.capacity,startingFlesh:l.seedCount,tendrils:true,nextObjectId:1,objects:[]};
-  const add=(kind,props)=>draft.objects.push({id:nextId(draft),kind,...copy(props)});
-  add('start',l.start);add('exit',l.exit);
-  l.pools.forEach(([x,z],i)=>add('flesh',{x,z,weight:l.poolCounts?.[i]??58}));
-  l.gems.forEach(g=>add('gem',g));l.gold.forEach(([x,z])=>add('gold',{x,z}));
+    totalFlesh:l.capacity,startingFlesh:l.seedCount,targetTime:CAMPAIGN_TARGETS[id-1],tendrils:true,nextObjectId:1,objects:[]};
+  const add=(kind,props,id)=>draft.objects.push({id:id||nextId(draft),kind,...copy(props)});
+  add('start',{x:l.start.x,z:l.start.z,...(l.start.y!==undefined?{base:l.start.y}:{})});add('exit',l.exit);
+  l.pools.forEach(([x,z,base],i)=>add('flesh',{x,z,...(base!==undefined?{base}:{}),weight:l.poolCounts?.[i]??58}));
+  l.gems.forEach(g=>add('gem',g));l.gold.forEach(([x,z,base])=>add('gold',{x,z,...(base!==undefined?{base}:{})}));
+  if(id===6||id===7){
+    for(const p of l.posts||[])add('pillar',{x:p.x,z:p.z,radius:p.radius,height:p.height},p.sourceId);
+    for(const c of l.editorFixtures){
+      if(c.type==='box')add('block',{minX:c.minX,maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,
+        minY:c.minY,maxY:c.maxY},c.sourceId);
+      else if(c.type==='roof')add('block',{role:'crown-roof',minX:c.minX,maxX:c.maxX,
+        minZ:c.minZ,maxZ:c.maxZ,minY:c.bottom,maxY:c.top,
+        ...(c.approachBothSides?{approachBothSides:true}:{})},c.sourceId);
+      else if(c.type==='editor-stairs')add('stairs',{x:(c.minX+c.maxX)/2,z:(c.minZ+c.maxZ)/2,
+        axis:c.axis,reverse:c.reverse,run:c.maxZ-c.minZ,width:c.maxX-c.minX,
+        rise:c.rise,steps:c.steps,base:c.base},c.sourceId);
+      else if(c.type==='sticky-wall')add('paint',{surface:'sticky',face:c.face,
+        minX:c.minX,maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,minY:c.minY,maxY:c.maxY,
+        base:c.minY,targetId:c.targetId|| (c.sourceId==='spire-grip'?'spire':
+          c.sourceId==='west-recovery'?'west-middle':'recover-west-middle')},c.sourceId);
+      else if(c.type==='slip'||c.type==='lava')add('paint',{surface:c.type==='lava'?'lava':'slippery',face:'floor',minX:c.minX,
+        maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,base:c.base,
+        ...(c.targetId?{targetId:c.targetId}:{})},c.sourceId);
+    }
+    if(id===7)for(const pit of l.pits||[])add('pit',{x:pit.x,z:pit.z,radius:pit.radius},pit.sourceId);
+    if(l.basin)add('pressure-basin',l.basin);
+    if(l.gate)add('pressure-gate',l.gate);
+    return draft;
+  }
   for(const post of l.posts||[])add('pillar',post);
   if(l.roof)add('legacy-roof',l.roof);
   if(id===1&&l.roof)for(const z of [l.roof.minZ-.14,l.roof.maxZ+.14])
@@ -176,12 +210,15 @@ export function compileDraft(draft){
   const start=objects.find(o=>o.kind==='start'),exit=objects.find(o=>o.kind==='exit');
   const counts=allocateFlesh(d.totalFlesh,d.startingFlesh,pools);
   const level={id:d.presetId||0,name:d.name,boundary:d.boundary,terrain:d.terrain,
+    targetTime:d.targetTime??DEFAULT_TARGET_TIME,pits:objects.filter(o=>o.kind==='pit').map(o=>
+      ({type:'pit',x:o.x,z:o.z,radius:o.radius,sourceId:o.id,
+        rimHeight:groundAt(o.x+o.radius+.02,o.z,[d.terrain]).height})),
     editorCustom:!d.presetId,editorCanShed:true,capacity:d.totalFlesh,seedCount:d.startingFlesh,
     tendrils:true,start:start?{x:start.x,z:start.z,...(start.base!==undefined?{y:start.base}:{})}:null,
     exit:exit?{type:'funnel',x:exit.x,z:exit.z,radius:exit.radius,bottomRadius:exit.bottomRadius,depth:exit.depth}:null,
-    pools:pools.map(o=>[o.x,o.z]),poolCounts:counts,
-    gems:objects.filter(o=>o.kind==='gem').map(o=>({x:o.x,z:o.z})),
-    gold:objects.filter(o=>o.kind==='gold').map(o=>[o.x,o.z]),
+    pools:pools.map(o=>o.base===undefined?[o.x,o.z]:[o.x,o.z,o.base]),poolCounts:counts,
+    gems:objects.filter(o=>o.kind==='gem').map(o=>({x:o.x,z:o.z,...(o.base!==undefined?{base:o.base}:{})})),
+    gold:objects.filter(o=>o.kind==='gold').map(o=>o.base===undefined?[o.x,o.z]:[o.x,o.z,o.base]),
     labels:objects.filter(o=>o.kind==='label').map(o=>({id:o.id,text:o.text,x:o.x,z:o.z,
       base:o.base,offset:o.offset})),editorFixtures:[]};
   for(const o of objects){
@@ -198,7 +235,7 @@ export function compileDraft(draft){
         Object.defineProperty(level.passage,'editorId',{value:o.id});break;
       case 'pressure-basin':level.basin={type:'funnel',x:o.x,z:o.z,radius:o.radius,bottomRadius:o.bottomRadius,depth:o.depth,holdsFeedstock:true};break;
       case 'pressure-gate':level.gate={x:o.x,width:o.width,height:o.height,opening:o.opening,minZ:o.minZ,maxZ:o.maxZ,
-        threshold:o.threshold,releaseThreshold:o.releaseThreshold,rate:o.rate,base:o.base};break;
+        threshold:o.threshold,releaseThreshold:o.releaseThreshold,rate:o.rate,base:o.base,...(o.latch?{latch:true}:{})};break;
       case 'basin':(level.channels??=[]).push({type:'funnel',x:o.x,z:o.z,radius:o.radius,
         bottomRadius:o.bottomRadius,depth:o.depth,...(o.targetId?{raised:true,base:o.base,targetId:o.targetId}:{})});break;
       case 'casting-bank':level.castingBank={x:o.x,z:o.z};break;
@@ -207,13 +244,15 @@ export function compileDraft(draft){
         Object.defineProperty(level.grip.ramp,'editorId',{value:o.id});
         Object.defineProperty(level.grip.platform,'editorId',{value:o.id});break;
       case 'slippery':level.slip={type:'slip',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ};break;
-      case 'block':(o.role==='roof-support'?(level.roofSupports??=[]):level.editorFixtures).push({type:'box',
-        minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,minY:o.minY??0,maxY:o.maxY,
-        ...(o.role==='roof-support'?{}:{walkableTop:true,sourceId:o.id})});break;
+      case 'block':(o.role==='roof-support'?(level.roofSupports??=[]):level.editorFixtures).push(
+        o.role==='crown-roof'?{type:'roof',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,
+          bottom:o.minY,top:o.maxY,...(o.approachBothSides?{approachBothSides:true}:{}),sourceId:o.id}:
+          {type:'box',minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,minY:o.minY??0,maxY:o.maxY,
+            ...(o.role==='roof-support'?{}:{walkableTop:true,sourceId:o.id})});break;
       case 'lowgap':level.editorFixtures.push(...gapColliders(o));break;
       case 'stairs':level.editorFixtures.push(...stairColliders(o));break;
       case 'paint':if(o.surface==='sticky'&&o.face&&o.face!=='floor')wallPaint.push(o);
-        else level.editorFixtures.push({type:o.surface==='slippery'?'slip':'sticky-paint',
+        else level.editorFixtures.push({type:o.surface==='slippery'?'slip':o.surface==='lava'?'lava':'sticky-paint',
           minX:o.minX,maxX:o.maxX,minZ:o.minZ,maxZ:o.maxZ,face:'floor',base:o.base??0,
           sourceId:o.id,targetId:o.targetId||null,owner:paintOwner(o,objects)});break;
     }
@@ -277,10 +316,12 @@ export function validateDraft(draft){
   if(!Number.isInteger(draft.totalFlesh)||draft.totalFlesh<17||draft.totalFlesh>297||
     !Number.isInteger(draft.startingFlesh)||draft.startingFlesh<17||draft.startingFlesh>draft.totalFlesh)
     errors.push('Use 17–297 total flesh, with 17 or more starting particles within that total.');
+  if(!finite(draft.targetTime??DEFAULT_TARGET_TIME)||(draft.targetTime??DEFAULT_TARGET_TIME)<=0||
+    (draft.targetTime??DEFAULT_TARGET_TIME)>600)errors.push('Target time must be from 1 to 600 seconds.');
   errors.push(...boardErrors(draft));
   const objects=Array.isArray(draft.objects)?draft.objects:[],ids=new Set();
   const known=new Set(['start','exit','flesh','gem','gold','pillar','legacy-roof','legacy-passage',
-    'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap','stairs','paint','cutter','label']);
+    'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap','stairs','paint','pit','cutter','label']);
   for(const o of objects){
     if(!known.has(o.kind))errors.push('Unknown object type cannot be play-tested.');
     if(typeof o.id!=='string'||!o.id||ids.has(o.id))errors.push('Every object needs a unique stable ID.');
@@ -293,7 +334,8 @@ export function validateDraft(draft){
     if(o.kind==='stairs'&&!(finite(o.run)&&o.run>.2&&finite(o.width)&&o.width>.2&&
       finite(o.rise)&&o.rise>.1&&Number.isInteger(o.steps)&&o.steps>=1&&o.steps<=12))
       errors.push('Ramps need a positive run, width, rise, and 1–12 visual divisions.');
-    if(o.kind==='paint'&&!['sticky','slippery'].includes(o.surface))errors.push('Choose a sticky or slippery paint.');
+    if(o.kind==='paint'&&!['sticky','slippery','lava'].includes(o.surface))errors.push('Choose sticky, slippery, or lava paint.');
+    if(o.kind==='pit'&&!(finite(o.radius)&&o.radius>=.35&&o.radius<=2))errors.push('Pit radius must be from 0.35 to 2.');
     if(['exit','basin','pressure-basin'].includes(o.kind)&&!(finite(o.radius)&&finite(o.bottomRadius)&&finite(o.depth)&&
       o.radius>.25&&o.bottomRadius>.1&&o.bottomRadius<o.radius&&o.depth>.05))
       errors.push(`${o.kind} needs a positive rim, bottom, and depth.`);
@@ -305,6 +347,8 @@ export function validateDraft(draft){
       errors.push('Paint needs a valid support height and face.');
     if(o.kind==='paint'&&o.surface==='slippery'&&o.face!=='floor')
       errors.push('Slippery paint belongs on walkable floors and tops.');
+    if(o.kind==='paint'&&o.surface==='lava'&&o.face!=='floor')
+      errors.push('Lava paint belongs on walkable floors and tops.');
     if(o.kind==='stairs'&&!['x','z'].includes(o.axis))errors.push('Ramp direction must be on a board axis.');
     if(o.kind==='grip'&&(!o.ramp||!o.platform||!finite(o.platform.maxY)||!finite(o.platform.minY)||
       o.platform.maxY<=o.platform.minY))errors.push('Grip needs a real ramp and raised platform.');
@@ -338,6 +382,25 @@ export function validateDraft(draft){
       errors.push('Add enough loose flesh to give each pool a particle.');
     const raisedError=raisedFixtureError(objects);if(raisedError)errors.push(raisedError);
     const basinError=raisedBasinError(level,objects);if(basinError)errors.push(basinError);
+    const terrainOnly=objects.filter(o=>o.kind==='pit');
+    for(const pit of terrainOnly){
+      const margin=pit.radius+.12;
+      if(pit.x-margin<b.minX||pit.x+margin>b.maxX||pit.z-margin<b.minZ||pit.z+margin>b.maxZ)
+        errors.push('Keep each pit fully inside the board.');
+      const center=groundAt(pit.x,pit.z,[level.terrain]).height;
+      for(let i=0;i<16;i++){const angle=i*Math.PI/8,x=pit.x+Math.cos(angle)*margin,z=pit.z+Math.sin(angle)*margin;
+        if(Math.abs(groundAt(x,z,[level.terrain]).height-center)>.06)
+          errors.push('Keep each pit entirely on one flat terrace.');}
+      for(const item of objects){if(item===pit||item.kind==='paint'||item.kind==='label')continue;
+        if(point(item)&&Math.hypot(item.x-pit.x,item.z-pit.z)<pit.radius+(item.radius??(item.kind==='start'?.45:.2))+.08)
+          errors.push('Keep pits clear of starts, exits, basins, and other placed objects.');
+        const footprint=solidFootprint(item);
+        if(footprint&&circleTouchesBox({x:pit.x,z:pit.z,radius:pit.radius+.08},footprint))
+          errors.push('Keep pits away from raised fixtures.');
+        if(item.kind==='pillar'&&Math.hypot(item.x-pit.x,item.z-pit.z)<pit.radius+item.radius+.08)
+          errors.push('Keep pits away from raised fixtures.');
+      }
+    }
     for(const o of objects.filter(o=>o.kind==='paint'&&o.surface==='sticky'&&o.face!=='floor'))
       if(!level.editorFixtures.some(c=>c.type==='sticky-wall'&&c.sourceId===o.id))
         errors.push('Place wall paint across a real block face before play-testing.');
@@ -421,6 +484,7 @@ export function placedObjectDefaults(kind,p){
     case 'exit':return {type:'funnel',x,z,radius:.95,bottomRadius:.36,depth:.9};
     case 'basin':return {type:'funnel',x,z,radius:.85,bottomRadius:.45,depth:.32,
       ...(p.targetId?{base:p.y,targetId:p.targetId}:{})};
+    case 'pit':return {x,z,radius:.75};
     case 'cutter-box':return {shape:'box',x,y:base+.5,z,width:1.4,height:1,depth:1.4,
       rotation:{x:0,y:0,z:0}};
     case 'cutter-cylinder':return {shape:'cylinder',x,y:base+.5,z,radius:.45,height:1,

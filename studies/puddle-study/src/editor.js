@@ -16,6 +16,7 @@ import {createPrintedMaterialLibrary} from './printed-material.js';
 import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
 import {TouchJoystick} from './touch-joystick.js';
 import {bindHoldButton,bindPullButton} from './touch-actions.js';
+import {createBurnFeedback} from './burn-feedback.js';
 
 const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
@@ -36,6 +37,7 @@ let history=new DraftHistory(draft),selected=null,tool='select',playing=false,si
   drag=null,aim=null,pendingPreview=false,frameCount=0,orbit={azimuth:.19,elevation:.85,distance:22.5},
   pointerPose=null,brushStart=null,paintMode='fill';
 const keys=new Set(),canvas=$('world'),scene=new THREE.Scene();scene.background=new THREE.Color(0xc6dfd9);
+const burnFeedback=createBurnFeedback(scene);
 const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
   if(!playing||sim?.garden.phase!=='playing'||!sim.gardenInputArmed||!sim.gardenLevel.tendrils)return;
   if(aimAt({clientX:x,clientY:y})){const target={...aim};sim.castTendril(target);}
@@ -104,6 +106,7 @@ function renderHandles(){clearHandles();if(playing)return;
 function resetSurfaces(){pipeline.invalidate();for(const s of poolSurfaces.splice(0)){scene.remove(s.mesh);s.dispose();}
   for(let i=0;i<draft.objects.filter(o=>o.kind==='flesh').length+1;i++){const s=pipeline.create(poolMaterial,28,{priority:1});poolSurfaces.push(s);scene.add(s.mesh);}}
 function rebuild(test=false){const checks=validateDraft(draft);
+  burnFeedback.clear();
   if(!draft.boundary||!draft.terrain){view?.dispose();view=null;sim=null;body.mesh.visible=brain.visible=false;return;}
   let level;
   try{level=compileDraft(draft);}catch{
@@ -153,9 +156,9 @@ $('tower-view').onclick=()=>{orbit={azimuth:.19,elevation:.85,distance:22.5};fit
 $('reset-view').onclick=()=>{target.set(0,.5,0);orbit={azimuth:.19,elevation:.85,distance:22.5};fitCamera();};
 canvas.addEventListener('wheel',e=>{e.preventDefault();orbit.distance=clamp(orbit.distance*Math.exp(e.deltaY*.001),9,70);updateCamera();},{passive:false});
 const tools=[['select','Select / move'],['erase','Erase'],['pillar','Pillar'],['block','Block'],['lowgap','Low gap'],
-  ['stairs','Ramp'],['flesh','Loose flesh'],['gem','Gem'],['gold','Gold'],['start','Start'],['exit','Exit'],['label','Label'],
+  ['stairs','Ramp'],['pit','Pit · terrain only'],['flesh','Loose flesh'],['gem','Gem'],['gold','Gold'],['start','Start'],['exit','Exit'],['label','Label'],
   ['basin','Basin · shallow clay depression'],['cutter-box','Cut box'],['cutter-cylinder','Cut cylinder'],
-  ['paint-slip','Paint slippery'],['paint-sticky','Paint sticky'],['paint-normal','Paint normal']];
+  ['paint-slip','Paint slippery'],['paint-sticky','Paint sticky'],['paint-lava','Paint lava'],['paint-normal','Paint normal']];
 function renderTools(){$('tools').replaceChildren(...tools.map(([key,name])=>{const button=document.createElement('button');button.textContent=name;
   button.classList.toggle('active',tool===key);button.setAttribute('aria-pressed',String(tool===key));button.onclick=()=>{tool=key;activePaintFace=null;$('paint-apply').disabled=true;
     $('paint-apply').textContent=key==='paint-normal'?'Clear selected face':'Fill selected face';
@@ -198,7 +201,7 @@ let activePaintFace=null;
 function paint(area){if(!area)return;
   resetDraftPaint(draft,area);
   if(tool==='paint-normal'){selected=null;commit('Paint cleared from this area.');return;}
-  const object=addDraftObject(draft,'paint',{...area,surface:tool==='paint-slip'?'slippery':'sticky'});
+  const object=addDraftObject(draft,'paint',{...area,surface:tool==='paint-slip'?'slippery':tool==='paint-lava'?'lava':'sticky'});
   selected=object.id;commit('Surface painted.');}
 function paintPlanePoint(e,face){const rect=canvas.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
   raycaster.setFromCamera(pointer,camera);const n=new THREE.Vector3(face.face==='west'?-1:face.face==='east'?1:0,
@@ -210,7 +213,7 @@ function paintPlanePoint(e,face){const rect=canvas.getBoundingClientRect();point
 function showPaintPreview(area){if(!area){ghost.visible=false;return;}ghost.visible=true;
   ghost.material.wireframe=paintMode==='fill'&&!!activePaintFace;
   ghost.material.opacity=ghost.material.wireframe ? .95 : .48;
-  ghost.material.color.setHex(ghost.material.wireframe?0x23484c:tool==='paint-slip'?0x4aaec5:tool==='paint-sticky'?0x7da987:0xb77972);
+  ghost.material.color.setHex(ghost.material.wireframe?0x23484c:tool==='paint-slip'?0x4aaec5:tool==='paint-sticky'?0x7da987:tool==='paint-lava'?0xd94d26:0xb77972);
   if(area.face==='floor'){ghost.position.set((area.minX+area.maxX)/2,area.base+.055,(area.minZ+area.maxZ)/2);
     ghost.scale.set((area.maxX-area.minX)/.6,1,(area.maxZ-area.minZ)/.6);}
   else{const y=(area.minY+area.maxY)/2;
@@ -218,8 +221,8 @@ function showPaintPreview(area){if(!area){ghost.visible=false;return;}ghost.visi
     ghost.scale.set(Math.max(.06,area.maxX-area.minX)/.6,(area.maxY-area.minY)/.06,Math.max(.06,area.maxZ-area.minZ)/.6);}}
 function selectPaintFace(p){const face=paintFaceForHit(draft,p);if(face.error){activePaintFace=null;$('paint-apply').disabled=true;
     $('paint-selection').textContent='Selected face: none';ghost.visible=false;status(face.error);return null;}
-  if(tool==='paint-slip'&&face.face!=='floor'){activePaintFace=null;$('paint-apply').disabled=true;
-    $('paint-selection').textContent='Selected face: none';status('Slippery paint works on floors and tops.');return null;}
+  if(['paint-slip','paint-lava'].includes(tool)&&face.face!=='floor'){activePaintFace=null;$('paint-apply').disabled=true;
+    $('paint-selection').textContent='Selected face: none';status('This paint works on floors and tops.');return null;}
   activePaintFace={face,point:p};$('paint-apply').disabled=false;showPaintPreview(paintArea(face,p,p,'fill'));
   const owner=face.targetId?draft.objects.find(o=>o.id===face.targetId):null;
   $('paint-selection').textContent=`Selected face: ${owner?.kind||'terrain'} · ${face.face==='floor'?'top':face.face+' wall'}`;
@@ -352,6 +355,7 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
     number('Rim radius',o.radius,n=>{o.radius=n;},{min:.35,max:2});
     number('Bottom radius',o.bottomRadius,n=>{o.bottomRadius=n;},{min:.15,max:1.5});
     number('Depression depth',o.depth,n=>{o.depth=n;},{min:.1,max:2});}
+  if(o.kind==='pit')number('Pit radius',o.radius,n=>{o.radius=n;},{min:.35,max:2});
   if(o.kind==='flesh')number('Share weight',o.weight??1,n=>{o.weight=n;},{min:.01,max:100,step:.25});
   if(o.kind==='pressure-gate'){
     number('Width',o.width,n=>{o.width=n;},{min:.2,max:2});
@@ -363,7 +367,7 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
     number('Ramp rise',o.ramp.axis==='x'?Math.abs(o.ramp.maxHeight-o.ramp.minHeight):Math.abs(o.ramp.southHeight-o.ramp.northHeight),n=>{
       if(o.ramp.axis==='x')o.ramp.maxHeight=o.ramp.minHeight+n;else o.ramp.southHeight=o.ramp.northHeight+n;},{min:.1,max:2});}
   if(o.kind==='paint'){
-    choice('Surface',o.surface,['slippery','sticky'],n=>{o.surface=n;});
+    choice('Surface',o.surface,['slippery','sticky','lava'],n=>{o.surface=n;});
     const owner=draft.objects.find(item=>item.id===o.targetId);
     const bounds=owner?.kind==='block'||['legacy-roof','legacy-passage','lowgap'].includes(owner?.kind)?owner:
       owner?.kind==='grip'?owner.platform:owner?.kind==='pillar'?{minX:owner.x-owner.radius,maxX:owner.x+owner.radius,minZ:owner.z-owner.radius,maxZ:owner.z+owner.radius}:
@@ -407,7 +411,7 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
 }
 function renderEditor(){updateLinkedStatus();const errors=validateDraft(draft).errors;
   $('preset').value=String(draft.presetId||0);$('name').value=draft.name;$('total').value=draft.totalFlesh;
-  $('seed').value=draft.startingFlesh;
+  $('seed').value=draft.startingFlesh;$('target-time').value=draft.targetTime??30;
   $('undo').disabled=history.index===0;$('redo').disabled=history.index===history.states.length-1;
   $('clear-all').disabled=playing||draft.objects.length===0;
   const poolBudget=draft.totalFlesh-draft.startingFlesh,poolCount=draft.objects.filter(o=>o.kind==='flesh').length;
@@ -415,11 +419,12 @@ function renderEditor(){updateLinkedStatus();const errors=validateDraft(draft).e
   $('validation').replaceChildren();for(const text of errors){const li=document.createElement('li');li.className='error';li.textContent=text;$('validation').append(li);}
   if(!errors.length){const li=document.createElement('li');li.className='good';li.textContent='Ready for a physical play test.';$('validation').append(li);}
   renderTools();renderInspector();renderHandles();}
-$('load-preset').onclick=()=>{const id=Number($('preset').value);draft=id?draftFromPreset(id):createBlankDraft();linkedLevelId=null;linkedDocument=null;
+$('load-preset').onclick=()=>{const value=$('preset').value,id=value==='hazards'?value:Number(value);draft=id?draftFromPreset(id):createBlankDraft();linkedLevelId=null;linkedDocument=null;
   selected=null;tool='select';commit('Garden loaded. Undo restores the previous draft.');};
 $('name').onchange=()=>{draft.name=$('name').value;commit();};
 $('total').onchange=()=>{draft.totalFlesh=Number($('total').value);commit();};
 $('seed').onchange=()=>{draft.startingFlesh=Number($('seed').value);commit();};
+$('target-time').onchange=()=>{draft.targetTime=Number($('target-time').value);commit();};
 
 $('undo').onclick=()=>{draft=history.undo();selected=null;renderEditor();pendingPreview=true;persist();status('Undid the last edit.');};
 $('redo').onclick=()=>{draft=history.redo();selected=null;renderEditor();pendingPreview=true;persist();status('Redid the edit.');};
@@ -488,8 +493,8 @@ const contractHold=bindPullButton($('contract'),pull,canTouchAct);
 const shedHold=bindHoldButton($('shed'),canTouchAct);
 const runHold=bindHoldButton($('run'),canTouchAct);
 function updateHUD(){const s=sim.garden;$('score').textContent=matchMedia('(pointer: coarse), (max-width: 680px), (max-width: 1000px) and (max-height: 500px)').matches?
-  `◇ ${s.gemCount}/${s.gems.length} · ● ${s.goldCount}/${s.gold.length}`:
-  `${s.gemCount}/${s.gems.length} gems · ${s.goldCount}/${s.gold.length} gold · ${sim.fluid.attachedCount} attached flesh`;
+  `◇ ${s.gemCount}/${s.gems.length} · ● ${s.goldCount}/${s.gold.length} · ${Math.floor(s.finishElapsed??s.playElapsed)}s/${sim.gardenLevel.targetTime}s`:
+  `${s.gemCount}/${s.gems.length} gems · ${s.goldCount}/${s.gold.length} gold · ${sim.fluid.attachedCount} attached flesh · ${Math.floor(s.finishElapsed??s.playElapsed)}s/${sim.gardenLevel.targetTime}s`;
   $('play-message').textContent=s.phase==='complete'?'Garden complete. Return to editing or restart.':gardenHint(sim).join(' · ')+(draft.tendrils?` · ${sim.tendril.count}/3 strands`:'');}
 let last=performance.now(),acc=0;
 function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
@@ -503,6 +508,7 @@ function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
     while(acc>=DT){sim.step({...axes,contract,shed:keys.has('KeyF')||shedHold.active,push:keys.has('ShiftLeft')||keys.has('ShiftRight')||runHold.active,recallToggle:recall});recall=false;acc-=DT;}
     if(frameCount++%3===0)updateParticles();updateHUD();audio.update(sim.garden);}
   if(view&&sim)view.update(sim,camera);
+  burnFeedback.update(sim,{active:playing});
   aimRing.visible=playing&&!!draft.tendrils&&!!aim&&sim.garden.phase==='playing';
   if(aimRing.visible)aimRing.position.set(aim.x,groundAt(aim.x,aim.z,sim.activeColliders()).height+.035,aim.z);
   for(const marker of handles.children)if(marker.userData.handleHalo)marker.quaternion.copy(camera.quaternion);
@@ -512,4 +518,5 @@ if(testSession)$('session-badge').textContent='Isolated test session · local le
 if(memory){$('save').disabled=true;$('save').textContent='Save unavailable in test session';$('save').title='Export JSON to keep this draft.';}
 renderEditor();rebuild(false);resize();status(startup);requestAnimationFrame(frame);
 if(import.meta.hot)import.meta.hot.dispose(()=>{music();audio.dispose();view?.dispose();printLibrary.dispose();pipeline.dispose();
+  burnFeedback.dispose();
   handleGeo.dispose();haloGeo.dispose();haloMaterial.dispose();for(const m of markerMaterials.values())m.dispose();outlineMaterial.dispose();bodyMaterial.dispose();poolMaterial.dispose();renderer.dispose();});

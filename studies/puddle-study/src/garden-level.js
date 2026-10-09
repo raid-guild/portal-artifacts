@@ -1,4 +1,5 @@
 import {groundAt,segmentBlockedBySolid} from './colliders.js';
+import {CAMPAIGN_TARGETS} from './game-score.js';
 import {gripAxis,gripKey} from './grip-ramp.js';
 import {solidRay} from './editor-solid-physics.js';
 
@@ -87,13 +88,148 @@ export const GRIP_GARDEN={
     [-7.5,-.95],[-7.5,-.25],[-4.8,.55],[-1.4,-.05],[-.75,-.05],[.55,-.05],[4.2,1.15],
     [7.5,2.7],[5.2,3.55],[-3.8,3.55]],
 };
-export const GARDEN_LEVELS=[GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN];
+// The Hollow Crown is built from independent walkable volumes. Their open
+// undersides are intentional: falling is a route, and the ribbed recovery
+// faces let a careful player climb back to the missed upper paths.
+const crownBox=(id,minX,maxX,minZ,maxZ,minY,maxY)=>({type:'box',sourceId:id,walkableTop:true,
+  minX,maxX,minZ,maxZ,minY,maxY});
+const crownStairs=(id,minX,maxX,minZ,maxZ,base,rise)=>({type:'editor-stairs',sourceId:id,
+  axis:'z',reverse:true,steps:10,minX,maxX,minZ,maxZ,base,rise});
+export const HOLLOW_CROWN={
+  id:6,name:'Hollow Crown',start:{x:6.8,z:-4.5,y:5.8},seedCount:65,capacity:297,
+  boundary:{type:'boundary',minX:-9,maxX:9,minZ:-6,maxZ:4.8},terrain:{type:'flat',height:0},
+  editorCanShed:true,tendrils:true,
+  exit:{type:'funnel',x:-7.45,z:3.55,radius:.85,bottomRadius:.34,depth:.9},
+  basin:{type:'funnel',x:.1,z:3.4,radius:.8,bottomRadius:.42,depth:.65,holdsFeedstock:true},
+  gate:{x:1.5,width:.42,height:1.35,opening:.72,minZ:2.35,maxZ:4.0,
+    threshold:32,releaseThreshold:24,rate:44,base:0,latch:true},
+  posts:[[-2.45,2.55],[-1.55,2.55],[-2.85,3.52],[-1.95,3.52],[-1.05,3.52]]
+    .map(([x,z],i)=>({type:'cylinder',sourceId:`court-flute-${i+1}`,x,z,radius:.24,height:1.12})),
+  editorFixtures:[
+    crownBox('arrival',5.4,8.4,-5.6,-2.9,0,5.8),
+    crownBox('skybridge',-5.4,5.4,-5.15,-3.85,5.38,5.8),
+    crownBox('west-crown',-8.3,-5.4,-5.6,-2.9,0,5.8),
+    crownStairs('west-descent',-8.25,-5.75,-2.9,-.3,3.3,2.5),
+    crownBox('west-middle',-8.3,-5.4,-.3,1.8,0,3.3),
+    crownBox('return-bridge',-5.4,5.6,.12,1.23,2.92,3.3),
+    {type:'roof',sourceId:'middle-tunnel',minX:-4.7,maxX:-2.4,
+      minZ:.12,maxZ:1.23,bottom:3.66,top:4.4,approachBothSides:true},
+    crownBox('east-middle',5.6,8.4,-.2,1.6,0,3.3),
+    crownStairs('east-descent',6.1,8.35,1.6,4.45,0,3.3),
+    crownBox('spire',.6,3.5,-2.7,-.2,3.3,5),
+    crownBox('tendril-shelf',-.55,.55,-3,-2.15,4.66,5.1),
+    crownBox('underbridge-step-one',-2.4,-.9,-4.85,-3.35,0,.46),
+    crownBox('underbridge-step-two',-.9,.45,-4.85,-3.35,.46,.84),
+    crownBox('recover-west-middle',-6.3,-5.45,-2.9,-.3,3.3,5.8),
+    // The vault is entered from the west only after its suspended shutter rises.
+    crownBox('vault-north',1.3,5.35,2.07,2.22,0,1.6),
+    crownBox('vault-south',1.3,5.35,4.15,4.3,0,1.6),
+    crownBox('vault-east',5.2,5.35,2.22,4.15,0,1.6),
+    crownBox('vault-entry-north',1.3,1.72,2.22,2.35,0,1.6),
+    crownBox('vault-entry-south',1.3,1.72,4.0,4.15,0,1.6),
+    // The low grotto ends at an open pocket where the gem can be surrounded.
+    {type:'roof',sourceId:'grotto-long',minX:-5.6,maxX:-4.1,minZ:2.2,maxZ:3.9,bottom:.42,top:1.12},
+    {type:'roof',sourceId:'grotto-turn',minX:-4.1,maxX:-3.1,minZ:2.2,maxZ:2.82,bottom:.42,top:1.12},
+    {type:'sticky-wall',sourceId:'spire-grip',face:'south',axis:'z',minX:1,maxX:3.1,
+      minZ:-2.7,maxZ:-.2,minY:3.3,maxY:5},
+    {type:'sticky-wall',sourceId:'west-recovery',face:'east',axis:'x',minX:-8.3,maxX:-5.4,
+      minZ:1.25,maxZ:1.8,minY:0,maxY:3.3},
+    {type:'sticky-wall',sourceId:'crown-recovery',face:'south',axis:'z',minX:-6.3,maxX:-5.45,
+      minZ:-2.9,maxZ:-.3,minY:3.3,maxY:5.8},
+    {type:'slip',sourceId:'bridge-slip',targetId:'skybridge',face:'floor',
+      minX:1.1,maxX:2.5,minZ:-5.15,maxZ:-3.85,base:5.8,
+      owner:{type:'box',minX:-5.4,maxX:5.4,minZ:-5.15,maxZ:-3.85,minY:5.38,maxY:5.8}},
+    {type:'slip',sourceId:'descent-slip',targetId:'east-descent',face:'floor',
+      minX:6.1,maxX:8.35,minZ:3.4,maxZ:4.2,base:.8,
+      owner:{type:'editor-stairs',axis:'z',reverse:true,minX:6.1,maxX:8.35,minZ:1.6,maxZ:4.45,base:0,rise:3.3}},
+  ],
+  pools:[[6.1,-4.5,5.8],[-6.7,-4.5,5.8],[-6.7,.7,3.3],[7,.45,3.3],[-4.7,4.05,0],[4,3.45,0],[0,-2.6,5.1],[2.05,-1.3,5]],
+  poolCounts:[28,16,40,36,42,22,28,20],
+  gems:[{x:-6.8,z:-4.5,base:5.8},{x:-6.6,z:.75,base:3.3},{x:2.05,z:-1.5,base:5},
+    {x:7,z:.55,base:3.3},{x:-3.6,z:3.3,base:0},{x:3.7,z:3.4,base:0}],
+  gold:[
+    [7.7,-4.5,5.8],[6.6,-4.5,5.8],[5.1,-4.5,5.8],[3.8,-4.5,5.8],[2.5,-4.5,5.8],[.5,-4.5,5.8],
+    [-1.6,-4.5,5.8],[-3.3,-4.5,5.8],[-5.9,-4.5,5.8],[-7.5,-4.5,5.8],
+    [-7,-2.35,5.25],[-7,-1.8,4.75],[-7,-1.25,4.25],[-7,-.7,3.7],
+    [-6.8,.7,3.3],[-4.9,.7,3.3],[-3.8,.7,3.3],[-2.2,.7,3.3],[-.7,.7,3.3],
+    [.7,.7,3.3],[2.1,.7,3.3],[4.2,.7,3.3],[6.1,.7,3.3],[7.2,.7,3.3],
+    [7.25,2.05,2.8],[7.25,2.8,1.9],[7.25,3.6,1],
+    [5.5,3.4,0],[4.3,3.4,0],[3.45,3.4,0],[.05,-4.05,.84],[.15,2.1,0],
+    [-1.65,-4.05,.46],[-3.3,3.4,0],[-4.75,3.4,0],[-7.35,3.6,0],
+  ],
+};
+// Three broad, reversible switchbacks descend around an open central court.
+// The bridge slabs have open undersides; ground hazards live only in that court.
+const emberBox=(id,x0,x1,z0,z1,bottom,top)=>crownBox(id,x0,x1,z0,z1,bottom,top);
+const emberStairs=(id,x0,x1,z0,z1,base,rise)=>crownStairs(id,x0,x1,z0,z1,base,rise);
+export const EMBER_CASCADE={
+  id:7,name:'Ember Cascade',start:{x:6.9,z:-5.5,y:6.6},seedCount:65,capacity:297,
+  boundary:{type:'boundary',minX:-9,maxX:9,minZ:-7.2,maxZ:6.8},terrain:{type:'flat',height:0},
+  editorCanShed:true,tendrils:true,
+  exit:{type:'funnel',x:7.2,z:5.5,radius:.85,bottomRadius:.34,depth:.9},
+  pits:[{type:'pit',sourceId:'west-pit',x:-2.8,z:4.45,radius:.95,rimHeight:0},
+    {type:'pit',sourceId:'east-pit',x:2.5,z:4.55,radius:1,rimHeight:0}],
+  editorFixtures:[
+    emberBox('ember-arrival',5.6,8.4,-6.5,-4.8,0,6.6),
+    emberBox('ember-first-bridge',-5.6,5.6,-6.2,-4.8,6.2,6.6),
+    emberBox('ember-first-shoulder',-2.5,2.5,-6.6,-4.2,6.2,6.6),
+    emberBox('ember-upper-west',-8.4,-5.6,-6.5,-4.1,0,6.6),
+    emberStairs('ember-west-descent',-8.3,-5.8,-4.8,-2.5,4.4,2.2),
+    emberBox('ember-middle-west',-8.4,-5.6,-2.5,-.1,0,4.4),
+    emberBox('ember-second-bridge',-5.6,5.6,-2.5,-1.1,4,4.4),
+    emberBox('ember-lookout',-1.6,1.6,-4.8,-2.5,4.4,5.6),
+    emberBox('ember-middle-east',5.6,8.4,-2.5,-.1,0,4.4),
+    emberStairs('ember-east-descent',5.8,8.3,-1.1,1.3,2.2,2.2),
+    emberBox('ember-lower-east',5.6,8.4,1.3,3.7,0,2.2),
+    emberBox('ember-third-bridge',-5.6,5.6,1.3,2.7,1.8,2.2),
+    emberBox('ember-lower-west',-8.4,-5.6,1.3,3.7,0,2.2),
+    emberStairs('ember-final-descent',-8.3,-5.8,2.7,5.2,0,2.2),
+    {type:'sticky-wall',sourceId:'ember-lookout-grip',targetId:'ember-lookout',face:'south',axis:'z',
+      minX:-1.6,maxX:1.6,minZ:-4.8,maxZ:-2.5,minY:4.4,maxY:5.6},
+    {type:'sticky-wall',sourceId:'ember-west-recovery',targetId:'ember-middle-west',face:'east',axis:'x',
+      minX:-8.4,maxX:-5.6,minZ:-1.05,maxZ:-.12,minY:0,maxY:4.4},
+    {type:'sticky-wall',sourceId:'ember-east-recovery',targetId:'ember-lower-east',face:'west',axis:'x',
+      minX:5.6,maxX:8.4,minZ:1.3,maxZ:3.7,minY:0,maxY:2.2},
+    {type:'lava',sourceId:'ember-raised-lava',targetId:'ember-first-shoulder',face:'floor',
+      minX:-.7,maxX:.7,minZ:-5.45,maxZ:-4.2,base:6.6,
+      owner:{type:'box',minX:-2.5,maxX:2.5,minZ:-6.6,maxZ:-4.2,minY:6.2,maxY:6.6}},
+    // The central underpasses glow below all three suspended crossings. The
+    // side approaches stay cool and the front court remains a safe traverse.
+    {type:'lava',sourceId:'ember-underbridge-lava',face:'floor',
+      minX:-5.4,maxX:5.4,minZ:-6.7,maxZ:3.05,base:0},
+    {type:'lava',sourceId:'ember-ground-lava',face:'floor',minX:-.9,maxX:1,minZ:4.4,maxZ:5.35,base:0},
+  ],
+  pools:[[6.65,-5.5,6.6],[-7,-5.5,6.6],[-7,-1.35,4.4],[0,-3.65,5.6],
+    [7,-1.35,4.4],[-7,1.95,2.2],[-5,5.55,0],[4.8,5.5,0]],
+  poolCounts:[26,18,32,28,30,28,36,34],
+  gems:[{x:-7,z:-5.55,base:6.6},{x:-7,z:-1.35,base:4.4},{x:0,z:-3.65,base:5.6},
+    {x:7,z:-1.35,base:4.4},{x:-7,z:1.95,base:2.2},
+    {x:-4.7,z:5.45,base:0},{x:4.8,z:5.45,base:0}],
+  gold:[
+    [7.9,-5.5,6.6],[6.65,-5.5,6.6],[5.2,-5.5,6.6],[3.8,-5.5,6.6],[2.4,-5.5,6.6],
+    [1,-5.7,6.6],[-.4,-5.75,6.6],[-1.8,-5.7,6.6],[-3.2,-5.5,6.6],[-4.6,-5.5,6.6],
+    [-6,-5.5,6.6],[-7.2,-5.5,6.6],[-7.2,-4.3,6.6],
+    [-7.05,-4.45,6.16],[-7.05,-4.05,5.72],[-7.05,-3.65,5.28],[-7.05,-3.25,4.84],[-7.05,-2.85,4.4],
+    [-7,-1.35,4.4],[-5.1,-1.8,4.4],[-3.7,-1.8,4.4],[-2.3,-1.8,4.4],[-.9,-1.8,4.4],
+    [0,-3.65,5.6],[.9,-1.8,4.4],[2.3,-1.8,4.4],[3.7,-1.8,4.4],[5.1,-1.8,4.4],[7,-1.35,4.4],
+    [7,-1,4.4],[7,-.65,3.96],[7,-.2,3.52],[7,.25,3.08],[7,.7,2.64],[7,1.1,2.2],
+    [7,1.95,2.2],[5.1,2,2.2],[3.7,2,2.2],[2.3,2,2.2],[.9,2,2.2],[-.5,2,2.2],
+    [-1.9,2,2.2],[-3.3,2,2.2],[-4.7,2,2.2],[-7,1.95,2.2],
+    [-7,3.15,2.2],[-7,3.65,1.76],[-7,4.15,1.32],[-7,4.65,.88],[-7,5.1,.44],
+    [-5.1,5.45,0],[-4.7,5.45,0],[-5.4,6.15,0],[4.8,5.45,0],[6.1,6.15,0],
+  ],
+};
+export const GARDEN_LEVELS=[GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN,HOLLOW_CROWN,EMBER_CASCADE];
+export const GARDEN_TARGETS=CAMPAIGN_TARGETS;
+export const gardenWorldOffset=levelId=>levelId===7?-45:-(levelId-1)*7.2;
+GARDEN_LEVELS.forEach((level,i)=>{level.targetTime=GARDEN_TARGETS[i];});
 // Tendril casting is a basic garden action on every campaign floor and in
 // custom editor gardens. A level's authored tendrils flag remains a layout
 // feature (Reach channels), so enabling controls does not replace fixtures.
 export const gardenCanCast=level=>!!level&&(!!level.editorCustom||GARDEN_LEVELS.some(g=>g.id===level.id)||!!level.tendrils);
 export const looseGardenParticles=particles=>particles.filter(p=>p.feedstock&&p.patchId===undefined);
-export function gardenFixtureHeight(level,x,z){
+export function gardenFixtureHeight(level,x,z,authoredBase){
+  if(Number.isFinite(authoredBase))return authoredBase;
   if(level.csgSolid){const terrain=groundAt(x,z,gardenColliders(level)).height,
     hit=solidRay(level.csgSolid,{x,y:20,z},{x:0,y:-1,z:0},40);
     return Math.max(terrain,hit&&hit.normal?.y>.2?hit.y:terrain);}
@@ -109,20 +245,26 @@ export function gardenColliders(level=GARDEN,opening=0){
   const finish=items=>level.csgSolid?[...items.filter(c=>!c.csgManaged),level.csgSolid,
     ...(level.grip?[{...level.grip.ramp,type:'grip-ramp-control'},
       {...level.grip.platform,type:'grip-platform-control',csgControl:true}]:[])]:items;
+  const withPits=items=>finish([...items,...(level.pits||[])]);
+  if(level.id===6&&level.gate){const g=level.gate;
+    return withPits([level.boundary,level.terrain,...(level.basin?[level.basin]:[]),...(level.exit?[level.exit]:[]),
+      {type:'roof',sourceId:'vault-shutter',minX:g.x-g.width/2,maxX:g.x+g.width/2,
+        minZ:g.minZ,maxZ:g.maxZ,bottom:g.base+opening,top:g.base+opening+g.height},
+      ...(level.posts||[]),...extra]);}
   // The Gathering Garden's roof has two authored end supports. Editor play
   // enables tendrils without replacing that fixture set or its ordering.
-  if(level.id===1)return finish([level.boundary,level.terrain,...(level.exit?[level.exit]:[]),
+  if(level.id===1)return withPits([level.boundary,level.terrain,...(level.exit?[level.exit]:[]),
     ...(level.roof?[level.roof]:[]),
     ...(level.roofSupports??(level.roof?[level.roof.minZ-.14,level.roof.maxZ+.14].map(z=>
       ({type:'box',minX:0,maxX:.75,minY:0,maxY:1.06,minZ:z-.14,maxZ:z+.14})):[])),
     ...(level.posts||[]),...(level.channels||[]),...extra]);
-  if(level.grip&&!level.gate)return finish([level.boundary,level.terrain,level.grip.ramp,level.grip.platform,
+  if(level.grip&&!level.gate)return withPits([level.boundary,level.terrain,level.grip.ramp,level.grip.platform,
     ...(level.slip?[level.slip]:[]),...(level.channels||[]),...(level.exit?[level.exit]:[]),
     ...(level.roof?[level.roof]:[]),...(level.posts||[]),...extra]);
-  if(level.tendrils&&!level.gate)return finish([level.boundary,level.terrain,...(level.channels||[]),...(level.exit?[level.exit]:[]),
+  if(level.tendrils&&!level.gate)return withPits([level.boundary,level.terrain,...(level.channels||[]),...(level.exit?[level.exit]:[]),
     ...(level.basin?[level.basin]:[]),...(level.roof?[level.roof]:[]),...(level.posts||[]),...extra]);
   if(level.gate){const g=level.gate,half=g.width/2;
-    return finish([level.boundary,level.terrain,...(level.basin?[level.basin]:[]),...(level.exit?[level.exit]:[]),
+    return withPits([level.boundary,level.terrain,...(level.basin?[level.basin]:[]),...(level.exit?[level.exit]:[]),
       {type:'roof',minX:g.x-half,maxX:g.x+half,minZ:g.minZ,maxZ:g.maxZ,bottom:g.base+opening,top:g.base+opening+g.height},
       {type:'box',minX:g.x-half,maxX:g.x+half,minY:g.base,maxY:g.base+g.height+g.opening,minZ:level.terrain.frontZ,maxZ:g.minZ},
       {type:'box',minX:g.x-half,maxX:g.x+half,minY:g.base,maxY:g.base+g.height+g.opening,minZ:g.maxZ,maxZ:level.terrain.rearZ},
@@ -131,26 +273,26 @@ export function gardenColliders(level=GARDEN,opening=0){
         {type:'box',minX:level.passage.minX,maxX:level.passage.maxX,minY:0,maxY:level.passage.top,minZ:level.passage.maxZ-.16,maxZ:level.passage.maxZ}]:[]),
       ...(level.channels||[]),...(level.posts||[]),...extra]);
   }
-  return finish([level.boundary,level.terrain,...(level.exit?[level.exit]:[]),
+  return withPits([level.boundary,level.terrain,...(level.exit?[level.exit]:[]),
     ...(level.roof?[level.roof,...[level.roof.minZ-.14,level.roof.maxZ+.14].map(z=>({type:'box',minX:0,maxX:.75,minY:0,maxY:1.06,minZ:z-.14,maxZ:z+.14}))]:[]),
     ...(level.posts||[]),...(level.channels||[]),...extra]);
 }
 export function createGarden(level=GARDEN){
   const colliders=gardenColliders(level);
-  return {phase:'title',elapsed:0,drainTime:0,moved:0,grew:false,contracted:false,enteredGap:false,under:false,
+  return {phase:'title',elapsed:0,playElapsed:0,finishElapsed:null,deaths:0,drainTime:0,moved:0,grew:false,contracted:false,enteredGap:false,under:false,
     levelId:level.id,arrivalTime:0,settleTime:0,
-    gems:(level.gems||[]).map((g,id)=>({...g,id,y:gardenFixtureHeight(level,g.x,g.z)+.34,radius:.31,coverage:0,progress:0,collected:false})),
-    gold:(level.gold||[]).map(([x,z],id)=>({x,z,id,y:gardenFixtureHeight(level,x,z)+.13,collected:false})),
+    gems:(level.gems||[]).map((g,id)=>({...g,id,y:gardenFixtureHeight(level,g.x,g.z,g.base)+.34,radius:.31,coverage:0,progress:0,collected:false})),
+    gold:(level.gold||[]).map(([x,z,base],id)=>({x,z,id,y:gardenFixtureHeight(level,x,z,base)+.13,collected:false})),
     goldCount:0,gemCount:0,notice:'',noticeUntil:0};
 }
 export function seedGarden(fluid,level=GARDEN){
   const colliders=gardenColliders(level);
   for(const p of fluid.particles){p.y+=Math.max(groundAt(p.x,p.z,colliders).height,level.start.y??0);p.py=p.y;}
-  (level.pools||[]).forEach(([x,z],patchId)=>{
+  (level.pools||[]).forEach(([x,z,base],patchId)=>{
     for(let i=0;i<(level.poolCounts?.[patchId]??58);i++){
       const a=i*2.39996323,r=.45*Math.sqrt((i%29)/28);
       const p=fluid.addParticle({x:x+Math.cos(a)*r,z:z+Math.sin(a)*r,
-        y:gardenFixtureHeight(level,x,z)+fluid.radius+.015+Math.floor(i/29)*.12},{feedstock:true});
+        y:gardenFixtureHeight(level,x,z,base)+fluid.radius+.015+Math.floor(i/29)*.12},{feedstock:true});
       p.patchId=patchId;
     }
   });
@@ -190,6 +332,7 @@ export function updateGarden(sim,dt){
     state.drainTime+=dt;if(state.drainTime>=2.8)state.phase='complete';return;
   }
   if(state.phase!=='playing')return;
+  state.playElapsed+=dt;
   state.moved=Math.max(state.moved,Math.hypot(b.x-level.start.x,b.z-level.start.z));
   state.grew ||= f.attachedCount>=110;
   state.contracted ||= !!f.contractAnchor;
@@ -211,8 +354,9 @@ export function updateGarden(sim,dt){
   }
   // Entering the inner bowl commits the exit; do not require an exact center
   // or a sunken brain, whose protective coating can otherwise bridge the throat.
-  if(Math.hypot(b.x-level.exit.x,b.z-level.exit.z)<level.exit.radius*.7){
-    state.phase='draining';state.drainTime=0;f.contractAnchor=null;sim.tendril.release();
+  const exitHeight=Math.max(level.exit.base??0,gardenFixtureHeight(level,level.exit.x,level.exit.z,level.exit.base));
+  if(Math.hypot(b.x-level.exit.x,b.z-level.exit.z)<level.exit.radius*.7&&b.y<exitHeight+1){
+    state.phase='draining';state.finishElapsed=state.playElapsed;state.drainTime=0;f.contractAnchor=null;sim.tendril.release();
   }
 }
 export function gardenHint(sim){
@@ -220,6 +364,25 @@ export function gardenHint(sim){
   if(s.phase==='arriving'||s.phase==='settling')return ['FLOW DOWN','The living body pours through the opening above.'];
   if(s.phase==='draining')return ['DOWN THE DRAIN','Taking the soft way down.'];
   if(level.editorCustom)return ['EXPLORE YOUR GARDEN','Move through your authored fixtures, gather flesh, and flow into the exit.'];
+  if(level.id===7){
+    if(b.y>5.8)return ['UPPER CROSSING','Cross to the west landing. The ember patch cuts across the raised shoulder; the rear lip stays clear.'];
+    if(b.x<-5.5&&b.y>3)return ['WEST DESCENT','Follow the broad stair to the middle bridge. Green ribs offer a climb back after a fall.'];
+    if(b.y>3&&b.x<5.6)return ['LOOKOUT ABOVE','The south face of the lookout grips. Climb for its gem and flesh, then return to the bridge.'];
+    if(b.x>5.5&&b.y>1)return ['EAST DESCENT','Turn down the east stairs and cross the lower bridge.'];
+    if(b.y>1)return ['LOWER CROSSING','Cross west to the final stair. A fall leaves a route through the court.'];
+    return ['EMBER COURT','The underpasses glow with lava. Follow the cool side corridors, skirt the pits, and cross the clear front lane to the drain.'];
+  }
+  if(level.id===6){
+    if(b.y>4.8&&b.z<-3)return ['THE SKY BRIDGE','Cross the narrow crown. The turquoise stretch keeps your momentum; the court below costs points.'];
+    if(b.x<-5.2&&b.y>2.7)return ['THE WESTERN RETURN','Follow the descent, then cross the middle bridge through its low tunnel.'];
+    if(b.x<3.7&&b.x>.2&&b.y>2.7)return ['THE RIBBED SPIRE','Press toward the green wall to climb to the high violet inclusion.'];
+    if(b.x>5.7&&b.y>1)return ['THE EASTERN DESCENT','Follow the long ramp down. Losing the edge is survivable, but leaves gold above.'];
+    if(b.x>-.8&&b.x<5.6&&b.z>2)return sim.pressure.active?
+      ['THE SHUTTER RISES','The shutter stays open. Flow beneath it and gather the vault gem.']:
+      ['WEIGHT FOR THE VAULT',`Hold Shed near the basin. ${sim.pressure.weight} / ${level.gate.threshold} loose flesh opens the shutter.`];
+    if(b.x<-3&&b.z>2)return ['THE LOW GROTTO','Flatten beneath the stone ceiling, then contract in the open pocket around the gem.'];
+    return ['FIND THE WAY DOWN','Recover on the green ribs, explore the side routes, and enter the lower funnel.'];
+  }
   if(level.grip){
     const face=level.grip.platform,ramp=level.grip.ramp,slip=level.slip;
     if(s.moved<.8)return ['01 / GATHER YOURSELF','Flow left along the high rear lane, collecting flesh and gold before the stair turn.'];

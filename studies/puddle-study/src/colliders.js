@@ -69,6 +69,8 @@ export function groundAt(x,z,colliders=[]){
       dzBase=stair.axis==='z'?(stair.reverse?-1:1)*stair.rise/span:0;}
   }
   for(const c of colliders){
+    if(c.type==='pit'&&Math.hypot(x-c.x,z-c.z)<c.radius)
+      return {height:base-8,dx:0,dz:0};
     if(c.type!=='funnel'||c.raised)continue;
     const dx=x-c.x,dz=z-c.z,d=Math.hypot(dx,dz);
     if(d>=c.radius)continue;
@@ -240,6 +242,14 @@ export function resolveParticle(p,r,colliders){
     hits++;
   }
   for(const c of colliders){
+    if(c.type==='pit'){
+      const dx=p.x-c.x,dz=p.z-c.z,d=Math.hypot(dx,dz),rim=c.rimHeight??
+        groundAt(c.x+c.radius+.01,c.z,colliders).height;
+      if(p.y<rim-r*.5&&d>c.radius-r&&d<c.radius+r){
+        const limit=c.radius-r-.003;p.x=c.x+dx/d*limit;p.z=c.z+dz/d*limit;hits++;
+      }
+      continue;
+    }
     if(c.type==='boundary'){
       const x=clamp(p.x,c.minX+r,c.maxX-r),z=clamp(p.z,c.minZ+r,c.maxZ-r);
       if(x!==p.x||z!==p.z){p.x=x;p.z=z;hits++;}
