@@ -3,6 +3,7 @@ import {GARDEN,GARDEN_LEVELS,gardenHint,gardenCanCast} from './garden-level.js';
 import {groundAt} from './colliders.js';
 import {cameraShortcutAction} from './game-camera.js';
 import {createGameProgress,meetsUnlockThreshold} from './game-progress.js';
+import {campaignResultLines,resultLine} from './game-results.js';
 import {gripKey} from './grip-ramp.js';
 import {createLocalLevelLibrary,createLocalLevelProgress,localStorageForPage,localPageQuery} from './local-levels.js';
 
@@ -12,7 +13,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   localLibrary=createLocalLevelLibrary({storage:localStorageForPage()}),
   localProgress=createLocalLevelProgress({storage:localStorageForPage()})}={}){
   const root=document.createElement('div');root.id='game-shell';
-  root.innerHTML=`<div class="game-top"><div><span class="eyebrow">PUDDLE / 01</span><h2>Gathering Garden</h2></div><div class="game-score" aria-label="Collection progress"><span id="gem-score">◇ 0 / 3</span><span id="gold-score">● 0 / 17</span><button id="game-camera" type="button" aria-label="Camera: Follow. Press C to switch view">Camera: Follow <kbd>C</kbd></button><button id="game-menu">Menu <kbd>ESC</kbd></button></div></div>
+  root.innerHTML=`<div class="game-top"><div><span class="eyebrow">PUDDLE / 01</span><h2>Gathering Garden</h2></div><div class="game-score" aria-label="Collection progress"><span id="gem-score">◇ 0 / 3</span><span id="gold-score">● 0 / 17</span><span id="game-timer" aria-label="Play time">0:00 / 0:30</span><button id="game-camera" type="button" aria-label="Camera: Follow. Press C to switch view">Camera: Follow <kbd>C</kbd></button><button id="game-menu">Menu <kbd>ESC</kbd></button></div></div>
     <div class="game-hint"><b id="lesson-title" role="status"></b><p id="lesson-text"></p><small id="game-tendril-status" hidden></small></div>
     <div id="game-overlay" class="game-overlay"><section id="game-card-section" class="game-card" aria-labelledby="game-title"><div id="game-main-card"><div class="eyebrow" id="game-eyebrow">A LIVING MATERIAL</div><h1 id="game-title">Puddle</h1><p id="game-copy">A small body. A strange garden.<br>Gather, take shape, and find the way down.</p><div id="game-results"></div><div class="game-buttons"><button id="game-primary">Begin</button><button id="game-secondary" hidden>Keep exploring</button><button id="game-levels">Levels</button><button id="game-studies">Material studies</button><button id="game-exit" type="button" hidden>Exit to title</button></div><details class="game-settings"><summary>Controls &amp; settings</summary><p>Drag anywhere to move. Double tap the garden to cast. Hold Contract to gather; tap it to recall. Hold Run to sprint. Hold Shed to leave flesh.</p><button id="game-settings-camera" type="button">Switch camera</button><div id="game-settings-audio"></div></details><p class="game-footnote" id="game-footnote">Gathering Garden · the first playable level</p></div><div id="game-level-screen" hidden><div class="eyebrow">YOUR TOWER</div><h1 id="game-level-title">Levels</h1><div class="game-level-tabs" role="tablist" aria-label="Level source"><button id="game-campaign-tab" type="button" role="tab">Campaign</button><button id="game-local-tab" type="button" role="tab">Local Levels</button></div><p id="game-level-instructions">Finish at least half the gold and gems in a garden to unlock the next.</p><label id="game-dev-access" hidden><input type="checkbox" checked> Development: play any level</label><div id="game-level-list"></div><div class="game-buttons"><button id="game-level-back">Back</button></div></div></section></div>`;
   document.querySelector('#app').append(root);
@@ -125,7 +126,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
         p.y=groundAt(p.x,p.z,colliders).height+f.radius+.008+lift;
         p.px=p.x;p.py=p.y;p.pz=p.z;p.vx=p.vy=p.vz=0;
       }
-      f.contractAnchor=null;sim.garden.phase='playing';sim.garden.drainTime=0;change();
+      f.contractAnchor=null;sim.garden.phase='playing';sim.garden.drainTime=0;sim.garden.finishElapsed=null;change();
     }else{sim.restartGarden();change();}
   });
   $('#game-exit').addEventListener('click',()=>{
@@ -146,8 +147,9 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
     const s=sim.garden,level=sim.gardenLevel,overlay=['title','paused','complete'].includes(s.phase);
     if(s.phase==='complete'){
       if(sim.isLocalGarden)localProgress.recordCompletion(sim.localRun.id,sim.localRun.revision,
-        {gold:s.goldCount,gems:s.gemCount,totalGold:s.gold.length,totalGems:s.gems.length});
-      else progress.recordCompletion(level.id,{gold:s.goldCount,gems:s.gemCount});
+        {gold:s.goldCount,gems:s.gemCount,totalGold:s.gold.length,totalGems:s.gems.length,
+          elapsed:s.finishElapsed,target:level.targetTime});
+      else progress.recordCompletion(level.id,{gold:s.goldCount,gems:s.gemCount,elapsed:s.finishElapsed});
     }
     root.querySelector('.game-top .eyebrow').textContent=sim.isLocalGarden?'PUDDLE / LOCAL':`PUDDLE / 0${level.id}`;
     root.querySelector('.game-top h2').textContent=level.name;
@@ -155,6 +157,9 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
     $('#game-main-card').hidden=levelScreen;$('#game-level-screen').hidden=!levelScreen;
     $('#game-card-section').setAttribute('aria-labelledby',levelScreen?'game-level-title':'game-title');
     $('#gem-score').textContent=`◇ ${s.gemCount} / ${s.gems.length} gems`;$('#gold-score').textContent=`● ${s.goldCount} / ${s.gold.length} gold`;
+    const elapsed=s.finishElapsed??s.playElapsed??0,target=level.targetTime??30;
+    const clock=seconds=>`${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
+    $('#game-timer').textContent=`${clock(elapsed)} / ${clock(target)}${elapsed>target?' · bonus missed':''}`;
     const view=cameraMode()==='follow'?'Follow':'Tower';
     $('#game-camera').innerHTML=`Camera: ${view} <kbd>C</kbd>`;
     $('#game-camera').setAttribute('aria-label',`Camera: ${view}. Press C to switch view`);
@@ -183,12 +188,12 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       $('#game-levels').hidden=!['title','paused'].includes(s.phase);
       $('#game-exit').hidden=s.phase!=='paused';
       studyLinks.hidden=levelScreen||s.phase!=='title';
-      const scores={...sim.completedLevels,[level.id]:{gems:s.gemCount,gold:s.goldCount,totalGold:s.gold.length}};
+      const current={gems:s.gemCount,gold:s.goldCount,totalGold:s.gold.length,totalGems:s.gems.length,
+        elapsed:s.finishElapsed,target};
+      const scores={...sim.completedLevels,[level.id]:current};
       $('#game-results').textContent=s.phase==='complete'&&sim.isLocalGarden?
-        `${level.name}: ${s.gemCount} / ${s.gems.length} gems · ${s.goldCount} / ${s.gold.length} gold · ${s.gold.length+s.gems.length?Math.round((s.goldCount+s.gemCount)/(s.gold.length+s.gems.length)*100):100}%`:
-        s.phase==='complete'?GARDEN_LEVELS.slice(0,level.id).filter(l=>scores[l.id]).map(l=>{
-        const result=scores[l.id];return `${l.name}: ${result.gems} / 3 gems · ${result.gold} / ${result.totalGold} gold · ${Math.round((result.gold+result.gems)/(result.totalGold+3)*100)}%`;
-      }).join('\n'):'';
+        resultLine(level.name,current):
+        s.phase==='complete'?campaignResultLines(GARDEN_LEVELS,scores,level.id):'';
       $('#game-footnote').textContent=sim.isLocalGarden?'Local Level · separate from campaign progress':
         s.phase==='complete'?(sim.practiceLevel?'Grip & Slide practice complete':nextLocked?'Explore again to find more gold and gems':level.id<GARDEN_LEVELS.length?'The next garden waits below':`All ${GARDEN_LEVELS.length} gardens explored`):
         sim.practiceLevel?'Grip & Slide practice':`${level.name} · Level ${level.id} of ${GARDEN_LEVELS.length}`;

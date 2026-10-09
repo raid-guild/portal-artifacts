@@ -6,6 +6,7 @@
 .game-top{position:absolute;top:30px;left:38px;right:38px;display:flex;align-items:center;justify-content:space-between;gap:24px;pointer-events:none}
 .game-top h2{font-size:24px;font-weight:400;margin:5px 0}.game-top .eyebrow{font:10px 'DM Mono',monospace;letter-spacing:.15em;color:#52706e}
 .game-score{display:flex;align-items:center;gap:12px;font:12px 'DM Mono',monospace}.game-score span:first-child{color:#806390}.game-score span:nth-child(2){color:#8e6c29}
+#game-timer{min-width:110px;color:#304f4e;font-variant-numeric:tabular-nums;white-space:nowrap}
 #game-camera{white-space:nowrap}
 #game-shell button,#return-to-game{font:11px 'DM Mono',monospace;border:1px solid #506464;padding:12px 18px;background:#eee6d4;color:#30484a;cursor:pointer;pointer-events:auto}
 #game-shell button:hover{background:#e8c7b0}#game-shell kbd{font:9px 'DM Mono',monospace;color:#976f69;margin-left:8px}
@@ -40,6 +41,10 @@ body.playing-game:has(.in-menu) .music-controls{z-index:13;bottom:24px;right:24p
   .game-top{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));gap:5px}
   .game-top>div:first-child{display:none}
   .game-score{width:100%;justify-content:flex-end;gap:8px;flex-wrap:nowrap;font-size:10px}
+  .game-score{display:grid;grid-template-columns:max-content max-content 1fr;grid-template-rows:auto auto;align-items:center}
+  #gem-score{grid-column:1;grid-row:1}#gold-score{grid-column:2;grid-row:1}
+  #game-timer{grid-column:1/-1;grid-row:2;min-width:0;font-size:10px;justify-self:start;background:#ece5d7de;padding:3px 5px}
+  #game-menu{grid-column:3;grid-row:1;justify-self:end}
   .game-score #game-camera{display:none}
   #game-shell .game-score #game-menu{min-width:48px;min-height:48px;padding:6px 9px;font-size:10px}
   #game-shell .game-score #game-menu kbd{display:none}

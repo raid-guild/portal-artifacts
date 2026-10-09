@@ -1,4 +1,5 @@
 export const LOCAL_LEVELS_KEY='puddle.local-levels.v1';
+import {scoreRun,betterRun,DEFAULT_TARGET_TIME} from './game-score.js';
 export const LOCAL_PROGRESS_KEY='puddle.local-progress.v1';
 const LEGACY_DRAFT_KEYS=['puddle-level-workshop-v3','puddle-level-workshop-v2','puddle-level-workshop-v1'];
 const clone=value=>JSON.parse(JSON.stringify(value));
@@ -27,11 +28,12 @@ const documentInfo=document=>{
   if(!source||typeof source!=='object')throw new Error('The level has no source draft.');
   const name=String(source.name||'Untitled garden').trim().slice(0,60)||'Untitled garden';
   const gameplay=clone(source);delete gameplay.name;
+  if(gameplay.targetTime===undefined)gameplay.targetTime=DEFAULT_TARGET_TIME;
   // Moving a sign, revising its text, or consuming another editor ID changes
   // presentation only. Preserve earned scores for the same playable layout.
   if(Array.isArray(gameplay.objects))gameplay.objects=gameplay.objects.filter(o=>o.kind!=='label');
   delete gameplay.nextObjectId;
-  return {name,fingerprint:JSON.stringify({version:data.version,gameplay})};
+  return {name,fingerprint:JSON.stringify(gameplay)};
 };
 
 export function createLocalLevelLibrary({storage=defaultStorage(),key=LOCAL_LEVELS_KEY,
@@ -71,22 +73,21 @@ export function createLocalLevelLibrary({storage=defaultStorage(),key=LOCAL_LEVE
 }
 
 export function createLocalLevelProgress({storage=defaultStorage(),key=LOCAL_PROGRESS_KEY}={}){
-  let best={};try{const data=JSON.parse(storage?.getItem(key)||'null');if(data?.version===1&&data.best&&typeof data.best==='object')best=data.best;}catch{}
+  let best={};try{const data=JSON.parse(storage?.getItem(key)||'null');if([1,2].includes(data?.version)&&data.best&&typeof data.best==='object')best=data.best;}catch{}
   let saveFailed=false;
-  const score=(result)=>{
-    const {gold,gems,totalGold,totalGems}=result||{};
-    if(![gold,gems,totalGold,totalGems].every(n=>Number.isInteger(n)&&n>=0)||gold>totalGold||gems>totalGems)return null;
-    const total=totalGold+totalGems;return total?Math.round((gold+gems)/total*100):100;
-  };
+  const normalize=result=>({...result,...(result?.elapsed!==undefined?
+    {target:result.target===undefined?DEFAULT_TARGET_TIME:result.target}:{})});
+  const score=result=>scoreRun(normalize(result))?.percent??null;
   const slot=(id,revision)=>`${id}:${revision}`;
   return {
     get saveFailed(){return saveFailed;},
-    getBest(id,revision){const value=best[slot(id,revision)];return score(value)===null?null:{...value,percent:score(value)};},
+    getBest(id,revision){const value=best[slot(id,revision)];return score(value)===null?null:{...value,...scoreRun(normalize(value))};},
     recordCompletion(id,revision,result){if(!id||!Number.isInteger(revision)||revision<1||score(result)===null)return false;
-      const resultKey=slot(id,revision),prior=best[resultKey];if(prior&&score(prior)>=score(result))return false;
-      best[resultKey]={gold:result.gold,gems:result.gems,totalGold:result.totalGold,totalGems:result.totalGems};
+      const resultKey=slot(id,revision),prior=best[resultKey];if(!betterRun(normalize(result),prior&&normalize(prior)))return false;
+      best[resultKey]={gold:result.gold,gems:result.gems,totalGold:result.totalGold,totalGems:result.totalGems,
+        ...(Number.isFinite(result.elapsed)?{elapsed:result.elapsed,target:result.target??DEFAULT_TARGET_TIME}:{})};
       try{if(!storage?.setItem)throw new Error('storage unavailable');
-        storage.setItem(key,JSON.stringify({version:1,best}));saveFailed=false;return true;}
+        storage.setItem(key,JSON.stringify({version:2,best}));saveFailed=false;return true;}
       catch{saveFailed=true;return false;}
     }
   };

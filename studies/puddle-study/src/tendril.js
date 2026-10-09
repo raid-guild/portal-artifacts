@@ -27,6 +27,7 @@ export class Tendril {
     this.members=new Set(this.indices);this.cargo.clear();
     this.length=Math.min(.8*f.size,this.reach);this.state='casting';this.strain=0;this.recovered=0;this.age=0;
     this.target={x:b.x+this.ux*this.reach,z:b.z+this.uz*this.reach};
+    this.aimHeight=Number.isFinite(aim.y)?aim.y:null;
     this.brainAnchor={x:b.x,z:b.z};
     return true;
   }
@@ -52,7 +53,9 @@ export class Tendril {
   guide(t){
     const f=this.fluid,b=f.brain,x=b.x+this.ux*this.length*t,z=b.z+this.uz*this.length*t;
     const floor=groundAt(x,z,this.colliders).height+f.radius+.055;
-    return {x,z,y:Math.max(floor,b.y+(floor-b.y)*Math.min(1,this.length*t/.8))};
+    const offered=this.aimHeight===null?floor:
+      b.y+(this.aimHeight-b.y)*Math.min(1,this.length/Math.max(.1,this.reach));
+    return {x,z,y:Math.max(floor,b.y+(offered-b.y)*Math.min(1,this.length*t/.8))};
   }
   forces(p,i,h){
     if(!this.active)return;
@@ -119,6 +122,16 @@ export class TendrilGroup {
   }
   toggleRecall(){if(this.active)this.recalling=!this.recalling;}
   release(state='ready'){this.strands.forEach(s=>s.release(state));this.strands=[];this.recalling=false;this.lastState=state;this.feedback='';}
+  remapParticles(map){
+    for(const strand of this.strands){
+      if(strand.indices.some(i=>map[i]<0)){strand.release('broken');continue;}
+      strand.indices=strand.indices.map(i=>map[i]);strand.members=new Set(strand.indices);
+      for(const particle of strand.cargo)if(!this.fluid.particles.includes(particle))strand.cargo.delete(particle);
+    }
+    this.strands=this.strands.filter(s=>s.active);
+    if(!this.active)this.recalling=false;
+    this.wasLoose=null;
+  }
   controls(i){return this.strands.some(s=>s.controls(i));}
   prepare(dt,contracting,colliders,moving=false){
     if(!this.active)return;

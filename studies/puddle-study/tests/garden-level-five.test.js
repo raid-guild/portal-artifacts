@@ -33,12 +33,12 @@ function atFace(s,side='west'){
   s.fluid.samplePairs();s.fluid.updateComponents(s.activeColliders());
 }
 
-test('fifth authored garden continues from Reach, locks arrival controls, and is the final result',()=>{
-  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,5);
-  assert.equal(s.startGarden(6),false);assert.equal(s.startGarden(1.5),false);
+test('fifth authored garden continues from Reach and descends into Hollow Crown',()=>{
+  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,7);
+  assert.equal(s.startGarden(7),false);assert.equal(s.startGarden(1.5),false);
   s.startGarden(4);s.garden.phase='complete';s.garden.goldCount=15;s.garden.gemCount=2;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,5);assert.equal(s.descending,true);
-  assert.deepEqual(s.completedLevels[4],{gems:2,gold:15,totalGold:17});
+  assert.deepEqual(s.completedLevels[4],{gems:2,gold:15,totalGold:17,totalGems:3});
   assert.equal(s.fluid.particles.length,297);assert.equal(s.castTendril({x:0,z:0}),false);
   const original=[s.brain.x,s.brain.y,s.brain.z];run(s,20,{x:-1,z:1,shed:true,contract:true});
   assert.deepEqual([s.brain.x,s.brain.y,s.brain.z],original);
@@ -47,8 +47,11 @@ test('fifth authored garden continues from Reach, locks arrival controls, and is
   run(s,80,{x:-1,z:1,shed:true,contract:true});assert.equal(s.garden.phase,'playing');
   assert.equal(s.gardenInputArmed,false);s.step({});assert.equal(s.gardenInputArmed,true);
   run(s,60,{shed:true});assert.equal(s.pressure.shed,0);
+  s.garden.phase='complete';assert.equal(s.continueGarden(),true);
+  assert.equal(s.gardenLevelId,6);assert.equal(s.descending,true);
+  assert.ok(s.brain.y>5.8&&s.brain.y<6.2);
   s.garden.phase='complete';assert.equal(s.continueGarden(),false);
-  s.restartGarden();assert.equal(s.gardenLevelId,5);assert.equal(s.garden.phase,'arriving');
+  s.restartGarden();assert.equal(s.gardenLevelId,6);assert.equal(s.garden.phase,'arriving');
   s.startGarden(1,{newGame:true});assert.deepEqual(s.completedLevels,{});
 });
 

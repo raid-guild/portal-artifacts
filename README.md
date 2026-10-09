@@ -98,9 +98,9 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
-## Puddle — Five Tower Gardens
+## Puddle — Six Tower Gardens
 
-`public/puddle-study/` is a five-level game at `/puddle-study/`. Guide a living
+`public/puddle-study/` is a six-level game at `/puddle-study/`. Guide a living
 particle puddle down a floating tower, gather flesh, collect gold and gems,
 cast tendrils, shed weight onto switches, and navigate low gaps and gripping or
 slippery surfaces. The start screen offers level selection, local progress,
@@ -201,7 +201,7 @@ preview, controls, source provenance, and simulation tests.
   scrollable page, with adjustable depth, turns, speed, cursor response, and
   draggable attraction spots.
 
-- `puddle-study/` — Five floating garden levels, collectible gems and gold,
+- `puddle-study/` — Six floating garden levels, collectible gems and gold,
   tendrils, shedding and grip puzzles, local level editing and play, plus Soft
   Signal background music.
 

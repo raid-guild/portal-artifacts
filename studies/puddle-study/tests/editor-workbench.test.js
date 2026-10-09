@@ -20,10 +20,18 @@ test('a blank editable garden is safe with zero collectibles and its real partic
   s.garden.phase='playing';for(let i=0;i<20;i++)s.step({});
   assert.ok(Number.isFinite(s.brain.x+s.brain.y+s.brain.z));
 });
-test('all five independently editable presets compile to the exact campaign colliders',()=>{
+test('all seven independently editable presets preserve campaign fixtures and collectible placement',()=>{
   for(const level of GARDEN_LEVELS){const d=draftFromPreset(level.id),compiled=compileDraft(d);
     assert.deepEqual(validateDraft(d).errors,[],`level ${level.id}`);
-    assert.deepEqual(gardenColliders(compiled),gardenColliders(level),`level ${level.id}`);
+    if(level.id<=5)assert.deepEqual(gardenColliders(compiled),gardenColliders(level),`level ${level.id}`);
+    else{
+      assert.equal(gardenColliders(compiled).length,gardenColliders(level).length);
+      assert.deepEqual(compiled.poolCounts,level.poolCounts);
+      assert.equal(compiled.start.y,level.start.y);
+      assert.equal(compiled.editorFixtures.filter(c=>c.type==='sticky-wall').length,3);
+      assert.equal(compiled.editorFixtures.filter(c=>c.type==='slip').length,level.id===6?2:0);
+      if(level.id===7){assert.equal(compiled.pits.length,2);assert.deepEqual(compiled.editorFixtures.filter(c=>c.type==='lava').map(c=>c.sourceId).sort(),['ember-ground-lava','ember-raised-lava','ember-underbridge-lava']);}
+    }
     assert.deepEqual(compiled.pools,level.pools);assert.deepEqual(compiled.gold,level.gold);
     const fixture=d.objects.find(o=>o.kind==='pillar'||o.kind==='legacy-roof'||o.kind==='legacy-passage'||o.kind==='grip');
     if(fixture){const before=gardenColliders(compiled);moveDraftObject(d,fixture.id,1.25,1.5);
@@ -240,8 +248,8 @@ test('a painted real block face climbs with coat and followers; plain wall does 
   assert.ok(validateDraft(bad).errors.some(e=>e.includes('real block face')));
 });
 
-test('editor play enables real tendril casting without replacing fixtures on all five presets',()=>{
-  for(const id of [1,2,3,4,5]){const d=draftFromPreset(id),s=new WorkbenchSimulation(d);
+test('editor play enables real tendril casting without replacing fixtures on all seven presets',()=>{
+  for(const id of [1,2,3,4,5,6,7]){const d=draftFromPreset(id),s=new WorkbenchSimulation(d);
     s.garden.phase='playing';s.gardenInputArmed=true;
     assert.deepEqual(gardenColliders(compileDraft(d)).length,gardenColliders(GARDEN_LEVELS[id-1]).length);
     assert.equal(s.castTendril({x:s.brain.x+1.5,z:s.brain.z}),true,`preset ${id}`);

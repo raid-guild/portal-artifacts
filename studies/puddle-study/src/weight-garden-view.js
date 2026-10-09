@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import {WEIGHT_GARDEN,gardenColliders,gardenFixtureHeight} from './garden-level.js';
+import {WEIGHT_GARDEN,gardenColliders,gardenFixtureHeight,gardenWorldOffset} from './garden-level.js';
 import {groundAt} from './colliders.js';
 import {addStoneEdges,facetedOctahedron} from './garden-ornaments.js';
 import {cameraPointVisible} from './game-camera.js';
 import {gripAxis} from './grip-ramp.js';
 
 // Gameplay objects for the lower storey; scenery remains a separate layer.
-export function createWeightGardenView(scene,{printLibrary,level=WEIGHT_GARDEN,worldY=-(level.id-1)*7.2}={}){
+export function createWeightGardenView(scene,{printLibrary,level=WEIGHT_GARDEN,worldY=gardenWorldOffset(level.id)}={}){
   const group=new THREE.Group();group.position.y=worldY;scene.add(group);
   const colliders=gardenColliders(level),ink=0x31494a;
   const add=(geometry,color,role,extra={})=>{

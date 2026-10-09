@@ -60,6 +60,17 @@ export class ParticleFluid {
     this.particles.push(p);
     return p;
   }
+  removeParticles(indices,colliders=[]){
+    const removed=new Set(indices),map=new Int32Array(this.particles.length).fill(-1);
+    if(removed.has(this.brainIndex))throw new Error('The brain must respawn before particle removal.');
+    const kept=[];
+    this.particles.forEach((p,i)=>{if(!removed.has(i)){map[i]=kept.length;kept.push(p);}});
+    this.particles=kept;this.brainIndex=map[this.brainIndex];
+    this.coatIndices=this.coatIndices.map(i=>map[i]).filter(i=>i>=0);
+    this.pairs=[];this.components=[];this.contractAnchor=null;
+    this.samplePairs();this.updateComponents(colliders);
+    return map;
+  }
   field(distance,soft=1.9*this.size){
     const q=distance/soft;
     return 1/(1+q*q);

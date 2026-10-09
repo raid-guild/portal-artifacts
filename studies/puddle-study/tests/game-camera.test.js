@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN} from '../src/garden-level.js';
+import {GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,HOLLOW_CROWN,EMBER_CASCADE} from '../src/garden-level.js';
 import {movementAxes} from '../src/movement.js';
 import {FollowGardenCamera,cameraPointVisible,cameraShortcutAction,followFitDistance,gardenMovementBasis,
   sampleGardenCameraFrame} from '../src/game-camera.js';
@@ -111,6 +111,19 @@ test('arrival and drain framing uses the rendered body plus storey offset and co
   assert.ok(exiting.brain.y<2.4-7.2-2.7);
   assert.ok(followFitDistance(exiting.extent,1.5,'draining')>
     followFitDistance(exiting.extent,1.5,'playing'));
+});
+
+test('seventh arrival uses the deeper storey and follows the sixth drain smoothly',()=>{
+  const departing=fixture({level:HOLLOW_CROWN,phase:'draining'}),follow=new FollowGardenCamera();
+  departing.garden.drainTime=2.8;
+  follow.reset(departing,390/844);
+  const before=follow.target.clone(),arriving=fixture({level:EMBER_CASCADE,phase:'arriving'});
+  arriving.descending=true;
+  const sample=sampleGardenCameraFrame(arriving);
+  assert.equal(sample.worldY,-45);
+  assert.equal(sample.brain.y,arriving.fluid.brain.y+2.3-45);
+  follow.update(arriving,1/60,390/844);
+  assert.ok(follow.target.distanceTo(before)<2);
 });
 
 test('Level 2 drain prepares portrait framing for the opposite-side Level 3 arrival without snapping',()=>{

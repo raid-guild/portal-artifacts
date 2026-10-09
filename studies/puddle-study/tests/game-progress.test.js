@@ -25,14 +25,20 @@ test('the exact half-collectible threshold unlocks the next garden permanently',
   assert.equal(createGameProgress({storage}).isUnlocked(2),true,'unlock survives reload');
 });
 
-test('every known completed level saves its best result, including the final floor',()=>{
+test('Level 5 unlocks Hollow Crown and the final floor saves its best result',()=>{
   const storage=memoryStorage(),progress=createGameProgress({storage});
   for(let id=1;id<=5;id++)progress.recordCompletion(id,{gold:12,gems:2});
-  assert.deepEqual(progress.snapshot().unlocked,[1,2,3,4,5]);
+  assert.deepEqual(progress.snapshot().unlocked,[1,2,3,4,5,6]);
   assert.equal(progress.getBest(5).percent,70);
   progress.recordCompletion(5,{gold:17,gems:3});
   assert.equal(createGameProgress({storage}).getBest(5).percent,100);
-  assert.equal(progress.recordCompletion(6,{gold:17,gems:3}),false);
+  assert.equal(progress.recordCompletion(6,{gold:18,gems:3}),true);
+  assert.equal(progress.getBest(6).percent,50);
+  assert.equal(progress.recordCompletion(6,{gold:36,gems:6}),true);
+  assert.equal(createGameProgress({storage}).getBest(6).percent,100);
+  assert.equal(progress.isUnlocked(7),true);
+  assert.equal(progress.recordCompletion(7,{gold:28,gems:4}),true);
+  assert.equal(progress.recordCompletion(8,{gold:36,gems:6}),false);
   const simulation=new PuddleSimulation();
   assert.equal(simulation.startGarden(5),true,'simulation remains independent of saved access');
 });

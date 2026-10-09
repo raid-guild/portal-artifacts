@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {createParticleSurface} from '../src/particle-surface.js';
 import {buildSurfaceJob} from '../src/particle-surface-worker.js';
 import {createSurfacePipeline} from '../src/surface-pipeline.js';
-import {GARDEN,gardenColliders} from '../src/garden-level.js';
+import {GARDEN,HOLLOW_CROWN,gardenColliders} from '../src/garden-level.js';
 import {commitEditorSolid} from '../src/editor-solid.js';
 
 const particles=[
@@ -13,6 +13,49 @@ const particles=[
 ];
 const coords=ps=>Float64Array.from(ps.flatMap(p=>[p.x,p.y,p.z]));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+test('bounded collider masks produce the same field and mesh as the full collider path',()=>{
+  const near=(x,y,z)=>[0,.055,-.055].flatMap(dx=>[0,.055,-.055].map(dz=>
+    ({x:x+dx,y:y+dx*.2,z:z+dz})));
+  const roof={type:'roof',minX:-.3,maxX:.3,minZ:-.5,maxZ:.5,bottom:.1,top:.75};
+  const box={type:'box',minX:-.2,maxX:.25,minY:0,maxY:.55,minZ:-.25,maxZ:.25};
+  const cylinder={type:'cylinder',x:0,z:0,radius:.22,base:0,height:.7};
+  const far=[{...roof,minX:10,maxX:11},{...box,minX:10,maxX:11},
+    {...cylinder,x:10}];
+  const stairs=[{type:'editor-stairs',minX:-.5,maxX:.5,minZ:-.5,maxZ:.5,axis:'x',
+    base:.15,rise:.45},{type:'editor-stairs',minX:-.3,maxX:.3,minZ:-.3,maxZ:.3,
+    axis:'z',reverse:true,base:.25,rise:.35}];
+  const solid=commitEditorSolid([{type:'box',minX:-.24,maxX:.24,minY:0,maxY:.7,
+    minZ:-.24,maxZ:.24}],[{shape:'cylinder',x:0,y:.35,z:0,radius:.08,height:.8}]);
+  const cases=[
+    ['mixed and distant primitives',near(0,.48,0),[...far,roof,box,cylinder]],
+    ['raised geometry',near(0,1.5,0),[{...box,minY:1.2,maxY:1.8},
+      {...cylinder,base:1.2,height:1.8}]],
+    ['funnels, terraces and overlapping stairs',near(0,.38,0),[
+      {type:'terraces',height:.6,steps:[{x:-.5,width:.6,drop:.3}]},...stairs,
+      {type:'funnel',x:0,z:0,radius:.7,bottomRadius:.2,depth:.3},
+      {type:'funnel',x:.1,z:.1,radius:.6,bottomRadius:.2,depth:.2}]],
+    ['bounds touching primitives',near(.25,.35,.2),[box,cylinder,
+      {...box,minX:.5,maxX:.8},{...roof,minZ:.5,maxZ:.8}]],
+    ['empty colliders',near(0,.3,0),[]],
+    ['committed solid',near(0,.35,0),[...far,solid]],
+    ['campaign level six',near(6.8,5.8,-4.5),gardenColliders(HOLLOW_CROWN)],
+  ];
+  for(const [name,particles,colliders] of cases)for(const maskTerrain of [true,false]){
+    const filtered=createParticleSurface(new THREE.MeshBasicMaterial(),28);
+    const full=createParticleSurface(new THREE.MeshBasicMaterial(),28,{filterColliders:false});
+    filtered.update(particles,colliders,.067,{maskTerrain});
+    full.update(particles,colliders,.067,{maskTerrain});
+    assert.deepEqual(Array.from(filtered.mesh.field),Array.from(full.mesh.field),`${name} field; terrain=${maskTerrain}`);
+    assert.equal(filtered.mesh.count,full.mesh.count,`${name} count`);
+    assert.deepEqual(filtered.mesh.position.toArray(),full.mesh.position.toArray(),`${name} position`);
+    assert.deepEqual(filtered.mesh.scale.toArray(),full.mesh.scale.toArray(),`${name} scale`);
+    for(const attr of ['position','normal'])assert.deepEqual(
+      Array.from(filtered.mesh.geometry.attributes[attr].array.slice(0,filtered.mesh.count*3)),
+      Array.from(full.mesh.geometry.attributes[attr].array.slice(0,full.mesh.count*3)),`${name} ${attr}`);
+    filtered.mesh.geometry.dispose();full.mesh.geometry.dispose();
+  }
+});
 
 test('worker field and used geometry match synchronous marching cubes at both resolutions',()=>{
   for(const resolution of [28,48])for(const maskTerrain of [true,false]){

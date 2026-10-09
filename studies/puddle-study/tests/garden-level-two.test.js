@@ -20,7 +20,7 @@ test('continue preserves Level 1 results, resets body and pickups, and pours onl
   const s=new PuddleSimulation();s.selectTest('garden');s.garden.phase='complete';
   s.garden.gemCount=2;s.garden.goldCount=11;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,2);
-  assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17});
+  assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17,totalGems:3});
   assert.equal(s.fluid.particles.length,297);assert.equal(s.fluid.particles.filter(p=>!p.feedstock).length,65);
   assert.equal(s.garden.gemCount,0);assert.equal(s.garden.goldCount,0);
   const before={...s.brain};run(s,20,{x:-1,contract:true,shed:true});assert.deepEqual(s.brain,before);
@@ -32,7 +32,7 @@ test('continue preserves Level 1 results, resets body and pickups, and pours onl
   run(s,50,{x:-1,shed:true});assert.equal(s.garden.phase,'settling');
   run(s,30,{x:-1,shed:true});assert.equal(s.garden.phase,'playing');assert.equal(s.pressure.shed,0);
   s.restartGarden();assert.equal(s.gardenLevelId,2);assert.equal(s.garden.phase,'arriving');
-  assert.equal(s.garden.goldCount,0);assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17});
+  assert.equal(s.garden.goldCount,0);assert.deepEqual(s.completedLevels[1],{gems:2,gold:11,totalGold:17,totalGems:3});
   s.startGarden(1,{newGame:true});assert.deepEqual(s.completedLevels,{});assert.equal(s.gardenLevelId,1);
 });
 

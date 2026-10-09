@@ -17,11 +17,11 @@ function go(s,x,z){for(let i=0;i<1100;i++){
 const gem=s=>{run(s,220,{contract:true});run(s,60);};
 
 test('Level 4 continues downward with independent results and guarded arrival input',()=>{
-  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,5);
-  assert.equal(s.startGarden(6),false);s.startGarden(3);s.garden.phase='complete';
+  const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,7);
+  assert.equal(s.startGarden(7),false);s.startGarden(3);s.garden.phase='complete';
   s.garden.goldCount=15;s.garden.gemCount=2;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,4);assert.equal(s.descending,true);
-  assert.deepEqual(s.completedLevels[3],{gems:2,gold:15,totalGold:17});
+  assert.deepEqual(s.completedLevels[3],{gems:2,gold:15,totalGold:17,totalGems:3});
   assert.equal(s.fluid.particles.length,297);assert.equal(s.castTendril({x:5,z:-3.2}),false);
   const original=[s.brain.x,s.brain.y,s.brain.z];run(s,20,{x:-1,contract:true,recallToggle:true});
   assert.deepEqual([s.brain.x,s.brain.y,s.brain.z],original);

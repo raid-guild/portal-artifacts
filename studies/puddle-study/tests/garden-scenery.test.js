@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createGardenScenery,disposeGraph,setGardenStoreyVisibility} from '../src/garden-scenery.js';
-import {GARDEN_LEVELS,gardenColliders} from '../src/garden-level.js';
+import {GARDEN_LEVELS,gardenColliders,gardenWorldOffset} from '../src/garden-level.js';
 import {resolveParticle} from '../src/colliders.js';
 
 const root=new URL('../public/art/tower/',import.meta.url);
@@ -170,7 +170,7 @@ test('failed side and rear GLBs retain independent fallback after facade load, a
   assert.equal(disposedGeometry,1);assert.equal(disposedMaterial,1);
 });
 
-test('all five front crests visibly meet the physical boundary through asset load and fallback',()=>{
+test('all seven front crests visibly meet the physical boundary through asset load and fallback',()=>{
   const scene=new THREE.Scene(),requests=new Map();
   const scenery=createGardenScenery(scene,{
     loadAsset:(url,onLoad,onError)=>requests.set(url.split('/').pop(),{onLoad,onError}),
@@ -182,22 +182,22 @@ test('all five front crests visibly meet the physical boundary through asset loa
     const stone=scene.getObjectByName(`front-boundary-stone-${id}`);
     assert.ok(crest&&stone&&scene.getObjectByName(`front-boundary-ink-${id}`));
     assert.equal(crest.userData.playableBoundaryZ,level.boundary.maxZ);
-    const box=new THREE.Box3().setFromObject(stone),offset=-(id-1)*7.2;
+    const box=new THREE.Box3().setFromObject(stone),offset=gardenWorldOffset(id);
     assert.ok(Math.abs(box.min.x-(level.boundary.minX-.4))<1e-6);
     assert.ok(Math.abs(box.max.x-(level.boundary.maxX+.4))<1e-6);
     assert.ok(Math.abs(box.min.z-level.boundary.maxZ)<1e-6);
     assert.ok(Math.abs(box.max.z-(level.boundary.maxZ+.4))<1e-6);
     assert.ok(Math.abs(box.min.y-(offset-.16))<1e-6);
     assert.ok(Math.abs(box.max.y-(offset+.16))<1e-6);
-    const p={x:2.4,y:.3,z:5,px:2.4,py:.3,pz:4.7,vx:0,vy:0,vz:0};
+    const p={x:2.4,y:.3,z:level.boundary.maxZ+.2,px:2.4,py:.3,pz:level.boundary.maxZ-.1,vx:0,vy:0,vz:0};
     resolveParticle(p,.067,gardenColliders(level));
     assert.ok(Math.abs(p.z+.067-level.boundary.maxZ)<1e-6,'particle front surface reaches the crest inner face');
   };
-  for(let id=1;id<=5;id++)check(id);
+  for(let id=1;id<=7;id++)check(id);
   for(const file of ['storey-facade-a-v3.glb','storey-facade-b-v3.glb'])
     requests.get(file).onLoad({scene:new THREE.Group()});
   requests.get('side-parapet-l1-v3.glb').onError(new Error('missing side'));
-  for(let id=1;id<=5;id++){
+  for(let id=1;id<=7;id++){
     scenery.update(true,1280,720,id,false);
     const crest=scene.getObjectByName(`front-boundary-crest-${id}`);
     assert.ok(crest.visible&&crest.parent.visible,`active storey ${id} retains its crest`);

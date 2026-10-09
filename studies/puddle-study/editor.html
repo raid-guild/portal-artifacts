@@ -1,15 +1,9 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Puddle — Level Workshop</title>
-<meta name="description" content="Build and play your own floating garden in Puddle's 3D Level Workshop. Paint surfaces, stack terraces, cut tunnels, and share your level JSON.">
-<link rel="canonical" href="https://portal-artifacts-production.up.railway.app/puddle-study/editor.html">
-<meta property="og:type" content="website"><meta property="og:site_name" content="RaidGuild Artifacts">
-<meta property="og:title" content="Puddle — Level Workshop"><meta property="og:description" content="Build and play your own floating garden in Puddle's 3D Level Workshop. Paint surfaces, stack terraces, cut tunnels, and share your level JSON.">
-<meta property="og:url" content="https://portal-artifacts-production.up.railway.app/puddle-study/editor.html"><meta property="og:image" content="https://portal-artifacts-production.up.railway.app/puddle-study/puddle-social-v1.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1734"><meta property="og:image:height" content="907"><meta property="og:image:alt" content="Illustrated concept art of the Puddle world: a coral organism, turquoise basin, and floating towers.">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Puddle — Level Workshop"><meta name="twitter:description" content="Build and play your own floating garden in Puddle's 3D Level Workshop."><meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/puddle-study/puddle-social-v1.png"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Puddle — Level Workshop</title></head>
 <body>
 <header><div><small>PUDDLE / LEVEL WORKSHOP</small><h1>Shape a garden.</h1><span id="session-badge" hidden>Temporary test session · export to keep your draft</span></div><a href="./index.html" target="_blank" rel="noopener">Open game ↗</a></header>
 <nav class="toolbar" aria-label="Editor actions">
-<label>Start from <select id="preset"><option value="0">Blank flat garden</option><option value="1">Gathering Garden</option><option value="2">Weight Garden</option><option value="3">Passage Garden</option><option value="4">Reach Garden</option><option value="5">Grip Garden</option></select></label>
+<label>Start from <select id="preset"><option value="0">Blank flat garden</option><option value="1">Gathering Garden</option><option value="2">Weight Garden</option><option value="3">Passage Garden</option><option value="4">Reach Garden</option><option value="5">Grip Garden</option><option value="6">Hollow Crown</option><option value="7">Ember Cascade</option><option value="hazards">Hazards garden · pit and lava</option></select></label>
 <button id="load-preset">Load</button><button id="undo">Undo</button><button id="redo">Redo</button>
 <button id="clear-all">Clear all objects</button>
 <button id="save">Save draft</button><button id="save-level">Save to Local Levels</button><button id="save-level-new">Save as new</button><span id="linked-level" aria-live="polite">Unsaved local level</span><button id="export">Export JSON</button><button id="import">Import JSON</button><input id="file" type="file" accept=".json,application/json" hidden>
@@ -20,10 +14,10 @@
 <label><input type="checkbox" id="snap-high"> Snap height to highest surface</label>
 <div id="tools" role="group" aria-label="Placement tools"></div>
 <fieldset id="paint-controls" aria-label="Paint area"><legend>Paint area</legend><label><input id="paint-fill" type="radio" name="paint-mode" checked> Fill a face</label><label><input id="paint-rectangle" type="radio" name="paint-mode"> Drag rectangle</label><span id="paint-selection" role="status" aria-live="polite">Selected face: none</span><button id="paint-apply" disabled>Fill selected face</button></fieldset>
-<p class="hint">Choose a paint tool, then click a face and use Fill selected face. Or choose Drag rectangle to size a patch on that face. Right-drag or Alt-drag orbits; wheel zooms.</p>
+<p class="hint">Choose a paint tool, then click a face and use Fill selected face. Or choose Drag rectangle to size a patch on that face. Pits cut only terrain, on one flat terrace; raised fixtures need another route. Right-drag or Alt-drag orbits; wheel zooms.</p>
 <div class="camera-actions"><button id="top-view">Top</button><button id="tower-view">Tower</button><button id="reset-view">Reset view</button></div>
 <section id="level-settings"><h2>Garden settings</h2><label>Name <input id="name" maxlength="60"></label>
-<div class="fields"><label>Total flesh <input id="total" type="number" min="17" max="297" step="1"></label><label>Starting flesh <input id="seed" type="number" min="17" max="297" step="1"></label></div>
+<div class="fields"><label>Total flesh <input id="total" type="number" min="17" max="297" step="1"></label><label>Starting flesh <input id="seed" type="number" min="17" max="297" step="1"></label><label>Target time (seconds) <input id="target-time" type="number" min="1" max="600" step="1"></label></div>
 <p class="hint">Tendrils are available in every editor garden. Flesh pools share the remaining particle budget by relative weight.</p></section>
 </aside>
 <section class="stage-panel"><div class="panel-title"><h2 id="view-title">3D garden easel</h2><span class="hint">Drag to edit · right-drag to orbit</span></div>

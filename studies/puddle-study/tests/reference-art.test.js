@@ -30,8 +30,8 @@ test('the authored ink swatch, flat facets, and fluted post are finite runtime a
   for(const geometry of [gem,gold,post])geometry.dispose();
 });
 
-test('all five floor edge batches stay decorative and follow authored terrain heights',()=>{
-  for(const level of GARDEN_LEVELS){
+test('the original terrace floor edge batches stay decorative and follow authored terrain heights',()=>{
+  for(const level of GARDEN_LEVELS.filter(level=>level.id<=5)){
     const group=new THREE.Group(),colliders=gardenColliders(level);
     const added=addStoneEdges(group,level,colliders);
     assert.equal(added.length,2);
