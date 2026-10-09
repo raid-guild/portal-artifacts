@@ -21,6 +21,10 @@
 	header @cosmic Access-Control-Allow-Origin "*"
 	header @cosmic Cache-Control "no-cache"
 
+	@chance_pint path /chance-pint /chance-pint/*
+	header @chance_pint Access-Control-Allow-Origin "*"
+	header @chance_pint Cache-Control "no-cache"
+
 	@puddle path /puddle-study /puddle-study/*
 	header @puddle Access-Control-Allow-Origin "*"
 	header @puddle Cache-Control "no-cache"
