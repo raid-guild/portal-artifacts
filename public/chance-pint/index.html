@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07111b" />
+  <meta name="description" content="A hands-on product study of a pint glass printed with twelve dice tracks. Rotate freely, set the pour level, and explore a seeded layout." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Portal Artifacts" />
+  <meta property="og:title" content="Chance Pint — A glass with a roll inside" />
+  <meta property="og:description" content="A rotating Three.js product study for a pint glass with twelve numbered dice tracks." />
+  <link rel="canonical" href="https://portal-artifacts-production.up.railway.app/chance-pint/" />
+  <meta property="og:url" content="https://portal-artifacts-production.up.railway.app/chance-pint/" />
+  <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v1.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Chance Pint: a numbered dice-track pint glass against a dark studio background" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Chance Pint — A glass with a roll inside" />
+  <meta name="twitter:description" content="Explore a rotating pint glass with twelve printed dice tracks." />
+  <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v1.png" />
+  <meta name="twitter:image:alt" content="Chance Pint dice glass product study" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <title>Chance Pint — Product Study</title>
+  <script type="module" crossorigin src="/chance-pint/assets/index-DQ7TtxkU.js"></script>
+  <link rel="stylesheet" crossorigin href="/chance-pint/assets/index-B-bhj6ma.css">
+</head>
+<body>
+  <div id="app">
+    <header class="masthead">
+      <a class="wordmark" href="#top" aria-label="Chance Pint home"><span class="wordmark-icon">✳</span><span>CHANCE<span class="wordmark-light">/PINT</span></span></a>
+      <div class="masthead-right"><span class="edition">OBJECT STUDY / 001</span><a class="about-link" href="#concept">THE IDEA <span aria-hidden="true">↗</span></a></div>
+    </header>
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="intro">
+          <p class="eyebrow"><span class="spark">✳</span> THE FIRST ROUND IS ON CHANCE</p>
+          <h1 id="hero-title">The glass<br/>has <em>plans.</em></h1>
+          <p class="deck">A pint glass that turns the last sip into a roll of the dice. Twelve shuffled tracks, six kinds of die, one surprisingly useful vessel.</p>
+          <div class="intro-rule"><span>CONCEPT 01 / 03</span><span>INTERACTIVE OBJECT STUDY</span></div>
+        </div>
+        <div class="viewer-shell">
+          <div class="viewer-top"><span class="live-dot"></span><span>LIVE PRODUCT VIEW</span><span class="view-count">360° / FREE ORBIT</span></div>
+          <div id="viewer" class="viewer" role="img" aria-label="Interactive 3D Chance Pint glass with printed dice tracks. Drag to rotate, scroll to zoom, or use camera preset buttons.">
+            <div class="viewer-loading">PREPARING GLASS…</div>
+          </div>
+          <div class="viewer-bottom">
+            <div class="viewer-instruction"><span class="drag-icon" aria-hidden="true">↔</span> DRAG TO ROTATE <span class="dot-sep">·</span> SCROLL TO ZOOM</div>
+            <button id="spin" class="spin-button" type="button" aria-pressed="false"><span class="spin-glyph" aria-hidden="true">↻</span> AUTO SPIN</button>
+          </div>
+          <div class="presets" aria-label="Camera views"><span>VIEW</span><button type="button" data-view="front">FRONT</button><button type="button" data-view="back">BACK</button><button type="button" data-view="top">TOP</button><button type="button" data-view="bottom">BOTTOM</button><button type="button" data-view="reset">RESET</button></div>
+        </div>
+        <aside class="control-panel" aria-label="Glass controls">
+          <div class="panel-head"><span>01 — CONFIGURE</span><span class="panel-asterisk">✳</span></div>
+          <div class="panel-section"><div class="section-label"><span>CHOOSE YOUR DIE</span><span>01 / 03</span></div><p class="section-copy">Pick a side before the pour. Each die has two independently shuffled tracks.</p><div id="dice-grid" class="dice-grid" role="group" aria-label="Choose die and track"></div><div class="track-switch" role="group" aria-label="Track version"><button type="button" data-repeat="0" aria-pressed="true">SIDE A</button><button type="button" data-repeat="1" aria-pressed="false">SIDE B</button></div></div>
+          <div class="panel-section"><div class="section-label"><span>SET THE POUR</span><span>02 / 03</span></div><label class="pour-label" for="pour"><span>LIQUID LEVEL</span><strong id="pour-value">—</strong></label><input id="pour" type="range" min="0" max="150" step="0.1" value="75" /><div class="range-label"><span>EMPTY</span><span>FULL</span></div><p class="reading-note">Numbers are readable from 15–128 mm.</p><div class="reading"><span>TRACK READING</span><strong id="result">—</strong><small id="reading-track">D10 / SIDE A</small></div></div>
+          <div class="panel-section seed-section"><div class="section-label"><span>CHANGE THE PRINT</span><span>03 / 03</span></div><p class="section-copy">Try another shuffle. The original Blender design is seed 7319.</p><form id="seed-form" class="seed-form"><label for="seed">LAYOUT SEED</label><div><input id="seed" inputmode="numeric" type="number" min="0" max="4294967295" step="1" value="7319" /><button type="submit">APPLY ↗</button></div></form><button id="reset-layout" class="text-button" type="button">↶ RESET TO ORIGINAL</button><p id="seed-error" class="seed-error" role="alert" hidden></p></div>
+        </aside>
+      </section>
+      <section id="concept" class="concept" aria-labelledby="concept-title"><div class="concept-kicker">HOW THE OBJECT WORKS <span>↙</span></div><div><h2 id="concept-title">A little uncertainty<br/>at the bottom of a pint.</h2><p>Choose a die and track before drinking. When the liquid settles, read the number in the band at the fill line. Each band represents an equal volume of liquid, and every face appears once per track.</p><div class="concept-specs"><span>150 MM HEIGHT</span><span>86 MM RIM</span><span>≈473 ML TO BRIM</span></div><p class="concept-caveat">Fixed markings and controllable liquid levels do not establish a fair RNG. Headspace and physical pour behavior still need testing.</p></div><div class="concept-stat"><strong>12</strong><span>NUMBERED TRACKS<br/>AROUND THE GLASS</span></div></section>
+      <footer><span>CHANCE / PINT</span><span>PROTOTYPE STUDY · 2026</span><span>POUR RESPONSIBLY. ROLL CURIOUSLY.</span></footer>
+    </main>
+  </div>
+</body>
+</html>

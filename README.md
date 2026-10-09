@@ -100,6 +100,8 @@ Open <http://localhost:8080>.
 
 ## Puddle — Six Tower Gardens
 
+`public/chance-pint/` is an interactive Three.js product study at `/chance-pint/`: a full-orbit pint glass with twelve dice tracks, volume-based readings, and seeded layouts. Editable source, original Blender model, tests, and build instructions are in [`studies/chance-pint/`](studies/chance-pint/README.md).
+
 `public/puddle-study/` is a six-level game at `/puddle-study/`. Guide a living
 particle puddle down a floating tower, gather flesh, collect gold and gems,
 cast tendrils, shed weight onto switches, and navigate low gaps and gripping or
