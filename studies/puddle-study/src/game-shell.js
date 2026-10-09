@@ -22,7 +22,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
     badge.textContent='ISOLATED TEST SESSION';root.querySelector('.game-top > div').append(badge);}
   const $=id=>root.querySelector(id);
   const studyLinks=document.createElement('div');studyLinks.className='game-buttons game-study-links';
-  studyLinks.innerHTML='<a href="./music-source/index.html" target="_blank" rel="noopener">Music studies ↗</a><a href="./editor.html" target="_blank" rel="noopener">Level editor ↗</a>';
+  studyLinks.innerHTML='<a href="./music-source/index.html" target="_blank" rel="noopener">Music studies ↗</a><a href="./editor.html" target="_blank" rel="noopener">Level editor ↗</a><a href="./downloads/puddle-builder-kit.zip" download>Builder kit ↓</a>';
   studyLinks.querySelector('a[href^="./editor"]').href=`./editor.html${localPageQuery()}`;
   root.querySelector('#game-main-card .game-buttons').after(studyLinks);
   let overlayState='',levelScreen=false,levelTab='campaign',devPlayAny=!!devAccess,localRequest=0;

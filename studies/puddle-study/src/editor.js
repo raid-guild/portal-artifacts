@@ -22,7 +22,7 @@ const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
 const testSession=new URLSearchParams(location.search).get('storage')==='test';
 const editorStorage=localStorageForPage(location.search),localLibrary=createLocalLevelLibrary({storage:editorStorage});
-document.querySelector('header a').href=`./index.html${localPageQuery(location.search)}`;
+document.querySelector('#open-game-link').href=`./index.html${localPageQuery(location.search)}`;
 let linkedLevelId=null,linkedDocument=null;
 let draft=createBlankDraft(),startup='Blank garden ready. Choose a tool or load a preset.';
 if(memory)startup='Temporary test session. Export JSON to keep this draft.';
