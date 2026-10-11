@@ -27,6 +27,13 @@ after a player gesture; hidden tabs pause and resume from a clean musical beat.
 The same Web Audio graph routes the existing arcade tones and ducks music for an
 actual jackpot. The seven-bar faceplate animation becomes static with reduced FX.
 
+## Small screens
+Phones and short landscape screens keep tickets, target, drops, jackpot, and
+progress in a compact top strip. The bottom controls keep ball selection, a large
+Drop button, queue status, and Workshop within thumb reach. Settings also holds
+radio controls, auto drop, Arcade Challenge, current build and prize details,
+and the RaidGuild stamp. Modals scroll within the safe viewport area.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;
