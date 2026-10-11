@@ -15,6 +15,18 @@ Balls collide through Rapier and make a distinct pulse and clack on contact. Pen
 paid drops are refunded if a round reaches the upgrade choice or play resets; free
 echo balls are discarded. Player chips, unlocks and other saved progression persist.
 
+## Arcade Radio
+The cabinet has five original, 16-bar synthesized stations: Circuit FM (free),
+Midnight Tokens (45 circuits), Chrome Rush (120), Astral Lounge (260), and Boss
+Frequency (500). A station purchase is cosmetic and changes no scoring or physics.
+The faceplate plays, pauses, tunes owned stations, and controls music volume;
+Settings controls arcade tone volume independently and has a master mute.
+Workshop keeps a quieter chord bed. LISTEN auditions any full station without a
+purchase, then restores the equipped station and previous play state on exit. Audio starts only
+after a player gesture; hidden tabs pause and resume from a clean musical beat.
+The same Web Audio graph routes the existing arcade tones and ducks music for an
+actual jackpot. The seven-bar faceplate animation becomes static with reduced FX.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;
@@ -36,5 +48,5 @@ keep both in sync when incrementing the scoring version.
 
 ## Hosting
 Do not deploy or upload to OpenAI/Sites. This checkout is for local preview and
-explicitly authorized local portal-artifacts integration. No push/deployment or
-production Portal auth configuration has been performed.
+explicitly authorized portal-artifacts integration. A repository PR is authorized;
+production Portal auth configuration and deployment remain separate.

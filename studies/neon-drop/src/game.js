@@ -145,13 +145,14 @@ export class NeonMachine {
     this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;this.impactEvents.drainContactForceEvents(()=>{});
   }
   setRun(run){this.run=run;this.spin=.58;}
+  setAudioEngine(engine){this.audioEngine=engine;}
   setCosmetics(equipped){this.cosmetics={trail:equipped?.trail||'default',impact:equipped?.impact||'default',jackpot:equipped?.jackpot||'default'};}
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
   setView(view){this.view=view;}
   setEffects(on){this.bloomOn=on;}
   setReducedEffects(on){this.reducedEffects=on;if(on){this.ascension.visible=false;this.haloGroup.visible=false;this.shake=0;this.sparks.forEach(s=>{s.life=0;s.mesh.visible=false;});this.bursts.forEach(b=>b.mesh.visible=false);for(const item of this.active)item.trail.forEach(t=>t.visible=false);this.previewTrails.forEach(t=>t.visible=false);document.body.classList.remove('jackpot-flash');}}
 
-  sound(kind) {if(this.muted)return;try{this.audio??=new (window.AudioContext||window.webkitAudioContext)();const t=this.audio.currentTime;const o=this.audio.createOscillator(),g=this.audio.createGain();o.connect(g);g.connect(this.audio.destination);const cfg={drop:[310,135,.22],bounce:[180,460,.11],clack:[760,290,.075],score:[460,780,.3],jackpot:[340,1160,.75],free:[530,940,.45]}[kind]||[300,500,.15];o.type=kind==='bounce'?'triangle':kind==='clack'?'square':'sine';o.frequency.setValueAtTime(cfg[0],t);o.frequency.exponentialRampToValueAtTime(cfg[1],t+cfg[2]);g.gain.setValueAtTime(kind==='jackpot'?.12:kind==='clack'?.04:.065,t);g.gain.exponentialRampToValueAtTime(.001,t+cfg[2]);o.start(t);o.stop(t+cfg[2]);}catch{}}
+  sound(kind) {if(!this.muted)this.audioEngine?.sfx(kind);}
   canDrop(){
     if(this.active.length>=(this.run?.challenge?1:9))return false;
     return !this.active.some(item=>{const p=item.body.translation();return Math.hypot(p.x-.7,p.y-DROP_Y,p.z+1.2)<.38;});
@@ -254,7 +255,7 @@ export class NeonMachine {
   emitJackpot(point){
     if(this.reducedEffects)return;
     const style=this.preview?.category==='jackpot'?this.preview.id:this.cosmetics.jackpot;
-    if(style==='ascension'){this.ascension.visible=true;this.ascensionAge=0;this.fireworkStage=0;this.particles(point,C.gold,60,true);this.sound('jackpot');}
+    if(style==='ascension'){this.ascension.visible=true;this.ascensionAge=0;this.fireworkStage=0;this.particles(point,C.gold,60,true);}
     if(style==='fountain'){this.particles(point,C.gold,120,true);this.particles(point,0xfff2b4,45,true);}
     if(style==='halo'||style==='supernova'){this.haloGroup.position.set(0,DECK_Y+.8,0);this.haloGroup.visible=true;this.haloAge=0;this.haloDuration=style==='supernova'?2.5:2;}
     if(style==='supernova'){this.emitBurst('supernova',new THREE.Vector3(0,DECK_Y+.9,0),new THREE.Vector3(0,1,0),1.5,0xffe6a2);this.particles(point,C.gold,100,true);}
@@ -388,7 +389,7 @@ export class NeonMachine {
   }
   particles(pos,color,count=12,big=false){if(this.reducedEffects)count=Math.min(count,5);for(let i=0;i<count;i++){const s=this.sparks[this.nextSpark++%this.sparks.length];s.mesh.position.copy(pos);s.mesh.material.color.set(color);s.mesh.material.opacity=1;s.mesh.visible=true;s.vel.set((Math.random()-.5)*(big?5:3),Math.random()*(big?6:3),(Math.random()-.5)*(big?5:3));s.max=s.life=big?1.2:.6;s.mesh.scale.setScalar(big?1.7:1);}}
   recycle(item,hole=null) {
-    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot')this.emitJackpot(p);this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.(hole,item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
+    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.(hole,item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
     const handle=item.collider.handle;
     for(const key of this.ballCollisionTimes.keys())if(key.split(':').some(part=>Number(part)===handle))this.ballCollisionTimes.delete(key);
     this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}this.active.splice(this.active.indexOf(item),1);
@@ -413,6 +414,7 @@ export class NeonMachine {
       if(p.y<DECK_Y-.08){const hole=this.holes.find(h=>this.world.intersectionPair(item.collider,h.sensor));if(hole){this.recycle(item,hole);continue;}}
       if(item.age>18||p.y<DECK_Y-.68){this.recycle(item);continue;}
     }
+    this.audioEngine?.setActivity(this.active.length);
     for(const r of [...this.returns]){r.age+=dt;const t=r.age/r.duration;let x,y,z;if(t<.28){const k=t/.28;x=.1+3.25*k;y=DECK_Y-.4;z=-1.9-.92*k;}else if(t<.88){const k=(t-.28)/.6;x=3.35;y=DECK_Y-.4+(3.38-(DECK_Y-.4))*k;z=-2.82;}else{const k=(t-.88)/.12;x=3.35-2.65*k;y=3.38+.07*k;z=-2.82+1.62*k;}r.mesh.position.set(x,y,z);r.mesh.rotation.z+=dt*5;if(t>=1){this.scene.remove(r.mesh);r.mesh.geometry.dispose();r.mesh.material.dispose();this.returns.splice(this.returns.indexOf(r),1);}}
     for(const s of this.sparks){if(s.life<=0)continue;s.life-=dt;s.mesh.position.addScaledVector(s.vel,dt);s.vel.y-=5*dt;s.mesh.material.opacity=Math.max(0,s.life/s.max);if(s.life<=0)s.mesh.visible=false;}
     this.updateCosmeticBursts(dt);

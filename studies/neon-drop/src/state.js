@@ -1,3 +1,5 @@
+import {RADIO_BY_ID,DEFAULT_RADIO} from './radio-stations.js';
+
 export const BALLS = {
   chrome: { name: 'Chrome', color: '#d9edff', glow: '#49dfff', restitution: .96, density: 1.2, cost: 0, desc: 'High bounces and reliable handling.' },
   rubber: { name: 'Rubber', color: '#ff53cc', glow: '#ff319a', restitution: .99, density: .65, cost: 4, desc: 'Wild rebounds. Rewards rim hits.' },
@@ -31,6 +33,16 @@ export const COSMETICS = [
   {id:'supernova',category:'jackpot',name:'Supernova',cost:320,icon:'✹',desc:'A radiant starburst crowns the win.'},
 ];
 export const DEFAULT_EQUIPPED = {trail:'default',impact:'default',jackpot:'default'};
+export const DEFAULT_AUDIO = {station:DEFAULT_RADIO,owned:[DEFAULT_RADIO],musicVolume:.45,effectsVolume:.45,playing:false,muted:false};
+export function buyRadio(meta,id){
+  const station=RADIO_BY_ID[id];
+  if(!station||meta.audio?.owned?.includes(id)||meta.chips<station.cost)return meta;
+  return {...meta,chips:meta.chips-station.cost,audio:{...meta.audio,owned:[...meta.audio.owned,id],station:id}};
+}
+export function equipRadio(meta,id){
+  if(!meta.audio?.owned?.includes(id)||!RADIO_BY_ID[id])return meta;
+  return {...meta,audio:{...meta.audio,station:id}};
+}
 const COSMETIC_IDS = new Set(COSMETICS.map(c=>c.id));
 export function buyCosmetic(meta,id){
   const item=COSMETICS.find(c=>c.id===id);
@@ -44,7 +56,7 @@ export function equipCosmetic(meta,id,category){
   return {...meta,equipped:{...meta.equipped,[category]:id}};
 }
 export const ROUND_TARGETS = [180, 540, 1250, 2600];
-export const DEFAULT_META = { chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, idleAt:Date.now(), idleRate:0, wins:0 };
+export const DEFAULT_META = { chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, audio:{...DEFAULT_AUDIO,owned:[DEFAULT_RADIO]}, idleAt:Date.now(), idleRate:0, wins:0 };
 
 export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
   try {
@@ -56,12 +68,17 @@ export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
       const id=saved.equipped?.[category];const item=COSMETICS.find(c=>c.id===id);
       return [category,item?.category===category&&cosmetics.includes(id)?id:'default'];
     }));
+    const owned=[DEFAULT_RADIO,...new Set(Array.isArray(saved.audio?.owned)?saved.audio.owned.filter(id=>id!==DEFAULT_RADIO&&RADIO_BY_ID[id]):[])];
+    const station=owned.includes(saved.audio?.station)?saved.audio.station:DEFAULT_RADIO;
+    const oldVolume=Number.isFinite(saved.audio?.volume)?Math.max(0,Math.min(1,saved.audio.volume)):.45;
+    const musicVolume=Number.isFinite(saved.audio?.musicVolume)?Math.max(0,Math.min(1,saved.audio.musicVolume)):oldVolume;
+    const effectsVolume=Number.isFinite(saved.audio?.effectsVolume)?Math.max(0,Math.min(1,saved.audio.effectsVolume)):oldVolume;
     return {
       chips:number(saved.chips,0), totalTickets:number(saved.totalTickets,0), bestRound:number(saved.bestRound,0,ROUND_TARGETS.length),
       unlocked:['chrome', ...new Set(Array.isArray(saved.unlocked) ? saved.unlocked.filter(x=>x==='rubber'||x==='heavy') : [])],
       purchased:[...new Set(Array.isArray(saved.purchased) ? saved.purchased.filter(x=>['auto','magenta','gold'].includes(x)) : [])],
       style:['cyan','magenta','gold'].includes(saved.style) ? saved.style : 'cyan',
-      cosmetics,equipped,
+      cosmetics,equipped,audio:{station,owned,musicVolume,effectsVolume,playing:saved.audio?.playing===true,muted:saved.audio?.muted===true},
       idleAt:Number.isFinite(saved.idleAt) ? Math.min(saved.idleAt,now) : now,
       idleRate:number(saved.idleRate,0,18), wins:number(saved.wins,0)
     };

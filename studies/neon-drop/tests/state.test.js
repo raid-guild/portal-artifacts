@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadMeta, saveMeta, idleEarnings, newRun, payout, applyScore, addUpgrade, finishRun, targetFor, buyCosmetic, equipCosmetic } from '../src/state.js';
+import { loadMeta, saveMeta, idleEarnings, newRun, payout, applyScore, addUpgrade, finishRun, targetFor, buyCosmetic, equipCosmetic, buyRadio, equipRadio } from '../src/state.js';
 
 test('payouts retain physical outcome and apply selected build effects', () => {
   const run = newRun();
@@ -64,4 +64,30 @@ test('cosmetics can be bought and equipped only when owned and affordable', () =
   meta=equipCosmetic(meta,'ion','trail');assert.equal(meta.equipped.trail,'ion');
   meta=equipCosmetic(meta,'default','trail');assert.equal(meta.equipped.trail,'default');
   saveMeta(meta,storage);assert.deepEqual(loadMeta(storage,1000).cosmetics,['ion','helix']);
+});
+
+test('legacy saves gain a free station without changing chips or cosmetics',()=>{
+  const meta=loadMeta({getItem:()=>JSON.stringify({chips:22,cosmetics:['ion'],audio:{station:'starlight',owned:['spoof'],volume:8,playing:'yes'}})},1000);
+  assert.equal(meta.chips,22);assert.deepEqual(meta.cosmetics,['ion']);
+  assert.deepEqual(meta.audio,{station:'circuit',owned:['circuit'],musicVolume:1,effectsVolume:1,playing:false,muted:false});
+});
+
+test('old master volume migrates to two independent persisted controls',()=>{
+  const storage={getItem:()=>JSON.stringify({audio:{volume:.3,station:'circuit',playing:true}})};
+  const migrated=loadMeta(storage,1000);
+  assert.equal(migrated.audio.musicVolume,.3);assert.equal(migrated.audio.effectsVolume,.3);
+  assert.equal(migrated.audio.playing,true);
+  const modern=loadMeta({getItem:()=>JSON.stringify({audio:{volume:.3,musicVolume:.8,effectsVolume:.1}})},1000);
+  assert.equal(modern.audio.musicVolume,.8);assert.equal(modern.audio.effectsVolume,.1);
+});
+
+test('radio purchase and tuning require ownership and persist independent of effects',()=>{
+  let saved=null;const storage={getItem:()=>saved,setItem:(_,value)=>{saved=value;}};
+  let meta={...loadMeta(storage,1000),chips:60};
+  assert.equal(equipRadio(meta,'glass'),meta);
+  assert.equal(buyRadio(meta,'afterburn'),meta);
+  meta=buyRadio(meta,'glass');assert.equal(meta.chips,15);assert.equal(meta.audio.station,'glass');
+  assert.equal(buyRadio(meta,'glass'),meta);
+  meta=equipRadio(meta,'circuit');assert.equal(meta.audio.station,'circuit');
+  saveMeta(meta,storage);assert.equal(loadMeta(storage,1000).audio.station,'circuit');
 });
