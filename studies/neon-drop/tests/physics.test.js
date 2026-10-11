@@ -75,3 +75,18 @@ test('a ball dropped through a lowered scoring pocket reaches its sensor', async
   assert.ok(scored,'lowering the deck must also lower the scoring sensor');
   world.free();geometry.dispose();
 });
+
+test('production ball colliders exchange velocity on contact and emit force for impact FX',async()=>{
+  await RAPIER.init();
+  const world=new RAPIER.World({x:0,y:0,z:0});world.timestep=1/120;
+  const events=new RAPIER.EventQueue(true);
+  const left=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-1,0,0).setLinvel(5,0,0).setCcdEnabled(true));
+  const right=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(1,0,0).setLinvel(-5,0,0).setCcdEnabled(true));
+  world.createCollider(ballColliderDesc('chrome').setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS),left);
+  world.createCollider(ballColliderDesc('rubber').setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS),right);
+  let impulses=0;
+  for(let i=0;i<45;i++){world.step(events);events.drainContactForceEvents(event=>{if(event.maxForceMagnitude()*world.timestep>.045)impulses++;});}
+  assert.ok(impulses>0,'ball contact should drive the visible pulse');
+  assert.ok(left.linvel().x<0&&right.linvel().x>0,'the balls should visibly rebound apart');
+  events.free();world.free();
+});

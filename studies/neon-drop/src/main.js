@@ -1,5 +1,6 @@
 import {newChallenge,resolveChallenge,VERSION} from './challenge.js';
 import {rankedClient} from './ranked-client.js';
+import {ReleaseQueue,cancelForRoundChoice} from './release-queue.js';
 import './style.css';
 import { NeonMachine } from './game.js';
 import { BALLS, UPGRADES, ROUND_TARGETS, COSMETICS, buyCosmetic, equipCosmetic, loadMeta, saveMeta, idleEarnings, newRun, targetFor, applyScore, addUpgrade, finishRun, randomCards } from './state.js';
@@ -18,33 +19,40 @@ app.innerHTML=`<div class="shell">
 </div>`;
 
 let meta=loadMeta(), run=newRun(), machine=null, toastTimer=null, modalKind=null, autoTimer=0, ended=false, settledAt=0, workshopTab="power";
+const releases=new ReleaseQueue();
 const ranked=rankedClient();let mode='casual',generation=0,challengeStarted=0,rankedRun=null,challengeDone=false;
 const now=Date.now();const idle=idleEarnings(meta,now);if(idle){meta.totalTickets+=idle;meta.chips+=Math.floor(idle/200);}meta.idleAt=now;saveMeta(meta);
 function touchIdle(){meta.idleAt=Date.now();saveMeta(meta);}
 function creditIdle(){const time=Date.now(),earned=idleEarnings(meta,time);if(earned){meta.totalTickets+=earned;meta.chips+=Math.floor(earned/200);toast(`EXHIBITION EARNED ${earned} TICKETS WHILE AWAY`,'gold');sync();}meta.idleAt=time;saveMeta(meta);}
 
 function toast(message,tone='cyan'){const el=$('#toast');el.textContent=message;el.className=`toast show ${tone}`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600);}
+function syncDropStatus(){
+  $('#dropsLeft').textContent=run.drops;
+  $('#dropBtn').disabled=run.status!=='playing'||run.drops<=0;
+  $('#dropHint').textContent=releases.length?`${releases.length} BALL${releases.length===1?'':'S'} IN RELEASE QUEUE`:run.status==='playing'?(run.drops?'WAIT FOR YOUR MOMENT':'LAST BALL IN PLAY'):run.status==='choose'?'CHOOSE YOUR NEXT UPGRADE':'RUN COMPLETE';
+}
 function sync(){
   if(mode==='challenge'){syncChallenge();return;}
   $('#roundTag').textContent=`ROUND ${String(Math.min(run.round+1,4)).padStart(2,'0')} / 04`;
   $('#roundTickets').textContent=run.roundTickets.toLocaleString();$('#target').textContent=targetFor(run).toLocaleString();$('#progressBar').style.width=`${Math.min(100,run.roundTickets/targetFor(run)*100)}%`;
-  $('#dropsLeft').textContent=run.drops;$('#jackpot').textContent=run.jackpot;$('#legendJackpot').textContent=run.jackpot;$('#chips').textContent=meta.chips;
+  syncDropStatus();$('#jackpot').textContent=run.jackpot;$('#legendJackpot').textContent=run.jackpot;$('#chips').textContent=meta.chips;
   $('#buildText').textContent=run.upgrades.length?run.upgrades.map(id=>UPGRADES.find(u=>u.id===id)?.title).join(' · '):'Pure physics. Pure potential.';
-  $('#dropBtn').disabled=run.status!=='playing'||run.drops<=0;$('#dropHint').textContent=run.status==='playing'?(run.drops?'WAIT FOR YOUR MOMENT':'LAST BALL IN PLAY'):run.status==='choose'?'CHOOSE YOUR NEXT UPGRADE':'RUN COMPLETE';
   $('#autoState').textContent=meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED';$('#autoBtn').classList.toggle('active',run.auto);
   $('#ballOptions').innerHTML=Object.entries(BALLS).map(([id,b])=>`<button class="ball-option ${run.ball===id?'selected':''} ${meta.unlocked.includes(id)?'':'locked'}" data-ball="${id}" title="${b.desc}${meta.unlocked.includes(id)?'':` — unlock for ${b.cost} chips`}"><span class="ball-icon" style="--ball:${b.glow}"></span><span>${b.name}</span>${!meta.unlocked.includes(id)?'<span class="lock">⌁</span>':''}</button>`).join('');
   document.querySelectorAll('[data-ball]').forEach(b=>b.onclick=()=>{const id=b.dataset.ball;if(meta.unlocked.includes(id)){run.ball=id;sync();toast(`${BALLS[id].name} ball loaded`)}else openWorkshop();});
 }
-function spendDrop(free){if(mode==='challenge'){run={...run,drops:run.drops-1,dropped:run.dropped+1};sync();return;}if(!free){run.drops=Math.max(0,run.drops-1);run.dropped++;}sync();}
-function refundDrop(){if(mode==='challenge'){challengeOutcome('miss');return;}if(run.status==='playing'){run.drops++;toast('BALL RECYCLED • DROP REFUNDED');sync();}}
-function drop(free=false,ball=run.ball){if(mode==='challenge'){if(!modalKind&&run.status==='playing'&&run.drops>0&&!machine.active.length)machine.drop('chrome');return;}if(run.status!=='playing'||modalKind==='preview')return;if(!free&&run.drops<=0)return;if(machine?.drop(ball,free)){if(run.upgrades.includes('double')&&!free&&run.dropped%4===0){const echoGeneration=generation;setTimeout(()=>{if(mode==='casual'&&echoGeneration===generation&&run.status==='playing'&&modalKind!=='preview')machine.drop('chrome',true)},420);}}}
-function score(hole,ball,rimHits){if(mode==='challenge'){challengeOutcome(hole.id);return;}if(run.status!=='playing'&&run.status!=='choose')return;run=applyScore(run,hole,ball,rimHits);machine.setRun(run);const reward=run.lastScore;
+function spendDrop(free){if(mode==='challenge'){run={...run,drops:run.drops-1,dropped:run.dropped+1};sync();return;}if(!free){run.dropped++;if(run.upgrades.includes('double')&&run.dropped%4===0)releases.enqueue('chrome',true,machine.playTime+.42);}syncDropStatus();}
+function refundDrop(free=false){if(mode==='challenge'){challengeOutcome('miss');return;}if(run.status==='playing'&&!free){run.drops++;toast('BALL RECYCLED • DROP REFUNDED');syncDropStatus();}}
+function cancelPending(){const canceled=releases.clear();const paid=canceled.filter(item=>!item.free).length;if(paid){run.drops+=paid;syncDropStatus();}}
+function processReleases(){if(!machine||mode!=='casual'||document.hidden||modalKind||run.status!=='playing')return;const released=releases.flush(machine.playTime,()=>machine.canDrop(),item=>machine.drop(item.type,item.free));if(released)syncDropStatus();}
+function drop(free=false,ball=run.ball){if(mode==='challenge'){if(!modalKind&&run.status==='playing'&&run.drops>0&&!machine.active.length)machine.drop('chrome');return;}if(run.status!=='playing'||modalKind||!machine)return;if(!free){if(run.drops<=0)return;run.drops--;}releases.enqueue(ball,free,machine.playTime);syncDropStatus();processReleases();}
+function score(hole,ball,rimHits){if(mode==='challenge'){challengeOutcome(hole.id);return;}if(run.status!=='playing'&&run.status!=='choose')return;const previousStatus=run.status;run=applyScore(run,hole,ball,rimHits);run.drops+=cancelForRoundChoice(releases,previousStatus,run.status);machine.setRun(run);const reward=run.lastScore;
   if(hole.kind==='jackpot'){toast(`JACKPOT! +${reward.amount} TICKETS`,'gold');machine.shake=machine.reducedEffects?0:.24;if(!machine.reducedEffects){document.body.classList.add('jackpot-flash');setTimeout(()=>document.body.classList.remove('jackpot-flash'),650)}}
   else if(hole.kind==='free')toast('+2 FREE DROPS','pink');else toast(`+${reward.amount} TICKETS`);
   sync();
 }
 function endRun(){if(ended)return;ended=true;run.status=run.status==='won'?'won':'lost';meta=finishRun(run,meta);saveMeta(meta);sync();const earned=Math.max(1,Math.floor(run.totalTickets/175)+run.round*3+(run.status==='won'?12:0));openModal(`<div class="modal-eyebrow">${run.status==='won'?'MACHINE MASTERED':'RUN COMPLETE'}</div><h2>${run.status==='won'?'You beat the cabinet.':'The lights fade. The build remains.'}</h2><p>Round ${Math.min(run.round+1,4)} · ${run.totalTickets.toLocaleString()} tickets collected</p><div class="reward-row"><span>◈</span><strong>+${earned}</strong><small>CIRCUIT CHIPS</small></div><p class="modal-note">Spend chips in the Workshop to unlock new balls, automation, and cabinet styles. Your exhibition machine also earns while you are away.</p><div class="modal-actions"><button class="primary" id="retryBtn">NEW RUN →</button><button class="secondary" id="endShopBtn">OPEN WORKSHOP</button></div>`,'end');$('#retryBtn').onclick=()=>startRun();$('#endShopBtn').onclick=()=>openWorkshop();}
-function startRun(){generation++;ranked.cancel();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun();ended=false;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
+function startRun(){generation++;ranked.cancel();cancelPending();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun();ended=false;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
 function openModal(html,kind){if(modalKind==='preview'){machine.clearPreview();$('#fxPreview').classList.add('hidden');}if(modalKind==='challenge'&&kind!=='challenge'){generation++;ranked.cancel();}modalKind=kind;$('#modal').innerHTML=html;$('#modalBackdrop').classList.remove('hidden');}
 function closeModal(){modalKind=null;$('#modalBackdrop').classList.add('hidden');}
 function openUpgrade(){const cards=randomCards(run);openModal(`<div class="modal-eyebrow">ROUND ${String(run.round+1).padStart(2,'0')} CLEARED</div><h2>Choose your next mutation.</h2><p>Your machine is learning. Pick one upgrade for this run.</p><div class="upgrade-grid">${cards.map(c=>`<button class="upgrade-card" data-upgrade="${c.id}" style="--accent:${c.color}"><span class="upgrade-icon">${c.icon}</span><small>${c.tier}</small><strong>${c.title}</strong><span>${c.description}</span><em>ADD TO BUILD →</em></button>`).join('')}</div><div class="modal-foot">NEXT ROUND · TARGET ${ROUND_TARGETS[Math.min(run.round+1,3)].toLocaleString()} TICKETS</div>`,'upgrade');document.querySelectorAll('[data-upgrade]').forEach(b=>b.onclick=()=>{run=addUpgrade(run,b.dataset.upgrade);machine.setRun(run);closeModal();sync();if(run.status==='won')endRun();else toast(`ROUND ${run.round+1} • ${UPGRADES.find(u=>u.id===b.dataset.upgrade).title} installed`);});}
@@ -94,6 +102,7 @@ function openWorkshop(tab=workshopTab){if(mode==='challenge'&&tab==='power')tab=
   });
 }
 function startPreview(category,id){
+  cancelPending();
   closeModal();modalKind='preview';$('#fxPreviewName').textContent=id==='default'?'Classic':COSMETICS.find(c=>c.id===id)?.name||id;
   $('#fxPreview').classList.remove('hidden');machine.previewCosmetic(category,id);
 }
@@ -110,7 +119,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)touchIdle()
 window.addEventListener('pagehide',()=>{if(!document.hidden)touchIdle();});
 setInterval(()=>{if(!document.hidden)touchIdle();},20000);
 
-async function boot(){try{machine=new NeonMachine($('#viewport'),{onDrop:spendDrop,onScore:score,onRefund:refundDrop});await machine.init();machine.setRun(run);machine.setCosmetics(meta.equipped);applyStyle();sync();if(idle)toast(`EXHIBITION EARNED ${idle} TICKETS WHILE AWAY`,'gold');setInterval(()=>{if(document.hidden||modalKind==='preview')return;if(mode==='challenge'){sync();if(!challengeDone&&run.drops===0&&machine.active.length===0)completeChallenge();return;}if(run.status==='playing'){if(run.auto&&meta.purchased.includes('auto')&&run.drops>0){autoTimer+=.25;const delay=run.upgrades.includes('speed')?4/1.3:4;if(autoTimer>=delay){autoTimer-=delay;drop();}}if(run.drops===0&&machine.active.length===0){settledAt+=.25;if(settledAt>=2)endRun();}else settledAt=0;}else if(run.status==='choose'&&machine.active.length===0&&!modalKind){openUpgrade();}},250);}
+async function boot(){try{machine=new NeonMachine($('#viewport'),{onDrop:spendDrop,onScore:score,onRefund:refundDrop});await machine.init();machine.setRun(run);machine.setCosmetics(meta.equipped);applyStyle();sync();if(idle)toast(`EXHIBITION EARNED ${idle} TICKETS WHILE AWAY`,'gold');setInterval(processReleases,50);setInterval(()=>{if(document.hidden||modalKind==='preview')return;if(mode==='challenge'){sync();if(!challengeDone&&run.drops===0&&machine.active.length===0)completeChallenge();return;}if(run.status==='playing'){if(run.auto&&meta.purchased.includes('auto')&&run.drops>0){autoTimer+=.25;const delay=run.upgrades.includes('speed')?4/1.3:4;if(autoTimer>=delay){autoTimer-=delay;drop();}}if(run.drops===0&&releases.length===0&&machine.active.length===0){settledAt+=.25;if(settledAt>=2)endRun();}else settledAt=0;}else if(run.status==='choose'&&releases.length===0&&machine.active.length===0&&!modalKind){openUpgrade();}},250);}
 catch(err){console.error(err);$('#viewport').innerHTML='<div class="fatal"><b>MACHINE OFFLINE</b><span>WebGL or physics could not start. Try a current desktop browser.</span></div>';}}
 boot();
 
@@ -132,7 +141,7 @@ function localBest(){try{return Math.max(0,Number(localStorage.getItem('neon-dro
 async function beginChallenge(){
  const current=++generation;$('#challengeStart').disabled=true;$('#rankedStatus').textContent='Preparing challenge…';
  const session=await ranked.session();if(current!==generation||modalKind!=='challenge')return;const remote=session?await ranked.start():null;if(current!==generation||modalKind!=='challenge')return;
- rankedRun=remote;mode='challenge';challengeDone=false;ended=false;settledAt=0;machine.resetSimulation();run=newChallenge();machine.setRun(run);challengeStarted=performance.now();closeModal();sync();toast(remote?'PORTAL CHALLENGE · CASUAL SCOREBOARD':'LOCAL PRACTICE CHALLENGE');
+ cancelPending();rankedRun=remote;mode='challenge';challengeDone=false;ended=false;settledAt=0;machine.resetSimulation();run=newChallenge();machine.setRun(run);challengeStarted=performance.now();closeModal();sync();toast(remote?'PORTAL CHALLENGE · CASUAL SCOREBOARD':'LOCAL PRACTICE CHALLENGE');
 }
 function challengeOutcome(id){if(challengeDone||run.status!=='playing')return;run=resolveChallenge(run,id);machine.setRun(run);toast(id==='miss'?'BALL RECYCLED · ZERO POINTS':`${run.totalTickets} CHALLENGE POINTS`);sync();}
 async function completeChallenge(){

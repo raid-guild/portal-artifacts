@@ -66,7 +66,7 @@ export function createTubeColliders(world) {
 }
 
 export class NeonMachine {
-  constructor(container, callbacks) { this.container=container;this.callbacks=callbacks;this.active=[];this.returns=[];this.sparks=[];this.ripples=[];this.bursts=[];this.nextRipple=0;this.nextSpark=0;this.nextBurst=0;this.prismGeometry=new THREE.OctahedronGeometry(.08,0);this.accretionGeometry=new THREE.TorusGeometry(.22,.014,5,32);this.cosmetics={trail:'default',impact:'default',jackpot:'default'};this.view='cabinet';this.rotation=0;this.spin=.38;this.clock=new THREE.Clock();this.accumulator=0;this.running=true;this.holes=[];this.playTime=0;this.follow=null;this.shake=0;this.bloomOn=true;this.reducedEffects=false;this.muted=false;this.audio=null; }
+  constructor(container, callbacks) { this.container=container;this.callbacks=callbacks;this.active=[];this.returns=[];this.sparks=[];this.ripples=[];this.bursts=[];this.nextRipple=0;this.nextSpark=0;this.nextBurst=0;this.prismGeometry=new THREE.OctahedronGeometry(.08,0);this.accretionGeometry=new THREE.TorusGeometry(.22,.014,5,32);this.cosmetics={trail:'default',impact:'default',jackpot:'default'};this.view='cabinet';this.rotation=0;this.spin=.38;this.clock=new THREE.Clock();this.accumulator=0;this.running=true;this.holes=[];this.playTime=0;this.follow=null;this.shake=0;this.bloomOn=true;this.reducedEffects=false;this.muted=false;this.audio=null;this.ballCollisionTimes=new Map(); }
   async init() {
     await RAPIER.init();
     this.world=new RAPIER.World({x:0,y:-10.5,z:0});this.world.timestep=1/120;
@@ -141,7 +141,7 @@ export class NeonMachine {
   resetSimulation(){
     for(const item of this.active){this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}}
     for(const item of this.returns){this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();}
-    this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.clearPreview();
+    this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
     this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;this.impactEvents.drainContactForceEvents(()=>{});
   }
   setRun(run){this.run=run;this.spin=.58;}
@@ -151,16 +151,20 @@ export class NeonMachine {
   setEffects(on){this.bloomOn=on;}
   setReducedEffects(on){this.reducedEffects=on;if(on){this.ascension.visible=false;this.haloGroup.visible=false;this.shake=0;this.sparks.forEach(s=>{s.life=0;s.mesh.visible=false;});this.bursts.forEach(b=>b.mesh.visible=false);for(const item of this.active)item.trail.forEach(t=>t.visible=false);this.previewTrails.forEach(t=>t.visible=false);document.body.classList.remove('jackpot-flash');}}
 
-  sound(kind) {if(this.muted)return;try{this.audio??=new (window.AudioContext||window.webkitAudioContext)();const t=this.audio.currentTime;const o=this.audio.createOscillator(),g=this.audio.createGain();o.connect(g);g.connect(this.audio.destination);const cfg={drop:[310,135,.22],bounce:[180,460,.11],score:[460,780,.3],jackpot:[340,1160,.75],free:[530,940,.45]}[kind]||[300,500,.15];o.type=kind==='bounce'?'triangle':'sine';o.frequency.setValueAtTime(cfg[0],t);o.frequency.exponentialRampToValueAtTime(cfg[1],t+cfg[2]);g.gain.setValueAtTime(kind==='jackpot'?.12:.065,t);g.gain.exponentialRampToValueAtTime(.001,t+cfg[2]);o.start(t);o.stop(t+cfg[2]);}catch{}}
+  sound(kind) {if(this.muted)return;try{this.audio??=new (window.AudioContext||window.webkitAudioContext)();const t=this.audio.currentTime;const o=this.audio.createOscillator(),g=this.audio.createGain();o.connect(g);g.connect(this.audio.destination);const cfg={drop:[310,135,.22],bounce:[180,460,.11],clack:[760,290,.075],score:[460,780,.3],jackpot:[340,1160,.75],free:[530,940,.45]}[kind]||[300,500,.15];o.type=kind==='bounce'?'triangle':kind==='clack'?'square':'sine';o.frequency.setValueAtTime(cfg[0],t);o.frequency.exponentialRampToValueAtTime(cfg[1],t+cfg[2]);g.gain.setValueAtTime(kind==='jackpot'?.12:kind==='clack'?.04:.065,t);g.gain.exponentialRampToValueAtTime(.001,t+cfg[2]);o.start(t);o.stop(t+cfg[2]);}catch{}}
+  canDrop(){
+    if(this.active.length>=(this.run?.challenge?1:9))return false;
+    return !this.active.some(item=>{const p=item.body.translation();return Math.hypot(p.x-.7,p.y-DROP_Y,p.z+1.2)<.38;});
+  }
   drop(ballType='chrome',free=false) {
-    if(this.active.length>8||(this.run?.challenge&&this.active.length))return false;
+    if(!this.canDrop())return false;
     const cfg=BALLS[ballType]||BALLS.chrome;
     const body=this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(.7,DROP_Y,-1.2).setLinvel(this.run?.challenge?0:(Math.random()-.5)*1.4,-.55,this.run?.challenge?.7:.45+Math.random()*.5).setCcdEnabled(true));
     const collider=this.world.createCollider(ballColliderDesc(ballType).setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS),body);
     const material=mat(new THREE.Color(cfg.color),.92,.11,new THREE.Color(cfg.glow),.55);
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(.16,28,20),material);mesh.castShadow=true;this.scene.add(mesh);
     const trail=[];for(let i=0;i<12;i++){const sphere=new THREE.SphereGeometry(.058-i*.003,8,8);const p=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:cfg.glow,transparent:true,opacity:.3*(1-i/12),depthWrite:false,blending:THREE.AdditiveBlending}));p.userData.sphereGeometry=sphere;this.scene.add(p);trail.push(p);}
-    this.active.push({body,collider,mesh,trail,type:ballType,age:0,rimHits:0,lastImpact:-1,history:[]});this.follow=this.active.at(-1);this.sound('drop');this.callbacks.onDrop?.(free);if(this.run?.upgrades.includes('brake'))this.brakeTime=2;this.shake=this.reducedEffects?0:.045;return true;
+    this.active.push({body,collider,mesh,trail,type:ballType,free,age:0,rimHits:0,lastImpact:-1,history:[]});this.follow=this.active.at(-1);this.sound('drop');this.callbacks.onDrop?.(free);if(this.run?.upgrades.includes('brake'))this.brakeTime=2;this.shake=this.reducedEffects?0:.045;return true;
   }
   makeRipples() {
     for(let i=0;i<RIPPLE_LIMIT;i++) {
@@ -327,10 +331,33 @@ export class NeonMachine {
   captureImpacts(fixed) {
     this.impactEvents.drainContactForceEvents(event=>{
       const handle1=event.collider1(),handle2=event.collider2();
-      const item=this.active.find(ball=>ball.collider.handle===handle1||ball.collider.handle===handle2);
+      const first=this.active.find(ball=>ball.collider.handle===handle1);
+      const second=this.active.find(ball=>ball.collider.handle===handle2);
+      const item=first||second;
       if(!item)return;
       const impulse=event.maxForceMagnitude()*fixed;
-      if(impulse<.045||this.playTime-item.lastImpact<.065)return;
+      if(impulse<.045)return;
+      if(first&&second){
+        const key=[handle1,handle2].sort((a,b)=>a-b).join(':');
+        if(this.playTime-(this.ballCollisionTimes.get(key)??-1)<.09)return;
+        this.ballCollisionTimes.set(key,this.playTime);
+        if(this.ballCollisionTimes.size>160){for(const [pair,at] of this.ballCollisionTimes)if(this.playTime-at>1)this.ballCollisionTimes.delete(pair);}
+        const p1=first.body.translation(),p2=second.body.translation();
+        const point=new THREE.Vector3((p1.x+p2.x)/2,(p1.y+p2.y)/2,(p1.z+p2.z)/2);
+        const normal=new THREE.Vector3(p2.x-p1.x,p2.y-p1.y,p2.z-p1.z).normalize();
+        if(normal.lengthSq()<.01)normal.set(0,1,0);
+        const strength=THREE.MathUtils.clamp((impulse-.045)/.3,.28,1);
+        this.emitRipple(point,normal,'other',strength,C.magenta);
+        if(!this.reducedEffects){this.emitBurst('voltage',point,normal,.35+strength*.55,C.cyan);this.particles(point,C.magenta,5);}
+        for(const ball of [first,second]){
+          ball.lastImpact=this.playTime;
+          ball.impactCount=(ball.impactCount||0)+1;
+          if(ball.impactCount>1){const retention=ball.type==='rubber'?.94:ball.type==='heavy'?.88:.90;const v=ball.body.linvel();ball.body.setLinvel({x:v.x*retention,y:v.y*retention,z:v.z*retention},true);}
+        }
+        if(this.playTime-(this.lastClackSound||-1)>.075){this.sound('clack');this.lastClackSound=this.playTime;}
+        return;
+      }
+      if(this.playTime-item.lastImpact<.065)return;
       const otherHandle=item.collider.handle===handle1?handle2:handle1;
       const tube=this.tubeHandles.has(otherHandle);
       const deck=otherHandle===this.boardCollider.handle;
@@ -361,7 +388,9 @@ export class NeonMachine {
   }
   particles(pos,color,count=12,big=false){if(this.reducedEffects)count=Math.min(count,5);for(let i=0;i<count;i++){const s=this.sparks[this.nextSpark++%this.sparks.length];s.mesh.position.copy(pos);s.mesh.material.color.set(color);s.mesh.material.opacity=1;s.mesh.visible=true;s.vel.set((Math.random()-.5)*(big?5:3),Math.random()*(big?6:3),(Math.random()-.5)*(big?5:3));s.max=s.life=big?1.2:.6;s.mesh.scale.setScalar(big?1.7:1);}}
   recycle(item,hole=null) {
-    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot')this.emitJackpot(p);this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.(hole,item.type,item.rimHits);}else{this.callbacks.onRefund?.();}
+    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot')this.emitJackpot(p);this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.(hole,item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
+    const handle=item.collider.handle;
+    for(const key of this.ballCollisionTimes.keys())if(key.split(':').some(part=>Number(part)===handle))this.ballCollisionTimes.delete(key);
     this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}this.active.splice(this.active.indexOf(item),1);
     const cfg=BALLS[item.type]||BALLS.chrome;const m=new THREE.Mesh(new THREE.SphereGeometry(.15,16,12),mat(new THREE.Color(cfg.color),.8,.2,new THREE.Color(cfg.glow),.5));this.scene.add(m);this.returns.push({mesh:m,age:0,duration:this.run?.upgrades.includes('speed')?2.5:3.4});
     if(this.follow===item)this.follow=this.active.at(-1)||null;

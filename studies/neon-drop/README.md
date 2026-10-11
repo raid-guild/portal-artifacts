@@ -8,6 +8,13 @@ Keep public/artifact-social-v1.png when rebuilding. It is a composed gameplay sc
 Dependency licenses are in licenses/. No external runtime fonts or scripts are needed.
 Blender decoration is in public/assets/arcade-crest.glb, reproducible via scripts/make_crest.py.
 
+## Rapid drops and collisions
+Rapid clicks reserve casual-mode drops immediately and queue their releases at least
+220 ms apart, waiting until the chute clears and no more than nine balls are active.
+Balls collide through Rapier and make a distinct pulse and clack on contact. Pending
+paid drops are refunded if a round reaches the upgrade choice or play resets; free
+echo balls are discarded. Player chips, unlocks and other saved progression persist.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;
