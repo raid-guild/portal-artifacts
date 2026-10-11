@@ -13,6 +13,9 @@
 }
 
 :{$PORT:8080} {
+    @neon_drop path /neon-drop /neon-drop/*
+    header @neon_drop Access-Control-Allow-Origin "*"
+    header @neon_drop Cache-Control "no-cache"
 	root * /srv
 	encode zstd gzip
 
@@ -107,6 +110,15 @@
 
 		# Optional game backend; same-origin requests preserve first-party sessions.
 		# The service remains usable without this backend (guest/local mode).
+		handle /leaderboard-api/neon-drop/* {
+			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
+				header_up Host {upstream_hostport}
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 8s
+				}
+			}
+		}
 		handle /leaderboard-api/raid-survivor/* {
 			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
 				header_up Host {upstream_hostport}
