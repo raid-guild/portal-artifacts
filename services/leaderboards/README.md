@@ -256,3 +256,23 @@ two minutes from 13:00 in Endless. At most 8 bosses can be admitted by 11:00
 and 11 by 13:00. Lava score validation uses this admission ceiling and a
 conservative chest ceiling of `2 + floor(seconds / 45) + maxAdmittedBosses`;
 other realms and old scoring versions retain their existing bounds.
+
+## Neon Drop Arcade Challenge (version 1)
+
+Optional module/audience `neon-drop`, environment `NEON_DROP_LAUNCH_SECRET` (32+
+characters). Add the static artifact and service separately; missing secret disables
+only Neon ranking. No new schema migration is required beyond the existing schema.
+Callback `/leaderboard-api/neon-drop/callback`, game `/neon-drop/`; the guarded
+`ops/configure-neon-drop.ts` follows the existing dry-run / explicit --apply workflow.
+Production configuration has not been executed. Use a dedicated Portal module
+with kind external and the exact artifact URL before enabling the signed launch.
+
+Routes: GET ready, callback, session, leaderboard; POST runs, runs/:id/finish,
+logout. Start body `{version:"1"}`. Finish body `{version:"1",outcomes:["outer-0",...],durationMs:12345}`.
+Server replays 12 drops + at most six bonuses, Chrome printed ticket values and
+fixed jackpot150; incomplete/excess/unknown outcomes are rejected. Best completed
+run per verified Portal player; earlier submission breaks ties. Runs are tied to
+the session that started them; exact finish retries are idempotent. Client-reported
+outcomes are not authoritative physics replay. Source rules must match
+studies/neon-drop/src/challenge.js verbatim. API tests require a disposable local
+TEST_DATABASE_URL ending `_test`; never run them against production.

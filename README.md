@@ -291,3 +291,10 @@ The game works as a guest with local scores; Portal launch enables ranked runs.
 ## Optional game leaderboards
 
 `services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival and Raid Survivor remain playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
+
+## Neon Drop
+
+`public/neon-drop/` contains the NEON DROP physics arcade roguelite at `/neon-drop/`,
+built by RaidGuild. Editable source, tests, licenses and rebuild instructions are
+in `studies/neon-drop/`. Includes ball/cabinet cosmetics and optional standalone
+Portal ranking for the fixed-rules Arcade Challenge. Guest play works offline.

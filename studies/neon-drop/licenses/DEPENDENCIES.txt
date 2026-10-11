@@ -1,0 +1,4 @@
+Three.js: MIT; license enclosed.
+Rapier 3D JS compatibility bindings 0.17.3: Apache-2.0, dimforge/rapier.js; license enclosed.
+Barlow Condensed and DM Sans: SIL Open Font License, texts enclosed.
+RaidGuild stamp: existing official brand asset from portal-artifacts, unchanged.
