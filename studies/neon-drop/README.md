@@ -8,6 +8,25 @@ Keep public/artifact-social-v1.png when rebuilding. It is a composed gameplay sc
 Dependency licenses are in licenses/. No external runtime fonts or scripts are needed.
 Blender decoration is in public/assets/arcade-crest.glb, reproducible via scripts/make_crest.py.
 
+## Roguelite balance and permanent power
+Each round has its own ticket target: 180, 540, 1,000, then 1,800.
+Circuit chips from finished runs buy three levelled Workshop powers: +2% ordinary
+pocket tickets per amplifier level (8 levels), +1 starting drop per round per
+reserve level (3 levels), and +10 jackpot base per coil level (6 levels). Prices
+start at 30 / 120 / 45 chips respectively and rise with each level. The full
+ladder costs 3,550 chips; the bonuses cap at +16% tickets, +3 drops and +60 jackpot. Power is saved with the existing v2 save key, so old saves
+keep their chips, balls and cosmetics and begin with zero power levels. Saved
+levels are clamped to their caps. Purchases affect the next run; the current run
+keeps its starting snapshot. The reserve run mutation adds another four drops.
+On each new round, the jackpot rises to at least its round base without erasing
+a larger charged value. Arcade Challenge uses separate fixed scoring rules.
+
+Run `npm run sim:economy` for a repeatable ticket-economy sensitivity check.
+It uses the production pockets and state functions with seeded random pocket
+selections. The outer x2 and equal-pocket profiles are assumptions about where
+balls land; they do not model Rapier physics, misses, or ball correlations and
+must not be read as physical win-rate forecasts.
+
 ## Rapid drops and collisions
 Rapid clicks reserve casual-mode drops immediately and queue their releases at least
 220 ms apart, waiting until the chute clears and no more than nine balls are active.
