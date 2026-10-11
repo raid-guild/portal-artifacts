@@ -5,7 +5,7 @@ import {ArcadeRadio} from './arcade-radio.js';
 import {RADIO_STATIONS,RADIO_BY_ID} from './radio-stations.js';
 import './style.css';
 import { NeonMachine } from './game.js';
-import { BALLS, UPGRADES, ROUND_TARGETS, COSMETICS, buyCosmetic, equipCosmetic, buyRadio, equipRadio, loadMeta, saveMeta, idleEarnings, newRun, targetFor, applyScore, addUpgrade, finishRun, randomCards } from './state.js';
+import { BALLS, UPGRADES, ROUND_TARGETS, COSMETICS, POWER_UPGRADES, buyPower, buyCosmetic, equipCosmetic, buyRadio, equipRadio, loadMeta, saveMeta, idleEarnings, newRun, targetFor, applyScore, addUpgrade, finishRun, chipsForRun, randomCards } from './state.js';
 
 const $=s=>document.querySelector(s);
 const app=$('#app');
@@ -21,7 +21,7 @@ app.innerHTML=`<div class="shell">
   <div id="modalBackdrop" class="modal-backdrop hidden"><div class="modal" id="modal"></div></div>
 </div>`;
 
-let meta=loadMeta(), run=newRun(), machine=null, toastTimer=null, modalKind=null, autoTimer=0, ended=false, settledAt=0, workshopTab="power";
+let meta=loadMeta(), run=newRun(meta), machine=null, toastTimer=null, modalKind=null, autoTimer=0, ended=false, settledAt=0, workshopTab="power";
 const radio=new ArcadeRadio();radio.configure(meta.audio);
 const releases=new ReleaseQueue();
 const ranked=rankedClient();let mode='casual',generation=0,challengeStarted=0,rankedRun=null,challengeDone=false;
@@ -57,12 +57,20 @@ function syncDropStatus(){
   $('#dropBtn').disabled=run.status!=='playing'||run.drops<=0;
   $('#dropHint').textContent=releases.length?`${releases.length} BALL${releases.length===1?'':'S'} IN RELEASE QUEUE`:run.status==='playing'?(run.drops?'WAIT FOR YOUR MOMENT':'LAST BALL IN PLAY'):run.status==='choose'?'CHOOSE YOUR NEXT UPGRADE':'RUN COMPLETE';
 }
+function buildSummary(){
+  const power=run.powerLevels||{},parts=[];
+  if(power.amplifier)parts.push(`Amplifier +${power.amplifier*2}%`);
+  if(power.reserve)parts.push(`Reserve +${power.reserve}`);
+  if(power.jackpot)parts.push(`Jackpot +${power.jackpot*10}`);
+  parts.push(...run.upgrades.map(id=>UPGRADES.find(upgrade=>upgrade.id===id)?.title).filter(Boolean));
+  return parts.length?parts.join(' · '):'Pure physics. Pure potential.';
+}
 function sync(){
   if(mode==='challenge'){syncChallenge();return;}
   $('#roundTag').textContent=`ROUND ${String(Math.min(run.round+1,4)).padStart(2,'0')} / 04`;
   $('#roundTickets').textContent=run.roundTickets.toLocaleString();$('#target').textContent=targetFor(run).toLocaleString();$('#progressBar').style.width=`${Math.min(100,run.roundTickets/targetFor(run)*100)}%`;
   syncDropStatus();$('#jackpot').textContent=run.jackpot;$('#legendJackpot').textContent=run.jackpot;$('#chips').textContent=meta.chips;
-  $('#buildText').textContent=run.upgrades.length?run.upgrades.map(id=>UPGRADES.find(u=>u.id===id)?.title).join(' · '):'Pure physics. Pure potential.';
+  $('#buildText').textContent=buildSummary();
   $('#autoState').textContent=meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED';$('#autoBtn').classList.toggle('active',run.auto);
   if($('#mobileAuto'))$('#mobileAuto').textContent=`AUTO DROP · ${meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED'}`;
   $('#ballOptions').innerHTML=Object.entries(BALLS).map(([id,b])=>`<button class="ball-option ${run.ball===id?'selected':''} ${meta.unlocked.includes(id)?'':'locked'}" data-ball="${id}" title="${b.desc}${meta.unlocked.includes(id)?'':` — unlock for ${b.cost} chips`}"><span class="ball-icon" style="--ball:${b.glow}"></span><span>${b.name}</span>${!meta.unlocked.includes(id)?'<span class="lock">⌁</span>':''}</button>`).join('');
@@ -78,8 +86,8 @@ function score(hole,ball,rimHits){if(mode==='challenge'){challengeOutcome(hole.i
   else if(hole.kind==='free')toast('+2 FREE DROPS','pink');else toast(`+${reward.amount} TICKETS`);
   sync();
 }
-function endRun(){if(ended)return;ended=true;run.status=run.status==='won'?'won':'lost';meta=finishRun(run,meta);saveMeta(meta);sync();const earned=Math.max(1,Math.floor(run.totalTickets/175)+run.round*3+(run.status==='won'?12:0));openModal(`<div class="modal-eyebrow">${run.status==='won'?'MACHINE MASTERED':'RUN COMPLETE'}</div><h2>${run.status==='won'?'You beat the cabinet.':'The lights fade. The build remains.'}</h2><p>Round ${Math.min(run.round+1,4)} · ${run.totalTickets.toLocaleString()} tickets collected</p><div class="reward-row"><span>◈</span><strong>+${earned}</strong><small>CIRCUIT CHIPS</small></div><p class="modal-note">Spend chips in the Workshop to unlock new balls, automation, and cabinet styles. Your exhibition machine also earns while you are away.</p><div class="modal-actions"><button class="primary" id="retryBtn">NEW RUN →</button><button class="secondary" id="endShopBtn">OPEN WORKSHOP</button></div>`,'end');$('#retryBtn').onclick=()=>startRun();$('#endShopBtn').onclick=()=>openWorkshop();}
-function startRun(){generation++;ranked.cancel();cancelPending();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun();ended=false;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
+function endRun(){if(ended)return;ended=true;run.status=run.status==='won'?'won':'lost';const earned=chipsForRun(run);meta=finishRun(run,meta);saveMeta(meta);sync();openModal(`<div class="modal-eyebrow">${run.status==='won'?'MACHINE MASTERED':'RUN COMPLETE'}</div><h2>${run.status==='won'?'You beat the cabinet.':'The lights fade. The build remains.'}</h2><p>Round ${Math.min(run.round+1,4)} · ${run.totalTickets.toLocaleString()} tickets collected</p><div class="reward-row"><span>◈</span><strong>+${earned}</strong><small>CIRCUIT CHIPS</small></div><p class="modal-note">Spend chips in the Workshop on permanent power, new balls, and cabinet styles. Power purchases start with your next run. Your exhibition machine also earns while you are away.</p><div class="modal-actions"><button class="primary" id="retryBtn">NEW RUN →</button><button class="secondary" id="endShopBtn">OPEN WORKSHOP</button></div>`,'end');$('#retryBtn').onclick=()=>startRun();$('#endShopBtn').onclick=()=>openWorkshop();}
+function startRun(){generation++;ranked.cancel();cancelPending();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun(meta);ended=false;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
 function openModal(html,kind){if(radio.auditionState&&kind!=='workshop'){radio.endAudition();syncRadioUI();}radio.setWorkshopMode(kind==='workshop');if(modalKind==='preview'){machine.clearPreview();$('#fxPreview').classList.add('hidden');}if(modalKind==='challenge'&&kind!=='challenge'){generation++;ranked.cancel();}modalKind=kind;$('#modal').innerHTML=html;$('#modalBackdrop').classList.remove('hidden');}
 function closeModal(){if(modalKind==='workshop'&&radio.auditionState){radio.endAudition();syncRadioUI();}radio.setWorkshopMode(false);modalKind=null;$('#modalBackdrop').classList.add('hidden');}
 function openUpgrade(){const cards=randomCards(run);openModal(`<div class="modal-eyebrow">ROUND ${String(run.round+1).padStart(2,'0')} CLEARED</div><h2>Choose your next mutation.</h2><p>Your machine is learning. Pick one upgrade for this run.</p><div class="upgrade-grid">${cards.map(c=>`<button class="upgrade-card" data-upgrade="${c.id}" style="--accent:${c.color}"><span class="upgrade-icon">${c.icon}</span><small>${c.tier}</small><strong>${c.title}</strong><span>${c.description}</span><em>ADD TO BUILD →</em></button>`).join('')}</div><div class="modal-foot">NEXT ROUND · TARGET ${ROUND_TARGETS[Math.min(run.round+1,3)].toLocaleString()} TICKETS</div>`,'upgrade');document.querySelectorAll('[data-upgrade]').forEach(b=>b.onclick=()=>{run=addUpgrade(run,b.dataset.upgrade);machine.setRun(run);closeModal();sync();if(run.status==='won')endRun();else toast(`ROUND ${run.round+1} • ${UPGRADES.find(u=>u.id===b.dataset.upgrade).title} installed`);});}
@@ -99,6 +107,11 @@ function shopCard(o,category){
   const equipped=cabinet?meta.style===o.id:!power&&meta.equipped[category]===o.id;
   return `<div class="shop-item ${equipped?'equipped':''}"><span class="shop-icon">${o.icon}</span><span class="shop-copy"><strong>${o.name}</strong><small>${o.desc}</small></span><div class="shop-controls">${!power&&!cabinet?`<button data-preview="${o.id}" data-category="${category}">PREVIEW</button>`:''}${equipped?'<span class="shop-price equipped-label">EQUIPPED</span>':owned?(power?'<span class="shop-price">OWNED</span>':`<button data-equip="${o.id}" data-category="${category}">EQUIP</button>`):`<button data-buy="${o.id}" data-category="${category}" ${meta.chips<o.cost?'disabled':''}>◈ ${o.cost}</button>`}</div></div>`;
 }
+function powerCard(power){
+  const level=meta.powerLevels[power.id],maximum=power.costs.length,cost=power.costs[level];
+  const benefit=power.id==='amplifier'?`+${level*2}% ordinary payouts`:power.id==='reserve'?`+${level} starting drops each round`:`+${level*10} jackpot base`;
+  return `<div class="shop-item"><span class="shop-icon">${power.icon}</span><span class="shop-copy"><strong>${power.name} · ${level}/${maximum}</strong><small>${benefit} · ${power.description} Applies next run.</small></span><div class="shop-controls">${cost===undefined?'<span class="shop-price">MAXED</span>':`<button data-power="${power.id}" ${meta.chips<cost?'disabled':''}>◈ ${cost} · LV ${level+1}</button>`}</div></div>`;
+}
 function radioCard(station){
   const owned=meta.audio.owned.includes(station.id),equipped=meta.audio.station===station.id;
   const listening=radio.auditionState&&radio.station===station.id;
@@ -110,11 +123,13 @@ function openWorkshop(tab=workshopTab){if(mode==='challenge'&&tab==='power')tab=
   const categories=[...(mode==='challenge'?[]:[['power','POWER']]),['trail','TRAILS'],['impact','IMPACTS'],['jackpot','JACKPOTS'],['radio','RADIO'],['cabinet','CABINET']];
   const options=tab==='power'?SHOP_POWER:tab==='cabinet'?SHOP_CABINET:tab==='radio'?RADIO_STATIONS:COSMETICS.filter(c=>c.category===tab);
   const cards=tab==='trail'||tab==='impact'||tab==='jackpot'?[{id:'default',icon:'○',name:'Classic',desc:'The original clean effect.',cost:0},...options]:options;
-  openModal(`<div class="modal-eyebrow">PERMANENT PROGRESSION</div><h2>The Workshop</h2><p id="workshopIntro" aria-live="polite">${tab==='radio'?'Hear each station before tuning in. Listening never spends circuits.':'Collect visual effects and equip a look for each part of the machine.'}</p><div class="bank"><span>AVAILABLE CIRCUITS</span><strong>◈ ${meta.chips}</strong></div><div class="shop-tabs">${categories.map(([id,name])=>`<button data-tab="${id}" class="${id===tab?'active':''}">${name}</button>`).join('')}</div><div class="shop-list">${cards.map(o=>tab==='radio'?radioCard(o):shopCard(o,tab)).join('')}</div><div class="modal-actions"><button class="primary" id="shopClose">BACK TO MACHINE →</button></div>`,'workshop');
+  const intro=tab==='power'?'Build lasting power with circuits. Levels and prices rise together; new levels apply at the start of your next run.':tab==='radio'?'Hear each station before tuning in. Listening never spends circuits.':'Collect visual effects and equip a look for each part of the machine.';
+  openModal(`<div class="modal-eyebrow">PERMANENT PROGRESSION</div><h2>The Workshop</h2><p id="workshopIntro" aria-live="polite">${intro}</p><div class="bank"><span>AVAILABLE CIRCUITS</span><strong>◈ ${meta.chips}</strong></div><div class="shop-tabs">${categories.map(([id,name])=>`<button data-tab="${id}" class="${id===tab?'active':''}">${name}</button>`).join('')}</div><div class="shop-list">${tab==='power'?POWER_UPGRADES.map(powerCard).join('')+cards.map(o=>shopCard(o,tab)).join(''):cards.map(o=>tab==='radio'?radioCard(o):shopCard(o,tab)).join('')}</div><div class="modal-actions"><button class="primary" id="shopClose">BACK TO MACHINE →</button></div>`,'workshop');
   $('#shopClose').onclick=()=>{if(ended)openEndAgain();else closeModal();};
   document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>openWorkshop(b.dataset.tab));
   document.querySelectorAll('[data-listen]').forEach(b=>b.onclick=async()=>{if(radio.auditionState&&radio.station===b.dataset.listen){radio.endAudition();syncRadioUI();openWorkshop('radio');return;}const started=await radio.audition(b.dataset.listen);syncRadioUI();if(modalKind==='workshop'&&workshopTab==='radio'){if(started)openWorkshop('radio');else $('#workshopIntro').textContent='Audio unavailable. The station preview did not start; your tuned station and play setting are unchanged.';}});
   document.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>startPreview(b.dataset.category,b.dataset.preview));
+  document.querySelectorAll('[data-power]').forEach(b=>b.onclick=()=>{if(mode==='challenge')return;const next=buyPower(meta,b.dataset.power);if(next===meta)return;meta=next;saveMeta(meta);openWorkshop('power');sync();toast(`${POWER_UPGRADES.find(power=>power.id===b.dataset.power).name} upgraded · NEXT RUN`,'gold');});
   document.querySelectorAll('[data-equip]').forEach(b=>b.onclick=()=>{
     const id=b.dataset.equip,category=b.dataset.category;
     if(category==='radio'){radio.endAudition();meta=equipRadio(meta,id);radio.setStation(meta.audio.station);syncRadioUI();}
@@ -153,7 +168,7 @@ $('#radioNext').onclick=nextRadio;
 $('#radioShop').onclick=()=>openWorkshop('radio');
 $('#radioVolume').oninput=e=>{radio.setMusicVolume(Number(e.target.value)/100);saveAudioPrefs();syncRadioUI();};
 function openSettings(){
-  const build=mode==='challenge'?'Arcade Challenge · Chrome only':run.upgrades.length?run.upgrades.map(id=>UPGRADES.find(u=>u.id===id)?.title).join(' · '):'Pure physics. Pure potential.';
+  const build=mode==='challenge'?'Arcade Challenge · Chrome only':buildSummary();
   openModal(`<div class="modal-eyebrow">CABINET OPTIONS</div><h2>Machine menu</h2><p>Controls, music, and the details behind this run.</p>
     <section class="mobile-settings-only mobile-home" aria-label="Game menu">
       <div class="mobile-home-title">ARCADE RADIO <span id="mobileRadioStatus" aria-live="polite"></span></div>

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadMeta, saveMeta, idleEarnings, newRun, payout, applyScore, addUpgrade, finishRun, targetFor, buyCosmetic, equipCosmetic, buyRadio, equipRadio } from '../src/state.js';
+import { loadMeta, saveMeta, idleEarnings, newRun, payout, applyScore, addUpgrade, finishRun, targetFor, buyCosmetic, equipCosmetic, buyRadio, equipRadio, buyPower, POWER_UPGRADES, chipsForRun, jackpotBase } from '../src/state.js';
+import {newChallenge,resolveChallenge} from '../src/challenge.js';
 
 test('payouts retain physical outcome and apply selected build effects', () => {
   const run = newRun();
@@ -41,7 +42,65 @@ test('completed run awards permanent chips and offline production', () => {
   const run=newRun();run.totalTickets=2500;run.round=3;run.status='won';
   const before=loadMeta({getItem:()=>null},1000);
   const after=finishRun(run,before,2000);
-  assert.ok(after.chips>=20);assert.equal(after.wins,1);assert.equal(after.idleRate,2);assert.equal(after.idleAt,2000);
+  assert.equal(after.chips,chipsForRun(run));assert.equal(after.wins,1);assert.equal(after.idleRate,2);assert.equal(after.idleAt,2000);assert.equal(after.bestRound,4);
+});
+
+test('legacy power levels default to zero and malformed levels are bounded',()=>{
+  const legacy=loadMeta({getItem:()=>JSON.stringify({chips:42,unlocked:['heavy']})},1000);
+  assert.deepEqual(legacy.powerLevels,{amplifier:0,reserve:0,jackpot:0});
+  assert.equal(legacy.chips,42);assert.deepEqual(legacy.unlocked,['chrome','heavy']);
+  const corrupt=loadMeta({getItem:()=>JSON.stringify({powerLevels:{amplifier:999,reserve:-4,jackpot:'6',injected:100}})},1000);
+  assert.deepEqual(corrupt.powerLevels,{amplifier:8,reserve:0,jackpot:0});
+});
+
+test('permanent power has escalating prices, affordability and a hard cap',()=>{
+  let meta={...loadMeta({getItem:()=>null},1000),chips:30};
+  assert.equal(buyPower(meta,'reserve'),meta);
+  assert.equal(buyPower(meta,'invalid'),meta);
+  meta=buyPower(meta,'amplifier');assert.equal(meta.chips,0);assert.equal(meta.powerLevels.amplifier,1);
+  assert.equal(buyPower(meta,'amplifier'),meta);
+  meta={...meta,chips:2000};
+  for(let i=1;i<8;i++)meta=buyPower(meta,'amplifier');
+  assert.equal(meta.powerLevels.amplifier,8);assert.equal(meta.chips,2000-POWER_UPGRADES[0].costs.slice(1).reduce((sum,cost)=>sum+cost,0));
+  assert.equal(buyPower(meta,'amplifier'),meta);
+});
+
+test('purchased levels apply only to a new run and add to reserve mutation',()=>{
+  let meta={...loadMeta({getItem:()=>null},1000),chips:300};
+  const active=newRun(meta);
+  meta=buyPower(meta,'reserve');meta=buyPower(meta,'amplifier');meta=buyPower(meta,'jackpot');
+  assert.deepEqual(active.powerLevels,{amplifier:0,reserve:0,jackpot:0});assert.equal(active.drops,12);assert.equal(active.jackpot,150);
+  const next=newRun(meta);
+  assert.deepEqual(next.powerLevels,{amplifier:1,reserve:1,jackpot:1});assert.equal(next.drops,13);assert.equal(next.jackpot,160);
+  const second=addUpgrade({...next,status:'choose'},'reserve');
+  assert.equal(second.drops,17);assert.equal(second.round,1);assert.equal(second.jackpot,260);
+  assert.equal(addUpgrade({...second,status:'choose'},'lucky').drops,17);
+});
+
+test('amplifier pays ordinary pockets once after run modifiers, leaving free and jackpot distinct',()=>{
+  const run=newRun({powerLevels:{amplifier:2,reserve:0,jackpot:1}});
+  run.upgrades=['rim','lucky','spark'];run.scores=4;
+  assert.equal(payout(run,{kind:'score',value:40},'heavy',5).amount,204);
+  assert.deepEqual(payout(run,{kind:'free',label:'+2'},'chrome'),{amount:0,free:2,jackpot:false});
+  assert.equal(payout(run,{kind:'jackpot',label:'JP'},'chrome').amount,160);
+});
+
+test('round jackpot base rises, carries a charged jackpot, and resets with permanent coil',()=>{
+  let run=newRun({powerLevels:{amplifier:0,reserve:0,jackpot:2}});
+  assert.equal(jackpotBase(run),170);
+  run={...run,jackpot:225,status:'choose'};run=addUpgrade(run,'capacitor');
+  assert.equal(run.jackpot,270);
+  run=applyScore(run,{kind:'score',value:25,label:'25'},'chrome');assert.equal(run.jackpot,278);
+  run=applyScore(run,{kind:'jackpot',label:'JP'},'chrome');assert.equal(run.jackpot,270);
+  run={...run,jackpot:650,status:'choose'};run=addUpgrade(run,'rim');assert.equal(run.jackpot,650);
+});
+
+test('Arcade Challenge remains fixed regardless of permanent progression',()=>{
+  const casual=newRun({powerLevels:{amplifier:8,reserve:3,jackpot:6}});
+  assert.equal(casual.drops,15);assert.equal(casual.jackpot,210);
+  let challenge=newChallenge();assert.equal(challenge.drops,12);assert.equal(challenge.jackpot,150);
+  challenge={...challenge,drops:challenge.drops-1,dropped:1};
+  challenge=resolveChallenge(challenge,'inner-3');assert.equal(challenge.totalTickets,100);
 });
 
 test('old saves keep purchases while cosmetic equipment is validated', () => {
