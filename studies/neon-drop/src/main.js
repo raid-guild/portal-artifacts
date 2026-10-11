@@ -43,6 +43,14 @@ function syncRadioUI(){
   $('#radioPlay').setAttribute('aria-label',radio.playing?'Pause Arcade Radio':'Play Arcade Radio');
   $('#radioPlay').setAttribute('aria-pressed',radio.playing?'true':'false');
   $('#radioVolume').value=Math.round(radio.musicVolume*100);
+  const mobileStation=$('#mobileRadioStation');
+  if(mobileStation){
+    mobileStation.textContent=station.name;
+    $('#mobileRadioStatus').textContent=$('#radioStatus').textContent;
+    $('#mobileRadioPlay').textContent=radio.playing?'Ⅱ Pause':'▶ Play';
+    $('#mobileRadioPlay').setAttribute('aria-pressed',radio.playing?'true':'false');
+    $('#mobileMusicVolume').value=Math.round(radio.musicVolume*100);
+  }
 }
 function syncDropStatus(){
   $('#dropsLeft').textContent=run.drops;
@@ -56,6 +64,7 @@ function sync(){
   syncDropStatus();$('#jackpot').textContent=run.jackpot;$('#legendJackpot').textContent=run.jackpot;$('#chips').textContent=meta.chips;
   $('#buildText').textContent=run.upgrades.length?run.upgrades.map(id=>UPGRADES.find(u=>u.id===id)?.title).join(' · '):'Pure physics. Pure potential.';
   $('#autoState').textContent=meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED';$('#autoBtn').classList.toggle('active',run.auto);
+  if($('#mobileAuto'))$('#mobileAuto').textContent=`AUTO DROP · ${meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED'}`;
   $('#ballOptions').innerHTML=Object.entries(BALLS).map(([id,b])=>`<button class="ball-option ${run.ball===id?'selected':''} ${meta.unlocked.includes(id)?'':'locked'}" data-ball="${id}" title="${b.desc}${meta.unlocked.includes(id)?'':` — unlock for ${b.cost} chips`}"><span class="ball-icon" style="--ball:${b.glow}"></span><span>${b.name}</span>${!meta.unlocked.includes(id)?'<span class="lock">⌁</span>':''}</button>`).join('');
   document.querySelectorAll('[data-ball]').forEach(b=>b.onclick=()=>{const id=b.dataset.ball;if(meta.unlocked.includes(id)){run.ball=id;sync();toast(`${BALLS[id].name} ball loaded`)}else openWorkshop();});
 }
@@ -137,14 +146,45 @@ function stopPreview(){machine.clearPreview();$('#fxPreview').classList.add('hid
 $('#fxPreviewBack').onclick=stopPreview;
 function openEndAgain(){closeModal();openModal(`<div class="modal-eyebrow">RUN COMPLETE</div><h2>Ready for another drop?</h2><p>Your machine is waiting.</p><div class="modal-actions"><button class="primary" id="retryBtn">NEW RUN →</button><button class="secondary" id="endShopBtn">OPEN WORKSHOP</button></div>`,'end');$('#retryBtn').onclick=startRun;$('#endShopBtn').onclick=()=>openWorkshop();}
 function applyStyle(){document.documentElement.dataset.style=meta.style;machine?.setCabinetStyle(meta.style);}
-$('#radioPlay').onclick=async()=>{if(radio.playing){radio.pause();saveAudioPrefs();syncRadioUI();return;}const started=await radio.playFromGesture();if(started){saveAudioPrefs();syncRadioUI();}else{$('#radioStatus').textContent='AUDIO UNAVAILABLE';}};
-$('#radioNext').onclick=()=>{const owned=RADIO_STATIONS.filter(station=>meta.audio.owned.includes(station.id));const current=owned.findIndex(station=>station.id===meta.audio.station);const next=owned[(current+1)%owned.length];meta=equipRadio(meta,next.id);radio.setStation(meta.audio.station);saveMeta(meta);syncRadioUI();toast(`${next.name.toUpperCase()} TUNED`);};
+async function toggleRadio(){if(radio.playing){radio.pause();saveAudioPrefs();syncRadioUI();return;}const started=await radio.playFromGesture();if(started){saveAudioPrefs();syncRadioUI();}else{syncRadioUI();$('#radioStatus').textContent='AUDIO UNAVAILABLE';if($('#mobileRadioStatus'))$('#mobileRadioStatus').textContent='AUDIO UNAVAILABLE';}}
+function nextRadio(){const owned=RADIO_STATIONS.filter(station=>meta.audio.owned.includes(station.id));const current=owned.findIndex(station=>station.id===meta.audio.station);const next=owned[(current+1)%owned.length];meta=equipRadio(meta,next.id);radio.setStation(meta.audio.station);saveMeta(meta);syncRadioUI();toast(`${next.name.toUpperCase()} TUNED`);}
+$('#radioPlay').onclick=toggleRadio;
+$('#radioNext').onclick=nextRadio;
 $('#radioShop').onclick=()=>openWorkshop('radio');
 $('#radioVolume').oninput=e=>{radio.setMusicVolume(Number(e.target.value)/100);saveAudioPrefs();syncRadioUI();};
-function openSettings(){openModal(`<div class="modal-eyebrow">CABINET OPTIONS</div><h2>Make it yours.</h2><p>Keep the spectacle at your own pace.</p><div class="settings-list"><label><span>Visual bloom <small>Glowing cabinet lights</small></span><input type="checkbox" id="bloomToggle" ${machine.bloomOn?'checked':''}></label><label><span>Reduced effects <small>Fewer particles, no trails, flash, or shake</small></span><input type="checkbox" id="effectsToggle" ${machine.reducedEffects?'checked':''}></label><label><span>Arcade tones <small>Effects volume, separate from music</small></span><input type="range" id="effectsVolume" min="0" max="100" value="${Math.round(radio.effectsVolume*100)}" aria-label="Arcade effects volume"></label><label><span>Mute sounds <small>Disable music and arcade tones</small></span><input type="checkbox" id="muteToggle" ${machine.muted?'checked':''}></label><label><span>Camera <small>Track a ball through the machine</small></span><select id="cameraSelect"><option value="cabinet">Cabinet</option><option value="follow" ${machine.view==='follow'?'selected':''}>Ball follow</option></select></label></div><div class="modal-actions"><button class="primary" id="settingsClose">DONE →</button></div>`,'settings');$('#settingsClose').onclick=()=>ended?openEndAgain():closeModal();$('#bloomToggle').onchange=e=>machine.setEffects(e.target.checked);$('#effectsToggle').onchange=e=>{machine.setReducedEffects(e.target.checked);syncRadioUI();};$('#effectsVolume').oninput=e=>{radio.setEffectsVolume(Number(e.target.value)/100);saveAudioPrefs();};$('#muteToggle').onchange=e=>{machine.muted=e.target.checked;radio.setMuted(e.target.checked);saveAudioPrefs();syncRadioUI();};$('#cameraSelect').onchange=e=>setCamera(e.target.value);}
+function openSettings(){
+  const build=mode==='challenge'?'Arcade Challenge · Chrome only':run.upgrades.length?run.upgrades.map(id=>UPGRADES.find(u=>u.id===id)?.title).join(' · '):'Pure physics. Pure potential.';
+  openModal(`<div class="modal-eyebrow">CABINET OPTIONS</div><h2>Machine menu</h2><p>Controls, music, and the details behind this run.</p>
+    <section class="mobile-settings-only mobile-home" aria-label="Game menu">
+      <div class="mobile-home-title">ARCADE RADIO <span id="mobileRadioStatus" aria-live="polite"></span></div>
+      <strong id="mobileRadioStation"></strong>
+      <div class="mobile-home-actions"><button id="mobileRadioPlay" aria-pressed="false">▶ Play</button><button id="mobileRadioNext">NEXT STATION</button><button id="mobileStations">BROWSE STATIONS</button></div>
+      <label class="mobile-music-volume">MUSIC VOLUME <input id="mobileMusicVolume" type="range" min="0" max="100" aria-label="Music volume"></label>
+      <div class="mobile-home-actions secondary-actions"><button id="mobileAuto">AUTO DROP</button><button id="mobileChallenge">ARCADE CHALLENGE</button></div>
+      <div class="mobile-run-info"><b>CURRENT BUILD</b><span>${build}</span><b>PRIZE DECK</b><span>Tickets 10–100 · Free drop +2 · Jackpot ${run.jackpot}</span></div>
+      <a class="mobile-guild" href="https://raidguild.org/" target="_blank" rel="noopener noreferrer"><img src="${import.meta.env.BASE_URL}assets/raidguild-stamp.svg" alt="RaidGuild brand stamp"><span>Built by RaidGuild ↗</span></a>
+    </section>
+    <div class="settings-list"><label><span>Visual bloom <small>Glowing cabinet lights</small></span><input type="checkbox" id="bloomToggle" ${machine.bloomOn?'checked':''}></label><label><span>Reduced effects <small>Fewer particles, no trails, flash, or shake</small></span><input type="checkbox" id="effectsToggle" ${machine.reducedEffects?'checked':''}></label><label><span>Arcade tones <small>Effects volume, separate from music</small></span><input type="range" id="effectsVolume" min="0" max="100" value="${Math.round(radio.effectsVolume*100)}" aria-label="Arcade effects volume"></label><label><span>Mute sounds <small>Disable music and arcade tones</small></span><input type="checkbox" id="muteToggle" ${machine.muted?'checked':''}></label><label><span>Camera <small>Track a ball through the machine</small></span><select id="cameraSelect"><option value="cabinet">Cabinet</option><option value="follow" ${machine.view==='follow'?'selected':''}>Ball follow</option></select></label></div><div class="modal-actions"><button class="primary" id="settingsClose">DONE →</button></div>`,'settings');
+  $('#settingsClose').onclick=()=>ended?openEndAgain():closeModal();
+  $('#bloomToggle').onchange=e=>machine.setEffects(e.target.checked);
+  $('#effectsToggle').onchange=e=>{machine.setReducedEffects(e.target.checked);syncRadioUI();};
+  $('#effectsVolume').oninput=e=>{radio.setEffectsVolume(Number(e.target.value)/100);saveAudioPrefs();};
+  $('#muteToggle').onchange=e=>{machine.muted=e.target.checked;radio.setMuted(e.target.checked);saveAudioPrefs();syncRadioUI();};
+  $('#cameraSelect').onchange=e=>setCamera(e.target.value);
+  $('#mobileRadioPlay').onclick=toggleRadio;
+  $('#mobileRadioNext').onclick=nextRadio;
+  $('#mobileMusicVolume').oninput=e=>{radio.setMusicVolume(Number(e.target.value)/100);saveAudioPrefs();syncRadioUI();};
+  $('#mobileStations').onclick=()=>openWorkshop('radio');
+  $('#mobileAuto').onclick=toggleAuto;
+  $('#mobileChallenge').onclick=openChallenge;
+  $('#mobileAuto').textContent=`AUTO DROP · ${mode==='challenge'?'DISABLED':meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED'}`;
+  syncRadioUI();
+}
+
 function setCamera(view){machine.setView(view);$('#camCabinet').classList.toggle('active',view==='cabinet');$('#camFollow').classList.toggle('active',view==='follow');}
 $('#dropBtn').onclick=()=>{radio.unlockFromGesture().then(syncRadioUI).catch(()=>{});drop();};$('#camCabinet').onclick=()=>setCamera('cabinet');$('#camFollow').onclick=()=>setCamera('follow');$('#settingsBtn').onclick=openSettings;$('#challengeBtn').onclick=openChallenge;$('#workshopBtn').onclick=()=>openWorkshop();
-$('#autoBtn').onclick=()=>{if(mode==='challenge'){toast('AUTOMATION DISABLED IN CHALLENGE');return;}if(!meta.purchased.includes('auto')){openWorkshop();return;}run.auto=!run.auto;sync();toast(run.auto?'AUTO DROP ENGAGED':'AUTO DROP PAUSED');};
+function toggleAuto(){if(mode==='challenge'){toast('AUTOMATION DISABLED IN CHALLENGE');return;}if(!meta.purchased.includes('auto')){openWorkshop('power');return;}run.auto=!run.auto;sync();toast(run.auto?'AUTO DROP ENGAGED':'AUTO DROP PAUSED');}
+$('#autoBtn').onclick=toggleAuto;
 document.addEventListener('keydown',e=>{if(e.repeat)return;if(e.code==='Space'&&!modalKind){e.preventDefault();radio.unlockFromGesture().then(syncRadioUI).catch(()=>{});drop();}if(e.key==='Escape'&&modalKind==='preview'){stopPreview();return;}if(e.key==='Escape'&&['workshop','settings'].includes(modalKind)){if(ended)openEndAgain();else closeModal();}if(e.key.toLowerCase()==='c'&&!modalKind)setCamera(machine.view==='cabinet'?'follow':'cabinet');});
 document.addEventListener('visibilitychange',()=>{radio.setHidden(document.hidden);syncRadioUI();if(document.hidden)touchIdle();else creditIdle();});
 window.addEventListener('pagehide',()=>{if(!document.hidden)touchIdle();});
