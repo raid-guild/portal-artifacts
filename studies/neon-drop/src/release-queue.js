@@ -1,7 +1,7 @@
 // A small simulation-time queue: input may be fast, but each ball gets room to leave the chute.
 export class ReleaseQueue {
   constructor(spacing=.22) { this.spacing=spacing;this.pending=[];this.nextAt=0; }
-  enqueue(type,free=false,readyAt=0) { this.pending.push({type,free,readyAt}); }
+  enqueue(type,free=false,readyAt=0,encore=false) { this.pending.push({type,free,readyAt,encore}); }
   get length() { return this.pending.length; }
   flush(now,canRelease,release) {
     const next=this.pending[0];

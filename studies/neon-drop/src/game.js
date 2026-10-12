@@ -177,6 +177,7 @@ export class NeonMachine {
   }
   loadDecor() {new GLTFLoader().load(`${import.meta.env.BASE_URL}assets/arcade-crest.glb`,g=>{g.scene.scale.setScalar(.45);g.scene.position.set(0,4.55,-3.63);this.scene.add(g.scene);},undefined,()=>{});}
   resetSimulation(){
+    this.stopJackpotCinematic();
     for(const item of this.active){this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}}
     for(const item of this.returns){this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();}
     this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
@@ -188,6 +189,28 @@ export class NeonMachine {
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
   setView(view){this.view=view;}
   setEffects(on){this.bloomOn=on;}
+  startJackpotCinematic(style,motion=true){
+    this.stopJackpotCinematic();this.accumulator=0;
+    const voidStyle=style==='void-breaker',primary=voidStyle?0x8e68ff:0xff4ea8,secondary=voidStyle?0x4be9ff:0xffc45a;
+    const scene=new THREE.Scene();scene.background=new THREE.Color(voidStyle?0x050519:0x180817);
+    const camera=new THREE.PerspectiveCamera(42,Math.max(1,this.container.clientWidth)/Math.max(1,this.container.clientHeight),.1,100);camera.position.set(0,0,8.5);
+    scene.add(new THREE.AmbientLight(0xffffff,.65));
+    const light=new THREE.PointLight(primary,45,24);light.position.set(-2,2,5);scene.add(light);
+    const fill=new THREE.PointLight(secondary,30,20);fill.position.set(3,-1,4);scene.add(fill);
+    const group=new THREE.Group();scene.add(group);
+    const ball=new THREE.Mesh(new THREE.SphereGeometry(1.25,40,28),new THREE.MeshStandardMaterial({color:voidStyle?0x130c32:0x642040,metalness:.8,roughness:.12,emissive:primary,emissiveIntensity:.6}));group.add(ball);
+    const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.54,1),new THREE.MeshBasicMaterial({color:secondary,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));group.add(core);
+    for(let i=0;i<5;i++){const ring=new THREE.Mesh(new THREE.TorusGeometry(1.65+i*.22,.035+i*.006,8,100),new THREE.MeshBasicMaterial({color:i%2?secondary:primary,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false}));ring.rotation.set(i*.35,i*.64,i*.31);group.add(ring);}
+    const shards=new THREE.Group();scene.add(shards);
+    const shardGeo=new THREE.TetrahedronGeometry(.12,0);
+    for(let i=0;i<48;i++){const a=i*2.39996,r=2.2+(i%7)*.28,m=new THREE.Mesh(shardGeo,new THREE.MeshBasicMaterial({color:i%3?primary:secondary,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));m.position.set(Math.cos(a)*r,Math.sin(a*1.7)*1.7,Math.sin(a)*r*.55);m.rotation.set(a,a*.3,a*.8);shards.add(m);}
+    this.jackpotCinematic={scene,camera,group,shards,shardGeo,motion,age:0};
+  }
+  stopJackpotCinematic(){
+    const cinematic=this.jackpotCinematic;if(!cinematic)return;
+    cinematic.scene.traverse(object=>{if(object.isMesh){if(object.geometry!==cinematic.shardGeo)object.geometry.dispose();object.material.dispose();}});
+    cinematic.shardGeo.dispose();this.jackpotCinematic=null;this.accumulator=0;this.clock.getDelta();
+  }
   setReducedEffects(on){this.reducedEffects=on;if(on){this.ascension.visible=false;this.haloGroup.visible=false;this.shake=0;this.sparks.forEach(s=>{s.life=0;s.mesh.visible=false;});this.bursts.forEach(b=>b.mesh.visible=false);for(const item of this.active)item.trail.forEach(t=>t.visible=false);this.previewTrails.forEach(t=>t.visible=false);document.body.classList.remove('jackpot-flash');}}
 
   sound(kind) {if(!this.muted)this.audioEngine?.sfx(kind);}
@@ -195,7 +218,7 @@ export class NeonMachine {
     if(this.active.length>=(this.run?.challenge?1:9))return false;
     return !this.active.some(item=>{const p=item.body.translation();return Math.hypot(p.x-.7,p.y-DROP_Y,p.z+1.2)<.38;});
   }
-  drop(ballType='chrome',free=false) {
+  drop(ballType='chrome',free=false,encore=false) {
     if(!this.canDrop())return false;
     const cfg=BALLS[ballType]||BALLS.chrome;
     const body=this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(.7,DROP_Y,-1.2).setLinvel(this.run?.challenge?0:(Math.random()-.5)*1.4,-.55,this.run?.challenge?.7:.45+Math.random()*.5).setCcdEnabled(true));
@@ -203,7 +226,7 @@ export class NeonMachine {
     const material=mat(new THREE.Color(cfg.color),.92,.11,new THREE.Color(cfg.glow),.55);
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(.16,28,20),material);mesh.castShadow=true;this.scene.add(mesh);
     const trail=[];for(let i=0;i<12;i++){const sphere=new THREE.SphereGeometry(.058-i*.003,8,8);const p=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:cfg.glow,transparent:true,opacity:.3*(1-i/12),depthWrite:false,blending:THREE.AdditiveBlending}));p.userData.sphereGeometry=sphere;this.scene.add(p);trail.push(p);}
-    this.active.push({body,collider,mesh,trail,type:ballType,free,age:0,rimHits:0,lastImpact:-1,history:[]});this.follow=this.active.at(-1);this.sound('drop');this.callbacks.onDrop?.(free);if(this.run?.upgrades.includes('brake'))this.brakeTime=2;this.shake=this.reducedEffects?0:.045;return true;
+    this.active.push({body,collider,mesh,trail,type:ballType,free,encore,age:0,rimHits:0,lastImpact:-1,history:[]});this.follow=this.active.at(-1);this.sound('drop');this.callbacks.onDrop?.(free);if(this.run?.upgrades.includes('brake'))this.brakeTime=2;this.shake=this.reducedEffects?0:.045;return true;
   }
   makeRipples() {
     for(let i=0;i<RIPPLE_LIMIT;i++) {
@@ -427,15 +450,16 @@ export class NeonMachine {
   }
   particles(pos,color,count=12,big=false){if(this.reducedEffects)count=Math.min(count,5);for(let i=0;i<count;i++){const s=this.sparks[this.nextSpark++%this.sparks.length];s.mesh.position.copy(pos);s.mesh.material.color.set(color);s.mesh.material.opacity=1;s.mesh.visible=true;s.vel.set((Math.random()-.5)*(big?5:3),Math.random()*(big?6:3),(Math.random()-.5)*(big?5:3));s.max=s.life=big?1.2:.6;s.mesh.scale.setScalar(big?1.7:1);}}
   recycle(item,hole=null) {
-    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.({...hole,charged:!!item.charged},item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
+    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();if(!this.jackpotCinematicsEnabled||this.run?.challenge||!['mega-party','void-breaker'].includes(this.cosmetics.jackpot))this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.({...hole,charged:!!item.charged},item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free,item.encore);}
     const handle=item.collider.handle;
     for(const key of this.ballCollisionTimes.keys())if(key.split(':').some(part=>Number(part)===handle))this.ballCollisionTimes.delete(key);
     this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}this.active.splice(this.active.indexOf(item),1);
     const cfg=BALLS[item.type]||BALLS.chrome;const m=new THREE.Mesh(new THREE.SphereGeometry(.15,16,12),mat(new THREE.Color(cfg.color),.8,.2,new THREE.Color(cfg.glow),.5));this.scene.add(m);this.returns.push({mesh:m,age:0,duration:this.run?.upgrades.includes('speed')?2.5:3.4});
     if(this.follow===item)this.follow=this.active.at(-1)||null;
   }
-  resize(){const w=Math.max(1,this.container.clientWidth),h=Math.max(1,this.container.clientHeight);this.camera.aspect=w/h;this.camera.fov=w<700?52:42;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h,false);this.composer.setSize(w,h);}
+  resize(){const w=Math.max(1,this.container.clientWidth),h=Math.max(1,this.container.clientHeight);this.camera.aspect=w/h;this.camera.fov=w<700?52:42;this.camera.updateProjectionMatrix();if(this.jackpotCinematic){this.jackpotCinematic.camera.aspect=w/h;this.jackpotCinematic.camera.updateProjectionMatrix();}this.renderer.setSize(w,h,false);this.composer.setSize(w,h);}
   step(dt){
+    if(this.jackpotCinematic){const c=this.jackpotCinematic;c.age+=dt;if(c.motion){c.group.rotation.y+=dt*(c.age>4?1.3:.45);c.group.rotation.z+=dt*.13;c.shards.rotation.z-=dt*.17;c.camera.position.z=Math.max(5.5,8.5-c.age*.48);}this.renderer.render(c.scene,c.camera);return;}
     if(this.preview){
       for(const s of this.sparks){if(s.life<=0)continue;s.life-=dt;s.mesh.position.addScaledVector(s.vel,dt);s.vel.y-=5*dt;s.mesh.material.opacity=Math.max(0,s.life/s.max);if(s.life<=0)s.mesh.visible=false;}
       for(const ripple of this.ripples){if(!ripple.mesh.visible)continue;ripple.age+=dt;if(ripple.age>=ripple.duration)ripple.mesh.visible=false;else this.drawRipple(ripple);}
@@ -463,5 +487,5 @@ export class NeonMachine {
     if(this.shake>.001){this.camera.position.x+=(Math.random()-.5)*this.shake;this.camera.position.y+=(Math.random()-.5)*this.shake;this.shake*=.86;}
     if(this.bloomOn)this.composer.render();else this.renderer.render(this.scene,this.camera);
   }
-  destroy(){this.running=false;this.ro?.disconnect();this.impactEvents?.free();for(const ripple of this.ripples){ripple.mesh.geometry.dispose();ripple.mesh.material.dispose();}for(const burst of this.bursts){burst.mesh.geometry.dispose();burst.mesh.material.dispose();}for(const spark of this.sparks)spark.mesh.material.dispose();this.sparks[0]?.mesh.geometry.dispose();this.prismGeometry.dispose();this.accretionGeometry.dispose();for(const mesh of this.ascension.children){mesh.geometry.dispose();mesh.material.dispose();}for(const mesh of [this.previewBall,...this.previewTrails,...this.haloGroup.children]){if(mesh.userData.sphereGeometry)mesh.userData.sphereGeometry.dispose();else mesh.geometry.dispose();mesh.material.dispose();}this.renderer?.dispose();this.container?.replaceChildren();}
+  destroy(){this.stopJackpotCinematic();this.running=false;this.ro?.disconnect();this.impactEvents?.free();for(const ripple of this.ripples){ripple.mesh.geometry.dispose();ripple.mesh.material.dispose();}for(const burst of this.bursts){burst.mesh.geometry.dispose();burst.mesh.material.dispose();}for(const spark of this.sparks)spark.mesh.material.dispose();this.sparks[0]?.mesh.geometry.dispose();this.prismGeometry.dispose();this.accretionGeometry.dispose();for(const mesh of this.ascension.children){mesh.geometry.dispose();mesh.material.dispose();}for(const mesh of [this.previewBall,...this.previewTrails,...this.haloGroup.children]){if(mesh.userData.sphereGeometry)mesh.userData.sphereGeometry.dispose();else mesh.geometry.dispose();mesh.material.dispose();}this.renderer?.dispose();this.container?.replaceChildren();}
 }
