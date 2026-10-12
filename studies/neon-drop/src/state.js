@@ -75,7 +75,7 @@ export function equipCosmetic(meta,id,category){
 export const ROUND_TARGETS = [180, 540, 1000, 1800];
 export const CABINETS = [
   {id:'classic',name:'Neon Classic',cost:0,description:'The original spinning prize deck. Four rounds, then endless Overdrive.'},
-  {id:'double',name:'Double Trouble',cost:200,description:'A counter-rotating upper deck feeds the prize deck. Charge a ball through a gate for +25% ordinary tickets.'},
+  {id:'double',name:'Double Trouble',cost:200,description:'A counter-rotating upper deck feeds the prize deck. The gold center gate charges a ball for +25% ordinary tickets.'},
 ];
 export const OVERDRIVE_UPGRADES = [
   {id:'od-gain',title:'Voltage amplifier',icon:'ϟ',tier:'OVERDRIVE · STACKS',color:'#55ffc0',description:'+20% ordinary payouts per stack for this run.'},

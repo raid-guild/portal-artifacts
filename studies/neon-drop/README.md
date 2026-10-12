@@ -21,7 +21,7 @@ pay the same reward twice. Active runs themselves are not resumed after reload.
 
 Workshop → CABINETS unlocks Double Trouble for 200 chips and selects the next-run
 cabinet. Its real counter-rotating upper deck feeds balls through nine transfer
-gates to the lower prize deck. Transfer gates charge a ball once (+25% ordinary
+gates to the lower prize deck. The gold center gate charges a ball once (+25% ordinary
 pocket payout); they award no tickets or free turns themselves. Its transparent
 plate keeps the lower deck visible. Ball recovery timeout is 30 seconds here
 versus 18 in Classic. Each cabinet saves its own best ticket total and deepest

@@ -71,7 +71,7 @@ function sync(){
   $('#roundTickets').textContent=run.roundTickets.toLocaleString();$('#target').textContent=targetFor(run).toLocaleString();$('#progressBar').style.width=`${Math.min(100,run.roundTickets/targetFor(run)*100)}%`;
   $('#runTotal').textContent=`RUN ${run.totalTickets.toLocaleString()} TIX`;
   $('#machineTitle').textContent=CABINETS.find(c=>c.id===run.cabinet)?.name||'Neon Classic';
-  $('#machineDescription').textContent=run.cabinet==='double'?'Pass a charge gate on the upper deck, then score below. Charged ordinary pockets pay +25%.':run.overdrive?'Keep your build. Stack mutations. Chase your personal ticket record.':'Time your release. Let gravity write the story.';
+  $('#machineDescription').textContent=run.cabinet==='double'?'Pass the gold +25% gate on the upper deck, then score below. Charged ordinary pockets pay +25%.':run.overdrive?'Keep your build. Stack mutations. Chase your personal ticket record.':'Time your release. Let gravity write the story.';
   syncDropStatus();$('#jackpot').textContent=run.jackpot;$('#legendJackpot').textContent=run.jackpot;$('#chips').textContent=meta.chips;
   $('#buildText').textContent=buildSummary();
   $('#autoState').textContent=meta.purchased.includes('auto')?(run.auto?'ON':'OFF'):'LOCKED';$('#autoBtn').classList.toggle('active',run.auto);
