@@ -13,6 +13,12 @@ const C = { cyan:0x37dafa, magenta:0xfe45bc, gold:0xffbd50, mint:0x55ffc0, ink:0
 const T = Math.PI*2;
 export const DECK_Y = -2.2;
 export const DROP_Y = 3.45;
+export const RIM_POST = {x:2.65,z:0,radius:.14,height:.48};
+export function createRimPost(world,y=DECK_Y){
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x,y+RIM_POST.height/2,RIM_POST.z));
+  world.createCollider(RAPIER.ColliderDesc.cylinder(RIM_POST.height/2,RIM_POST.radius).setRestitution(.78).setFriction(.12),body);
+  return body;
+}
 const TUBE_RADIUS = 2.88;
 const TUBE_BOTTOM = DECK_Y-.65;
 const TUBE_TOP = 4.55;
@@ -80,7 +86,7 @@ export class NeonMachine {
     this.makeRipples();this.makeCosmeticPools();
     const key=new THREE.DirectionalLight(0xffffff,1.45);key.position.set(-3,9,7);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-9;key.shadow.camera.right=9;key.shadow.camera.top=9;key.shadow.camera.bottom=-9;this.scene.add(key);
     for(const [x,y,z,c,intensity] of [[-4,4,1,C.cyan,12],[4,5,1,C.magenta,10],[0,5,-4,C.gold,6]]) { const l=new THREE.PointLight(c,intensity,14,2);l.position.set(x,y,z);this.scene.add(l); }
-    this.makeMachine();this.makeBoard();this.makeUpperDeck();this.makeElevator();this.makeBackdrop();this.loadDecor();
+    this.makeMachine();this.makeBoard();this.makeUpperDeck();this.makeRimPosts();this.makeElevator();this.makeBackdrop();this.loadDecor();
     this.resize();this.ro=new ResizeObserver(()=>this.resize());this.ro.observe(this.container);
     this.animate=()=>{if(!this.running)return;requestAnimationFrame(this.animate);const dt=Math.min(this.clock.getDelta(),.05);if(document.hidden){this.accumulator=0;return;}this.step(dt);};this.animate();
   }
@@ -138,6 +144,15 @@ export class NeonMachine {
     const label=textSprite('CHARGE GATES · +25%','#88ffce',39);label.scale.set(2.7,.34,1);label.position.set(0,.15,2.65);this.upperGroup.add(label);
     this.upperBody.setEnabled(false);this.upperGroup.visible=false;
   }
+  makeRimPosts(){
+    // Stationary wall-side pins interrupt co-rotation without steering or invented scores.
+    this.rimPosts=[DECK_Y,UPPER_DECK_Y].map(y=>{
+      const group=new THREE.Group();this.scene.add(group);
+      cyl(group,RIM_POST.radius,RIM_POST.radius,RIM_POST.height,[RIM_POST.x,y+RIM_POST.height/2,RIM_POST.z],mat(0xc58c35,.8,.22,0x7b4b09,.35),20);
+      cyl(group,.145,.145,.035,[RIM_POST.x,y+RIM_POST.height,RIM_POST.z],glow(C.gold),20);
+      return {group,body:createRimPost(this.world,y)};
+    });
+  }
   makeElevator() {
     this.elevator=new THREE.Group();this.scene.add(this.elevator);
     const x=3.35,z=-2.82;
@@ -161,7 +176,7 @@ export class NeonMachine {
     this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
     this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;if(this.upperBody){this.upperBody.setRotation({x:0,y:0,z:0,w:1},true);this.upperBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.upperGroup.rotation.y=0;}this.impactEvents.drainContactForceEvents(()=>{});
   }
-  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;}
+  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;this.rimPosts?.forEach((post,i)=>{const enabled=!run.challenge&&(i===0||double);post.body.setEnabled(enabled);post.group.visible=enabled;});}
   setAudioEngine(engine){this.audioEngine=engine;}
   setCosmetics(equipped){this.cosmetics={trail:equipped?.trail||'default',impact:equipped?.impact||'default',jackpot:equipped?.jackpot||'default'};}
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
