@@ -85,9 +85,26 @@ cookies, or call private Portal APIs.
 
 The service applies a restrictive Content Security Policy. Inline JavaScript
 and styles are permitted for self-contained workshop exports. The only external
-script origin currently permitted is `cdnjs.cloudflare.com`; prefer checked-in
-dependencies for durable published work. Same-origin WebAssembly compilation is
-allowed (`wasm-unsafe-eval`) so checked-in engines such as Havok can start.
+script origins currently permitted are `cdnjs.cloudflare.com` and the configured
+Plausible service; prefer checked-in dependencies for durable published work.
+Same-origin WebAssembly compilation is allowed (`wasm-unsafe-eval`) so checked-in
+engines such as Havok can start.
+
+## Route analytics
+
+The Docker build copies `public/` and injects the configured Plausible snippet
+into every HTML page in the served copy. Source files under `public/` remain
+unchanged. Once Railway deploys the build, use Plausible's **Top Pages** view
+to see which artifact paths visitors open, including deep links such as
+`/rg-tlm-game/sprites.html`. An artifact embedded in Portal also loads its own
+page and can appear in that route view. The Portal page itself needs its own
+analytics setup if you want to measure Portal routes.
+
+To preview the generated files without Docker, run
+`node scripts/inject-plausible.mjs public /tmp/portal-artifacts-preview`.
+This tracks page loads at the artifact URL and History API (`pushState`)
+navigation automatically. It does not record in-game state or hash navigation.
+Serving raw `public/` files bypasses the injection step.
 
 ## Local preview
 
