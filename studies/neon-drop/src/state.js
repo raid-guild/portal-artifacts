@@ -73,7 +73,22 @@ export function equipCosmetic(meta,id,category){
   return {...meta,equipped:{...meta.equipped,[category]:id}};
 }
 export const ROUND_TARGETS = [180, 540, 1000, 1800];
-export const DEFAULT_META = { chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], powerLevels:{...DEFAULT_POWER_LEVELS}, style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, audio:{...DEFAULT_AUDIO,owned:[DEFAULT_RADIO]}, idleAt:Date.now(), idleRate:0, wins:0 };
+export const CABINETS = [
+  {id:'classic',name:'Neon Classic',cost:0,description:'The original spinning prize deck. Four rounds, then endless Overdrive.'},
+  {id:'double',name:'Double Trouble',cost:200,description:'A counter-rotating upper deck feeds the prize deck. Charge a ball through a gate for +25% ordinary tickets.'},
+];
+export const OVERDRIVE_UPGRADES = [
+  {id:'od-gain',title:'Voltage amplifier',icon:'ϟ',tier:'OVERDRIVE · STACKS',color:'#55ffc0',description:'+20% ordinary payouts per stack for this run.'},
+  {id:'od-bank',title:'Reactor charge',icon:'◈',tier:'OVERDRIVE · STACKS',color:'#ffbd50',description:'Ordinary scores charge the jackpot by +15 per stack.'},
+  {id:'od-reserve',title:'Overflow hopper',icon:'⊕',tier:'OVERDRIVE · STACKS',color:'#fe45bc',description:'+2 starting drops each round per stack.'},
+];
+export function buyCabinet(meta,id){
+  const cabinet=CABINETS.find(c=>c.id===id);
+  if(!cabinet||meta.cabinets?.includes(id)||meta.chips<cabinet.cost)return meta;
+  return {...meta,chips:meta.chips-cabinet.cost,cabinets:[...(meta.cabinets||['classic']),id],selectedCabinet:id};
+}
+export function selectCabinet(meta,id){return meta.cabinets?.includes(id)?{...meta,selectedCabinet:id}:meta;}
+export const DEFAULT_META = { cabinets:['classic'], selectedCabinet:'classic', records:{}, chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], powerLevels:{...DEFAULT_POWER_LEVELS}, style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, audio:{...DEFAULT_AUDIO,owned:[DEFAULT_RADIO]}, idleAt:Date.now(), idleRate:0, wins:0 };
 
 export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
   try {
@@ -91,6 +106,9 @@ export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
     const musicVolume=Number.isFinite(saved.audio?.musicVolume)?Math.max(0,Math.min(1,saved.audio.musicVolume)):oldVolume;
     const effectsVolume=Number.isFinite(saved.audio?.effectsVolume)?Math.max(0,Math.min(1,saved.audio.effectsVolume)):oldVolume;
     return {
+      cabinets:['classic',...(Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?['double']:[])],
+      selectedCabinet:saved.selectedCabinet==='double'&&Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?'double':'classic',
+      records:Object.fromEntries(CABINETS.map(c=>[c.id,{tickets:number(saved.records?.[c.id]?.tickets,0),round:number(saved.records?.[c.id]?.round,0,10000)}])),
       chips:number(saved.chips,0), totalTickets:number(saved.totalTickets,0), bestRound:number(saved.bestRound,0,ROUND_TARGETS.length),
       unlocked:['chrome', ...new Set(Array.isArray(saved.unlocked) ? saved.unlocked.filter(x=>x==='rubber'||x==='heavy') : [])],
       purchased:[...new Set(Array.isArray(saved.purchased) ? saved.purchased.filter(x=>['auto','magenta','gold'].includes(x)) : [])],
@@ -110,9 +128,9 @@ export function idleEarnings(meta, now = Date.now()) {
 export function jackpotBase(run){return 150+run.round*100+powerLevel(run.powerLevels,'jackpot')*10;}
 export function newRun(meta=DEFAULT_META) {
   const powerLevels=Object.fromEntries(POWER_UPGRADES.map(power=>[power.id,powerLevel(meta.powerLevels,power.id)]));
-  return {round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:false,status:'playing',lastScore:null};
+  return {cabinet:meta.cabinets?.includes(meta.selectedCabinet)?meta.selectedCabinet:'classic',overdrive:false,mastered:false,bankedChips:0,bankedTickets:0,winBanked:false,round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:false,status:'playing',lastScore:null};
 }
-export function targetFor(run) { return ROUND_TARGETS[Math.min(run.round, ROUND_TARGETS.length-1)]; }
+export function targetFor(run) { return run.round<4?ROUND_TARGETS[run.round]:Math.round(1800*Math.pow(1.25,Math.min(run.round-3,80))); }
 export function payout(run, hole, ball, rimHits=0) {
   if (hole.kind === 'free') return { amount:0, free:2, jackpot:false };
   if (hole.kind === 'jackpot') return { amount:run.jackpot, free:0, jackpot:true };
@@ -122,6 +140,8 @@ export function payout(run, hole, ball, rimHits=0) {
   if (run.upgrades.includes('rim')) amount *= 1 + Math.min(rimHits, 10) * .08;
   if (run.upgrades.includes('lucky')) amount *= 1.25;
   if (run.upgrades.includes('spark') && (run.scores + 1) % 5 === 0) amount *= 2;
+  if(run.cabinet==='double'&&hole.charged)amount*=1.25;
+  amount *= 1+run.upgrades.filter(id=>id==='od-gain').length*.2;
   amount *= 1+powerLevel(run.powerLevels,'amplifier')*.02;
   return { amount:Math.round(amount), free:0, jackpot:false };
 }
@@ -130,6 +150,7 @@ export function applyScore(run, hole, ball, rimHits=0) {
   const next = { ...run, scores:run.scores + 1, drops:run.drops + reward.free, lastScore:{...reward, label:hole.label} };
   if (reward.jackpot) next.jackpot = jackpotBase(next);
   else if (hole.kind !== 'free' && next.upgrades.includes('capacitor')) next.jackpot += 8;
+  if(hole.kind==='score')next.jackpot+=15*next.upgrades.filter(id=>id==='od-bank').length;
   next.roundTickets += reward.amount;
   next.totalTickets += reward.amount;
   if (next.roundTickets >= targetFor(next)) next.status = 'choose';
@@ -137,16 +158,34 @@ export function applyScore(run, hole, ball, rimHits=0) {
 }
 export function addUpgrade(run, upgradeId) {
   const next = { ...run, upgrades:[...run.upgrades, upgradeId], round:run.round+1, roundTickets:0, drops:12 + powerLevel(run.powerLevels,'reserve') + (run.upgrades.includes('reserve') || upgradeId === 'reserve' ? 4 : 0), status:'playing' };
+  next.drops+=2*next.upgrades.filter(id=>id==='od-reserve').length;
   next.jackpot=Math.max(next.jackpot,jackpotBase(next));
-  if (next.round >= ROUND_TARGETS.length) next.status = 'won';
+  if (next.round >= ROUND_TARGETS.length&&!next.overdrive) next.status = 'won';
   return next;
 }
-export function chipsForRun(run){return Math.max(1,Math.floor(run.totalTickets/175)+run.round*3+(run.status==='won'?12:0));}
-export function finishRun(run, meta, now=Date.now()) {
-  const chips = chipsForRun(run);
-  return { ...meta, chips:meta.chips+chips, totalTickets:meta.totalTickets+run.totalTickets, bestRound:Math.max(meta.bestRound,Math.min(ROUND_TARGETS.length,run.round+1)), idleRate:Math.max(meta.idleRate, Math.min(18, Math.floor((meta.totalTickets+run.totalTickets)/1200))), idleAt:now, wins:meta.wins+(run.status === 'won' ? 1 : 0) };
+export function completeCabinet(run){
+  return run.round===3&&run.status==='choose'&&!run.overdrive?{...run,mastered:true,status:'checkpoint'}:run;
 }
+export function enterOverdrive(run){return run.status==='checkpoint'?{...run,overdrive:true,status:'choose'}:run;}
+export function chipsForRun(run){
+  const cleared=run.mastered?Math.max(4,run.round):run.round;
+  return Math.max(1,Math.floor(run.totalTickets/175)+cleared*3+(run.mastered||run.status==='won'?12:0));
+}
+// Checkpoints pay only the difference; repeated calls cannot pay the same tickets or win twice.
+export function bankRun(run,meta,now=Date.now()){
+  const earned=chipsForRun(run),chips=Math.max(0,earned-(run.bankedChips||0));
+  const tickets=Math.max(0,run.totalTickets-(run.bankedTickets||0));
+  const won=(run.mastered||run.status==='won')&&!run.winBanked;
+  const cabinet=run.cabinet||'classic',old=meta.records?.[cabinet]||{tickets:0,round:0};
+  const reached=run.round+1;
+  return {run:{...run,bankedChips:earned,bankedTickets:run.totalTickets,winBanked:run.winBanked||won},meta:{...meta,
+    chips:meta.chips+chips,totalTickets:meta.totalTickets+tickets,
+    bestRound:Math.max(meta.bestRound,Math.min(4,reached)),
+    records:{...meta.records,[cabinet]:{tickets:Math.max(old.tickets,run.totalTickets),round:Math.max(old.round,reached)}},
+    idleRate:Math.max(meta.idleRate,Math.min(18,Math.floor((meta.totalTickets+tickets)/1200))),idleAt:now,wins:meta.wins+Number(won)}};
+}
+export function finishRun(run,meta,now=Date.now()){return bankRun(run,meta,now).meta;}
 export function randomCards(run, random=Math.random) {
-  const available = UPGRADES.filter(u => !run.upgrades.includes(u.id));
+  const available = [...UPGRADES.filter(u => !run.upgrades.includes(u.id)),...(run.overdrive?OVERDRIVE_UPGRADES:[])];
   return available.sort(() => random()-.5).slice(0,3);
 }

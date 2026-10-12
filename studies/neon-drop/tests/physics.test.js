@@ -90,3 +90,36 @@ test('production ball colliders exchange velocity on contact and emit force for 
   assert.ok(left.linvel().x<0&&right.linvel().x>0,'the balls should visibly rebound apart');
   events.free();world.free();
 });
+
+test('Double Trouble transfer openings physically feed the scoring deck below',async()=>{
+  const {UPPER_DECK_Y,TRANSFER_GATES}=await import('../src/double-deck.js');
+  await RAPIER.init();const world=new RAPIER.World({x:0,y:-10.5,z:0});world.timestep=1/120;
+  const geometries=[];
+  for(const [holes,y] of [[TRANSFER_GATES,UPPER_DECK_Y],[[{x:0,z:0,r:.38}],DECK_Y]]){
+    const geometry=deckGeometry(holes);geometries.push(geometry);const pos=geometry.getAttribute('position');
+    const indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:pos.count},(_,i)=>i);
+    world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(pos.array),indices).setTranslation(0,y,0));
+  }
+  const upper=world.createCollider(RAPIER.ColliderDesc.ball(.4).setTranslation(0,UPPER_DECK_Y-.28,0).setSensor(true));
+  const lower=world.createCollider(RAPIER.ColliderDesc.ball(.3).setTranslation(0,DECK_Y-.26,0).setSensor(true));
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0,DROP_Y,0).setCcdEnabled(true));
+  const ball=world.createCollider(ballColliderDesc('chrome'),body);let chargeStep=-1,scoreStep=-1;
+  for(let i=0;i<200;i++){world.step();if(chargeStep<0&&world.intersectionPair(ball,upper))chargeStep=i;if(world.intersectionPair(ball,lower)){scoreStep=i;break;}}
+  assert.ok(chargeStep>=0,'ball must cross a real transfer opening');assert.ok(scoreStep>chargeStep,'scoring happens on the lower deck after transfer');
+  world.free();geometries.forEach(g=>g.dispose());
+});
+
+
+for(const side of [-1,1])test(`small stationary rim post on side ${side} deflects a tangential orbit inward`,async()=>{
+  const {createRimPost,RIM_POST}=await import('../src/game.js');
+  await RAPIER.init();const world=new RAPIER.World({x:0,y:0,z:0});world.timestep=1/120;
+  createTubeColliders(world);createRimPost(world,DECK_Y,side);
+  assert.ok(2.79-(RIM_POST.x+RIM_POST.radius)<.32,'a ball must not fit behind the post');
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(2.55*side,DECK_Y+.16,-.8).setLinvel(0,0,3).setCcdEnabled(true));
+  world.createCollider(ballColliderDesc('chrome'),body);
+  let inward=false;
+  for(let i=0;i<100;i++){world.step();if(body.linvel().x*side<-.5)inward=true;}
+  assert.ok(inward,'real post contact must break the tangential orbit inward');
+  assert.ok(Math.hypot(body.translation().x,body.translation().z)<2.4,'ball should leave the outer orbit');
+  world.free();
+});

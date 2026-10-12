@@ -41,3 +41,5 @@ html,body,#app,.shell{height:100dvh;min-height:0}.mobile-settings-only{display:n
   .left-panel .big-number{font-size:28px}.left-panel .info-grid b{font-size:20px}
   #viewport{top:56px;left:178px;bottom:calc(99px + env(safe-area-inset-bottom,0px))}
 }
+
+#runTotal{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#roundTag{flex-shrink:0}
