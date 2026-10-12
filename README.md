@@ -106,6 +106,15 @@ This tracks page loads at the artifact URL and History API (`pushState`)
 navigation automatically. It does not record in-game state or hash navigation.
 Serving raw `public/` files bypasses the injection step.
 
+The same build also adds `/artifact-links.js` to each page. It tags links to
+`raidguild.org` and `portal.raidguild.org` with `utm_source=portal-artifacts`,
+`utm_medium=referral`, `utm_campaign=artifact-links`, and `utm_content` set to
+the first artifact path segment (or `index` at the root). Existing UTM values,
+including empty values, take precedence. Other query parameters and fragments
+are preserved. Links added after page load are tagged too. This applies to
+HTML links and image-map areas; navigation performed directly in JavaScript
+needs to supply its own UTM parameters.
+
 ## Local preview
 
 ```bash

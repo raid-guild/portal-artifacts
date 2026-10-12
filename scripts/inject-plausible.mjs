@@ -10,12 +10,18 @@ const snippet = `${marker}
   window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
   plausible.init()
 </script>`;
+const linksMarker = '<!-- Artifact outbound links: injected at build time -->';
+const linksSnippet = `${linksMarker}
+<script defer src="/artifact-links.js"></script>`;
 
 export function injectPlausible(html, path = '<HTML>') {
-  if (html.includes(marker)) return html;
   const head = /<\/head\s*>/i;
   if (!head.test(html)) throw new Error(`Missing </head> in ${path}`);
-  return html.replace(head, `${snippet}\n$&`);
+  const additions = [
+    ...(html.includes(marker) ? [] : [snippet]),
+    ...(html.includes(linksMarker) ? [] : [linksSnippet])
+  ];
+  return additions.length ? html.replace(head, `${additions.join('\n')}\n$&`) : html;
 }
 
 export async function injectDirectory(root) {
@@ -46,7 +52,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await mkdir(destination, { recursive: true });
       await cp(source, destination, { recursive: true });
       const count = await injectDirectory(destination);
-      console.log(`Injected Plausible into ${count} HTML files in ${destination}`);
+      console.log(`Injected analytics and outbound link tagging into ${count} HTML files in ${destination}`);
     } catch (error) {
       console.error(error);
       process.exitCode = 1;
