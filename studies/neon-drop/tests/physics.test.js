@@ -110,15 +110,15 @@ test('Double Trouble transfer openings physically feed the scoring deck below',a
 });
 
 
-test('stationary rim post deflects a tangential orbit inward without a ball-sized wall gap',async()=>{
+for(const side of [-1,1])test(`small stationary rim post on side ${side} deflects a tangential orbit inward`,async()=>{
   const {createRimPost,RIM_POST}=await import('../src/game.js');
   await RAPIER.init();const world=new RAPIER.World({x:0,y:0,z:0});world.timestep=1/120;
-  createTubeColliders(world);createRimPost(world);
+  createTubeColliders(world);createRimPost(world,DECK_Y,side);
   assert.ok(2.79-(RIM_POST.x+RIM_POST.radius)<.32,'a ball must not fit behind the post');
-  const body=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(2.55,DECK_Y+.16,-.8).setLinvel(0,0,3).setCcdEnabled(true));
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(2.55*side,DECK_Y+.16,-.8).setLinvel(0,0,3).setCcdEnabled(true));
   world.createCollider(ballColliderDesc('chrome'),body);
   let inward=false;
-  for(let i=0;i<100;i++){world.step();if(body.linvel().x<-.5)inward=true;}
+  for(let i=0;i<100;i++){world.step();if(body.linvel().x*side<-.5)inward=true;}
   assert.ok(inward,'real post contact must break the tangential orbit inward');
   assert.ok(Math.hypot(body.translation().x,body.translation().z)<2.4,'ball should leave the outer orbit');
   world.free();

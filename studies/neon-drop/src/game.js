@@ -13,9 +13,9 @@ const C = { cyan:0x37dafa, magenta:0xfe45bc, gold:0xffbd50, mint:0x55ffc0, ink:0
 const T = Math.PI*2;
 export const DECK_Y = -2.2;
 export const DROP_Y = 3.45;
-export const RIM_POST = {x:2.65,z:0,radius:.14,height:.48};
-export function createRimPost(world,y=DECK_Y){
-  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x,y+RIM_POST.height/2,RIM_POST.z));
+export const RIM_POST = {x:2.65,z:0,radius:.085,height:.22};
+export function createRimPost(world,y=DECK_Y,side=1){
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x*side,y+RIM_POST.height/2,RIM_POST.z));
   world.createCollider(RAPIER.ColliderDesc.cylinder(RIM_POST.height/2,RIM_POST.radius).setRestitution(.78).setFriction(.12),body);
   return body;
 }
@@ -146,13 +146,14 @@ export class NeonMachine {
   }
   makeRimPosts(){
     // Stationary wall-side pins interrupt co-rotation without steering or invented scores.
-    this.rimPosts=[DECK_Y,UPPER_DECK_Y].map(y=>{
-      const group=new THREE.Group();this.scene.add(group);
-      cyl(group,RIM_POST.radius,RIM_POST.radius,RIM_POST.height,[RIM_POST.x,y+RIM_POST.height/2,RIM_POST.z],mat(0xc58c35,.8,.22,0x7b4b09,.35),20);
-      cyl(group,.145,.145,.035,[RIM_POST.x,y+RIM_POST.height,RIM_POST.z],glow(C.gold),20);
-      return {group,body:createRimPost(this.world,y)};
-    });
+    this.rimPosts=[DECK_Y,UPPER_DECK_Y].flatMap((y,deck)=>[-1,1].map(side=>{
+      const group=new THREE.Group();this.scene.add(group);const x=RIM_POST.x*side;
+      cyl(group,.075,RIM_POST.radius,RIM_POST.height,[x,y+RIM_POST.height/2,RIM_POST.z],mat(0xc58c35,.8,.22,0x7b4b09,.35),12);
+      cyl(group,.075,.075,.015,[x,y+RIM_POST.height,RIM_POST.z],glow(C.gold),12);
+      return {group,deck,body:createRimPost(this.world,y,side)};
+    }));
   }
+
   makeElevator() {
     this.elevator=new THREE.Group();this.scene.add(this.elevator);
     const x=3.35,z=-2.82;
@@ -176,7 +177,7 @@ export class NeonMachine {
     this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
     this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;if(this.upperBody){this.upperBody.setRotation({x:0,y:0,z:0,w:1},true);this.upperBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.upperGroup.rotation.y=0;}this.impactEvents.drainContactForceEvents(()=>{});
   }
-  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;this.rimPosts?.forEach((post,i)=>{const enabled=!run.challenge&&(i===0||double);post.body.setEnabled(enabled);post.group.visible=enabled;});}
+  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;this.rimPosts?.forEach(post=>{const enabled=!run.challenge&&(post.deck===0||double);post.body.setEnabled(enabled);post.group.visible=enabled;});}
   setAudioEngine(engine){this.audioEngine=engine;}
   setCosmetics(equipped){this.cosmetics={trail:equipped?.trail||'default',impact:equipped?.impact||'default',jackpot:equipped?.jackpot||'default'};}
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
