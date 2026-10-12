@@ -8,6 +8,25 @@ Keep public/artifact-social-v1.png when rebuilding. It is a composed gameplay sc
 Dependency licenses are in licenses/. No external runtime fonts or scripts are needed.
 Blender decoration is in public/assets/arcade-crest.glb, reproducible via scripts/make_crest.py.
 
+## Cabinets and Overdrive
+Clear the four rounds to bank your completion bonus, then cash out or enter
+Overdrive. Overdrive keeps the current build, raises targets by 25% each round,
+and offers repeatable Voltage amplifier (+20% ordinary tickets), Reactor charge
+(+15 jackpot charge per ordinary score), and Overflow hopper (+2 starting drops
+per round). These stack within the run, never become permanent power. Cash out
+from Settings at any time during Overdrive. Completion rewards are banked once;
+subsequent Overdrive scores bank only the additional chips and tickets, so ending
+or leaving cannot take earned rewards away. Repeated checkpoint banking cannot
+pay the same reward twice. Active runs themselves are not resumed after reload.
+
+Workshop → CABINETS unlocks Double Trouble for 200 chips and selects the next-run
+cabinet. Its real counter-rotating upper deck feeds balls through nine transfer
+gates to the lower prize deck. Transfer gates charge a ball once (+25% ordinary
+pocket payout); they award no tickets or free turns themselves. Its transparent
+plate keeps the lower deck visible. Ball recovery timeout is 30 seconds here
+versus 18 in Classic. Each cabinet saves its own best ticket total and deepest
+round. Arcade Challenge always uses Classic with its existing fixed rules.
+
 ## Roguelite balance and permanent power
 Each round has its own ticket target: 180, 540, 1,000, then 1,800.
 Circuit chips from finished runs buy three levelled Workshop powers: +2% ordinary

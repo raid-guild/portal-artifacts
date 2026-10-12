@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { BALLS } from './state.js';
 import { POCKETS } from './challenge.js';
+import { UPPER_DECK_Y, TRANSFER_GATES } from './double-deck.js';
 
 const C = { cyan:0x37dafa, magenta:0xfe45bc, gold:0xffbd50, mint:0x55ffc0, ink:0x090b16 };
 const T = Math.PI*2;
@@ -79,7 +80,7 @@ export class NeonMachine {
     this.makeRipples();this.makeCosmeticPools();
     const key=new THREE.DirectionalLight(0xffffff,1.45);key.position.set(-3,9,7);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-9;key.shadow.camera.right=9;key.shadow.camera.top=9;key.shadow.camera.bottom=-9;this.scene.add(key);
     for(const [x,y,z,c,intensity] of [[-4,4,1,C.cyan,12],[4,5,1,C.magenta,10],[0,5,-4,C.gold,6]]) { const l=new THREE.PointLight(c,intensity,14,2);l.position.set(x,y,z);this.scene.add(l); }
-    this.makeMachine();this.makeBoard();this.makeElevator();this.makeBackdrop();this.loadDecor();
+    this.makeMachine();this.makeBoard();this.makeUpperDeck();this.makeElevator();this.makeBackdrop();this.loadDecor();
     this.resize();this.ro=new ResizeObserver(()=>this.resize());this.ro.observe(this.container);
     this.animate=()=>{if(!this.running)return;requestAnimationFrame(this.animate);const dt=Math.min(this.clock.getDelta(),.05);if(document.hidden){this.accumulator=0;return;}this.step(dt);};this.animate();
   }
@@ -121,6 +122,22 @@ export class NeonMachine {
     }
     for(let i=0;i<12;i++){const a=i*T/12+.2;const x=Math.cos(a)*1.64,z=Math.sin(a)*1.64;cyl(this.boardGroup,.075,.085,.22,[x,.13,z],mat(0x8fdafa,.85,.12,0x2d9bce,.7),12);this.world.createCollider(RAPIER.ColliderDesc.ball(.09).setTranslation(x,.13,z).setRestitution(.9),this.boardBody);}
   }
+  makeUpperDeck(){
+    this.upperGroup=new THREE.Group();this.upperGroup.position.y=UPPER_DECK_Y;this.scene.add(this.upperGroup);
+    const geometry=deckGeometry(TRANSFER_GATES),positions=geometry.getAttribute('position');
+    const indices=geometry.index?new Uint32Array(geometry.index.array):Uint32Array.from({length:positions.count},(_,i)=>i);
+    this.upperBody=this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,UPPER_DECK_Y,0));
+    this.upperCollider=this.world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(positions.array),indices).setFriction(.3).setRestitution(.55),this.upperBody);
+    const material=mat(0x542970,.65,.25,0x3c135d,.5);material.transparent=true;material.opacity=.32;material.depthWrite=false;material.side=THREE.DoubleSide;
+    this.upperGroup.add(new THREE.Mesh(geometry,material));
+    torus(this.upperGroup,2.87,.045,[0,.02,0],glow(C.magenta));
+    this.transferSensors=TRANSFER_GATES.map(g=>{
+      torus(this.upperGroup,g.r+.02,.028,[g.x,.025,g.z],glow(C.mint));
+      return this.world.createCollider(RAPIER.ColliderDesc.ball(g.r*.76).setTranslation(g.x,-.28,g.z).setSensor(true),this.upperBody);
+    });
+    const label=textSprite('CHARGE GATES · +25%','#88ffce',39);label.scale.set(2.7,.34,1);label.position.set(0,.15,2.65);this.upperGroup.add(label);
+    this.upperBody.setEnabled(false);this.upperGroup.visible=false;
+  }
   makeElevator() {
     this.elevator=new THREE.Group();this.scene.add(this.elevator);
     const x=3.35,z=-2.82;
@@ -142,9 +159,9 @@ export class NeonMachine {
     for(const item of this.active){this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}}
     for(const item of this.returns){this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();}
     this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
-    this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;this.impactEvents.drainContactForceEvents(()=>{});
+    this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;if(this.upperBody){this.upperBody.setRotation({x:0,y:0,z:0,w:1},true);this.upperBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.upperGroup.rotation.y=0;}this.impactEvents.drainContactForceEvents(()=>{});
   }
-  setRun(run){this.run=run;this.spin=.58;}
+  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;}
   setAudioEngine(engine){this.audioEngine=engine;}
   setCosmetics(equipped){this.cosmetics={trail:equipped?.trail||'default',impact:equipped?.impact||'default',jackpot:equipped?.jackpot||'default'};}
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
@@ -361,7 +378,7 @@ export class NeonMachine {
       if(this.playTime-item.lastImpact<.065)return;
       const otherHandle=item.collider.handle===handle1?handle2:handle1;
       const tube=this.tubeHandles.has(otherHandle);
-      const deck=otherHandle===this.boardCollider.handle;
+      const deck=otherHandle===this.boardCollider.handle||otherHandle===this.upperCollider?.handle;
       const strength=THREE.MathUtils.clamp((impulse-.045)/.38,0,1);
       let point=null,normal=null;
       this.world.contactPair(this.world.getCollider(handle1),this.world.getCollider(handle2),manifold=>{
@@ -389,7 +406,7 @@ export class NeonMachine {
   }
   particles(pos,color,count=12,big=false){if(this.reducedEffects)count=Math.min(count,5);for(let i=0;i<count;i++){const s=this.sparks[this.nextSpark++%this.sparks.length];s.mesh.position.copy(pos);s.mesh.material.color.set(color);s.mesh.material.opacity=1;s.mesh.visible=true;s.vel.set((Math.random()-.5)*(big?5:3),Math.random()*(big?6:3),(Math.random()-.5)*(big?5:3));s.max=s.life=big?1.2:.6;s.mesh.scale.setScalar(big?1.7:1);}}
   recycle(item,hole=null) {
-    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.(hole,item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
+    const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.({...hole,charged:!!item.charged},item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free);}
     const handle=item.collider.handle;
     for(const key of this.ballCollisionTimes.keys())if(key.split(':').some(part=>Number(part)===handle))this.ballCollisionTimes.delete(key);
     this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}this.active.splice(this.active.indexOf(item),1);
@@ -405,14 +422,15 @@ export class NeonMachine {
     }
     this.accumulator+=dt;
     const fixed=1/120;let steps=0;
-    while(this.accumulator>=fixed&&steps<8){this.playTime+=fixed;this.rotation+=(this.brakeTime>0?.22:this.spin)*fixed;this.brakeTime=Math.max(0,(this.brakeTime||0)-fixed);this.boardBody.setNextKinematicRotation({x:0,y:Math.sin(this.rotation/2),z:0,w:Math.cos(this.rotation/2)});this.world.step(this.impactEvents);this.captureImpacts(fixed);this.accumulator-=fixed;steps++;}
+    while(this.accumulator>=fixed&&steps<8){this.playTime+=fixed;this.rotation+=(this.brakeTime>0?.22:this.spin)*fixed;this.brakeTime=Math.max(0,(this.brakeTime||0)-fixed);this.boardBody.setNextKinematicRotation({x:0,y:Math.sin(this.rotation/2),z:0,w:Math.cos(this.rotation/2)});if(this.upperGroup.visible){const angle=-this.rotation*.7;this.upperBody.setNextKinematicRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)});}this.world.step(this.impactEvents);this.captureImpacts(fixed);this.accumulator-=fixed;steps++;}
     if(steps===8)this.accumulator=0;
-    this.boardGroup.rotation.y=this.rotation;
+    this.boardGroup.rotation.y=this.rotation;if(this.upperGroup.visible)this.upperGroup.rotation.y=-this.rotation*.7;
     for(const item of [...this.active]){
       item.age+=dt;const p=item.body.translation();item.mesh.position.set(p.x,p.y,p.z);const q=item.body.rotation();item.mesh.quaternion.set(q.x,q.y,q.z,q.w);
       item.history.unshift(item.mesh.position.clone());if(item.history.length>16)item.history.pop();this.drawTrail(item);
+      if(this.upperGroup.visible&&!item.charged&&p.y<UPPER_DECK_Y-.1&&this.transferSensors.some(sensor=>this.world.intersectionPair(item.collider,sensor))){item.charged=true;item.mesh.material.emissive.setHex(C.mint);this.particles(item.mesh.position,C.mint,12);this.emitRipple(item.mesh.position,new THREE.Vector3(0,1,0),'deck',.8,C.mint);this.callbacks.onCharge?.();}
       if(p.y<DECK_Y-.08){const hole=this.holes.find(h=>this.world.intersectionPair(item.collider,h.sensor));if(hole){this.recycle(item,hole);continue;}}
-      if(item.age>18||p.y<DECK_Y-.68){this.recycle(item);continue;}
+      if(item.age>(this.upperGroup.visible?30:18)||p.y<DECK_Y-.68){this.recycle(item);continue;}
     }
     this.audioEngine?.setActivity(this.active.length);
     for(const r of [...this.returns]){r.age+=dt;const t=r.age/r.duration;let x,y,z;if(t<.28){const k=t/.28;x=.1+3.25*k;y=DECK_Y-.4;z=-1.9-.92*k;}else if(t<.88){const k=(t-.28)/.6;x=3.35;y=DECK_Y-.4+(3.38-(DECK_Y-.4))*k;z=-2.82;}else{const k=(t-.88)/.12;x=3.35-2.65*k;y=3.38+.07*k;z=-2.82+1.62*k;}r.mesh.position.set(x,y,z);r.mesh.rotation.z+=dt*5;if(t>=1){this.scene.remove(r.mesh);r.mesh.geometry.dispose();r.mesh.material.dispose();this.returns.splice(this.returns.indexOf(r),1);}}
