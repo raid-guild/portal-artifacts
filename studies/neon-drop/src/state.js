@@ -88,7 +88,8 @@ export function buyCabinet(meta,id){
   return {...meta,chips:meta.chips-cabinet.cost,cabinets:[...(meta.cabinets||['classic']),id],selectedCabinet:id};
 }
 export function selectCabinet(meta,id){return meta.cabinets?.includes(id)?{...meta,selectedCabinet:id}:meta;}
-export const DEFAULT_META = { cabinets:['classic'], selectedCabinet:'classic', records:{}, chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], powerLevels:{...DEFAULT_POWER_LEVELS}, style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, audio:{...DEFAULT_AUDIO,owned:[DEFAULT_RADIO]}, idleAt:Date.now(), idleRate:0, wins:0 };
+export const DEFAULT_META = { revision:0, cabinets:['classic'], selectedCabinet:'classic', records:{}, chips:0, totalTickets:0, bestRound:0, unlocked:['chrome'], purchased:[], powerLevels:{...DEFAULT_POWER_LEVELS}, style:'cyan', cosmetics:[], equipped:{...DEFAULT_EQUIPPED}, audio:{...DEFAULT_AUDIO,owned:[DEFAULT_RADIO]}, idleAt:Date.now(), idleRate:0, wins:0 };
+const revisionOf=value=>Number.isSafeInteger(value)&&value>=0?value:0;
 
 export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
   try {
@@ -106,6 +107,7 @@ export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
     const musicVolume=Number.isFinite(saved.audio?.musicVolume)?Math.max(0,Math.min(1,saved.audio.musicVolume)):oldVolume;
     const effectsVolume=Number.isFinite(saved.audio?.effectsVolume)?Math.max(0,Math.min(1,saved.audio.effectsVolume)):oldVolume;
     return {
+      revision:revisionOf(saved.revision),
       cabinets:['classic',...(Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?['double']:[])],
       selectedCabinet:saved.selectedCabinet==='double'&&Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?'double':'classic',
       records:Object.fromEntries(CABINETS.map(c=>[c.id,{tickets:number(saved.records?.[c.id]?.tickets,0),round:number(saved.records?.[c.id]?.round,0,10000)}])),
@@ -120,7 +122,22 @@ export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
     };
   } catch { return { ...DEFAULT_META, idleAt:now }; }
 }
-export function saveMeta(meta, storage = globalThis.localStorage) { try { storage?.setItem(KEY, JSON.stringify(meta)); } catch {} }
+// The caller must adopt the returned meta on success. A stale tab may never
+// retry its old balance or run bank markers against the newer save.
+export function saveMeta(meta, storage = globalThis.localStorage) {
+  try {
+    if(!storage?.getItem||!storage?.setItem)return {ok:false,reason:'storage',meta};
+    const raw=storage.getItem(KEY);
+    const stored=raw===null?null:JSON.parse(raw);
+    if(raw!==null&&(!stored||typeof stored!=='object'||Array.isArray(stored)))return {ok:false,reason:'storage',meta};
+    const expected=revisionOf(meta.revision),current=revisionOf(stored?.revision);
+    if(current!==expected)return {ok:false,reason:'conflict',meta:loadMeta(storage)};
+    if(current>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'storage',meta};
+    const next={...meta,revision:current+1};
+    storage.setItem(KEY,JSON.stringify(next));
+    return {ok:true,meta:next};
+  } catch { return {ok:false,reason:'storage',meta}; }
+}
 export function idleEarnings(meta, now = Date.now()) {
   const elapsed = Math.max(0, Math.min(now - meta.idleAt, 4 * 60 * 60 * 1000));
   return Math.floor(elapsed / 60000 * Math.max(0, meta.idleRate));

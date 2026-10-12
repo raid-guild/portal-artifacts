@@ -27,6 +27,13 @@ plate keeps the lower deck visible. Ball recovery timeout is 30 seconds here
 versus 18 in Classic. Each cabinet saves its own best ticket total and deepest
 round. Arcade Challenge always uses Classic with its existing fixed rules.
 
+Cabinet saves carry a monotonically increasing revision. Every Workshop purchase,
+bank, audio preference, and idle update checks the current saved revision before
+writing. If another tab has saved first, the stale tab stops its run, adopts the
+latest saved progression, and asks for a reload. A failed storage write also
+stops play and asks for a reload. Pending bank markers are committed only after
+the save succeeds, so stale tabs cannot spend or bank an older chip balance.
+
 ## Roguelite balance and permanent power
 Each round has its own ticket target: 180, 540, 1,000, then 1,800.
 Circuit chips from finished runs buy three levelled Workshop powers: +2% ordinary
