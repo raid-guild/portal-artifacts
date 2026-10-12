@@ -13,10 +13,13 @@ const C = { cyan:0x37dafa, magenta:0xfe45bc, gold:0xffbd50, mint:0x55ffc0, ink:0
 const T = Math.PI*2;
 export const DECK_Y = -2.2;
 export const DROP_Y = 3.45;
-export const RIM_POST = {x:2.65,z:0,radius:.085,height:.22};
+export const RIM_POST = {x:2.65,z:0,radius:.11,height:.22};
+export function rimWedgeVertices(side=1){
+  return new Float32Array([.11*side,0,-.18,.11*side,0,.18,-.16*side,0,0,.11*side,.22,-.18,.11*side,.22,.18,-.16*side,.22,0]);
+}
 export function createRimPost(world,y=DECK_Y,side=1){
-  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x*side,y+RIM_POST.height/2,RIM_POST.z));
-  world.createCollider(RAPIER.ColliderDesc.cylinder(RIM_POST.height/2,RIM_POST.radius).setRestitution(.78).setFriction(.12),body);
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x*side,y,RIM_POST.z));
+  world.createCollider(RAPIER.ColliderDesc.convexHull(rimWedgeVertices(side)).setRestitution(.65).setFriction(.12),body);
   return body;
 }
 const TUBE_RADIUS = 2.88;
@@ -138,18 +141,20 @@ export class NeonMachine {
     this.upperGroup.add(new THREE.Mesh(geometry,material));
     torus(this.upperGroup,2.87,.045,[0,.02,0],glow(C.magenta));
     this.transferSensors=TRANSFER_GATES.map(g=>{
-      torus(this.upperGroup,g.r+.02,.028,[g.x,.025,g.z],glow(C.mint));
+      torus(this.upperGroup,g.r+.02,.028,[g.x,.025,g.z],glow(g.x===0&&g.z===0?C.gold:C.mint));
       return this.world.createCollider(RAPIER.ColliderDesc.ball(g.r*.76).setTranslation(g.x,-.28,g.z).setSensor(true),this.upperBody);
     });
-    const label=textSprite('CHARGE GATES · +25%','#88ffce',39);label.scale.set(2.7,.34,1);label.position.set(0,.15,2.65);this.upperGroup.add(label);
+    const label=textSprite('+25%','#ffe6a1',64);label.scale.set(.72,.28,1);label.position.set(0,.12,0);this.upperGroup.add(label);
     this.upperBody.setEnabled(false);this.upperGroup.visible=false;
   }
   makeRimPosts(){
     // Stationary wall-side pins interrupt co-rotation without steering or invented scores.
     this.rimPosts=[DECK_Y,UPPER_DECK_Y].flatMap((y,deck)=>[-1,1].map(side=>{
       const group=new THREE.Group();this.scene.add(group);const x=RIM_POST.x*side;
-      cyl(group,.075,RIM_POST.radius,RIM_POST.height,[x,y+RIM_POST.height/2,RIM_POST.z],mat(0xc58c35,.8,.22,0x7b4b09,.35),12);
-      cyl(group,.075,.075,.015,[x,y+RIM_POST.height,RIM_POST.z],glow(C.gold),12);
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(rimWedgeVertices(side),3));
+      const indices=[0,1,2,3,5,4,0,3,4,0,4,1,1,4,5,1,5,2,2,5,3,2,3,0];if(side===-1)for(let i=0;i<indices.length;i+=3)[indices[i+1],indices[i+2]]=[indices[i+2],indices[i+1]];
+      geometry.setIndex(indices);geometry.computeVertexNormals();
+      const wedge=new THREE.Mesh(geometry,mat(0xc58c35,.8,.22,0xc58c35,.5));wedge.position.set(x,y,RIM_POST.z);group.add(wedge);
       return {group,deck,body:createRimPost(this.world,y,side)};
     }));
   }
@@ -444,7 +449,7 @@ export class NeonMachine {
     for(const item of [...this.active]){
       item.age+=dt;const p=item.body.translation();item.mesh.position.set(p.x,p.y,p.z);const q=item.body.rotation();item.mesh.quaternion.set(q.x,q.y,q.z,q.w);
       item.history.unshift(item.mesh.position.clone());if(item.history.length>16)item.history.pop();this.drawTrail(item);
-      if(this.upperGroup.visible&&!item.charged&&p.y<UPPER_DECK_Y-.1&&this.transferSensors.some(sensor=>this.world.intersectionPair(item.collider,sensor))){item.charged=true;item.mesh.material.emissive.setHex(C.mint);this.particles(item.mesh.position,C.mint,12);this.emitRipple(item.mesh.position,new THREE.Vector3(0,1,0),'deck',.8,C.mint);this.callbacks.onCharge?.();}
+      if(this.upperGroup.visible&&!item.charged&&p.y<UPPER_DECK_Y-.1&&this.world.intersectionPair(item.collider,this.transferSensors[0])){item.charged=true;item.mesh.material.emissive.setHex(C.mint);this.particles(item.mesh.position,C.mint,12);this.emitRipple(item.mesh.position,new THREE.Vector3(0,1,0),'deck',.8,C.mint);this.callbacks.onCharge?.();}
       if(p.y<DECK_Y-.08){const hole=this.holes.find(h=>this.world.intersectionPair(item.collider,h.sensor));if(hole){this.recycle(item,hole);continue;}}
       if(item.age>(this.upperGroup.visible?30:18)||p.y<DECK_Y-.68){this.recycle(item);continue;}
     }
