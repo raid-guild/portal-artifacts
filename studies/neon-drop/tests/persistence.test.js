@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {loadMeta,saveMeta,buyCabinet,buyPower,bankRun,newRun} from '../src/state.js';
+import {loadMeta,saveMeta,buyCabinet,buyPower,bankRun,newRun,applyScore} from '../src/state.js';
+import {applyJackpotBonus,rollJackpotBonus} from '../src/jackpot.js';
 
 function memoryStorage(initial=null){
   let value=initial;
@@ -67,4 +68,24 @@ test('storage failures and malformed stored data are distinct from revision conf
   assert.equal(malformed.raw(),'{invalid');
   assert.equal(saveMeta(meta,memoryStorage('null')).reason,'storage');
   assert.equal(loadMeta(memoryStorage(JSON.stringify({revision:-9})),1000).revision,0);
+});
+
+test('a stale super jackpot cannot bank its bonus or spend over a newer cosmetic setting',()=>{
+  const storage=memoryStorage(JSON.stringify({chips:300,jackpotCinematics:true}));
+  const stale=loadMeta(storage,1000),newer=loadMeta(storage,1000);
+  const setting=saveMeta({...newer,jackpotCinematics:false},storage);
+  assert.equal(setting.ok,true);
+  const scored=applyScore(newRun(stale),{kind:'jackpot',label:'JP'},'chrome');
+  const bonus=rollJackpotBonus(scored.lastScore.amount,()=>.66);
+  const awarded=applyJackpotBonus(scored,bonus);
+  const proposed=bankRun(awarded,stale,1100);
+  const rejected=saveMeta(proposed.meta,storage);
+  assert.equal(rejected.reason,'conflict');
+  assert.equal(rejected.meta.jackpotCinematics,false);
+  assert.equal(awarded.bankedTickets,0);
+  assert.equal(awarded.bankedChips,0);
+  const stored=loadMeta(storage,1200);
+  assert.equal(stored.totalTickets,0);
+  assert.equal(stored.chips,300);
+  assert.equal(stored.jackpotCinematics,false);
 });

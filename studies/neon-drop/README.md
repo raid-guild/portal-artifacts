@@ -53,6 +53,25 @@ selections. The outer x2 and equal-pocket profiles are assumptions about where
 balls land; they do not model Rapier physics, misses, or ball correlations and
 must not be read as physical win-rate forecasts.
 
+## Jackpot supers
+Every casual jackpot banks its printed ticket prize and then grants three
+independent bonus reveals. A reveal pays 5%, 10%, or 20% of that jackpot in
+extra tickets, adds one encore drop, or charges the next jackpot by 10% of the
+banked prize. Each reveal is positive; one jackpot can add at most 60% tickets,
+three drops, or 30% charge. Bonuses are awarded and banked before any visual
+show starts. Unspent encore drops carry across round clears; reserved drops
+keep their encore tag so a queued cancellation or physical miss restores it.
+Arcade Challenge remains fixed and grants no jackpot reveals.
+
+Workshop → JACKPOTS has two cosmetic super shows: Super Mega Fun Time (1,600
+circuits, pink/gold) and Void Breaker (2,400, violet/cyan). They change only
+presentation. Both can be previewed with a fixed demo hand, without earning or
+saving prizes. On a real super jackpot, the cabinet physics and timer freeze
+while the full-screen ball, rings and cards play. Skip or Escape resumes with
+all rewards intact. Settings can turn jackpot cinematics off; reduced effects
+or system reduced motion makes the reveal short and still. The show is never
+used in Arcade Challenge.
+
 ## Rapid drops and collisions
 Rapid clicks reserve casual-mode drops immediately and queue their releases at least
 220 ms apart, waiting until the chute clears and no more than nine balls are active.
