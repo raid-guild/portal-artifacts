@@ -338,6 +338,14 @@ import { drawSunset, loadSunset } from './sunset.mjs';
   new ResizeObserver(measureDock).observe(document.querySelector('.dock'));
   addEventListener('resize', measureDock);
   measureDock();
+  function setRecordingView(enabled) {
+    document.body.classList.toggle('recording-view', enabled);
+    $('recordViewButton').setAttribute('aria-pressed', String(enabled));
+    $('recordViewButton').textContent = enabled ? 'Standard view' : 'Record view';
+    requestAnimationFrame(measureDock);
+  }
+  $('recordViewButton').addEventListener('click', () => setRecordingView(!document.body.classList.contains('recording-view')));
+  setRecordingView(new URLSearchParams(location.search).get('record') === '1');
 
   function syncLyrics() {
     const cue = lyricsEnabled.checked ? activeCue(lyricCues, audio.currentTime) : null;
@@ -740,6 +748,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     const focused = document.activeElement;
     const tag = focused?.tagName;
     if (lyricsDialog.open || songDialog.open || focused?.isContentEditable) return;
+    if (event.key.toLowerCase() === 'r' && !['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) { setRecordingView(!document.body.classList.contains('recording-view')); return; }
     if (event.key === 'Escape') returnToFlock();
     if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (event.code === 'Space') { event.preventDefault(); togglePlay(); }
