@@ -112,6 +112,19 @@ Owning Auto Drop starts each new casual run with automation on. Turning it off
 lasts for that run; Arcade Challenge always disables it. Automation pauses in
 menus and never catches up with a burst of accumulated drops.
 
+## Switchboard cabinet
+Switchboard costs 1,200 circuit chips and starts on the next run when selected.
+Three fixed physical bumpers above the rotating deck charge matching cyan, pink,
+and gold ticket channels. A channel's first hit gives its ordinary pockets 1.5×;
+repeat hits give 2× for eight simulation seconds. Completing all three channels
+starts a four-second global 2× Overload, capped at 4× ordinary payout. Each valid
+collision start also fills the reactor by three percentage points, up to +50%.
+Reactor charge survives round changes and adds to the next jackpot once, before
+the three ordinary jackpot bonus rolls. Hidden tabs, demos, and jackpot shows
+pause the simulation clock. Long Fuse, Sustained Overload, and Induction Coil
+extend the circuit with capped stacks during Overdrive. Arcade Challenge retains
+its fixed rules and never enables the bumpers.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;

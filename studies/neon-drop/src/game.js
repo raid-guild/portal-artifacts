@@ -8,6 +8,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { BALLS } from './state.js';
 import { POCKETS } from './challenge.js';
 import { UPPER_DECK_Y, TRANSFER_GATES } from './double-deck.js';
+import {SWITCH_COLORS,SWITCH_POSITIONS,pocketChannel} from './switchboard.js';
 
 const C = { cyan:0x37dafa, magenta:0xfe45bc, gold:0xffbd50, mint:0x55ffc0, ink:0x090b16 };
 const T = Math.PI*2;
@@ -21,6 +22,12 @@ export function createRimPost(world,y=DECK_Y,side=1){
   const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(RIM_POST.x*side,y,RIM_POST.z));
   world.createCollider(RAPIER.ColliderDesc.convexHull(rimWedgeVertices(side)).setRestitution(.65).setFriction(.12),body);
   return body;
+}
+export function createSwitchBumper(world,index){
+  const p=SWITCH_POSITIONS[index];
+  const body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x,DECK_Y+.6,p.z));
+  const collider=world.createCollider(RAPIER.ColliderDesc.ball(.23).setRestitution(.92).setFriction(.08).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),body);
+  return {body,collider};
 }
 const TUBE_RADIUS = 2.88;
 const TUBE_BOTTOM = DECK_Y-.65;
@@ -89,7 +96,7 @@ export class NeonMachine {
     this.makeRipples();this.makeCosmeticPools();
     const key=new THREE.DirectionalLight(0xffffff,1.45);key.position.set(-3,9,7);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-9;key.shadow.camera.right=9;key.shadow.camera.top=9;key.shadow.camera.bottom=-9;this.scene.add(key);
     for(const [x,y,z,c,intensity] of [[-4,4,1,C.cyan,12],[4,5,1,C.magenta,10],[0,5,-4,C.gold,6]]) { const l=new THREE.PointLight(c,intensity,14,2);l.position.set(x,y,z);this.scene.add(l); }
-    this.makeMachine();this.makeBoard();this.makeUpperDeck();this.makeRimPosts();this.makeElevator();this.makeBackdrop();this.loadDecor();
+    this.makeMachine();this.makeBoard();this.makeUpperDeck();this.makeRimPosts();this.makeSwitchboard();this.makeElevator();this.makeBackdrop();this.loadDecor();
     this.resize();this.ro=new ResizeObserver(()=>this.resize());this.ro.observe(this.container);
     this.animate=()=>{if(!this.running)return;requestAnimationFrame(this.animate);const dt=Math.min(this.clock.getDelta(),.05);if(document.hidden){this.accumulator=0;return;}this.step(dt);};this.animate();
   }
@@ -158,6 +165,39 @@ export class NeonMachine {
       return {group,deck,body:createRimPost(this.world,y,side)};
     }));
   }
+  makeSwitchboard(){
+    this.switchVisual=new THREE.Group();this.scene.add(this.switchVisual);
+    this.switchBumpers=SWITCH_POSITIONS.map((p,i)=>{
+      const {body,collider}=createSwitchBumper(this.world,i);
+      const mesh=new THREE.Mesh(new THREE.SphereGeometry(.23,20,14),mat(SWITCH_COLORS[i],.6,.16,SWITCH_COLORS[i],.6));mesh.position.set(p.x,DECK_Y+.6,p.z);this.switchVisual.add(mesh);
+      return {body,collider,mesh};
+    });
+    this.reactorCore=new THREE.Mesh(new THREE.IcosahedronGeometry(.36,2),mat(C.gold,.6,.18,C.gold,.8));this.reactorCore.position.set(-1.2,1.6,-1.25);this.switchVisual.add(this.reactorCore);
+    this.reactorRings=[0,1].map((i)=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(.52+i*.13,.025,8,48),new THREE.MeshBasicMaterial({color:i?C.magenta:C.cyan,transparent:true,opacity:.45,depthWrite:false,toneMapped:false}));ring.position.copy(this.reactorCore.position);ring.rotation.x=i?.65:1.15;this.switchVisual.add(ring);return ring;});
+    this.switchRims=this.holes.filter(h=>h.kind==='score').map(h=>{
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(h.r+.075,.02,6,32),new THREE.MeshBasicMaterial({color:SWITCH_COLORS[pocketChannel(h.id)],transparent:true,opacity:.2,toneMapped:false}));
+      ring.position.set(h.x,.045,h.z);ring.rotation.x=-Math.PI/2;this.boardGroup.add(ring);ring.visible=false;return {ring,channel:pocketChannel(h.id)};
+    });
+    this.switchArcs=Array.from({length:6},()=>{const positions=new Float32Array(8*3),geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:C.cyan,transparent:true,opacity:0,depthWrite:false,toneMapped:false}));line.visible=false;this.switchVisual.add(line);return {line,age:0};});
+    this.switchArcIndex=0;this.switchVisual.visible=false;this.switchBumpers.forEach(b=>b.body.setEnabled(false));
+  }
+  switchArc(index){
+    if(this.reducedEffects)return;
+    const arc=this.switchArcs[this.switchArcIndex++%this.switchArcs.length],from=this.switchBumpers[index].mesh.position,to=this.reactorCore.position,array=arc.line.geometry.attributes.position.array;
+    for(let i=0;i<8;i++){const t=i/7,j=i*3;array[j]=from.x+(to.x-from.x)*t+(i&&i<7?(Math.random()-.5)*.2:0);array[j+1]=from.y+(to.y-from.y)*t+(i&&i<7?(Math.random()-.5)*.25:0);array[j+2]=from.z+(to.z-from.z)*t+(i&&i<7?(Math.random()-.5)*.2:0);}
+    arc.line.geometry.attributes.position.needsUpdate=true;arc.line.material.color.setHex(SWITCH_COLORS[index]);arc.line.material.opacity=1;arc.age=.22;arc.line.visible=true;
+  }
+  captureSwitches(){
+    this.impactEvents.drainCollisionEvents((first,second,started)=>{
+      if(!started||this.run?.cabinet!=='switchboard'||this.run?.challenge)return;
+      const index=this.switchBumpers.findIndex(b=>b.collider.handle===first||b.collider.handle===second);
+      if(index<0)return;
+      const handle=this.switchBumpers[index].collider.handle===first?second:first;
+      const ball=this.active.find(item=>item.collider.handle===handle);if(!ball)return;
+      const result=this.callbacks.onSwitch?.(index,handle,this.playTime);
+      if(result){this.switchArc(index);if(!this.reducedEffects)this.emitRipple(this.switchBumpers[index].mesh.position,new THREE.Vector3(0,1,0),'other',.7,SWITCH_COLORS[index]);this.sound('charge');}
+    });
+  }
 
   makeElevator() {
     this.elevator=new THREE.Group();this.scene.add(this.elevator);
@@ -181,9 +221,9 @@ export class NeonMachine {
     for(const item of this.active){this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}}
     for(const item of this.returns){this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();}
     this.active=[];this.returns=[];this.follow=null;this.accumulator=0;this.rotation=0;this.brakeTime=0;this.shake=0;this.ballCollisionTimes.clear();this.clearPreview();
-    this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;if(this.upperBody){this.upperBody.setRotation({x:0,y:0,z:0,w:1},true);this.upperBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.upperGroup.rotation.y=0;}this.impactEvents.drainContactForceEvents(()=>{});
+    this.boardBody.setRotation({x:0,y:0,z:0,w:1},true);this.boardBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.boardGroup.rotation.y=0;if(this.upperBody){this.upperBody.setRotation({x:0,y:0,z:0,w:1},true);this.upperBody.setNextKinematicRotation({x:0,y:0,z:0,w:1});this.upperGroup.rotation.y=0;}this.impactEvents.drainContactForceEvents(()=>{});this.impactEvents.drainCollisionEvents(()=>{});this.switchArcs?.forEach(arc=>{arc.age=0;arc.line.visible=false;});
   }
-  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;this.rimPosts?.forEach(post=>{const enabled=!run.challenge&&(post.deck===0||double);post.body.setEnabled(enabled);post.group.visible=enabled;});}
+  setRun(run){this.run=run;this.spin=.58;const double=run.cabinet==='double'&&!run.challenge,switchOn=run.cabinet==='switchboard'&&!run.challenge;this.upperBody?.setEnabled(double);if(this.upperGroup)this.upperGroup.visible=double;this.rimPosts?.forEach(post=>{const enabled=!run.challenge&&(post.deck===0||double);post.body.setEnabled(enabled);post.group.visible=enabled;});this.switchBumpers?.forEach(b=>b.body.setEnabled(switchOn));if(this.switchVisual)this.switchVisual.visible=switchOn;this.switchRims?.forEach(({ring,channel})=>{ring.visible=switchOn;if(switchOn)ring.material.opacity=run.switchboard?.channels[channel]>this.playTime?.8:.14;});if(switchOn)this.reactorCore.material.emissiveIntensity=.45+(run.switchboard?.reactor||0)/50*1.3;}
   setAudioEngine(engine){this.audioEngine=engine;}
   setCosmetics(equipped){this.cosmetics={trail:equipped?.trail||'default',impact:equipped?.impact||'default',jackpot:equipped?.jackpot||'default'};}
   setCabinetStyle(style){const colors={cyan:0x37dafa,magenta:0xfe65c9,gold:0xffd078};const color=colors[style]||colors.cyan;edge.color.setHex(color).multiplyScalar(.34);this.deckTrim?.material.color.setHex(color);}
@@ -452,6 +492,7 @@ export class NeonMachine {
   recycle(item,hole=null) {
     const p=item.mesh.position.clone();if(hole){this.particles(p,hole.color,hole.kind==='jackpot'?65:hole.kind==='free'?28:14,hole.kind==='jackpot');if(hole.kind==='jackpot'){this.audioEngine?.duckForJackpot();if(!this.jackpotCinematicsEnabled||this.run?.challenge||!['mega-party','void-breaker'].includes(this.cosmetics.jackpot))this.emitJackpot(p);}this.sound(hole.kind==='jackpot'?'jackpot':hole.kind==='free'?'free':'score');this.callbacks.onScore?.({...hole,charged:!!item.charged},item.type,item.rimHits);}else{this.callbacks.onRefund?.(item.free,item.encore);}
     const handle=item.collider.handle;
+    this.callbacks.onSwitchBallGone?.(handle);
     for(const key of this.ballCollisionTimes.keys())if(key.split(':').some(part=>Number(part)===handle))this.ballCollisionTimes.delete(key);
     this.world.removeRigidBody(item.body);this.scene.remove(item.mesh);item.mesh.geometry.dispose();item.mesh.material.dispose();for(const t of item.trail){this.scene.remove(t);t.userData.sphereGeometry.dispose();t.material.dispose();}this.active.splice(this.active.indexOf(item),1);
     const cfg=BALLS[item.type]||BALLS.chrome;const m=new THREE.Mesh(new THREE.SphereGeometry(.15,16,12),mat(new THREE.Color(cfg.color),.8,.2,new THREE.Color(cfg.glow),.5));this.scene.add(m);this.returns.push({mesh:m,age:0,duration:this.run?.upgrades.includes('speed')?2.5:3.4});
@@ -467,8 +508,10 @@ export class NeonMachine {
     }
     this.accumulator+=dt;
     const fixed=1/120;let steps=0;
-    while(this.accumulator>=fixed&&steps<8){this.playTime+=fixed;this.rotation+=(this.brakeTime>0?.22:this.spin)*fixed;this.brakeTime=Math.max(0,(this.brakeTime||0)-fixed);this.boardBody.setNextKinematicRotation({x:0,y:Math.sin(this.rotation/2),z:0,w:Math.cos(this.rotation/2)});if(this.upperGroup.visible){const angle=-this.rotation*.7;this.upperBody.setNextKinematicRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)});}this.world.step(this.impactEvents);this.captureImpacts(fixed);this.accumulator-=fixed;steps++;}
+    while(this.accumulator>=fixed&&steps<8){this.playTime+=fixed;this.rotation+=(this.brakeTime>0?.22:this.spin)*fixed;this.brakeTime=Math.max(0,(this.brakeTime||0)-fixed);this.boardBody.setNextKinematicRotation({x:0,y:Math.sin(this.rotation/2),z:0,w:Math.cos(this.rotation/2)});if(this.upperGroup.visible){const angle=-this.rotation*.7;this.upperBody.setNextKinematicRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)});}this.world.step(this.impactEvents);this.captureImpacts(fixed);this.captureSwitches();this.callbacks.onSwitchTick?.(this.playTime);this.accumulator-=fixed;steps++;}
     if(steps===8)this.accumulator=0;
+    if(this.switchVisual?.visible){if(!this.reducedEffects){this.reactorCore.rotation.y+=dt*.8;this.reactorCore.rotation.z+=dt*.35;this.reactorRings[0].rotation.z+=dt*.9;this.reactorRings[1].rotation.y-=dt*.8;}const ready=(this.run?.switchboard?.reactor||0)>=50;this.reactorRings.forEach((ring,i)=>ring.material.opacity=ready?(this.reducedEffects?.8:.7+.2*Math.sin(this.playTime*6+i)):.3+(this.run?.switchboard?.reactor||0)/125);}
+    for(const arc of this.switchArcs||[]){if(arc.age<=0)continue;arc.age=Math.max(0,arc.age-dt);arc.line.material.opacity=arc.age/.22;arc.line.visible=arc.age>0;}
     this.boardGroup.rotation.y=this.rotation;if(this.upperGroup.visible)this.upperGroup.rotation.y=-this.rotation*.7;
     for(const item of [...this.active]){
       item.age+=dt;const p=item.body.translation();item.mesh.position.set(p.x,p.y,p.z);const q=item.body.rotation();item.mesh.quaternion.set(q.x,q.y,q.z,q.w);
