@@ -2,6 +2,7 @@ import { createInkwash } from './vendor/inkwash.js';
 import { activeCue, canInstallBundledLyrics, validateCues } from './lyrics.mjs';
 import { clearPointerPulse, clearPointerResponse, pointerResponse, updatePointerPulse } from './pointer.mjs';
 import { drawRoad } from './road.mjs';
+import { captureDust, drawDust } from './dust.mjs';
 import { drawSunset, loadSunset } from './sunset.mjs';
 (() => {
   'use strict';
@@ -44,6 +45,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
   const lyricsDraftNote = $('lyricsDraftNote');
   let zoomState = 'flock', zoomProgress = 0, zoomClock = 0, detailClock = 0;
   let roadState = 'off', roadClock = 0, roadReveal = 0, roadExitVisibility = 0;
+  let dustState = null, dustClock = 0;
   let landscapeKind = 'road', sunsetReady = false;
   const sunsetButton = $('sunsetButton');
   const roadButton = $('roadButton');
@@ -613,7 +615,28 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     $('captionText').textContent = 'A closer look at flight';
     loadSprite(0);
   }
+  function startDust(owner) {
+    if (reducedMotion.matches) { returnToFlock(); return; }
+    dustState = captureDust(canvas, W, H); dustClock = 0;
+    if (owner === 'bird') zoomState = 'dust'; else roadState = 'dust';
+    hideDetailControls();
+    $('captionText').textContent = 'Dust in the wind';
+  }
+  function dustVisibility() { return 1 - ease(clamp((dustClock - 3.8) / 2.2, 0, 1)); }
+  function updateDust(dt) {
+    if (!dustState) return;
+    dustClock += dt;
+    if (zoomState === 'dust') zoomProgress = dustVisibility();
+    if (dustClock >= 6) {
+      dustState = null;
+      if (zoomState === 'dust') { zoomState = 'flock'; zoomProgress = 0; target = null; }
+      if (roadState === 'dust') { roadState = 'off'; roadReveal = 0; }
+      $('captionText').textContent = 'Choose a bird, then follow its flight';
+      setSceneButtons();
+    }
+  }
   function returnToFlock() {
+    if (dustState) return;
     if (roadState !== 'off') {
       if (roadState !== 'exit') {
         roadExitVisibility = roadVisibility();
@@ -639,11 +662,12 @@ import { drawSunset, loadSunset } from './sunset.mjs';
   }
   function roadVisibility() {
     if (roadState === 'off') return 0;
+    if (roadState === 'dust') return dustVisibility();
     if (roadState === 'exit') return roadExitVisibility * (1 - ease(clamp(roadClock / (reducedMotion.matches ? .16 : 1.2), 0, 1)));
     return ease(clamp(roadClock / (reducedMotion.matches ? .16 : 1), 0, 1));
   }
   function updateRoad(dt) {
-    if (roadState === 'off') return;
+    if (roadState === 'off' || roadState === 'dust') return;
     roadClock += dt;
     if (roadState === 'exit') {
       if (roadVisibility() <= 0) {
@@ -654,9 +678,12 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       return;
     }
     roadReveal = landscapeKind === 'sunset' ? roadClock : reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
-    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? 35.2 : 13.12)) returnToFlock();
+    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? 35.2 : 13.12)) {
+      if (landscapeKind === 'road') startDust('road'); else returnToFlock();
+    }
   }
   function paintRoad() {
+    if (roadState === 'dust') return;
     const visibility = roadVisibility();
     if (!visibility) return;
     const dockTop = document.querySelector('.dock').getBoundingClientRect().top;
@@ -716,7 +743,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       if (zoomProgress >= 1) { zoomState = 'detail'; zoomClock = 0; detailClock = 0; }
     } else if (zoomState === 'detail') {
       detailClock += dt;
-      if (detailClock >= ZOOM_DURATION) returnToFlock();
+      if (detailClock >= ZOOM_DURATION) startDust('bird');
     } else if (zoomState === 'exit') {
       zoomClock += dt;
       zoomProgress = 1 - ease(clamp(zoomClock / (reducedMotion.matches ? .16 : .72), 0, 1));
@@ -737,7 +764,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     ctx.setLineDash([]); ctx.restore();
   }
   function paintDetail() {
-    if (!target || zoomProgress <= 0) return;
+    if (!target || zoomProgress <= 0 || zoomState === 'dust') return;
     const progress = zoomProgress;
     const detailAlpha = progress;
     const frame = reducedMotion.matches ? 0 : Math.min(ZOOM_FRAME_COUNT - 1, Math.floor(detailClock * ZOOM_FRAME_RATE));
@@ -782,6 +809,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     if (!(reducedMotion.matches && audio.paused)) measureBands(wallDt);
     updateZoom(wallDt);
     updateRoad(wallDt);
+    updateDust(wallDt);
     if (inkwash) {
       try {
         if (!reducedMotion.matches) inkwash.update(inkDt, {bass, mid, treble}, 0, !audio.paused);
@@ -804,6 +832,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     if (sceneAvailable()) paintSelection(hovered || selected, hovered ? 1 : .35);
     paintDetail();
     paintRoad();
+    if (dustState) drawDust(ctx, dustState, dustClock, W, H);
   }
   requestAnimationFrame(tick);
   syncTransport();
