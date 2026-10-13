@@ -64,6 +64,31 @@ for(const [x,y,s] of [[.045,.88,.022],[.20,.74,.018],[.31,.67,.013],
   line([P(x-s*.7,y-s*.25),P(x,y),P(x+s*.8,y-s*.45)],.43,.43);
 }
 
+// A small riderless horse waits on the far verge. Its saddle is empty.
+// Keep this inside the landscape reveal, before the perched birds arrive.
+{
+  const h = (x,y) => P(.925 + x*.077, .592 + y*.108);
+  const stroke = (points,weight=.74,tone=.91) => line(points.map(([x,y])=>h(x,y)),weight,tone);
+  // Ears, forehead, muzzle, throat, chest, back and rump in one pen route.
+  stroke([[-.40,-.53],[-.46,-.76],[-.52,-.68],[-.59,-.78],[-.59,-.61],
+    [-.70,-.48],[-.73,-.36],[-.59,-.33],[-.49,-.40],[-.42,-.23],
+    [-.36,-.08],[-.24,-.02],[.28,-.02],[.42,-.12],[.45,-.33],
+    [.35,-.45],[.12,-.47],[-.10,-.46],[-.27,-.49],[-.40,-.53]]);
+  // Four slender legs, with slight separation and small hoof marks.
+  stroke([[-.33,-.09],[-.35,.15],[-.39,.36],[-.30,.36],[-.24,.10],[-.20,-.02]],.68);
+  stroke([[-.18,-.02],[-.13,.17],[-.17,.34],[-.09,.34],[-.03,.11]],.53,.67);
+  stroke([[.30,-.03],[.24,.14],[.30,.36],[.39,.36],[.35,.10],[.43,-.17]],.68);
+  stroke([[.16,-.02],[.10,.14],[.15,.33],[.23,.33]],.53,.67);
+  // Loose tail and mane.
+  stroke([[.43,-.34],[.52,-.20],[.53,.03],[.49,.17]],.65);
+  stroke([[-.47,-.67],[-.39,-.55],[-.31,-.41]],.54);
+  // Saddle seat, hanging saddle blanket, girth and an empty stirrup.
+  stroke([[-.13,-.49],[-.10,-.56],[-.04,-.48],[.10,-.47],[.18,-.54],[.21,-.46]],.88);
+  stroke([[-.12,-.45],[-.10,-.23],[.20,-.22],[.22,-.44]],.65);
+  stroke([[.02,-.44],[.03,-.12]],.59);
+  stroke([[.12,-.41],[.11,-.16],[.06,-.10],[.15,-.10],[.17,-.17],[.12,-.20]],.57);
+}
+
 let total=0;
 for(const path of paths) {
   path.lengths=[0];
