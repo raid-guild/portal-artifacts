@@ -1,6 +1,6 @@
 # Ink / Flight
 
-An offline, browser based interactive music visualizer. The included audio covers 1:16–2:37 of the supplied MP4 (81 seconds), with three-second fades in and out. The detailed bird sequence uses 384 transparent frames extracted from the supplied 16-second bird video.
+An offline, browser based interactive music visualizer. The full 4:08.757 WAV master is encoded as stereo 48 kHz AAC at 192 kbps with fast-start metadata and three-second entrance/exit fades (about 6 MB). The detailed bird sequence uses 384 transparent frames extracted from the supplied 16-second bird video.
 
 ## Run locally
 
@@ -19,14 +19,14 @@ Open `http://localhost:8765` in a modern browser. A local server is needed so br
 - Click or tap a bird, or use **Follow a bird**, to see the two hand-drawn birds over the ink wash. The full animation frame fits within the viewport so both birds stay visible. The flock hides throughout the zoom, while the ink keeps moving at full intensity. The 16-second bird animation plays once and returns to the flock. **Return to flock**, **Escape**, or **F** returns early.
 - Choose **Country road** to watch an angled road draw toward a right-of-centre horizon, with a receding row of telephone poles on the left, bowed wires, and sparse verge marks. Seven small birds draw onto the wires at the end, connecting the road to the flock. The flock fades away over the first second as the drawing begins, then returns after a short hold. **Return to flock**, **Escape**, or **F** returns early. The ink wash, soundtrack, and lyrics continue through the scene. The two scenes cannot overlap. Reduced motion shows the completed sketch promptly.
 - Drag the timeline to seek, adjust volume, or choose **Replace audio** to use a local audio file. The replacement remains on this device and is not uploaded.
-- The included song's phrases appear above the playback controls at their timed cues, including after seeking. Open **Lyrics** to show or hide them, or edit the cue JSON and choose **Apply**. Times are seconds from the beginning of the audio. A cue has `start`, `end`, and `text`; cues must be in order and cannot overlap. For example: `{"cues":[{"start":2.4,"end":4.8,"text":"A line of lyrics"}]}`. Gaps show no lyric. Replacing the audio clears the song's cues; you can enter timing for the replacement in the same editor. Edits last for the current page session. The included cues are a first-pass automatic transcription from the supplied recording; neither words nor phrase timing has been verified against a final lyric sheet or frame by frame.
+- The included song's phrases appear above the playback controls at their timed cues, including after seeking. Open **Lyrics** to show or hide them, or edit the cue JSON and choose **Apply**. Times are seconds from the beginning of the audio. A cue has `start`, `end`, and `text`; cues must be in order and cannot overlap. For example: `{"cues":[{"start":2.4,"end":4.8,"text":"A line of lyrics"}]}`. Gaps show no lyric. Replacing the audio clears the song's cues; you can enter timing for the replacement in the same editor. Edits last for the current page session. The lyric wording was supplied by the user. Timing is approximate, anchored to word timestamps from the full master; repeated chorus and outro phrases use the supplied wording.
 - **Space** toggles playback when a control is not focused; **F** follows or returns; the top right button toggles fullscreen.
 
 The scene honors the operating system's reduced motion preference. On a small screen, the controls reflow beneath the scene.
 
 ## Files
 
-`index.html`, `style.css`, `app.js`, `road.mjs`, `pointer.mjs`, `lyrics.mjs`, and `vendor/inkwash.js` contain the complete prototype. `pointer.test.mjs` checks the pointer response with `node --test pointer.test.mjs`. `assets/concept-audio.m4a` is the soundtrack, and `assets/lyrics.json` contains its timed transcription. `assets/zoom-birds/` contains transparent WebP frames made from the supplied 16-second video and used by the zoom. `assets/bird-webp/` and `assets/bird/` retain the earlier zoom animation for later edits.
+`index.html`, `style.css`, `app.js`, `road.mjs`, `pointer.mjs`, `lyrics.mjs`, and `vendor/inkwash.js` contain the complete prototype. `pointer.test.mjs` checks the pointer response with `node --test pointer.test.mjs`. `assets/my-head-spins-full.m4a` is the soundtrack, and `assets/lyrics.json` contains its timed transcription. `assets/zoom-birds/` contains transparent WebP frames made from the supplied 16-second video and used by the zoom. `assets/bird-webp/` and `assets/bird/` retain the earlier zoom animation for later edits.
 
 ## Ink engine attribution
 
@@ -34,6 +34,6 @@ The scene honors the operating system's reduced motion preference. On a small sc
 
 ## Repository publishing
 
-The editable prototype is here in `studies/ink-flight/`. The static published copy is `public/ink-flight/`; copy runtime HTML, CSS, modules, vendor, `assets/concept-audio.m4a`, `assets/lyrics.json`, and `assets/zoom-birds/` there after editing. Preserve the social image and metadata. Original bird assets and tests are study-only.
+The editable prototype is here in `studies/ink-flight/`. The static published copy is `public/ink-flight/`; copy runtime HTML, CSS, modules, vendor, `assets/my-head-spins-full.m4a`, `assets/lyrics.json`, and `assets/zoom-birds/` there after editing. Preserve the social image and metadata. Original bird assets and tests are study-only.
 
-Song: **My Head Spins — Tanner Royster**. The supplied recording provides the 81-second excerpt; the Song info dialog links to the supplied YouTube video. Lyrics are a draft transcription with user corrections. The transparent zoom frames are derived from the user-supplied two-bird video. The share cover is a composed screenshot of this prototype.
+Song: **My Head Spins — Tanner Royster**. The supplied full WAV master provides the soundtrack; the Song info dialog links to the supplied YouTube video. Lyrics use supplied wording with draft timing. The transparent zoom frames are derived from the user-supplied two-bird video. The share cover is a composed screenshot of this prototype.

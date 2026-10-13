@@ -420,7 +420,7 @@ import { drawRoad } from './road.mjs';
   // A Blob URL makes the bundled track seekable even on simple local servers
   // that do not implement HTTP Range requests. The original src remains a
   // fallback if fetching fails.
-  const bundledReady = fetch('assets/concept-audio.m4a')
+  const bundledReady = fetch('assets/my-head-spins-full.m4a')
     .then(response => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.blob();
