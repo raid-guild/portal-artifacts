@@ -20,6 +20,11 @@
    "key": "font",
    "image": "font.png",
    "data": "font.json"
+  },
+  {
+   "key": "trophy",
+   "image": "trophy.png",
+   "data": "trophy.json"
   }
  ],
  "sprites": {
@@ -7238,6 +7243,45 @@
    "artPixelsPerScreenPixel": 1,
    "directions": 64,
    "stepDegrees": 5.625
+  },
+  "trophy.bronze": {
+   "atlas": "trophy",
+   "frame": "trophy/bronze",
+   "frameSize": {
+    "w": 16,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "artPixelsPerScreenPixel": 0.5
+  },
+  "trophy.gold": {
+   "atlas": "trophy",
+   "frame": "trophy/gold",
+   "frameSize": {
+    "w": 16,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "artPixelsPerScreenPixel": 0.5
+  },
+  "trophy.silver": {
+   "atlas": "trophy",
+   "frame": "trophy/silver",
+   "frameSize": {
+    "w": 16,
+    "h": 18
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 1
+   },
+   "artPixelsPerScreenPixel": 0.5
   }
  },
  "fonts": {

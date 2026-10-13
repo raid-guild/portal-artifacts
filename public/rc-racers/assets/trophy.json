@@ -1,0 +1,74 @@
+{
+ "frames": {
+  "trophy/bronze": {
+   "frame": {
+    "x": 1,
+    "y": 1,
+    "w": 16,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 18
+   }
+  },
+  "trophy/gold": {
+   "frame": {
+    "x": 19,
+    "y": 1,
+    "w": 16,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 18
+   }
+  },
+  "trophy/silver": {
+   "frame": {
+    "x": 37,
+    "y": 1,
+    "w": 16,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 18
+   }
+  }
+ },
+ "meta": {
+  "app": "mini-rc-racers art build",
+  "image": "trophy.png",
+  "format": "RGBA8888",
+  "size": {
+   "w": 64,
+   "h": 20
+  },
+  "scale": "1"
+ }
+}
