@@ -2,6 +2,8 @@ import { createInkwash } from './vendor/inkwash.js';
 import { activeCue, canInstallBundledLyrics, validateCues } from './lyrics.mjs';
 import { clearPointerPulse, clearPointerResponse, pointerResponse, updatePointerPulse } from './pointer.mjs';
 import { drawRoad } from './road.mjs';
+import { captureDust, drawDust } from './dust.mjs';
+import { drawSunset, loadSunset } from './sunset.mjs';
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -43,18 +45,22 @@ import { drawRoad } from './road.mjs';
   const lyricsDraftNote = $('lyricsDraftNote');
   let zoomState = 'flock', zoomProgress = 0, zoomClock = 0, detailClock = 0;
   let roadState = 'off', roadClock = 0, roadReveal = 0, roadExitVisibility = 0;
+  let dustState = null, dustClock = 0;
+  let landscapeKind = 'road', sunsetReady = false;
+  const sunsetButton = $('sunsetButton');
   const roadButton = $('roadButton');
   const followButton = $('followButton');
   const sceneAvailable = () => zoomState === 'flock' && roadState === 'off';
   function setSceneButtons() {
     const available = sceneAvailable();
     roadButton.disabled = !available;
+    sunsetButton.disabled = !available || !sunsetReady;
     followButton.disabled = !available;
   }
   function showDetailControls(label) {
     $('detailLabel').textContent = label;
     $('detailControls').classList.add('active');
-    $('detailControls').classList.toggle('road-active', label.startsWith('02'));
+    $('detailControls').classList.toggle('road-active', !label.startsWith('01'));
     $('detailControls').setAttribute('aria-hidden', 'false');
     $('detailControls').removeAttribute('inert');
     setSceneButtons();
@@ -135,6 +141,7 @@ import { drawRoad } from './road.mjs';
     }
   }
 
+  let flockBottom = H * .75;
   const birds = [];
   const birdCount = () => W < 700 ? 180 : 280;
   const EDGE = 80;
@@ -167,10 +174,10 @@ import { drawRoad } from './road.mjs';
     const direction = group ? 1 : -1;
     const spread = Math.abs(split);
     const baseX = W * (.50 + .19 * Math.sin(seconds * .34));
-    const baseY = H * (.47 + .16 * Math.sin(seconds * .29 + .8));
+    const baseY = flockBottom * (.47 + .16 * Math.sin(seconds * .29 + .8));
     return {
       x: baseX + direction * W * .105 * spread * Math.cos(seconds * .19 + group),
-      y: baseY + direction * H * .085 * spread * Math.sin(seconds * .23 + group)
+      y: baseY + direction * flockBottom * .085 * spread * Math.sin(seconds * .23 + group)
     };
   }
   class Bird {
@@ -180,7 +187,7 @@ import { drawRoad } from './road.mjs';
       const g = groupGuide(0, this.group);
       const theta = random(0, TAU), radius = Math.sqrt(Math.random()) * Math.min(W,H) * .14;
       this.x = g.x + Math.cos(theta) * radius;
-      this.y = g.y + Math.sin(theta) * radius * .75;
+      this.y = Math.min(flockBottom - 12, g.y + Math.sin(theta) * radius * .75);
       const heading = random(-.7, .7);
       const speed = random(110, 146);
       this.vx = Math.cos(heading) * speed;
@@ -242,6 +249,9 @@ import { drawRoad } from './road.mjs';
       const together = 1 - disrupted * .92;
       let fx=sep[0]*1.4+ali[0]*1.3*together+coh[0]*.75*together+pull[0]*.52*together+path[0]*.6*together+Math.cos(wave)*7+px;
       let fy=sep[1]*1.4+ali[1]*1.3*together+coh[1]*.75*together+pull[1]*.52*together+path[1]*.6*together+Math.sin(wave)*7+py;
+      // Turn upward before reaching the player, including during mouse scatter.
+      const bottomClearance = flockBottom - self.y;
+      if (bottomClearance < 110) fy -= Math.pow(clamp(1-bottomClearance/110,0,1),2)*650;
       const magnitude=Math.hypot(fx,fy) || 1;
       const forceLimit = disrupted ? 340 : 180;
       if (magnitude>forceLimit) { fx=fx/magnitude*forceLimit; fy=fy/magnitude*forceLimit; }
@@ -255,8 +265,12 @@ import { drawRoad } from './road.mjs';
       this.x+=this.vx*dt; this.y+=this.vy*dt;
       if (this.x < -EDGE) this.x += W+2*EDGE;
       if (this.x > W+EDGE) this.x -= W+2*EDGE;
-      if (this.y < -EDGE) this.y += H+2*EDGE;
-      if (this.y > H+EDGE) this.y -= H+2*EDGE;
+      if (this.y < -EDGE) this.y = flockBottom - 20;
+      if (this.y > flockBottom) {
+        this.y = flockBottom;
+        this.vy = -Math.max(45, Math.abs(this.vy));
+        this.heading = Math.atan2(this.vy, this.vx);
+      }
     }
     draw(scale=1, alpha=1) {
       const length=this.size*this.depth*scale;
@@ -316,7 +330,10 @@ import { drawRoad } from './road.mjs';
 
   function measureDock() {
     const dock = document.querySelector('.dock');
-    document.documentElement.style.setProperty('--dock-clearance', `${Math.ceil(innerHeight - dock.getBoundingClientRect().top)}px`);
+    const dockTop = dock.getBoundingClientRect().top;
+    flockBottom = Math.max(40, Math.min(H - 24, dockTop - 30));
+    for (const bird of birds) if (bird.y > flockBottom) bird.y = Math.max(0, flockBottom - 20);
+    document.documentElement.style.setProperty('--dock-clearance', `${Math.ceil(innerHeight - dockTop)}px`);
   }
   new ResizeObserver(measureDock).observe(document.querySelector('.dock'));
   addEventListener('resize', measureDock);
@@ -420,7 +437,7 @@ import { drawRoad } from './road.mjs';
   // A Blob URL makes the bundled track seekable even on simple local servers
   // that do not implement HTTP Range requests. The original src remains a
   // fallback if fetching fails.
-  const bundledReady = fetch('assets/concept-audio.m4a')
+  const bundledReady = fetch('assets/my-head-spins-full.m4a')
     .then(response => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.blob();
@@ -609,7 +626,28 @@ import { drawRoad } from './road.mjs';
     $('captionText').textContent = 'A closer look at flight';
     loadSprite(0);
   }
+  function startDust(owner) {
+    if (reducedMotion.matches) { returnToFlock(); return; }
+    dustState = captureDust(canvas, W, H); dustClock = 0;
+    if (owner === 'bird') zoomState = 'dust'; else roadState = 'dust';
+    hideDetailControls();
+    $('captionText').textContent = 'Dust in the wind';
+  }
+  function dustVisibility() { return 1 - ease(clamp((dustClock - 3.8) / 2.2, 0, 1)); }
+  function updateDust(dt) {
+    if (!dustState) return;
+    dustClock += dt;
+    if (zoomState === 'dust') zoomProgress = dustVisibility();
+    if (dustClock >= 6) {
+      dustState = null;
+      if (zoomState === 'dust') { zoomState = 'flock'; zoomProgress = 0; target = null; }
+      if (roadState === 'dust') { roadState = 'off'; roadReveal = 0; }
+      $('captionText').textContent = 'Choose a bird, then follow its flight';
+      setSceneButtons();
+    }
+  }
   function returnToFlock() {
+    if (dustState) return;
     if (roadState !== 'off') {
       if (roadState !== 'exit') {
         roadExitVisibility = roadVisibility();
@@ -624,21 +662,23 @@ import { drawRoad } from './road.mjs';
     zoomState = 'exit'; zoomClock = 0;
     hideDetailControls();
   }
-  function startRoad() {
-    if (!sceneAvailable()) return;
+  function startRoad(kind = 'road') {
+    if (!sceneAvailable() || (kind === 'sunset' && !sunsetReady)) return;
+    landscapeKind = kind;
     clearPointerInteraction();
     selected = null;
     roadState = 'active'; roadClock = 0; roadReveal = 0;
-    showDetailControls('02 / COUNTRY ROAD');
-    $('captionText').textContent = 'A road into the distance';
+    showDetailControls(kind === 'sunset' ? '03 / SUNSET' : '02 / COUNTRY ROAD');
+    $('captionText').textContent = kind === 'sunset' ? 'Dust in the wind' : 'A road into the distance';
   }
   function roadVisibility() {
     if (roadState === 'off') return 0;
+    if (roadState === 'dust') return dustVisibility();
     if (roadState === 'exit') return roadExitVisibility * (1 - ease(clamp(roadClock / (reducedMotion.matches ? .16 : 1.2), 0, 1)));
     return ease(clamp(roadClock / (reducedMotion.matches ? .16 : 1), 0, 1));
   }
   function updateRoad(dt) {
-    if (roadState === 'off') return;
+    if (roadState === 'off' || roadState === 'dust') return;
     roadClock += dt;
     if (roadState === 'exit') {
       if (roadVisibility() <= 0) {
@@ -648,10 +688,13 @@ import { drawRoad } from './road.mjs';
       }
       return;
     }
-    roadReveal = reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
-    if (roadClock >= (reducedMotion.matches ? 3.16 : 13.12)) returnToFlock();
+    roadReveal = landscapeKind === 'sunset' ? roadClock : reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
+    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? (24 / (1.3 * 1.15) + 11.2) : 13.12)) {
+      if (landscapeKind === 'road') startDust('road'); else returnToFlock();
+    }
   }
   function paintRoad() {
+    if (roadState === 'dust') return;
     const visibility = roadVisibility();
     if (!visibility) return;
     const dockTop = document.querySelector('.dock').getBoundingClientRect().top;
@@ -660,7 +703,11 @@ import { drawRoad } from './road.mjs';
     const bottom = Math.min(H * .91, dockTop - 20);
     const height = Math.max(100, bottom - top);
     const width = Math.min(W * .83, height * 1.62);
-    drawRoad(ctx, {x:(W-width)/2, y:top, width, height}, roadReveal, visibility);
+    if (landscapeKind === 'sunset') {
+      const sunsetWidth = Math.min(W * .90, height * 1.5);
+      const sunsetHeight = sunsetWidth / 1.5;
+      drawSunset(ctx, {x:(W-sunsetWidth)/2, y:top+(height-sunsetHeight)/2, width:sunsetWidth, height:sunsetHeight}, roadReveal, visibility, reducedMotion.matches);
+    } else drawRoad(ctx, {x:(W-width)/2, y:top, width, height}, roadReveal, visibility);
   }
   canvas.addEventListener('pointermove', event => {
     if (!sceneAvailable()) return;
@@ -681,7 +728,9 @@ import { drawRoad } from './road.mjs';
     if (bird) follow(bird);
   });
   followButton.addEventListener('click', () => follow(accessibleBird()));
-  roadButton.addEventListener('click', startRoad);
+  roadButton.addEventListener('click', () => startRoad());
+  sunsetButton.addEventListener('click', () => startRoad('sunset'));
+  loadSunset().then(() => { sunsetReady = true; setSceneButtons(); }).catch(error => showStatus(error.message));
   $('returnButton').addEventListener('click', returnToFlock);
   $('fullscreenButton').addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -705,7 +754,7 @@ import { drawRoad } from './road.mjs';
       if (zoomProgress >= 1) { zoomState = 'detail'; zoomClock = 0; detailClock = 0; }
     } else if (zoomState === 'detail') {
       detailClock += dt;
-      if (detailClock >= ZOOM_DURATION) returnToFlock();
+      if (detailClock >= ZOOM_DURATION) startDust('bird');
     } else if (zoomState === 'exit') {
       zoomClock += dt;
       zoomProgress = 1 - ease(clamp(zoomClock / (reducedMotion.matches ? .16 : .72), 0, 1));
@@ -726,7 +775,7 @@ import { drawRoad } from './road.mjs';
     ctx.setLineDash([]); ctx.restore();
   }
   function paintDetail() {
-    if (!target || zoomProgress <= 0) return;
+    if (!target || zoomProgress <= 0 || zoomState === 'dust') return;
     const progress = zoomProgress;
     const detailAlpha = progress;
     const frame = reducedMotion.matches ? 0 : Math.min(ZOOM_FRAME_COUNT - 1, Math.floor(detailClock * ZOOM_FRAME_RATE));
@@ -771,6 +820,7 @@ import { drawRoad } from './road.mjs';
     if (!(reducedMotion.matches && audio.paused)) measureBands(wallDt);
     updateZoom(wallDt);
     updateRoad(wallDt);
+    updateDust(wallDt);
     if (inkwash) {
       try {
         if (!reducedMotion.matches) inkwash.update(inkDt, {bass, mid, treble}, 0, !audio.paused);
@@ -793,6 +843,7 @@ import { drawRoad } from './road.mjs';
     if (sceneAvailable()) paintSelection(hovered || selected, hovered ? 1 : .35);
     paintDetail();
     paintRoad();
+    if (dustState) drawDust(ctx, dustState, dustClock, W, H);
   }
   requestAnimationFrame(tick);
   syncTransport();

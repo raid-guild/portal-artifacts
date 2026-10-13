@@ -1,73 +1,213 @@
 {
   "version": 1,
   "status": "draft",
-  "source": "Local automatic transcription of supplied MP4 audio; wording and phrase boundaries need listening review.",
-  "notes": "Times are seconds from the trimmed clip beginning (original recording 1:16\u20132:37). Some sung words are uncertain; edit with the Lyrics panel.",
+  "source": "Lyrics supplied by the user; timing anchored to local word-timestamp analysis of the full WAV master.",
+  "notes": "Full-song seconds. Timing is approximate and can be refined in the Lyrics panel. Repeated chorus and outro use the supplied wording. Instrumental gaps have no lyric.",
   "cues": [
     {
       "start": 0,
-      "end": 0.72,
-      "text": "You and I we're together"
+      "end": 1.32,
+      "text": "Baby I,"
     },
     {
-      "start": 4.96,
-      "end": 7.94,
-      "text": "Even if it's not in this world"
+      "start": 1.64,
+      "end": 4.7,
+      "text": "When can only drift so far away"
     },
     {
-      "start": 11.8,
-      "end": 15.44,
+      "start": 7.28,
+      "end": 10.94,
+      "text": "I’m beginning to miss you"
+    },
+    {
+      "start": 14.02,
+      "end": 17.96,
+      "text": "Baby I see you down this lost highway"
+    },
+    {
+      "start": 20.22,
+      "end": 23.66,
+      "text": "Pulled over on the shoulder alone"
+    },
+    {
+      "start": 26.9,
+      "end": 29.6,
+      "text": "Maybe we when we are older"
+    },
+    {
+      "start": 32.8,
+      "end": 35.81,
+      "text": "We will figure this thing out"
+    },
+    {
+      "start": 39.68,
+      "end": 43.42,
+      "text": "We will make on path darling"
+    },
+    {
+      "start": 46.3,
+      "end": 48.73,
+      "text": "Hold on the funerals up"
+    },
+    {
+      "start": 50.57,
+      "end": 53.47,
+      "text": "And I don’t,"
+    },
+    {
+      "start": 53.47,
+      "end": 56.57,
+      "text": "Know where I’ve gone"
+    },
+    {
+      "start": 57.2,
+      "end": 60.35,
+      "text": "Took a Left an hour ago"
+    },
+    {
+      "start": 60.35,
+      "end": 62.95,
+      "text": "And now I’m lost"
+    },
+    {
+      "start": 63.6,
+      "end": 69.39,
+      "text": "And I’m trying to get back on that horse now"
+    },
+    {
+      "start": 70.5,
+      "end": 77.29,
+      "text": "And I’m trying to get back on that horse now"
+    },
+    {
+      "start": 79.47,
+      "end": 82.13,
+      "text": "You and were together"
+    },
+    {
+      "start": 86.21,
+      "end": 89.11,
+      "text": "Even if it’s not in this world"
+    },
+    {
+      "start": 93.09,
+      "end": 96.69,
       "text": "I see you everywhere child"
     },
     {
-      "start": 18.4,
-      "end": 20.8,
+      "start": 99.77,
+      "end": 102.19,
       "text": "Watching the trees grow"
     },
     {
-      "start": 24.86,
-      "end": 28.86,
-      "text": "Birds they come and sing to me now"
+      "start": 105.35,
+      "end": 110.89,
+      "text": "The birds they come and sing to me now"
     },
     {
-      "start": 31.5,
-      "end": 34.0,
+      "start": 112.61,
+      "end": 115.39,
       "text": "Telling of things to come"
     },
     {
-      "start": 37.8,
-      "end": 42.18,
-      "text": "The hour it comes in the daytime for me"
+      "start": 118.99,
+      "end": 123.39,
+      "text": "The owl it comes in the daytime for me"
     },
     {
-      "start": 44.54,
-      "end": 46.9,
-      "text": "Trying to get away from the poor"
+      "start": 125.33,
+      "end": 128.43,
+      "text": "Trying to get away from the cold"
     },
     {
-      "start": 47.28,
-      "end": 54.64,
-      "text": "And I don't know where I've gone"
+      "start": 130.31,
+      "end": 133.11,
+      "text": "And I don’t,"
     },
     {
-      "start": 54.64,
-      "end": 61.16,
-      "text": "The girl who left an hour ago, now I'm home"
+      "start": 133.11,
+      "end": 135.99,
+      "text": "Know where I’ve gone"
     },
     {
-      "start": 61.16,
-      "end": 68.14,
-      "text": "And I'm trying to get back, I'm lost now"
+      "start": 137.0,
+      "end": 142.67,
+      "text": "Took a left an hour ago and now I’m lost"
     },
     {
-      "start": 68.64,
-      "end": 74.92,
-      "text": "And I'm trying to get back, I'm lost now"
+      "start": 143.39,
+      "end": 149.49,
+      "text": "And I’m trying to get back on that horse now"
     },
     {
-      "start": 77.02,
-      "end": 81,
-      "text": "And I don't know where I'm going"
+      "start": 150.2,
+      "end": 156.15,
+      "text": "And I’m trying to get back on that horse"
+    },
+    {
+      "start": 158.39,
+      "end": 160.43,
+      "text": "And I don’t,"
+    },
+    {
+      "start": 160.43,
+      "end": 163.03,
+      "text": "Know where I’ve gone"
+    },
+    {
+      "start": 164.49,
+      "end": 169.63,
+      "text": "Took a left an hour ago and now I’m lost"
+    },
+    {
+      "start": 170.49,
+      "end": 176.63,
+      "text": "And I’m trying to get back on that horse now"
+    },
+    {
+      "start": 177.3,
+      "end": 183.45,
+      "text": "And I’m trying to get back on that horse"
+    },
+    {
+      "start": 185.89,
+      "end": 189.97,
+      "text": "Maybe I was lost in your light"
+    },
+    {
+      "start": 192.59,
+      "end": 196.31,
+      "text": "Maybe I don’t know what I’m looking for"
+    },
+    {
+      "start": 199.37,
+      "end": 203.67,
+      "text": "Maybe I was lost in your light"
+    },
+    {
+      "start": 206.43,
+      "end": 209.79,
+      "text": "Maybe I don’t know what I’m looking for"
+    },
+    {
+      "start": 213.11,
+      "end": 216.83,
+      "text": "Maybe I was lost in your light"
+    },
+    {
+      "start": 219.85,
+      "end": 224.13,
+      "text": "Maybe I don’t know what I’m looking for"
+    },
+    {
+      "start": 226.59,
+      "end": 230.45,
+      "text": "Maybe I was lost in your light"
+    },
+    {
+      "start": 233.41,
+      "end": 237.45,
+      "text": "Maybe I don’t know what I’m looking for"
     }
   ]
 }

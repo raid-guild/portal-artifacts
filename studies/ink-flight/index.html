@@ -23,7 +23,7 @@
   <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/ink-flight/ink-flight-social-v1.jpg">
   <meta name="twitter:image:alt" content="Ink / Flight interface with a flock of small birds over a flowing ink wash.">
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=study-credit-3">
 </head>
 <body>
   <canvas id="wash" aria-hidden="true"></canvas>
@@ -67,6 +67,10 @@
       <h2 id="songDialogTitle">My Head Spins</h2>
       <p class="song-artist">Tanner Royster</p>
       <a class="song-youtube" href="https://youtu.be/ubV98Hnii3c?si=KWTZEK_bijEdPkS-" target="_blank" rel="noopener noreferrer">Listen on YouTube <span aria-hidden="true">↗</span><span class="song-new-tab"> (opens in a new tab)</span></a>
+      <a class="study-credit" href="https://dekan.raidguild.org" target="_blank" rel="noopener noreferrer" aria-label="Interactive study built by Dekan at RaidGuild — visit Dekan (opens in a new tab)">
+        <img src="assets/brand/raidguild-crossed-swords-black.svg" width="36" height="34" alt="RaidGuild crossed swords">
+        <span><small>INTERACTIVE STUDY</small><span>Built by Dekan at RaidGuild <span aria-hidden="true">↗</span></span></span>
+      </a>
       <div class="lyrics-dialog-actions"><button id="songInfoClose" type="button">Close</button></div>
     </div>
   </dialog>
@@ -75,7 +79,7 @@
     <form id="lyricsForm">
       <h2 id="lyricsDialogTitle">Lyrics & timing</h2>
       <label class="lyrics-toggle"><input id="lyricsEnabled" type="checkbox" checked> Show lyrics</label>
-      <p class="lyrics-draft-note" id="lyricsDraftNote" hidden>Automatic transcript — review words and timing.</p>
+      <p class="lyrics-draft-note" id="lyricsDraftNote" hidden>Lyrics supplied; review timing.</p>
       <p>Each cue uses start and end times in seconds. Edit the JSON, then apply to preview.</p>
       <label for="lyricsEditor">Timed cues</label>
       <textarea id="lyricsEditor" spellcheck="false" aria-describedby="lyricsError"></textarea>
@@ -104,15 +108,16 @@
       <span class="time" id="duration">0:00</span>
     </div>
     <div class="right-controls">
-      <button class="follow-button" id="followButton" type="button" title="Follow selected bird (Enter)">Follow a bird <span aria-hidden="true">↗</span></button>
-      <button class="road-button" id="roadButton" type="button" title="Draw a country road">Country road <span aria-hidden="true">↗</span></button>
+      <button class="follow-button scene-icon-button" id="followButton" type="button" title="Follow a bird (Enter)" aria-label="Follow a bird"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4c-4 0-7 2-9 6L4 8l2 5-3 4 6-1c3 3 6 3 8 0 1-2 1-4 0-6l4-5-1-1Z"/><path d="m9 16 5-6M17 7h.01"/></svg></button>
+      <button class="road-button scene-icon-button" id="sunsetButton" type="button" disabled title="Sunset" aria-label="Sunset"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18M5 21h14M6 17a6 6 0 0 1 12 0M12 3v3M4.2 6.2l2.2 2.2M19.8 6.2l-2.2 2.2M2 12h3M19 12h3"/></svg></button>
+      <button class="road-button scene-icon-button" id="roadButton" type="button" title="Country road" aria-label="Country road"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3 3 21M15 3l6 18M12 4v3M12 11v3M12 18v3"/></svg></button>
       <label class="volume-label" for="volume">VOL</label>
       <input id="volume" type="range" min="0" max="100" value="78" aria-label="Volume">
     </div>
   </footer>
 
   <div class="status" id="status" role="status" aria-live="polite"></div>
-  <audio id="audio" src="assets/concept-audio.m4a" preload="metadata" crossorigin="anonymous"></audio>
+  <audio id="audio" src="assets/my-head-spins-full.m4a" preload="metadata" crossorigin="anonymous"></audio>
   <script type="module" src="app.js"></script>
 </body>
 </html>
