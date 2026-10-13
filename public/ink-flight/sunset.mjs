@@ -41,10 +41,12 @@ export function drawSunset(ctx,box,seconds,opacity,reduced=false){
  if(!strokes.length||opacity<=0)return;
  ctx.save();ctx.translate(box.x,box.y);ctx.scale(box.width/1536,box.height/1024);
  ctx.strokeStyle='#292827';ctx.lineWidth=1.2;ctx.lineCap='round';ctx.lineJoin='round';
- const budget=(reduced?1:clamp(seconds/24))*total,wind=seconds-29.2;
+ const drawingDuration = 24 / 1.3;
+ const eraseStart = drawingDuration + 1.2;
+ const budget=(reduced?1:clamp(seconds/drawingDuration))*total,wind=seconds-(drawingDuration+5.2);
  for(const s of strokes){
   let start=0,end=Math.min(s.length,Math.max(0,budget-s.start));
-  if(s.rider&&!reduced&&seconds>25.2)start=Math.max(0,Math.min(s.length,clamp((seconds-25.2)/3)*riderTotal-s.eraseStart));
+  if(s.rider&&!reduced&&seconds>eraseStart)start=Math.max(0,Math.min(s.length,clamp((seconds-eraseStart)/3)*riderTotal-s.eraseStart));
   const alpha=reduced?1:wind>0?clamp(1-(wind-s.delay)/.65):1;
   ctx.globalAlpha=opacity*alpha;if(alpha>0)strokePart(ctx,s,start,end);
  }
