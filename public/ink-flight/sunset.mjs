@@ -41,7 +41,7 @@ export function drawSunset(ctx,box,seconds,opacity,reduced=false){
  if(!strokes.length||opacity<=0)return;
  ctx.save();ctx.translate(box.x,box.y);ctx.scale(box.width/1536,box.height/1024);
  ctx.strokeStyle='#292827';ctx.lineWidth=1.2;ctx.lineCap='round';ctx.lineJoin='round';
- const drawingDuration = 24 / 1.3;
+ const drawingDuration = 24 / (1.3 * 1.15);
  const eraseStart = drawingDuration + 1.2;
  const budget=(reduced?1:clamp(seconds/drawingDuration))*total,wind=seconds-(drawingDuration+5.2);
  for(const s of strokes){

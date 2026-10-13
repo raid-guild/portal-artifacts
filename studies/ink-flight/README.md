@@ -38,6 +38,6 @@ The editable prototype is here in `studies/ink-flight/`. The static published co
 
 Song: **My Head Spins — Tanner Royster**. The supplied full WAV master provides the soundtrack; the Song info dialog links to the supplied YouTube video. Lyrics use supplied wording with draft timing. The transparent zoom frames are derived from the user-supplied two-bird video. The share cover is a composed screenshot of this prototype.
 
-- **Sunset** draws the cowboy landscape over about 18.5 seconds, erases the rider, then scatters the remaining ink in wind before returning to the flock (~31 seconds total). Return early with the shared control or Escape. Reduced-motion mode shows the finished drawing briefly with fades. The transparent centerline trace and wind renderer are in `sunset.mjs` and `assets/sunset/paths.json`.
+- **Sunset** draws the cowboy landscape over about 16.1 seconds, erases the rider, then scatters the remaining ink in wind before returning to the flock (~29 seconds total). Return early with the shared control or Escape. Reduced-motion mode shows the finished drawing briefly with fades. The transparent centerline trace and wind renderer are in `sunset.mjs` and `assets/sunset/paths.json`.
 
 - Follow a bird and Country road now end with a six-second foreground ink-to-dust dissolve. The flock returns as the dust clears; manual early return retains the short transition and reduced-motion mode uses a fade. The shared renderer is `dust.mjs`.

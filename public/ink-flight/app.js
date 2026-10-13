@@ -689,7 +689,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       return;
     }
     roadReveal = landscapeKind === 'sunset' ? roadClock : reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
-    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? (24 / 1.3 + 11.2) : 13.12)) {
+    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? (24 / (1.3 * 1.15) + 11.2) : 13.12)) {
       if (landscapeKind === 'road') startDust('road'); else returnToFlock();
     }
   }
