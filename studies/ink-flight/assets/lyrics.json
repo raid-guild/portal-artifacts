@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "status": "draft",
+  "source": "Local automatic transcription of supplied MP4 audio; wording and phrase boundaries need listening review.",
+  "notes": "Times are seconds from the trimmed clip beginning (original recording 1:16\u20132:37). Some sung words are uncertain; edit with the Lyrics panel.",
+  "cues": [
+    {
+      "start": 0,
+      "end": 0.72,
+      "text": "You and I we're together"
+    },
+    {
+      "start": 4.96,
+      "end": 7.94,
+      "text": "Even if it's not in this world"
+    },
+    {
+      "start": 11.8,
+      "end": 15.44,
+      "text": "I see you everywhere child"
+    },
+    {
+      "start": 18.4,
+      "end": 20.8,
+      "text": "Watching the trees grow"
+    },
+    {
+      "start": 24.86,
+      "end": 28.86,
+      "text": "Birds they come and sing to me now"
+    },
+    {
+      "start": 31.5,
+      "end": 34.0,
+      "text": "Telling of things to come"
+    },
+    {
+      "start": 37.8,
+      "end": 42.18,
+      "text": "The hour it comes in the daytime for me"
+    },
+    {
+      "start": 44.54,
+      "end": 46.9,
+      "text": "Trying to get away from the poor"
+    },
+    {
+      "start": 47.28,
+      "end": 54.64,
+      "text": "And I don't know where I've gone"
+    },
+    {
+      "start": 54.64,
+      "end": 61.16,
+      "text": "The girl who left an hour ago, now I'm home"
+    },
+    {
+      "start": 61.16,
+      "end": 68.14,
+      "text": "And I'm trying to get back, I'm lost now"
+    },
+    {
+      "start": 68.64,
+      "end": 74.92,
+      "text": "And I'm trying to get back, I'm lost now"
+    },
+    {
+      "start": 77.02,
+      "end": 81,
+      "text": "And I don't know where I'm going"
+    }
+  ]
+}
