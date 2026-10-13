@@ -2,6 +2,7 @@ import { createInkwash } from './vendor/inkwash.js';
 import { activeCue, canInstallBundledLyrics, validateCues } from './lyrics.mjs';
 import { clearPointerPulse, clearPointerResponse, pointerResponse, updatePointerPulse } from './pointer.mjs';
 import { drawRoad } from './road.mjs';
+import { drawSunset, loadSunset } from './sunset.mjs';
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -43,18 +44,21 @@ import { drawRoad } from './road.mjs';
   const lyricsDraftNote = $('lyricsDraftNote');
   let zoomState = 'flock', zoomProgress = 0, zoomClock = 0, detailClock = 0;
   let roadState = 'off', roadClock = 0, roadReveal = 0, roadExitVisibility = 0;
+  let landscapeKind = 'road', sunsetReady = false;
+  const sunsetButton = $('sunsetButton');
   const roadButton = $('roadButton');
   const followButton = $('followButton');
   const sceneAvailable = () => zoomState === 'flock' && roadState === 'off';
   function setSceneButtons() {
     const available = sceneAvailable();
     roadButton.disabled = !available;
+    sunsetButton.disabled = !available || !sunsetReady;
     followButton.disabled = !available;
   }
   function showDetailControls(label) {
     $('detailLabel').textContent = label;
     $('detailControls').classList.add('active');
-    $('detailControls').classList.toggle('road-active', label.startsWith('02'));
+    $('detailControls').classList.toggle('road-active', !label.startsWith('01'));
     $('detailControls').setAttribute('aria-hidden', 'false');
     $('detailControls').removeAttribute('inert');
     setSceneButtons();
@@ -624,13 +628,14 @@ import { drawRoad } from './road.mjs';
     zoomState = 'exit'; zoomClock = 0;
     hideDetailControls();
   }
-  function startRoad() {
-    if (!sceneAvailable()) return;
+  function startRoad(kind = 'road') {
+    if (!sceneAvailable() || (kind === 'sunset' && !sunsetReady)) return;
+    landscapeKind = kind;
     clearPointerInteraction();
     selected = null;
     roadState = 'active'; roadClock = 0; roadReveal = 0;
-    showDetailControls('02 / COUNTRY ROAD');
-    $('captionText').textContent = 'A road into the distance';
+    showDetailControls(kind === 'sunset' ? '03 / SUNSET' : '02 / COUNTRY ROAD');
+    $('captionText').textContent = kind === 'sunset' ? 'Dust in the wind' : 'A road into the distance';
   }
   function roadVisibility() {
     if (roadState === 'off') return 0;
@@ -648,8 +653,8 @@ import { drawRoad } from './road.mjs';
       }
       return;
     }
-    roadReveal = reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
-    if (roadClock >= (reducedMotion.matches ? 3.16 : 13.12)) returnToFlock();
+    roadReveal = landscapeKind === 'sunset' ? roadClock : reducedMotion.matches ? 1 : clamp((roadClock - .12) / 10, 0, 1);
+    if (roadClock >= (reducedMotion.matches ? 3.16 : landscapeKind === 'sunset' ? 35.2 : 13.12)) returnToFlock();
   }
   function paintRoad() {
     const visibility = roadVisibility();
@@ -660,7 +665,11 @@ import { drawRoad } from './road.mjs';
     const bottom = Math.min(H * .91, dockTop - 20);
     const height = Math.max(100, bottom - top);
     const width = Math.min(W * .83, height * 1.62);
-    drawRoad(ctx, {x:(W-width)/2, y:top, width, height}, roadReveal, visibility);
+    if (landscapeKind === 'sunset') {
+      const sunsetWidth = Math.min(W * .90, height * 1.5);
+      const sunsetHeight = sunsetWidth / 1.5;
+      drawSunset(ctx, {x:(W-sunsetWidth)/2, y:top+(height-sunsetHeight)/2, width:sunsetWidth, height:sunsetHeight}, roadReveal, visibility, reducedMotion.matches);
+    } else drawRoad(ctx, {x:(W-width)/2, y:top, width, height}, roadReveal, visibility);
   }
   canvas.addEventListener('pointermove', event => {
     if (!sceneAvailable()) return;
@@ -681,7 +690,9 @@ import { drawRoad } from './road.mjs';
     if (bird) follow(bird);
   });
   followButton.addEventListener('click', () => follow(accessibleBird()));
-  roadButton.addEventListener('click', startRoad);
+  roadButton.addEventListener('click', () => startRoad());
+  sunsetButton.addEventListener('click', () => startRoad('sunset'));
+  loadSunset().then(() => { sunsetReady = true; setSceneButtons(); }).catch(error => showStatus(error.message));
   $('returnButton').addEventListener('click', returnToFlock);
   $('fullscreenButton').addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen();

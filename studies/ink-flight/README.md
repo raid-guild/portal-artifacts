@@ -37,3 +37,5 @@ The scene honors the operating system's reduced motion preference. On a small sc
 The editable prototype is here in `studies/ink-flight/`. The static published copy is `public/ink-flight/`; copy runtime HTML, CSS, modules, vendor, `assets/my-head-spins-full.m4a`, `assets/lyrics.json`, and `assets/zoom-birds/` there after editing. Preserve the social image and metadata. Original bird assets and tests are study-only.
 
 Song: **My Head Spins — Tanner Royster**. The supplied full WAV master provides the soundtrack; the Song info dialog links to the supplied YouTube video. Lyrics use supplied wording with draft timing. The transparent zoom frames are derived from the user-supplied two-bird video. The share cover is a composed screenshot of this prototype.
+
+- **Sunset** draws the cowboy landscape over 24 seconds, erases the rider, then scatters the remaining ink in wind before returning to the flock (~36 seconds total). Return early with the shared control or Escape. Reduced-motion mode shows the finished drawing briefly with fades. The transparent centerline trace and wind renderer are in `sunset.mjs` and `assets/sunset/paths.json`.
