@@ -28,3 +28,18 @@
 .right-controls .scene-icon-button{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;padding:8px;letter-spacing:0}.scene-icon-button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}.scene-icon-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.right-controls{column-gap:9px}
 
 .study-credit{display:flex;align-items:center;gap:13px;border-top:1px solid var(--line);padding-top:18px;margin-top:4px;color:var(--ink);text-decoration:none}.study-credit>span{display:flex;flex-direction:column;gap:5px;font-size:12px}.study-credit small{font-size:9px;letter-spacing:.13em;color:#65706f}.study-credit img{flex:none;width:36px;height:34px;object-fit:contain}.study-credit:hover>span{text-decoration:underline;text-underline-offset:3px}
+
+.recording-identity{display:none}
+body.recording-view .identity,body.recording-view .top-actions>*:not(#recordViewButton),body.recording-view .scene-caption{display:none}
+body.recording-view .recording-identity{display:block;text-align:center;position:fixed;top:clamp(35px,7vh,100px);left:20px;right:20px;pointer-events:none}
+.recording-identity h2{font:normal clamp(25px,4vw,44px) Georgia,serif;margin:0 0 9px}.recording-identity p{font-size:12px;letter-spacing:.12em;margin:0;color:#596461}
+body.recording-view .top-actions{position:fixed;right:12px;top:12px}
+body.recording-view #recordViewButton{opacity:.2;font-size:9px;padding:6px}body.recording-view #recordViewButton:hover,body.recording-view #recordViewButton:focus-visible{opacity:1}
+body.recording-view .dock{display:flex;align-items:center;justify-content:center;gap:12px;left:50%;right:auto;bottom:18px;transform:translateX(-50%);width:max-content;min-height:0;padding:7px 10px;border:1px solid rgba(50,60,55,.12);background:rgba(242,238,228,.18);box-shadow:none;backdrop-filter:blur(4px);opacity:.22;transition:opacity .2s}
+body.recording-view .dock:hover,body.recording-view .dock:focus-within{opacity:.9}
+body.recording-view .track-meta,body.recording-view .time,body.recording-view .timeline,body.recording-view .volume-label,body.recording-view #volume{display:none}
+body.recording-view .transport,body.recording-view .right-controls{display:flex;gap:8px;grid-row:auto;grid-column:auto;border:0;padding:0}
+body.recording-view .play-button{width:32px;height:32px;background:transparent;color:var(--ink)}body.recording-view .right-controls .scene-icon-button{width:32px;height:32px;flex-basis:32px;padding:5px;border:0}
+body.recording-view .detail-controls,body.recording-view .detail-controls.road-active{top:auto;bottom:78px;right:50%;transform:translateX(50%);opacity:0}body.recording-view .detail-controls.active{opacity:.35}
+body.recording-view .detail-controls>span{display:none}body.recording-view .detail-controls:hover,body.recording-view .detail-controls:focus-within{opacity:1}
+body.recording-view .lyric-overlay{bottom:clamp(120px,16vh,240px)}
