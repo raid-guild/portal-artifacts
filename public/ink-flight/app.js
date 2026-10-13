@@ -141,6 +141,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     }
   }
 
+  let flockBottom = H * .75;
   const birds = [];
   const birdCount = () => W < 700 ? 180 : 280;
   const EDGE = 80;
@@ -173,10 +174,10 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     const direction = group ? 1 : -1;
     const spread = Math.abs(split);
     const baseX = W * (.50 + .19 * Math.sin(seconds * .34));
-    const baseY = H * (.47 + .16 * Math.sin(seconds * .29 + .8));
+    const baseY = flockBottom * (.47 + .16 * Math.sin(seconds * .29 + .8));
     return {
       x: baseX + direction * W * .105 * spread * Math.cos(seconds * .19 + group),
-      y: baseY + direction * H * .085 * spread * Math.sin(seconds * .23 + group)
+      y: baseY + direction * flockBottom * .085 * spread * Math.sin(seconds * .23 + group)
     };
   }
   class Bird {
@@ -186,7 +187,7 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       const g = groupGuide(0, this.group);
       const theta = random(0, TAU), radius = Math.sqrt(Math.random()) * Math.min(W,H) * .14;
       this.x = g.x + Math.cos(theta) * radius;
-      this.y = g.y + Math.sin(theta) * radius * .75;
+      this.y = Math.min(flockBottom - 12, g.y + Math.sin(theta) * radius * .75);
       const heading = random(-.7, .7);
       const speed = random(110, 146);
       this.vx = Math.cos(heading) * speed;
@@ -248,6 +249,9 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       const together = 1 - disrupted * .92;
       let fx=sep[0]*1.4+ali[0]*1.3*together+coh[0]*.75*together+pull[0]*.52*together+path[0]*.6*together+Math.cos(wave)*7+px;
       let fy=sep[1]*1.4+ali[1]*1.3*together+coh[1]*.75*together+pull[1]*.52*together+path[1]*.6*together+Math.sin(wave)*7+py;
+      // Turn upward before reaching the player, including during mouse scatter.
+      const bottomClearance = flockBottom - self.y;
+      if (bottomClearance < 110) fy -= Math.pow(clamp(1-bottomClearance/110,0,1),2)*650;
       const magnitude=Math.hypot(fx,fy) || 1;
       const forceLimit = disrupted ? 340 : 180;
       if (magnitude>forceLimit) { fx=fx/magnitude*forceLimit; fy=fy/magnitude*forceLimit; }
@@ -261,8 +265,12 @@ import { drawSunset, loadSunset } from './sunset.mjs';
       this.x+=this.vx*dt; this.y+=this.vy*dt;
       if (this.x < -EDGE) this.x += W+2*EDGE;
       if (this.x > W+EDGE) this.x -= W+2*EDGE;
-      if (this.y < -EDGE) this.y += H+2*EDGE;
-      if (this.y > H+EDGE) this.y -= H+2*EDGE;
+      if (this.y < -EDGE) this.y = flockBottom - 20;
+      if (this.y > flockBottom) {
+        this.y = flockBottom;
+        this.vy = -Math.max(45, Math.abs(this.vy));
+        this.heading = Math.atan2(this.vy, this.vx);
+      }
     }
     draw(scale=1, alpha=1) {
       const length=this.size*this.depth*scale;
@@ -322,7 +330,10 @@ import { drawSunset, loadSunset } from './sunset.mjs';
 
   function measureDock() {
     const dock = document.querySelector('.dock');
-    document.documentElement.style.setProperty('--dock-clearance', `${Math.ceil(innerHeight - dock.getBoundingClientRect().top)}px`);
+    const dockTop = dock.getBoundingClientRect().top;
+    flockBottom = Math.max(40, Math.min(H - 24, dockTop - 30));
+    for (const bird of birds) if (bird.y > flockBottom) bird.y = Math.max(0, flockBottom - 20);
+    document.documentElement.style.setProperty('--dock-clearance', `${Math.ceil(innerHeight - dockTop)}px`);
   }
   new ResizeObserver(measureDock).observe(document.querySelector('.dock'));
   addEventListener('resize', measureDock);
