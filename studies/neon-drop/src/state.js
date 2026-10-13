@@ -148,7 +148,7 @@ export function idleEarnings(meta, now = Date.now()) {
 export function jackpotBase(run){return 150+run.round*100+powerLevel(run.powerLevels,'jackpot')*10;}
 export function newRun(meta=DEFAULT_META) {
   const powerLevels=Object.fromEntries(POWER_UPGRADES.map(power=>[power.id,powerLevel(meta.powerLevels,power.id)]));
-  return {cabinet:meta.cabinets?.includes(meta.selectedCabinet)?meta.selectedCabinet:'classic',overdrive:false,mastered:false,bankedChips:0,bankedTickets:0,winBanked:false,round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,encoreAvailable:0,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:false,status:'playing',lastScore:null};
+  return {cabinet:meta.cabinets?.includes(meta.selectedCabinet)?meta.selectedCabinet:'classic',overdrive:false,mastered:false,bankedChips:0,bankedTickets:0,winBanked:false,round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,encoreAvailable:0,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:meta.purchased?.includes('auto')||false,status:'playing',lastScore:null};
 }
 export function targetFor(run) { return run.round<4?ROUND_TARGETS[run.round]:Math.round(1800*Math.pow(1.25,Math.min(run.round-3,80))); }
 export function payout(run, hole, ball, rimHits=0) {
