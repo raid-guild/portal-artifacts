@@ -58,3 +58,7 @@ body.jackpot-playing #viewport{inset:0;z-index:11}
 @media(prefers-reduced-motion:reduce){.jackpot-show .jp-card{transition:none}.jackpot-show.jp-finale .jp-title{filter:none}}
 
 #runTotal{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#roundTag{flex-shrink:0}
+
+.topline,.left-panel,.right-panel,.bottom-bar,.drop-hint,.upgrade-grid,.shop-tabs,.shop-controls{user-select:none;-webkit-user-select:none}
+button{touch-action:manipulation}
+.choice-countdown{margin:12px 0;color:#ffce75;font-weight:900;letter-spacing:.08em;font-size:14px;text-align:center}

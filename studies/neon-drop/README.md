@@ -98,6 +98,20 @@ Drop button, queue status, and Workshop within thumb reach. Settings also holds
 radio controls, auto drop, Arcade Challenge, current build and prize details,
 and the RaidGuild stamp. Modals scroll within the safe viewport area.
 
+## Round flow and automation
+When a round target is met, Drop/Space becomes **Choose Mutation** (or
+**Continue** at the cabinet checkpoint). This discards unresolved balls and
+queued releases without scoring or refunding ordinary drops; earned tickets and
+unscored encore drops remain for the next round. Once the board settles, the
+same choice opens on its own.
+Mutation cards have a visible 10-second foreground countdown; if no card is
+chosen, one of the exact three offered cards is selected uniformly. The
+checkpoint defaults to entering Overdrive after 10 seconds, then starts a fresh
+mutation countdown. Timers pause in hidden tabs and during jackpot shows.
+Owning Auto Drop starts each new casual run with automation on. Turning it off
+lasts for that run; Arcade Challenge always disables it. Automation pauses in
+menus and never catches up with a burst of accumulated drops.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;
