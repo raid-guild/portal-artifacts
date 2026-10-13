@@ -1,4 +1,5 @@
 import {RADIO_BY_ID,DEFAULT_RADIO} from './radio-stations.js';
+import {newSwitchboard,expireSwitchboard,switchMultiplier,consumeReactor,nextSwitchRound} from './switchboard.js';
 
 export const BALLS = {
   chrome: { name: 'Chrome', color: '#d9edff', glow: '#49dfff', restitution: .96, density: 1.2, cost: 0, desc: 'High bounces and reliable handling.' },
@@ -78,6 +79,12 @@ export const ROUND_TARGETS = [180, 540, 1000, 1800];
 export const CABINETS = [
   {id:'classic',name:'Neon Classic',cost:0,description:'The original spinning prize deck. Four rounds, then endless Overdrive.'},
   {id:'double',name:'Double Trouble',cost:200,description:'A counter-rotating upper deck feeds the prize deck. The gold center gate charges a ball for +25% ordinary tickets.'},
+  {id:'switchboard',name:'Switchboard',cost:1200,description:'Three live bumpers charge colored ticket channels and a jackpot reactor. Complete the triangle to overload the deck.'},
+];
+export const SWITCH_UPGRADES=[
+  {id:'sw-fuse',title:'Long Fuse',icon:'◌',tier:'SWITCHBOARD',description:'Channels stay charged +2 seconds, up to 16.',color:'#51e9ff',max:4},
+  {id:'sw-overload',title:'Sustained Overload',icon:'△',tier:'SWITCHBOARD',description:'Overload lasts +1 second, up to 8.',color:'#ff65c4',max:4},
+  {id:'sw-coil',title:'Induction Coil',icon:'ϟ',tier:'SWITCHBOARD',description:'Reactor gains +1 percentage point per hit, up to +6.',color:'#ffce65',max:3},
 ];
 export const OVERDRIVE_UPGRADES = [
   {id:'od-gain',title:'Voltage amplifier',icon:'ϟ',tier:'OVERDRIVE · STACKS',color:'#55ffc0',description:'+20% ordinary payouts per stack for this run.'},
@@ -110,8 +117,8 @@ export function loadMeta(storage = globalThis.localStorage, now = Date.now()) {
     const effectsVolume=Number.isFinite(saved.audio?.effectsVolume)?Math.max(0,Math.min(1,saved.audio.effectsVolume)):oldVolume;
     return {
       revision:revisionOf(saved.revision),
-      cabinets:['classic',...(Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?['double']:[])],
-      selectedCabinet:saved.selectedCabinet==='double'&&Array.isArray(saved.cabinets)&&saved.cabinets.includes('double')?'double':'classic',
+      cabinets:['classic',...CABINETS.filter(c=>c.id!=='classic'&&Array.isArray(saved.cabinets)&&saved.cabinets.includes(c.id)).map(c=>c.id)],
+      selectedCabinet:CABINETS.some(c=>c.id===saved.selectedCabinet)&&Array.isArray(saved.cabinets)&&saved.cabinets.includes(saved.selectedCabinet)?saved.selectedCabinet:'classic',
       records:Object.fromEntries(CABINETS.map(c=>[c.id,{tickets:number(saved.records?.[c.id]?.tickets,0),round:number(saved.records?.[c.id]?.round,0,10000)}])),
       chips:number(saved.chips,0), totalTickets:number(saved.totalTickets,0), bestRound:number(saved.bestRound,0,ROUND_TARGETS.length),
       unlocked:['chrome', ...new Set(Array.isArray(saved.unlocked) ? saved.unlocked.filter(x=>x==='rubber'||x==='heavy') : [])],
@@ -148,12 +155,13 @@ export function idleEarnings(meta, now = Date.now()) {
 export function jackpotBase(run){return 150+run.round*100+powerLevel(run.powerLevels,'jackpot')*10;}
 export function newRun(meta=DEFAULT_META) {
   const powerLevels=Object.fromEntries(POWER_UPGRADES.map(power=>[power.id,powerLevel(meta.powerLevels,power.id)]));
-  return {cabinet:meta.cabinets?.includes(meta.selectedCabinet)?meta.selectedCabinet:'classic',overdrive:false,mastered:false,bankedChips:0,bankedTickets:0,winBanked:false,round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,encoreAvailable:0,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:meta.purchased?.includes('auto')||false,status:'playing',lastScore:null};
+  const cabinet=meta.cabinets?.includes(meta.selectedCabinet)?meta.selectedCabinet:'classic';
+  return {cabinet,switchboard:cabinet==='switchboard'?newSwitchboard():null,overdrive:false,mastered:false,bankedChips:0,bankedTickets:0,winBanked:false,round:0,roundTickets:0,totalTickets:0,drops:12+powerLevels.reserve,encoreAvailable:0,dropped:0,scores:0,jackpot:150+powerLevels.jackpot*10,powerLevels,upgrades:[],ball:'chrome',auto:meta.purchased?.includes('auto')||false,status:'playing',lastScore:null};
 }
 export function targetFor(run) { return run.round<4?ROUND_TARGETS[run.round]:Math.round(1800*Math.pow(1.25,Math.min(run.round-3,80))); }
-export function payout(run, hole, ball, rimHits=0) {
+export function payout(run, hole, ball, rimHits=0,now=0) {
   if (hole.kind === 'free') return { amount:0, free:2, jackpot:false };
-  if (hole.kind === 'jackpot') return { amount:run.jackpot, free:0, jackpot:true };
+  if (hole.kind === 'jackpot') {const reactorBoost=run.cabinet==='switchboard'?Math.round(run.jackpot*(run.switchboard?.reactor||0)/100):0;return { amount:run.jackpot+reactorBoost,baseJackpot:run.jackpot,reactorBoost,free:0,jackpot:true };}
   let amount = hole.value;
   if (ball === 'heavy') amount *= 1.4;
   if (ball === 'rubber') amount *= 1 + Math.min(rimHits, 8) * .07;
@@ -163,12 +171,14 @@ export function payout(run, hole, ball, rimHits=0) {
   if(run.cabinet==='double'&&hole.charged)amount*=1.25;
   amount *= 1+run.upgrades.filter(id=>id==='od-gain').length*.2;
   amount *= 1+powerLevel(run.powerLevels,'amplifier')*.02;
+  amount *= switchMultiplier(run,hole,now);
   return { amount:Math.round(amount), free:0, jackpot:false };
 }
-export function applyScore(run, hole, ball, rimHits=0) {
-  const reward = payout(run, hole, ball, rimHits);
+export function applyScore(run, hole, ball, rimHits=0,now=0) {
+  run=expireSwitchboard(run,now);
+  const reward = payout(run, hole, ball, rimHits,now);
   const next = { ...run, scores:run.scores + 1, drops:run.drops + reward.free, lastScore:{...reward, label:hole.label} };
-  if (reward.jackpot) next.jackpot = jackpotBase(next);
+  if (reward.jackpot) {next.jackpot = jackpotBase(next);next.switchboard=consumeReactor(run).run.switchboard;}
   else if (hole.kind !== 'free' && next.upgrades.includes('capacitor')) next.jackpot += 8;
   if(hole.kind==='score')next.jackpot+=15*next.upgrades.filter(id=>id==='od-bank').length;
   next.roundTickets += reward.amount;
@@ -177,9 +187,12 @@ export function applyScore(run, hole, ball, rimHits=0) {
   return next;
 }
 export function addUpgrade(run, upgradeId) {
+  const switchUpgrade=SWITCH_UPGRADES.find(u=>u.id===upgradeId);
+  if(switchUpgrade&&(run.cabinet!=='switchboard'||run.upgrades.filter(id=>id===upgradeId).length>=switchUpgrade.max||(!run.overdrive&&run.upgrades.includes(upgradeId))))return run;
   const next = { ...run, upgrades:[...run.upgrades, upgradeId], round:run.round+1, roundTickets:0, drops:12 + powerLevel(run.powerLevels,'reserve') + (run.upgrades.includes('reserve') || upgradeId === 'reserve' ? 4 : 0) + (run.encoreAvailable||0), status:'playing' };
   next.drops+=2*next.upgrades.filter(id=>id==='od-reserve').length;
   next.jackpot=Math.max(next.jackpot,jackpotBase(next));
+  next.switchboard=nextSwitchRound(run).switchboard;
   if (next.round >= ROUND_TARGETS.length&&!next.overdrive) next.status = 'won';
   return next;
 }
@@ -206,6 +219,6 @@ export function bankRun(run,meta,now=Date.now()){
 }
 export function finishRun(run,meta,now=Date.now()){return bankRun(run,meta,now).meta;}
 export function randomCards(run, random=Math.random) {
-  const available = [...UPGRADES.filter(u => !run.upgrades.includes(u.id)),...(run.overdrive?OVERDRIVE_UPGRADES:[])];
+  const available = [...UPGRADES.filter(u => !run.upgrades.includes(u.id)),...(run.cabinet==='switchboard'?SWITCH_UPGRADES.filter(u=>{const stacks=run.upgrades.filter(id=>id===u.id).length;return stacks<u.max&&(run.overdrive||stacks===0);}):[]),...(run.overdrive?OVERDRIVE_UPGRADES:[])];
   return available.sort(() => random()-.5).slice(0,3);
 }
