@@ -50,7 +50,7 @@
 	@walker path /desert-walker /desert-walker/*
 	header @walker Cache-Control "no-cache"
 
-	@standard_policy not path /ink-flight /ink-flight/*
+	@standard_policy not path /ink-flight /ink-flight/* /rewind /rewind/*
 	header @standard_policy Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://plausible-production-78b3.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob: https://plausible-production-78b3.up.railway.app; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://portal.raidguild.org https://*.up.railway.app http://localhost:*"
 
 	header {
@@ -61,9 +61,9 @@
 	}
 
 	route {
-        # Ink / Flight fetches bundled audio as a seekable Blob and accepts local audio.
-        @ink_flight path /ink-flight /ink-flight/*
-        header @ink_flight {
+        # Ink / Flight and Rewind fetch bundled audio as seekable Blobs and accept local audio.
+        @audio_studies path /ink-flight /ink-flight/* /rewind /rewind/*
+        header @audio_studies {
             Access-Control-Allow-Origin "*"
             Cache-Control "no-cache"
             Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://plausible-production-78b3.up.railway.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob: https://plausible-production-78b3.up.railway.app; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://portal.raidguild.org https://*.up.railway.app http://localhost:*"

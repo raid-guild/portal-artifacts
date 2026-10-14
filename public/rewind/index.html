@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eee9dc">
+  <title>Wall / Rise — Rewind</title>
+  <meta name="description" content="Rewind is an interactive music concept: build a wireframe wall with Tanner Royster’s song, break it, and watch it rise again.">
+  <link rel="canonical" href="https://portal-artifacts-production.up.railway.app/rewind/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="RaidGuild Artifacts">
+  <meta property="og:title" content="Wall / Rise — Rewind concept">
+  <meta property="og:description" content="Build, break, and rebuild a wireframe wall to Rewind by Tanner Royster.">
+  <meta property="og:url" content="https://portal-artifacts-production.up.railway.app/rewind/">
+  <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/rewind/rewind-social-v1.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Wireframe wall rising through flowing teal and copper ink, with the title Wall / Rise and a Rewind concept label.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Wall / Rise — Rewind concept">
+  <meta name="twitter:description" content="Build, break, and rebuild a wireframe wall to Rewind by Tanner Royster.">
+  <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/rewind/rewind-social-v1.png">
+  <meta name="twitter:image:alt" content="Wireframe wall rising through flowing teal and copper ink, with the title Wall / Rise and a Rewind concept label.">
+  <link rel="stylesheet" href="style.css?v=compact-controls-1">
+</head>
+<body>
+  <canvas id="field" aria-hidden="true"></canvas>
+  <canvas id="scene" role="img" aria-label="A perspective wireframe wall of blocks builds upward, breaks apart, and rebuilds along with the audio."></canvas>
+  <div id="loader" class="loader" role="status" aria-live="polite"><span class="loader-mark">W / R</span><span id="loaderStage">Preparing field</span><span class="loader-line"><i></i></span></div>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="identity">
+      <span class="concept-label">[CONCEPT]</span>
+      <span class="eyebrow">AN INTERACTIVE STUDY <span class="diamond">✦</span> No. 02</span>
+      <h1>Wall <i>/</i> Rise</h1>
+      <p>Built, unbuilt, and built again.</p>
+    </div>
+    <div class="recording-identity" aria-hidden="true"><span class="concept-label">[CONCEPT]</span><span id="recordingTitle">Rewind</span><small id="recordingArtist">— Tanner Royster</small></div>
+    <div class="top-actions">
+      <button id="recordButton" type="button" aria-pressed="false" title="Toggle record view (R)">Record view</button>
+      <button id="pointerButton" type="button" aria-pressed="true" title="Toggle pointer response">Pointer on</button>
+      <button id="lyricsButton" type="button">Lyrics</button>
+      <button id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Toggle fullscreen (F)">⛶</button>
+    </div>
+  </header>
+  <div class="margin-note" aria-hidden="true"><span></span> A STRUCTURE IN MOTION</div>
+  <div id="phaseLabel" class="phase-label" aria-live="off">01 / ASSEMBLE</div>
+  <div id="lyricOverlay" class="lyric-overlay" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="lyricsDialog" aria-labelledby="lyricsTitle">
+    <form id="lyricsForm">
+      <div class="dialog-heading"><span class="eyebrow">OPTIONAL WORDS</span><h2 id="lyricsTitle">Lyrics &amp; timing</h2></div>
+      <p>Draft lyrics transcribed from the audio. Brackets mark uncertain words; edit these cues when the official lyrics arrive.</p>
+      <label class="check"><input id="lyricsEnabled" type="checkbox" checked> Show lyrics</label>
+      <label for="lyricsEditor">Timed cues (seconds relative to this excerpt)</label>
+      <textarea id="lyricsEditor" spellcheck="false" aria-describedby="lyricsError">[]</textarea>
+      <p id="lyricsError" class="error" role="alert"></p>
+      <div class="dialog-actions"><button id="lyricsClose" type="button">Close</button><button type="submit">Apply cues</button></div>
+    </form>
+  </dialog>
+  <footer class="dock">
+    <div class="track-meta"><span id="sourceLabel" class="eyebrow">AUDIO STUDY · 01:00–01:59.54</span><span id="trackName" class="track-name">Rewind — Tanner Royster</span><button id="replaceButton" type="button">Replace audio <span aria-hidden="true">↗</span></button><input id="audioFile" type="file" accept="audio/*" hidden></div>
+    <div class="transport"><button id="playButton" class="play-button" type="button" aria-label="Play audio" title="Play or pause (Space)"><svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg></button><div class="scene-actions" role="group" aria-label="Wall controls"><button id="breakButton" class="scene-action break-button" type="button" aria-label="Break wall" title="Break wall (B)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8l-2 5 4 3-4 4 2 4H3V4ZM15 3l6 2-1 6-6-2 1-6ZM15 14l6-1 1 6-6 2-1-7Z"/></svg></button><button id="verticalOrbitButton" class="scene-action rotate-button" type="button" aria-label="Rotate view" title="Rotate view across all axes (Y)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 9a8 8 0 1 0 .2 5M20 3v6h-6"/><path d="m12 8 4 2.5v4L12 17l-4-2.5v-4L12 8Zm-4 2.5 4 2.5 4-2.5M12 13v4"/></svg></button></div><span id="currentTime" class="time">0:00</span><input id="timeline" type="range" min="0" max="1000" value="0" aria-label="Seek audio"><span id="duration" class="time">0:59</span></div>
+    <div class="volume-controls"><label for="volume">VOL</label><input id="volume" type="range" min="0" max="100" value="80" aria-label="Volume"></div>
+  </footer>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+  <audio id="audio" src="assets/song-excerpt.m4a" preload="metadata"></audio>
+  <script type="module" src="app.js?v=draft-lyrics-1"></script>
+</body>
+</html>

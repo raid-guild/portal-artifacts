@@ -1,0 +1,9 @@
+# Rewind — Wall / Rise concept
+
+The canonical, editable, dependency-free source is [`../../public/rewind/`](../../public/rewind/). [`dist`](dist) points to that published directory so a source edit and the deployed artifact cannot drift. The bundled 59.536-second audio is an excerpt from 01:00–01:59.54 of **“Rewind” by Tanner Royster**, supplied for this prototype. Lyrics in the dialog are a draft transcription; bracketed words are uncertain and should be checked against official lyrics.
+
+From the repository root, run `python3 -m http.server 8765 --directory public` and open `http://localhost:8765/rewind/`. The player needs no build step or remote package. Press Play, then **Break wall** or **B** to release the current wall; **Rotate view** or **Y** changes the camera. Seeking, local audio replacement, volume, record view, fullscreen, pointer response, and editable lyric cues remain available. A slow orbit tracks the wall crest. The build rate follows upper-mid attacks in the full mix, with steady growth between them; it is not an isolated steel-guitar transcription. Break history follows the playback timeline and clears on replay or audio replacement.
+
+The background adapts the actual WebGL2 pressure/advection/vorticity solver from [Inkwash](../../public/rewind/vendor/inkwash-LICENSE.txt), © 2026 Jonathan Whitaker, under the MIT license. Playback advances the wash at 30 Hz; pause freezes it. Seeking reseeds at the selected time rather than replaying the entire preceding fluid history. A Canvas wash provides a fallback if WebGL2 is unavailable. Reduced-motion mode holds a static field and fixed oblique wall camera.
+
+`rewind-social-v1.png` is a deliberately composed screenshot of this prototype. The static metadata in `index.html` uses the durable `/rewind/` production URL and the versioned cover. Update both when changing the cover.

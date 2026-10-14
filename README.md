@@ -124,6 +124,10 @@ docker run --rm -p 8080:8080 -e PORT=8080 portal-artifacts
 
 Open <http://localhost:8080>.
 
+## Rewind — Wall / Rise concept
+
+`public/rewind/` is a standalone interactive music concept at `/rewind/`: a wireframe wall climbs through an ink wash, breaks on command, and rebuilds to Tanner Royster’s “Rewind.” The canonical editable source is the published directory; [`studies/rewind/`](studies/rewind/README.md) documents the controls, attribution, and versioned share cover.
+
 ## Puddle — Six Tower Gardens
 
 `public/chance-pint/` is an interactive Three.js product study at `/chance-pint/`: a full-orbit pint glass with twelve dice tracks, volume-based readings, and seeded layouts. Editable source, original Blender model, tests, and build instructions are in [`studies/chance-pint/`](studies/chance-pint/README.md).
