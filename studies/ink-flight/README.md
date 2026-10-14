@@ -41,3 +41,5 @@ Song: **My Head Spins — Tanner Royster**. The supplied full WAV master provide
 - **Sunset** draws the cowboy landscape over about 16.1 seconds, erases the rider, then scatters the remaining ink in wind before returning to the flock (~29 seconds total). Return early with the shared control or Escape. Reduced-motion mode shows the finished drawing briefly with fades. The transparent centerline trace and wind renderer are in `sunset.mjs` and `assets/sunset/paths.json`.
 
 - Follow a bird and Country road now end with a six-second foreground ink-to-dust dissolve. The flock returns as the dust clears; manual early return retains the short transition and reduced-motion mode uses a fade. The shared renderer is `dust.mjs`.
+
+The bundled soundtrack streams directly from its HTML audio URL, allowing playback before the entire file downloads. Seeking works best with a server supporting HTTP Range responses (production Caddy does). User-selected local audio still uses a Blob URL. The basic Python preview server may have limited seeking support.

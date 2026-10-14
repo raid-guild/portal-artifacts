@@ -442,23 +442,8 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     analyser.connect(gain);
     gain.connect(audioContext.destination);
   }
-  // A Blob URL makes the bundled track seekable even on simple local servers
-  // that do not implement HTTP Range requests. The original src remains a
-  // fallback if fetching fails.
-  const bundledReady = fetch('assets/my-head-spins-full.m4a')
-    .then(response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.blob();
-    })
-    .then(blob => {
-      if (sourceGeneration !== 0) return;
-      objectURL = URL.createObjectURL(blob);
-      audio.src = objectURL;
-      audio.load();
-    })
-    .catch(() => {
-      if (sourceGeneration === 0) showStatus('Using the original audio source; seeking may be limited.');
-    });
+  // Stream the bundled track through the HTML audio source. The production
+  // server supports Range requests; Blob URLs are only needed for local files.
   async function play() {
     if (playPending) return;
     const requestGeneration = sourceGeneration;
@@ -466,7 +451,6 @@ import { drawSunset, loadSunset } from './sunset.mjs';
     try {
       setupAudio();
       if (audioContext?.state === 'suspended') await audioContext.resume();
-      if (requestGeneration === 0) await bundledReady;
       if (requestGeneration !== sourceGeneration) return;
       if (audio.ended) audio.currentTime = 0;
       await audio.play();
