@@ -128,6 +128,15 @@
 				}
 			}
 		}
+		handle /leaderboard-api/puddle-study/* {
+			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
+				header_up Host {upstream_hostport}
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 8s
+				}
+			}
+		}
 		handle /leaderboard-api/raid-survivor/* {
 			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
 				header_up Host {upstream_hostport}

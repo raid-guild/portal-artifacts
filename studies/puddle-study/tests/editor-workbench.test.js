@@ -30,9 +30,38 @@ test('all seven independently editable presets preserve campaign fixtures and co
       assert.equal(compiled.start.y,level.start.y);
       assert.equal(compiled.editorFixtures.filter(c=>c.type==='sticky-wall').length,3);
       assert.equal(compiled.editorFixtures.filter(c=>c.type==='slip').length,level.id===6?2:0);
-      if(level.id===7){assert.equal(compiled.pits.length,2);assert.deepEqual(compiled.editorFixtures.filter(c=>c.type==='lava').map(c=>c.sourceId).sort(),['ember-ground-lava','ember-raised-lava','ember-underbridge-lava']);}
+      assert.deepEqual(compiled.pits,level.pits,`level ${level.id} keeps its authored reset pits`);
+      if(level.id===7){assert.equal(compiled.pits.length,4);assert.deepEqual(compiled.editorFixtures.filter(c=>c.type==='lava').map(c=>c.sourceId).sort(),['ember-ground-lava','ember-raised-lava','ember-underbridge-lava']);}
     }
     assert.deepEqual(compiled.pools,level.pools);assert.deepEqual(compiled.gold,level.gold);
+    if(level.id<=5)assert.deepEqual(compiled.tablets,level.tablets,`level ${level.id} tablets survive preset compilation`);
+    if(level.id===3){
+      assert.equal(d.objects.filter(o=>o.kind==='block'&&o.id.startsWith('loom-')).length,26);
+      assert.equal(d.objects.filter(o=>o.kind==='legacy-passage').length,1);
+      assert.equal(compiled.editorFixtures.filter(o=>o.sourceId?.startsWith('loom-')).length,26);
+      assert.deepEqual(compiled.passage,level.passage);
+      assert.equal(importDraft(exportDraft(d)).objects.filter(o=>o.kind==='tablet').length,5);
+    }
+    if(level.id===4){
+      assert.deepEqual(compiled.castingBank,level.castingBank,'casting bank survives authored fixtures');
+      assert.equal(d.objects.filter(o=>o.kind==='block'&&o.id.startsWith('thread-')).length,17);
+      assert.equal(d.objects.filter(o=>o.kind==='basin').length,3);
+      assert.equal(d.objects.filter(o=>o.kind==='tablet').length,5);
+      const imported=compileDraft(importDraft(exportDraft(d)));
+      assert.deepEqual(imported.castingBank,level.castingBank);
+      assert.deepEqual(imported.editorFixtures,compiled.editorFixtures);
+    }
+    if(level.id===5){
+      assert.equal(d.objects.filter(o=>o.kind==='pit').length,3);
+      assert.equal(d.objects.filter(o=>o.kind==='grip').length,1);
+      assert.equal(d.objects.filter(o=>o.kind==='slippery').length,1);
+      assert.equal(d.objects.filter(o=>o.kind==='tablet').length,5);
+      const imported=compileDraft(importDraft(exportDraft(d)));
+      assert.deepEqual(imported.pits,compiled.pits);
+      assert.deepEqual(imported.grip,compiled.grip);
+      assert.deepEqual(imported.slip,compiled.slip);
+      assert.deepEqual(gardenColliders(imported),gardenColliders(level));
+    }
     const fixture=d.objects.find(o=>o.kind==='pillar'||o.kind==='legacy-roof'||o.kind==='legacy-passage'||o.kind==='grip');
     if(fixture){const before=gardenColliders(compiled);moveDraftObject(d,fixture.id,1.25,1.5);
       assert.notDeepEqual(gardenColliders(compileDraft(d)),before,`level ${level.id} fixture is independently movable`);}
@@ -46,6 +75,19 @@ test('pool weights redistribute every loose particle without a no-spare placemen
   assert.equal(compileDraft(d).poolCounts.reduce((x,y)=>x+y,0),72);
   assert.equal(new Set(d.objects.map(o=>o.id)).size,d.objects.length);
 });
+test('memory tablets keep copy, hint and placement across export, duplicate and undo',()=>{
+  const draft=fresh(),tablet=addDraftObject(draft,'tablet',{x:1,z:2,base:.7,category:'story',
+    title:'From the keepers',text:'The nursery held rainwater.',hint:'none'});
+  assert.deepEqual(validateDraft(draft).errors,[]);
+  const imported=importDraft(exportDraft(draft));
+  assert.deepEqual(imported.objects.find(o=>o.id===tablet.id),tablet);
+  const {kind:ignoredKind,...runtimeTablet}=tablet;
+  assert.deepEqual(compileDraft(imported).tablets[0],runtimeTablet);
+  const history=new DraftHistory(imported),copy=duplicateDraftObject(imported,tablet.id);
+  assert.notEqual(copy.id,tablet.id);assert.equal(copy.text,tablet.text);
+  history.commit(imported);
+  assert.equal(history.undo().objects.filter(o=>o.kind==='tablet').length,1);
+});
 test('v2 exports preserve unfinished drafts and v1 migration retains authored values',()=>{
   const d=fresh();d.objects=d.objects.filter(o=>o.kind!=='exit');
   assert.ok(validateDraft(d).errors.length);assert.deepEqual(importDraft(exportDraft(d)),d);
@@ -53,10 +95,48 @@ test('v2 exports preserve unfinished drafts and v1 migration retains authored va
   const migrated=importDraft(JSON.stringify({format:'puddle-level',version:1,level:legacy}));
   assert.equal(migrated.name,'Altered passage');assert.equal(compileDraft(migrated).pools[0][0],4.22);
   assert.deepEqual(gardenColliders(compileDraft(migrated)),gardenColliders(legacy));
+  assert.equal(migrated.objects.filter(o=>o.kind==='block'&&o.id.startsWith('loom-')).length,26);
+  assert.equal(migrated.objects.filter(o=>o.kind==='tablet').length,5);
+  const oldPassage=structuredClone(legacy);delete oldPassage.tablets;delete oldPassage.editorFixtures;
+  const migratedPassage=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldPassage}));
+  assert.equal(migratedPassage.objects.filter(o=>o.kind==='tablet').length,0);
+  assert.equal(migratedPassage.objects.filter(o=>o.kind==='block').length,0);
   const oldRoof=structuredClone(GARDEN_LEVELS[0]);oldRoof.roof.minX+=.2;oldRoof.roof.maxX+=.2;
   const migratedRoof=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldRoof}));
   assert.equal(migratedRoof.objects.filter(o=>o.role==='roof-support').length,2);
   assert.equal(compileDraft(migratedRoof).roofSupports[0].minX,oldRoof.roof.minX-.1);
+  const bareOld=structuredClone(oldRoof);delete bareOld.tablets;delete bareOld.editorFixtures;delete bareOld.channels;
+  const migratedBare=importDraft(JSON.stringify({format:'puddle-level',version:1,level:bareOld}));
+  assert.equal(migratedBare.objects.filter(o=>o.kind==='tablet').length,0,'v1 imports do not inherit nursery stones');
+  assert.equal(compileDraft(migratedBare).editorFixtures.length,0,'v1 imports do not inherit a new raised bridge');
+  const oldCistern=structuredClone(GARDEN_LEVELS[1]);delete oldCistern.tablets;delete oldCistern.editorFixtures;delete oldCistern.channels;
+  const migratedCistern=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldCistern}));
+  const older=compileDraft(migratedCistern);
+  assert.equal(older.tablets.length,0,'v1 Level 2 imports do not inherit cistern notes');
+  assert.equal(older.editorFixtures.length,0,'v1 Level 2 imports do not inherit filter baffles');
+  assert.equal(older.channels,undefined,'v1 Level 2 imports do not inherit settlement pockets');
+  const oldThread=structuredClone(GARDEN_LEVELS[3]);oldThread.name='Earlier well garden';
+  const migratedThread=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldThread}));
+  assert.deepEqual(compileDraft(migratedThread).castingBank,oldThread.castingBank);
+  assert.equal(migratedThread.objects.filter(o=>o.role==='crown-roof').length,2);
+  assert.deepEqual(gardenColliders(compileDraft(migratedThread)),gardenColliders(oldThread));
+  const oldGrip=structuredClone(GARDEN_LEVELS[4]);delete oldGrip.tablets;delete oldGrip.editorFixtures;delete oldGrip.pits;
+  const migratedGrip=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldGrip}));
+  assert.equal(migratedGrip.objects.filter(o=>o.kind==='tablet'||o.kind==='block'||o.kind==='pit').length,0,
+    'old Level 5 saves do not acquire new gallery content');
+  assert.deepEqual(compileDraft(migratedGrip).grip,oldGrip.grip);
+  assert.deepEqual(compileDraft(migratedGrip).slip,oldGrip.slip);
+  const oldGripWithPit=structuredClone(oldGrip);
+  oldGripWithPit.pits=[{type:'pit',x:.7,z:-3.8,radius:.72}];
+  const migratedPit=importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldGripWithPit}));
+  assert.equal(compileDraft(migratedPit).pits.length,1,'an authored legacy pit remains playable');
+  oldGripWithPit.pits[0].radius=Infinity;
+  assert.throws(()=>importDraft(JSON.stringify({format:'puddle-level',version:1,level:oldGripWithPit})),
+    /radius|numeric|finite/i);
+  const bareThread=structuredClone(oldThread);delete bareThread.editorFixtures;delete bareThread.tablets;
+  const migratedBareThread=compileDraft(importDraft(JSON.stringify({format:'puddle-level',version:1,level:bareThread})));
+  assert.equal(migratedBareThread.editorFixtures.length,0,'old well save does not inherit new stone obstacles');
+  assert.equal(migratedBareThread.tablets.length,0,'old well save does not inherit new memories');
   assert.throws(()=>importDraft('{bad'),SyntaxError);
 });
 test('malformed imported terrain is rejected before simulation samples nested stairs',()=>{
@@ -80,6 +160,8 @@ test('malformed agent-authored pieces are rejected before collider compilation',
       width:1,height:1,depth:1,rotation:{x:'sideways',y:0,z:0}}),
     draft=>draft.objects.push({id:'bad-paint',kind:'paint',surface:'lava',face:'floor',
       minX:0,maxX:1,minZ:0,maxZ:1,base:0,targetId:42}),
+    draft=>draft.objects.push({id:'bad-tablet',kind:'tablet',x:0,z:0,base:0,category:'tutorial',title:'',text:'A',hint:'move'}),
+    draft=>draft.objects.push({id:'bad-tablet',kind:'tablet',x:0,z:0,base:0,category:'tutorial',title:'A',text:'x'.repeat(321),hint:'move'}),
   ];
   for(const mutate of mutations){
     const draft=fresh();mutate(draft);

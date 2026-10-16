@@ -8,6 +8,6 @@ test('campaign results use each floor’s collectible totals, including older th
     6:{gems:6,gold:36,totalGold:36,totalGems:6}};
   const lines=campaignResultLines(GARDEN_LEVELS,scores,6).split('\n');
   assert.equal(lines.length,2);
-  assert.equal(lines[0],'Gathering Garden: 3/3 gems · 17/17 gold · 100% collected · 100.0 collection + 0 time = 100% · Legacy time unknown');
-  assert.equal(lines[1],'Hollow Crown: 6/6 gems · 36/36 gold · 100% collected · 100.0 collection + 0 time = 100% · Legacy time unknown');
+  assert.equal(lines[0],'Hanging Nursery: 3/3 gems · 17/17 gold · 100% collected · 1000 collection + 0 time = 1000 points · Legacy time unknown');
+  assert.equal(lines[1],'Hollow Crown: 6/6 gems · 36/36 gold · 100% collected · 1000 collection + 0 time = 1000 points · Legacy time unknown');
 });

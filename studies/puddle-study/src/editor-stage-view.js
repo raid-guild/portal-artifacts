@@ -44,6 +44,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     exit:new THREE.MeshBasicMaterial({color:0x314d4c,side:THREE.DoubleSide}),
     basin:new THREE.MeshBasicMaterial({color:0xb99b86,side:THREE.DoubleSide}),flesh:new THREE.MeshBasicMaterial({color:0x87a997}),
     gem:new THREE.MeshBasicMaterial({color:0x9f84b0}),gold:new THREE.MeshBasicMaterial({color:0xd4a84f}),
+    tablet:new THREE.MeshBasicMaterial({color:0xd1b990}),tabletInk:new THREE.MeshBasicMaterial({color:0x485f5a}),
     start:new THREE.MeshBasicMaterial({color:0xb86d69}),slip:new THREE.MeshBasicMaterial({color:0x76c6cf,
       side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
     lava:new THREE.MeshBasicMaterial({color:0xe3582c,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
@@ -51,6 +52,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     pit:new THREE.MeshBasicMaterial({color:0x172026,side:THREE.BackSide}),
     pitRim:new THREE.MeshBasicMaterial({color:0x544446,side:THREE.DoubleSide}),
     grip:new THREE.MeshBasicMaterial({color:0x8cae96,side:THREE.DoubleSide}),
+    gripRib:new THREE.MeshBasicMaterial({color:0x4c786b,side:THREE.DoubleSide}),
     cutter:new THREE.MeshBasicMaterial({color:0xb66a67,wireframe:true,transparent:true,opacity:.58,depthWrite:false})};
   for(const [name,role] of Object.entries({floor:'floor',block:'wall',roof:'lintel',pillar:'wall',
     riser:'wall',gem:'gem',gold:'gold'}))printLibrary.decorate(materials[name],role);
@@ -174,7 +176,7 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     const contour=new THREE.BufferGeometry();contour.setAttribute('position',new THREE.Float32BufferAttribute(edges,3));
     group.add(new THREE.LineSegments(contour,ink));
   }
-  let gatePanel=null,gateRestY=0;
+  let gatePanel=null,gateRestY=0,pressureFloor=null;const exitParts=[];
   for(const c of colliders){
     if(c.type==='editor-solid-mesh'){
       const runtime=runtimeSolid(c);
@@ -184,7 +186,23 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
         mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry,28),ink));}
     }
     else if(c.type==='box'||c.type==='roof'){
-      const mesh=box(c,c.type==='roof'?'roof':'block');
+      const mesh=box(c,c.type==='roof'&&level.id!==1?'roof':'block');
+      if(c.gripPlatform){
+        const axis=level.grip?.ramp?.axis==='x'?'x':'z';
+        for(const [coordinate,normal] of axis==='x'?[[c.minX,-1],[c.maxX,1]]:[[c.minZ,-1],[c.maxZ,1]]){
+          const face=add(new THREE.BoxGeometry(axis==='x'?.018:c.maxX-c.minX,c.maxY-c.minY,
+            axis==='x'?c.maxZ-c.minZ:.018),'grip',axis==='x'?coordinate+normal*.012:(c.minX+c.maxX)/2,
+            (c.minY+c.maxY)/2,axis==='x'?(c.minZ+c.maxZ)/2:coordinate+normal*.012);
+          face.userData.editorId=c.sourceId||null;
+          for(let i=0;i<11;i++){
+            const y=c.minY+.065+(c.maxY-c.minY-.13)*i/10;
+            add(new THREE.BoxGeometry(axis==='x'?.028:c.maxX-c.minX-.12,.012,
+              axis==='x'?c.maxZ-c.minZ-.12:.028),'gripRib',
+              axis==='x'?coordinate+normal*.031:(c.minX+c.maxX)/2,y,
+              axis==='x'?(c.minZ+c.maxZ)/2:coordinate+normal*.031);
+          }
+        }
+      }
       const gate=level.gate,half=(gate?.width??0)/2;
       if(gate&&c.type==='roof'&&Math.abs(c.minX-(gate.x-half))<.001&&
         Math.abs(c.minZ-gate.minZ)<.001&&Math.abs(c.maxZ-gate.maxZ)<.001){gatePanel=mesh;gateRestY=mesh.position.y;}
@@ -196,9 +214,13 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     }
     else if(c.type==='grip-ramp'){
       const center=(c.axis==='x'?(c.minHeight+c.maxHeight):(c.northHeight+c.southHeight))/2;
-      const m=add(new THREE.BoxGeometry(c.maxX-c.minX,.05,c.maxZ-c.minZ),'grip',(c.minX+c.maxX)/2,center,(c.minZ+c.maxZ)/2,true);
+      const axis=c.axis==='x'?'x':'z',run=axis==='x'?c.maxX-c.minX:c.maxZ-c.minZ,
+        rise=axis==='x'?c.maxHeight-c.minHeight:c.southHeight-c.northHeight,
+        slopeLength=Math.hypot(run,rise);
+      const m=add(new THREE.BoxGeometry(axis==='x'?slopeLength:c.maxX-c.minX,.05,
+        axis==='z'?slopeLength:c.maxZ-c.minZ),'grip',(c.minX+c.maxX)/2,center,(c.minZ+c.maxZ)/2,true);
       m.userData.editorId=c.editorId||null;
-      const slope=c.axis==='x'?(c.maxHeight-c.minHeight)/(c.maxX-c.minX):(c.southHeight-c.northHeight)/(c.maxZ-c.minZ);
+      const slope=rise/run;
       if(c.axis==='x')m.rotation.z=Math.atan(slope);else m.rotation.x=-Math.atan(slope);
     }else if(c.type==='sticky-wall')paintTiles(c,'grip',c.face);
     else if(c.type==='sticky-paint'&&c.face==='floor')paintTiles(c,'grip');
@@ -206,8 +228,9 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     else if(c.type==='lava')paintTiles(c,'lava');
     else if(c.type==='editor-stairs'){
       const axis=c.axis,length=axis==='x'?c.maxX-c.minX:c.maxZ-c.minZ,
-        cx=(c.minX+c.maxX)/2,cz=(c.minZ+c.maxZ)/2;
-      const m=add(new THREE.BoxGeometry(c.maxX-c.minX,.06,c.maxZ-c.minZ),'block',cx,c.base+c.rise/2,cz,true);
+        cx=(c.minX+c.maxX)/2,cz=(c.minZ+c.maxZ)/2,slopeLength=Math.hypot(length,c.rise);
+      const m=add(new THREE.BoxGeometry(axis==='x'?slopeLength:c.maxX-c.minX,.06,
+        axis==='z'?slopeLength:c.maxZ-c.minZ),'block',cx,c.base+c.rise/2,cz,true);
       m.userData.editorId=c.sourceId||null;
       if(axis==='x')m.rotation.z=(c.reverse?-1:1)*Math.atan(c.rise/length);
       else m.rotation.x=(c.reverse?1:-1)*Math.atan(c.rise/length);
@@ -227,10 +250,12 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     }
     else if(c.type==='funnel'){
       const h=c.raised?c.base:groundAt(c.x,c.z,[t]).height;
-      add(new THREE.CylinderGeometry(c.radius,c.bottomRadius,c.depth,40,1,true),
+      const wall=add(new THREE.CylinderGeometry(c.radius,c.bottomRadius,c.depth,40,1,true),
         c===level.exit?'exit':'basin',c.x,h-c.depth/2,c.z,true);
       const m=add(new THREE.CircleGeometry(c.bottomRadius,32),c===level.exit?'exit':'basin',c.x,h-c.depth+.006,c.z,true);m.rotation.x=-Math.PI/2;
+      if(c===level.basin){m.material=materials.basin.clone();pressureFloor=m;}
       const rim=add(new THREE.TorusGeometry(c.radius,.025,5,40),'block',c.x,h+.01,c.z);rim.rotation.x=Math.PI/2;
+      if(c===level.exit)exitParts.push(wall,rim);
     }
   }
   const cutterGhosts=[];
@@ -244,7 +269,106 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
   }
   const gems=(level.gems||[]).map(g=>add(new THREE.OctahedronGeometry(.33),'gem',g.x,gardenFixtureHeight(level,g.x,g.z,g.base)+.34,g.z));
   const gold=(level.gold||[]).map(([x,z,base])=>add(new THREE.OctahedronGeometry(.14),'gold',x,gardenFixtureHeight(level,x,z,base)+.14,z));
+  const tablets=(level.tablets||[]).map(t=>{
+    const base=gardenFixtureHeight(level,t.x,t.z,t.base),stone=add(new THREE.BoxGeometry(.48,.13,.35),'tablet',t.x,base+.16,t.z);
+    stone.material=materials.tablet.clone();
+    stone.rotation.y=Math.PI/7;
+    const glyph=new THREE.Group();stone.add(glyph);
+    for(const [x,z,w,d] of [[0,0,.29,.025],[-.105,-.075,.022,.15],[.105,-.075,.022,.15]]){
+      const mark=new THREE.Mesh(new THREE.BoxGeometry(w,.01,d),materials.tabletInk);
+      mark.position.set(x,.071,z);glyph.add(mark);}
+    const halo=new THREE.Mesh(new THREE.TorusGeometry(.28,.015,5,24),materials.tabletInk);
+    halo.rotation.x=Math.PI/2;halo.position.y=.078;stone.add(halo);
+    return {stone,halo};
+  });
   const pools=(level.pools||[]).map(([x,z,base])=>add(new THREE.SphereGeometry(.4,14,8),'flesh',x,gardenFixtureHeight(level,x,z,base)+.18,z));
+  const nurseryMaterials=[];
+  if(level.id===2&&!level.editorCustom&&level.basin&&level.gate){
+    // The cistern's stone lip and narrow channels point at the shutter. These
+    // inlays add no collision and keep the moving gate's real opening legible.
+    const basin=level.basin,h=level.terrain.middleHeight+.035;
+    const rimMat=new THREE.MeshBasicMaterial({color:0x7da099});nurseryMaterials.push(rimMat);
+    for(const radius of [basin.radius+.055,basin.radius+.27]){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,radius<1.3?.065:.018,5,56),rimMat);
+      ring.rotation.x=Math.PI/2;ring.position.set(basin.x,h,basin.z);group.add(ring);}
+    const lines=[];for(const z of [basin.z-.47,basin.z+.47]){
+      lines.push(basin.x+basin.radius+.12,h,z,level.gate.x-.35,h,z);
+      for(let x=basin.x+basin.radius+.35;x<level.gate.x-.45;x+=.42)
+        lines.push(x,h,z-.07,x,h,z+.07);
+    }
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(lines,3));
+    const line=new THREE.LineBasicMaterial({color:0x678a85,transparent:true,opacity:.7});
+    nurseryMaterials.push(line);group.add(new THREE.LineSegments(geo,line));
+    for(const [x,z] of [[5.3,-3.3],[2.6,-2.4]]){
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(.98,.02,5,40),rimMat);
+      ring.rotation.x=Math.PI/2;ring.position.set(x,level.terrain.frontHeight+.025,z);group.add(ring);}
+  }
+  if(level.id===3&&!level.editorCustom&&level.basin){
+    // Shallow filtration cuts trace the winding stone route. The grooves and
+    // basin rings are ink only; all navigation uses the matching box solids.
+    const strokes=[];
+    const ring=(x,z,r,y)=>{for(let i=0;i<48;i++){
+      if(i%12===0)continue;
+      const a=i*Math.PI/24,b=(i+1)*Math.PI/24;
+      strokes.push(x+Math.cos(a)*r,y,z+Math.sin(a)*r,
+        x+Math.cos(b)*r,y,z+Math.sin(b)*r);}};
+    ring(level.basin.x,level.basin.z,level.basin.radius+.08,level.terrain.middleHeight+.035);
+    ring(level.basin.x,level.basin.z,level.basin.radius+.3,level.terrain.middleHeight+.035);
+    for(const [x,z,base] of level.pools||[])
+      ring(x,z,.68,gardenFixtureHeight(level,x,z,base)+.034);
+    for(const c of level.editorFixtures||[]){if(c.type!=='box')continue;
+      const top=c.maxY+.014,x0=c.minX+.055,x1=c.maxX-.055;
+      for(let z=c.minZ+.18;z<c.maxZ-.12;z+=.39)
+        strokes.push(x0,top,z,x1,top,z+.035);
+    }
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.Float32BufferAttribute(strokes,3));
+    const ink=new THREE.LineBasicMaterial({color:0x7b8d83,transparent:true,opacity:.66});
+    nurseryMaterials.push(ink);group.add(new THREE.LineSegments(geometry,ink));
+  }
+  if(level.id===4&&!level.editorCustom&&level.castingBank){
+    // Fine drainage marks connect the open casting bank, shallow wells, and
+    // exposed shuttle. They carry no collision or repeated draw calls.
+    const strokes=[],high=level.terrain.frontHeight+.035;
+    for(const channel of level.channels||[])for(let i=0;i<40;i++){
+      if(i%10===0)continue;
+      const a=i*Math.PI/20,b=(i+1)*Math.PI/20,r=channel.radius+.12;
+      strokes.push(channel.x+Math.cos(a)*r,high,channel.z+Math.sin(a)*r,
+        channel.x+Math.cos(b)*r,high,channel.z+Math.sin(b)*r);
+    }
+    for(let x=-3.8;x<2.45;x+=.56){
+      strokes.push(x,1.777,-.39,x+.16,1.777,-.29,
+        x,1.777,1.19,x+.16,1.777,1.09);
+    }
+    for(const z of [level.castingBank.z-.32,level.castingBank.z+.32])
+      strokes.push(level.castingBank.x-.53,high,z,level.castingBank.x+.53,high,z);
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.Float32BufferAttribute(strokes,3));
+    const ink=new THREE.LineBasicMaterial({color:0x668e87,transparent:true,opacity:.74});
+    nurseryMaterials.push(ink);group.add(new THREE.LineSegments(geometry,ink));
+  }
+  if(level.id===1&&!level.editorCustom){
+    // Quiet floor inlays and rooted shoots frame the nursery route. They have
+    // no collision and never change the apparent height of its low arcade.
+    const seams=[];
+    const ring=(x,z,r,y,segments=36)=>{for(let i=0;i<segments;i++){
+      const a=i/segments*Math.PI*2,b=(i+1)/segments*Math.PI*2;
+      if(i%9===0)continue;
+      seams.push(x+Math.cos(a)*r,y,z+Math.sin(a)*r,x+Math.cos(b)*r,y,z+Math.sin(b)*r);}};
+    for(const [x,z,base] of level.pools||[])ring(x,z,.66,gardenFixtureHeight(level,x,z,base)+.028);
+    for(const r of [1.19,1.48])ring(level.exit.x,level.exit.z,r,.033,48);
+    const seamGeo=new THREE.BufferGeometry();seamGeo.setAttribute('position',new THREE.Float32BufferAttribute(seams,3));
+    const seamMat=new THREE.LineBasicMaterial({color:0x7f8b7c,transparent:true,opacity:.62});nurseryMaterials.push(seamMat);
+    group.add(new THREE.LineSegments(seamGeo,seamMat));
+    const stemMat=new THREE.MeshBasicMaterial({color:0xb98276}),leafMat=new THREE.MeshBasicMaterial({color:0x83a49a});
+    nurseryMaterials.push(stemMat,leafMat);
+    for(const [x,z,y] of [[4.8,-4.15,1.62],[2.5,-4.15,1.62],[-5.8,4.38,0],[4.8,4.38,0]]){
+      for(const dx of [-.16,0,.17]){
+        const stem=new THREE.Mesh(new THREE.ConeGeometry(.055,.42+Math.abs(dx),5),stemMat);
+        stem.position.set(x+dx,y+.22,z);group.add(stem);
+        const leaf=new THREE.Mesh(new THREE.IcosahedronGeometry(.11,0),leafMat);
+        leaf.position.set(x+dx,y+.44+Math.abs(dx),z);group.add(leaf);}}
+  }
   const start=level.start?add(new THREE.ConeGeometry(.23,.5,8),'start',level.start.x,
     gardenFixtureHeight(level,level.start.x,level.start.z)+.3,level.start.z):null;
   const root=labelRoot||(typeof document!=='undefined'?document.querySelector('#app'):null);
@@ -254,6 +378,8 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
     node.hidden=true;root.append(node);
     return {node,point:new THREE.Vector3(label.x,label.base+label.offset,label.z)};
   }).filter(Boolean);
+  const pressureLabel=level.gate&&level.basin&&root?document.createElement('div'):null;
+  if(pressureLabel){pressureLabel.className='world-label garden-label';pressureLabel.hidden=true;root.append(pressureLabel);}
   let gameplay=false,editing=false;
   const updateLabels=(sim,camera)=>{
     const active=editing||sim?.garden?.phase==='playing';
@@ -268,16 +394,46 @@ export function createEditorStageView(scene,level,{printLibrary:sharedPrintLibra
       node.style.top=`${(-v.y*.5+.5)*rect.height}px`;
       node.hidden=false;
     }
+    if(pressureLabel){
+      pressureLabel.hidden=true;
+      if(gameplay&&sim?.garden?.phase==='playing'&&sim.gardenLevelId===level.id&&!menu&&camera&&rect?.width&&rect?.height){
+        const point=new THREE.Vector3(level.basin.x,
+          gardenFixtureHeight(level,level.basin.x,level.basin.z)+.35+group.position.y,
+          level.basin.z+level.basin.radius+.2).project(camera);
+        if(Number.isFinite(point.x)&&Number.isFinite(point.y)&&Math.abs(point.x)<=1&&Math.abs(point.y)<=1&&point.z>=-1&&point.z<=1){
+          pressureLabel.textContent=`BASIN / ${sim.pressure?.weight??0} OF ${level.gate.threshold}`;
+          pressureLabel.style.left=`${(point.x*.5+.5)*rect.width}px`;
+          pressureLabel.style.top=`${(-point.y*.5+.5)*rect.height}px`;
+          pressureLabel.hidden=false;
+        }
+      }
+    }
   };
-  return {group,setEditing(value){editing=!!value;for(const m of cutterGhosts)m.visible=editing;},
+  const pickupPulses=(level.gems||[]).map(g=>({x:g.x,z:g.z,y:gardenFixtureHeight(level,g.x,g.z,g.base)+.38,
+    color:0xf4d6ff,duration:.9,radius:.4})).concat((level.gold||[]).map(([x,z,base])=>({x,z,
+    y:gardenFixtureHeight(level,x,z,base)+.17,color:0xffd27a,duration:.55,radius:.18})));
+  const pulses=pickupPulses.map(p=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(p.radius,.018,5,32),
+    new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:0,depthWrite:false}));
+    ring.rotation.x=Math.PI/2;ring.position.set(p.x,p.y,p.z);ring.visible=false;group.add(ring);return ring;});
+  return {group,setCollarReady(ready){for(const m of exitParts)m.visible=!ready;},setEditing(value){editing=!!value;for(const m of cutterGhosts)m.visible=editing;},
     setPlaying(value){gameplay=!!value;for(const m of pools)m.visible=!gameplay;if(start)start.visible=!gameplay;},
     update(sim,camera){updateLabels(sim,camera);if(gatePanel)gatePanel.position.y=gateRestY+(sim.pressure?.opening||0);
+      if(pressureFloor)pressureFloor.material.color.setHex(sim.pressure?.active?0x8da99f:0x887e72);
       gems.forEach((m,i)=>m.visible=!sim.garden.gems[i]?.collected);
     gold.forEach((m,i)=>m.visible=!sim.garden.gold[i]?.collected);
+    tablets.forEach(({stone,halo},i)=>{const read=!!sim.garden.tablets[i]?.read;
+      stone.material.color.setHex(read?0x9aaa91:0xd1b990);halo.visible=!read;});
+    pulses.forEach((ring,i)=>{const pickup=i<gems.length?sim.garden.gems[i]:sim.garden.gold[i-gems.length],
+      p=pickupPulses[i],age=sim.garden.elapsed-pickup?.collectedAt;
+      ring.visible=gameplay&&pickup?.collected&&Number.isFinite(age)&&age>=0&&age<p.duration;
+      if(ring.visible){ring.scale.setScalar(1+age*(i<gems.length?2.7:3.5));
+        ring.material.opacity=(1-age/p.duration)*.9;}});
     pools.forEach((m,i)=>m.visible=!gameplay&&sim.fluid.particles.some(p=>p.feedstock&&p.patchId===i));
     if(start)start.visible=!gameplay&&sim.garden.phase==='title';},dispose(){scene.remove(group);group.traverse(o=>o.geometry?.dispose());
       for(const {node} of labels)node.remove();
+      pressureLabel?.remove();
       if(level.csgSolid)disposeEditorSolid(level.csgSolid.revision);
-      ink.dispose();slipInk.dispose();Object.values(materials).forEach(m=>m.dispose());
+      ink.dispose();slipInk.dispose();pressureFloor?.material.dispose();tablets.forEach(t=>t.stone.material.dispose());pulses.forEach(p=>p.material.dispose());
+      nurseryMaterials.forEach(m=>m.dispose());Object.values(materials).forEach(m=>m.dispose());
       if(!sharedPrintLibrary)printLibrary.dispose();}};
 }

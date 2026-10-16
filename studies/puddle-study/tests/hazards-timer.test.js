@@ -150,8 +150,10 @@ test('clock counts playing only and score bonus has an exact target boundary',()
   sim.garden.phase='draining';sim.garden.finishElapsed=DT;sim.step({},DT);
   assert.equal(sim.garden.playElapsed,DT);assert.equal(sim.garden.finishElapsed,DT);
   const counts={gold:1,gems:0,totalGold:2,totalGems:0,target:30};
-  assert.equal(scoreRun({...counts,elapsed:30}).percent,60);
-  assert.equal(scoreRun({...counts,elapsed:30+DT}).percent,40);
+  assert.equal(scoreRun({...counts,elapsed:30}).percent,50);
+  assert.equal(scoreRun({...counts,elapsed:30}).points,500);
+  assert.equal(scoreRun({...counts,elapsed:30+DT}).percent,50);
+  assert.equal(scoreRun({...counts,elapsed:20}).points,600);
 });
 
 test('pit/lava schema roundtrips, keeps old revision at default target, and changes on gameplay edits',()=>{
@@ -172,6 +174,6 @@ test('unlock follows collectible record when a faster lower-collection run becom
   const store=storage(),progress=createGameProgress({storage:store});
   progress.recordCompletion(1,{gold:9,gems:1,elapsed:60});
   progress.recordCompletion(1,{gold:7,gems:1,elapsed:20});
-  assert.equal(progress.getBest(1).percent,52);
+  assert.equal(progress.getBest(1).percent,50);
   assert.equal(createGameProgress({storage:store}).isUnlocked(2),true);
 });

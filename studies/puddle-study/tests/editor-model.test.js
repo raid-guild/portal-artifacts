@@ -8,12 +8,49 @@ test('all four editor presets round-trip without changing campaign definitions',
   for(const id of [2,3,4,5]){const l=normalizePreset(id);assert.deepEqual(validateLevel(l).errors,[],String(id));assert.deepEqual(importLevel(exportLevel(l)),l);}
   assert.equal(JSON.stringify(GARDEN_LEVELS),before);
 });
+test('legacy Level 2 accepts stable tablet IDs but rejects malformed root and tablet IDs',()=>{
+  const level=normalizePreset(2);
+  assert.equal(level.tablets.length,4);
+  assert.deepEqual(importLevel(exportLevel(level)).tablets,level.tablets);
+  const badRoot=structuredClone(level);badRoot.id='2';
+  assert.match(validateLevel(badRoot).errors.join(' '),/Unsupported puzzle preset/);
+  assert.throws(()=>importLevel(exportLevel(badRoot)),/Unsupported puzzle preset/);
+  const badTablet=structuredClone(level);badTablet.tablets[0].id=123;
+  assert.match(validateLevel(badTablet).errors.join(' '),/stable IDs/);
+  assert.throws(()=>importLevel(exportLevel(badTablet)),/stable IDs/);
+});
+test('legacy fixtures reject malformed shapes before collider or stage construction',()=>{
+  const valid=normalizePreset(3);
+  assert.equal(valid.editorFixtures.length,26);
+  assert.deepEqual(importLevel(exportLevel(valid)).editorFixtures,valid.editorFixtures);
+  const malformed=[
+    [fixture=>{delete fixture.maxY;},/vertical bounds/],
+    [fixture=>{fixture.maxX=fixture.minX;},/footprint/],
+    [fixture=>{fixture.type='unknown-solid';},/boxes, roofs, or stairs/],
+    [fixture=>{fixture.type='editor-stairs';fixture.axis='x';fixture.reverse=false;
+      fixture.steps=0;fixture.base=0;fixture.rise=1;},/stairs need/],
+  ];
+  for(const [change,message] of malformed){
+    const level=structuredClone(valid);change(level.editorFixtures[0]);
+    assert.match(validateLevel(level).errors.join(' '),message);
+    assert.throws(()=>importLevel(exportLevel(level)),message);
+  }
+  const unsupported=structuredClone(valid);unsupported.editorFixtures={type:'box'};
+  assert.match(validateLevel(unsupported).errors.join(' '),/supported editor fixtures/);
+  const ramp=structuredClone(valid);ramp.editorFixtures=[{type:'editor-stairs',sourceId:'safe-ramp',
+    axis:'x',reverse:false,steps:8,minX:-4,maxX:-2,minZ:-1,maxZ:0,base:0,rise:.7}];
+  assert.deepEqual(validateLevel(ramp).errors,[]);
+  assert.deepEqual(importLevel(exportLevel(ramp)).editorFixtures,ramp.editorFixtures);
+});
 test('terrain edits retain stair continuity and pressure base alignment',()=>{
-  const l=normalizePreset(2);setTerrain(l,{frontHeight:2.7,middleHeight:1.35,frontZ:-1.5});
-  assert.equal(l.gate.base,1.35);assert.equal(l.terrain.leftStairs.startZ,-1.5);
+  const l=normalizePreset(2);setTerrain(l,{frontHeight:2.7,middleHeight:1.35,frontZ:-1.1});
+  assert.equal(l.gate.base,1.35);assert.equal(l.terrain.leftStairs.startZ,-1.1);
   assert.equal(l.terrain.leftStairs.steps.reduce((a,c)=>a+c.drop,0),1.35);
   assert.equal(l.terrain.rightStairs.steps.reduce((a,c)=>a+c.drop,0),1.35);
   assert.deepEqual(validateLevel(l).errors,[]);
+  setTerrain(l,{frontZ:-1.5});
+  assert.match(validateLevel(l).errors.join(' '),/channel or exit crosses a terrace edge/i,
+    'moving a terrace across an authored pocket requires moving the pocket too');
 });
 test('moving grip moves ramp and platform together without changing heights',()=>{
   const l=normalizePreset(5),old=l.grip.ramp.minX,start=position(l,{kind:'grip'});
@@ -39,6 +76,19 @@ test('legacy Z-axis grip export remains valid and height normalization keeps its
   setTerrain(loaded,{middleHeight:1.2});
   assert.ok(Math.abs(loaded.grip.ramp.southHeight-1.2)<1e-9);
   assert.ok(Math.abs(loaded.grip.ramp.northHeight-1.56)<1e-9);
+});
+test('pits cannot hide beneath either raised grip surface',()=>{
+  const valid=normalizePreset(5);
+  assert.deepEqual(validateLevel(valid).errors,[]);
+  assert.deepEqual(importLevel(exportLevel(valid)).pits,valid.pits);
+  for(const pit of [
+    {type:'pit',x:1.25,z:1.35,radius:.4}, // platform
+    {type:'pit',x:-1.2,z:.5,radius:.35}, // ramp
+  ]){
+    const level=structuredClone(valid);level.pits=[pit];
+    assert.match(validateLevel(level).errors.join(' '),/raised fixtures/);
+    assert.throws(()=>importLevel(exportLevel(level)),/raised fixtures/);
+  }
 });
 test('an isolated custom play test moves on edited terrain with conserved particles',()=>{
   const l=normalizePreset(4);setTerrain(l,{frontHeight:2.7});l.gold=[[6.9,-3.2]];

@@ -23,9 +23,9 @@ test('the authored ink swatch, flat facets, and fluted post are finite runtime a
     assert.ok(new Set(Array.from(tones,v=>v.toFixed(2))).size>=4);
     assert.ok(Array.from(tones).every(Number.isFinite));
   }
-  const post=flutedPost(GARDEN.posts[0].radius,GARDEN.posts[0].height),p=post.attributes.position;
+  const post=flutedPost(.42,.65),p=post.attributes.position;
   const radii=Array.from({length:48},(_,i)=>Math.hypot(p.getX(i),p.getZ(i)));
-  assert.ok(Math.max(...radii)<=GARDEN.posts[0].radius+1e-6);
+  assert.ok(Math.max(...radii)<=.42+1e-6);
   assert.ok(Math.max(...radii)-Math.min(...radii)>.01);
   for(const geometry of [gem,gold,post])geometry.dispose();
 });

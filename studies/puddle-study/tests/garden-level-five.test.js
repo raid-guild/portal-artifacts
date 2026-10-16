@@ -5,18 +5,23 @@ import {PuddleSimulation} from '../src/simulation.js';
 import {ParticleFluid} from '../src/particle-fluid.js';
 import {GRIP_GARDEN,GARDEN_LEVELS,gardenColliders,gardenFixtureHeight,arrivalPosition,looseGardenParticles,gardenHint} from '../src/garden-level.js';
 import {groundAt,resolveParticle,supportedGroundAt} from '../src/colliders.js';
-import {createWeightGardenView} from '../src/weight-garden-view.js';
+import {createEditorStageView} from '../src/editor-stage-view.js';
 import {createParticleSurface} from '../src/particle-surface.js';
+import {closeTablet} from '../src/memory-tablets.js';
 
-const run=(s,n,input={})=>{for(let i=0;i<n;i++)s.step(input);};
-const fifth=()=>{const s=new PuddleSimulation();assert.equal(s.startGarden(5),true);run(s,100);return s;};
+const tick=(s,input={})=>{s.step(input);if(s.garden?.phase==='reading'){closeTablet(s);s.step({});}};
+const run=(s,n,input={})=>{for(let i=0;i<n;i++)tick(s,input);};
+const fifth=()=>{const s=new PuddleSimulation();s.tabletStorage=null;assert.equal(s.startGarden(5),true);run(s,100);return s;};
 function go(s,x,z){for(let i=0;i<1400;i++){
-  if(s.garden.phase!=='playing')return;
+  if(s.garden.phase!=='playing'){
+    if(s.garden.phase==='draining'&&x===GRIP_GARDEN.exit.x&&z===GRIP_GARDEN.exit.z)return;
+    assert.fail(`Stopped at ${s.garden.phase} before ${x},${z}`);
+  }
   const dx=x-s.brain.x,dz=z-s.brain.z,d=Math.hypot(dx,dz);
-  if(d<.14){run(s,25);return;}
-  s.step({x:dx/d,z:dz/d});
+  if(d<.15)return;
+  tick(s,{x:dx/d,z:dz/d});
 }assert.fail(`Could not reach ${x},${z}; brain at ${s.brain.x},${s.brain.y},${s.brain.z}`);}
-const gem=s=>{run(s,250,{contract:true});run(s,60);};
+const gem=s=>{run(s,300,{contract:true});run(s,120);};
 test('Grip hints cover the high gem and both marked approaches',()=>{
   const s=new PuddleSimulation();s.startGarden(5);s.garden.phase='playing';s.garden.moved=1;s.brain.x=0;
   for(const [x,title,direction] of [[.55,'SURROUND THE HIGH GEM',null],[-.85,'03 / FIND THE GRIP','D'],[1.95,'03 / FIND THE GRIP','A']]){
@@ -26,6 +31,7 @@ test('Grip hints cover the high gem and both marked approaches',()=>{
   }
 });
 function atFace(s,side='west'){
+  s.tabletAutoRead=false;
   const p=GRIP_GARDEN.grip.platform,x=side==='west'?p.minX-.3:p.maxX+.3,z=-.05;
   const dx=x-s.brain.x,dz=z-s.brain.z,dy=groundAt(x,z,s.activeColliders()).height-s.brain.y+.25;
   for(const p of s.fluid.particles){if(p.feedstock)continue;
@@ -35,7 +41,7 @@ function atFace(s,side='west'){
 
 test('fifth authored garden continues from Reach and descends into Hollow Crown',()=>{
   const s=new PuddleSimulation();assert.equal(GARDEN_LEVELS.length,7);
-  assert.equal(s.startGarden(7),false);assert.equal(s.startGarden(1.5),false);
+  assert.equal(s.startGarden(GARDEN_LEVELS.length+1),false);assert.equal(s.startGarden(1.5),false);
   s.startGarden(4);s.garden.phase='complete';s.garden.goldCount=15;s.garden.gemCount=2;
   assert.equal(s.continueGarden(),true);assert.equal(s.gardenLevelId,5);assert.equal(s.descending,true);
   assert.deepEqual(s.completedLevels[4],{gems:2,gold:15,totalGold:17,totalGems:3});
@@ -50,8 +56,10 @@ test('fifth authored garden continues from Reach and descends into Hollow Crown'
   s.garden.phase='complete';assert.equal(s.continueGarden(),true);
   assert.equal(s.gardenLevelId,6);assert.equal(s.descending,true);
   assert.ok(s.brain.y>5.8&&s.brain.y<6.2);
+  s.garden.phase='complete';assert.equal(s.continueGarden(),true);
+  assert.equal(s.gardenLevelId,7);assert.equal(s.descending,true);
   s.garden.phase='complete';assert.equal(s.continueGarden(),false);
-  s.restartGarden();assert.equal(s.gardenLevelId,6);assert.equal(s.garden.phase,'arriving');
+  s.restartGarden();assert.equal(s.gardenLevelId,7);assert.equal(s.garden.phase,'arriving');
   s.startGarden(1,{newGame:true});assert.deepEqual(s.completedLevels,{});
 });
 
@@ -63,7 +71,7 @@ test('ramp and platform are distinct physical surfaces; a low side entry never t
   assert.ok(groundAt((r.minX+r.maxX)/2,0,c).dx>0);
   assert.equal(groundAt(r.minX-.01,0,c).height,1.08);
   assert.equal(gardenFixtureHeight(GRIP_GARDEN,.55,-.05),p.maxY);
-  assert.equal(groundAt(0,3.55,c).height,0);
+  assert.equal(groundAt(1.2,3.55,c).height,0);
   const low={x:-.85,z:-.05,y:1.55,px:-.85,pz:-.05,py:1.55,vx:0,vy:0,vz:0};
   for(let i=0;i<25;i++){low.px=low.x;low.py=low.y;low.x+=.015;resolveParticle(low,.067,c);}
   assert.ok(low.x<=p.minX-.067+.01);assert.ok(low.y<p.maxY-.2);
@@ -131,6 +139,7 @@ test('west and east grip faces both carry real flesh over the lip, with no lift 
 test('a fully connected body physically surrounds and collects the raised gem from the west face',()=>{
   for(const offset of [0,.25]){
     const s=fifth(),colliders=s.activeColliders();
+    s.tabletAutoRead=false;
     s.fluid=new ParticleFluid({x:-1.4+offset,z:-.05,seedCount:297,massReferenceCount:297});
     for(const p of s.fluid.particles){p.y+=groundAt(p.x,p.z,colliders).height;p.py=p.y;}
     s.fluid.samplePairs();s.fluid.updateComponents(colliders);
@@ -179,34 +188,96 @@ test('a separated Grip Garden fragment expires into visible unpatched green fles
   surface.mesh.geometry.dispose();surface.mesh.material.dispose();
 });
 
-test('Grip Garden view places the raised gem and face at the fifth storey without altering the earlier views',()=>{
-  const previous=globalThis.document;
-  globalThis.document={createElement:()=>({style:{},remove(){}}),querySelector:()=>({append(){}})};
-  try{const view=createWeightGardenView(new THREE.Scene(),{level:GRIP_GARDEN});
-    assert.equal(view.group.position.y,-28.8);
-    const gem=view.group.children.find(o=>o.isMesh&&Math.abs(o.position.x-.55)<.01&&Math.abs(o.position.z+.05)<.01&&Math.abs(o.position.y-(GRIP_GARDEN.grip.platform.maxY+.34))<.01);
-    assert.ok(gem,'platform gem uses the actual elevated surface');
-    assert.ok(view.group.children.some(o=>o.userData.pickableTerrain&&o.geometry?.attributes?.position));
-    view.dispose();
-  }finally{globalThis.document=previous;}
+test('a real upper well fall respawns once and keeps treasure, time, and read memories',()=>{
+  const s=fifth();go(s,5.3,-3.2);go(s,2.7,-3.2);
+  const gold=s.garden.goldCount,elapsed=s.garden.playElapsed;
+  assert.ok(s.garden.tablets[0].read);
+  let arrivals=0,last=s.garden.phase;
+  for(let i=0;i<220;i++){
+    const dx=.7-s.brain.x,dz=-3.8-s.brain.z,d=Math.hypot(dx,dz);
+    tick(s,d>.03?{x:dx/d,z:dz/d}:{});
+    if(s.garden.phase==='arriving'&&last!=='arriving')arrivals++;
+    last=s.garden.phase;
+  }
+  assert.equal(arrivals,1);
+  assert.equal(s.garden.phase,'playing');assert.equal(s.gardenInputArmed,false);
+  assert.ok(Math.hypot(s.brain.x-GRIP_GARDEN.start.x,s.brain.z-GRIP_GARDEN.start.z)<.1);
+  assert.equal(s.garden.goldCount,gold);assert.ok(s.garden.playElapsed>elapsed);
+  assert.ok(s.garden.tablets[0].read);assert.equal(s.tendril.count,0);
+  assert.equal(s.fluid.particles.length,297);
+  tick(s,{});assert.equal(s.gardenInputArmed,true);
 });
 
-test('full Grip Garden route climbs the platform, surrounds all gems and collects all 17 gold',()=>{
+test('uncontrolled slip momentum drops through the spillway well while the steered route remains open',()=>{
+  const s=fifth();s.tabletAutoRead=false;
+  const dx=4.2-s.brain.x,dz=1.12-s.brain.z,dy=1.08-s.brain.y+.24;
+  for(const p of s.fluid.particles){if(p.feedstock)continue;
+    p.x+=dx;p.px=p.x;p.z+=dz;p.pz=p.z;p.y+=dy;p.py=p.y;p.vx=0;p.vy=0;p.vz=2.4;}
+  s.fluid.brainDrive.z=2.4;s.fluid.samplePairs();s.fluid.updateComponents(s.activeColliders());
+  let slipping=false,arrivals=0,last=s.garden.phase;
+  for(let i=0;i<240;i++){
+    tick(s,{});slipping ||= s.fluid.brainSlipping;
+    if(s.garden.phase==='arriving'&&last!=='arriving')arrivals++;
+    last=s.garden.phase;
+  }
+  assert.equal(slipping,true);assert.equal(arrivals,1);assert.equal(s.garden.deaths,1);
+  assert.equal(s.garden.phase,'playing');
+  assert.ok(Math.hypot(s.brain.x-GRIP_GARDEN.start.x,s.brain.z-GRIP_GARDEN.start.z)<.1);
+});
+
+test('Rootwell view cuts real pits and marks both grip faces at the fifth storey',()=>{
+  const view=createEditorStageView(new THREE.Scene(),GRIP_GARDEN);
+  try{
+    view.group.position.y=-28.8;
+    view.setPlaying(true);
+    const gem=view.group.children.find(o=>o.isMesh&&Math.abs(o.position.x-.55)<.01&&Math.abs(o.position.z+.05)<.01&&Math.abs(o.position.y-(GRIP_GARDEN.grip.platform.maxY+.34))<.01);
+    assert.ok(gem,'platform gem uses the actual elevated surface');
+    assert.equal(view.group.position.y,-28.8);
+    assert.ok(view.group.children.filter(o=>o.material?.color?.getHex?.()===0x8cae96).length>=2,
+      'both climb faces are visibly marked');
+    assert.ok(view.group.children.filter(o=>o.material?.color?.getHex?.()===0x172026).length>=3,
+      'all three wells have open dark interior walls');
+    assert.ok(view.group.children.some(o=>o.userData.pickableTerrain&&o.geometry?.attributes?.position));
+  }finally{view.dispose();}
+});
+
+test('Rootwell Gallery full route gathers, squeezes, climbs, reads all tablets, and weaves around both lower pits',()=>{
   const s=fifth();
-  go(s,5.3,-3.2);go(s,3.8,-3.2);go(s,2.7,-3.2);go(s,-.5,-3.2);go(s,-3.8,-3.2);gem(s);
-  go(s,-6,-3.2);go(s,-7.5,-3.2);go(s,-7.5,-.95);go(s,-7.5,-.25);go(s,-7.5,.55);go(s,-4.8,.55);
-  go(s,-2.4,-.05);go(s,-1.4,-.05);go(s,-.75,-.05);go(s,.55,-.05);
-  assert.ok(s.brain.y>GRIP_GARDEN.grip.platform.maxY);gem(s);
-  go(s,1.8,-.05);go(s,2.3,1.15);go(s,4.2,1.15);go(s,7.5,1.15);go(s,7.5,2.7);go(s,7.5,3.55);
-  go(s,5.2,3.55);go(s,-3.8,3.55);gem(s);
+  for(const [x,z] of [[5.3,-3.2],[2.7,-3.2],[2,-5.1],[.7,-5.1],[-.2,-5.1],
+    [-1.8,-4.8],[-3.5,-3.75],[-4.7,-3.2],[-5.25,-3.2],[-4.7,-3.2]])go(s,x,z);
+  assert.ok(s.fluid.attachedCount>=171,'at least 95% of the gathered upper body crosses both turns');
+  gem(s);assert.equal(s.garden.gemCount,1);
+  for(const [x,z] of [[-6.6,-3.2],[-7.5,-1.75],[-7.5,-.65],[-6.8,.2],[-5.5,.2],
+    [-4.8,.55],[-3.2,.3],[-1.4,-.05],[-.75,-.05]])go(s,x,z);
+  assert.equal(s.fluid.attachedCount,229);
+  run(s,160,{contract:true});run(s,60);
+  go(s,.55,-.05);assert.ok(s.brain.y>GRIP_GARDEN.grip.platform.maxY);
+  assert.equal(s.fluid.attachedCount,229,'gathering at the ramp carries the complete middle body over the lip');
+  for(let i=0;i<180&&!s.garden.gems[1].collected;i++){
+    const dx=.55-s.brain.x,dz=-.05-s.brain.z,d=Math.hypot(dx,dz);
+    tick(s,d>.02?{x:dx/d,z:dz/d}:{});
+  }
+  assert.equal(s.garden.gemCount,2);
+  for(const [x,z] of [[1.8,-.05],[3.8,.3],[2.35,.3],[3.8,.3],[5.5,.3],[6.4,.6],
+    [7.5,.6],[7.5,2.7],[7.5,3.55],[6.3,3.55],[5.5,4.2],[4.2,4.2],
+    [3,4.2],[1.5,2.65],[-1.2,2.65],[-3.8,3.55],[-4.3,3.55],[-3.8,3.55]])go(s,x,z);
+  gem(s);
   assert.equal(s.garden.gemCount,3);assert.equal(s.garden.goldCount,17);
+  assert.ok(s.garden.tablets.every(t=>t.read));
   go(s,-7.6,3.65);run(s,180);
-  assert.equal(s.garden.phase,'complete');assert.equal(s.fluid.particles.length,297);
+  assert.equal(s.garden.phase,'complete');
+  assert.ok(s.fluid.particles.length>=Math.ceil(297*.95)&&s.fluid.particles.length<=297,
+    'at least 95% of the original material remains after nine detached scraps expire');
+  const claimedByPool=GRIP_GARDEN.pools.map((_,id)=>s.fluid.particles.filter(p=>p.patchId===id&&!p.feedstock).length);
+  assert.ok(claimedByPool.every(count=>count>=38),
+    `a substantial share of each of the four green pools joins the body: ${claimedByPool}`);
   assert.ok(s.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z)));
   assert.ok(s.fluid.coatContacts(s.activeColliders()).length>=8);
 });
 
-test('an open ledge shortcut finishes while visibly missing full-route points',()=>{
-  const s=fifth();go(s,7.5,-.95);go(s,7.5,2.7);go(s,7.5,3.55);go(s,-7.6,3.65);run(s,180);
+test('an open ledge shortcut still finishes while visibly missing full-route points',()=>{
+  const s=fifth();for(const [x,z] of [[7.5,-.95],[7.5,2.7],[7.5,3.55],[6.3,3.55],
+    [5.5,4.2],[3,4.2],[1.5,2.65],[-1.2,2.65],[-3.8,3.55]])go(s,x,z);
+  go(s,-7.6,3.65);run(s,180);
   assert.equal(s.garden.phase,'complete');assert.ok(s.garden.goldCount<17);assert.ok(s.garden.gemCount<3);
 });

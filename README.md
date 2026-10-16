@@ -128,15 +128,17 @@ Open <http://localhost:8080>.
 
 `public/rewind/` is a standalone interactive music concept at `/rewind/`: a wireframe wall climbs through an ink wash, breaks on command, and rebuilds to Tanner Royster’s “Rewind.” The canonical editable source is the published directory; [`studies/rewind/`](studies/rewind/README.md) documents the controls, attribution, and versioned share cover.
 
-## Puddle — Six Tower Gardens
+## Puddle — Seven Tower Gardens
 
 `public/chance-pint/` is an interactive Three.js product study at `/chance-pint/`: a full-orbit pint glass with twelve dice tracks, volume-based readings, and seeded layouts. Editable source, original Blender model, tests, and build instructions are in [`studies/chance-pint/`](studies/chance-pint/README.md).
 
-`public/puddle-study/` is a six-level game at `/puddle-study/`. Guide a living
+`public/puddle-study/` is a seven-level game at `/puddle-study/`. Guide a living
 particle puddle down a floating tower, gather flesh, collect gold and gems,
 cast tendrils, shed weight onto switches, and navigate low gaps and gripping or
 slippery surfaces. The start screen offers level selection, local progress,
-the Level Workshop with playable saved levels, and the Soft Signal music study.
+the Level Workshop with playable saved levels, the Soft Signal music study, and
+public per-level high scores. Direct links remain playable as a guest; Portal
+launch enables ranked submissions. Completion and points are shown separately.
 The editor supports raised terraces, ramps, paintable surfaces, basins, and
 solid cutters. Recent work keeps the growing blob fluid while reducing costly
 collision searches and moving surface generation off the render thread.
@@ -233,7 +235,7 @@ preview, controls, source provenance, and simulation tests.
   scrollable page, with adjustable depth, turns, speed, cursor response, and
   draggable attraction spots.
 
-- `puddle-study/` — Six floating garden levels, collectible gems and gold,
+- `puddle-study/` — Seven floating garden levels, collectible gems and gold,
   tendrils, shedding and grip puzzles, local level editing and play, plus Soft
   Signal background music.
 
@@ -320,7 +322,7 @@ The game works as a guest with local scores; Portal launch enables ranked runs.
 
 ## Optional game leaderboards
 
-`services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival and Raid Survivor remain playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
+`services/leaderboards/` deploys independently beside the shared game Postgres. Cosmic Carnival, Raid Survivor, and Puddle remain playable without it; Portal signed launch enables ranked submissions. See [setup, API, tests, and rollback](services/leaderboards/README.md). Set `LEADERBOARD_UPSTREAM` on this static service to proxy its narrowly scoped API.
 
 ## Neon Drop
 

@@ -31,7 +31,14 @@ export function createParticleSurface(material,resolution=48,{filterColliders=tr
       minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z);
     }
     const margin=support+.1;
-    const sx=Math.max(.55,(maxX-minX)/2+margin),sy=Math.max(.42,(maxY-minY)/2+margin),sz=Math.max(.55,(maxZ-minZ)/2+margin);
+    // MarchingCubes leaves two grid cells unused at the positive edge. A
+    // fixed world-space margin stops covering those cells when distant shed
+    // stretches the domain, slicing the main body at the last sampled plane.
+    // Keep the complete kernel inside the polygonized region on every axis.
+    const sampledFraction=1-4/n;
+    const extent=(span,minimum)=>Math.max(minimum,span/2+margin,
+      (span/2+support+.01)/sampledFraction);
+    const sx=extent(maxX-minX,.55),sy=extent(maxY-minY,.42),sz=extent(maxZ-minZ,.55);
     const cx=(minX+maxX)/2,cy=(minY+maxY)/2,cz=(minZ+maxZ)/2;
     mesh.position.set(cx,cy,cz);mesh.scale.set(sx,sy,sz);
     // Only these collider types can affect groundAt. Preserve their order:
