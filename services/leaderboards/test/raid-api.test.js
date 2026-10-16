@@ -17,7 +17,7 @@ let server,base;
 before(async()=>{
   const schema=await readFile(new URL('../schema.sql',import.meta.url),'utf8');
   await pool.query(schema);await pool.query(schema);
-  await pool.query('TRUNCATE artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
+  await pool.query('TRUNCATE artifact_leaderboards.puddle_community_versions, artifact_leaderboards.puddle_community_levels, artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
   server=createRaidApp({pool,origin,issuer,launchSecret:secret,secure:false}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}/leaderboard-api/${GAME}`;
 });

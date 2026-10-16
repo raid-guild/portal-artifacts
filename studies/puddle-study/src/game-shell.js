@@ -8,6 +8,8 @@ import {gripKey} from './grip-ramp.js';
 import {createLocalLevelLibrary,createLocalLevelProgress,localStorageForPage,localPageQuery} from './local-levels.js';
 import {createRankedClient} from './ranked-client.js';
 import {openTablet,closeTablet,nearbyTablet} from './memory-tablets.js';
+import {createCommunityClient,communityLink,pinnedCommunityFromSearch,fetchPinnedCommunity} from './community-client.js';
+import {prepareCommunityLevel,progressForLocalRun} from './community-play.js';
 
 export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCameraToggle=()=>{},cameraMode=()=> 'follow',
   onLocalReady=async()=>{},
@@ -17,7 +19,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   const root=document.createElement('div');root.id='game-shell';
   root.innerHTML=`<div class="game-top"><div><span class="eyebrow">PUDDLE / 01</span><h2>Hanging Nursery</h2></div><div class="game-score" aria-label="Collection progress"><span id="gem-score">◇ 0 / 3</span><span id="gold-score">● 0 / 17</span><span id="game-timer" aria-label="Play time">0:00 / 0:30</span><button id="game-camera" type="button" aria-label="Camera: Follow. Press C to switch view">Camera: Follow <kbd>C</kbd></button><button id="game-menu">Menu <kbd>ESC</kbd></button></div></div>
     <div class="game-hint"><b id="lesson-title" role="status"></b><p id="lesson-text"></p><small id="game-tendril-status" hidden></small></div>
-    <div id="game-overlay" class="game-overlay"><section id="game-card-section" class="game-card" aria-labelledby="game-title"><div id="game-main-card"><div class="eyebrow" id="game-eyebrow">A LIVING MATERIAL</div><h1 id="game-title">Puddle</h1><p id="game-copy">A small body. A strange garden.<br>Gather, take shape, and find the way down.</p><div id="game-results"></div><p id="game-ranked-status" class="game-ranked-status"></p><div class="game-buttons"><button id="game-primary">Begin</button><button id="game-secondary" hidden>Keep exploring</button><button id="game-levels">Levels</button><button id="game-board" type="button">High scores</button><button id="game-studies">Material studies</button><button id="game-exit" type="button" hidden>Exit to title</button></div><details class="game-settings"><summary>Controls &amp; settings</summary><p>Drag anywhere to move. Double tap the garden to cast. Hold Contract to gather; tap it to recall. Hold Run to sprint. Hold Shed to leave flesh.</p><button id="game-settings-camera" type="button">Switch camera</button><div id="game-settings-audio"></div></details><p class="game-footnote" id="game-footnote">Hanging Nursery · the first playable level</p></div><div id="game-level-screen" hidden><div class="eyebrow">YOUR TOWER</div><h1 id="game-level-title">Levels</h1><div class="game-level-tabs" role="tablist" aria-label="Level source"><button id="game-campaign-tab" type="button" role="tab">Campaign</button><button id="game-local-tab" type="button" role="tab">Local Levels</button></div><p id="game-level-instructions">Finish at least half the gold and gems in a garden to unlock the next.</p><label id="game-dev-access" hidden><input type="checkbox" checked> Development: play any level</label><div id="game-level-list"></div><div class="game-buttons"><button id="game-level-back">Back</button></div></div><div id="game-board-screen" hidden><div class="eyebrow">PUDDLE / HIGH SCORES</div><h1 id="game-board-title">High scores</h1><label for="game-board-level">Level</label> <select id="game-board-level"></select><p id="game-board-message" role="status"></p><ol id="game-board-list" class="game-board-list"></ol><p>Log in to portal.raidguild.org to participate in high scores.</p><a href="https://portal.raidguild.org/" target="_blank" rel="noopener noreferrer">Open Portal ↗</a><div class="game-buttons"><button id="game-board-back" type="button">Back</button></div></div></section></div>`;
+    <div id="game-overlay" class="game-overlay"><section id="game-card-section" class="game-card" aria-labelledby="game-title"><div id="game-main-card"><div class="eyebrow" id="game-eyebrow">A LIVING MATERIAL</div><h1 id="game-title">Puddle</h1><p id="game-copy">A small body. A strange garden.<br>Gather, take shape, and find the way down.</p><div id="game-results"></div><p id="game-ranked-status" class="game-ranked-status"></p><div class="game-buttons"><button id="game-primary">Begin</button><button id="game-secondary" hidden>Keep exploring</button><button id="game-levels">Levels</button><button id="game-board" type="button">High scores</button><button id="game-studies">Material studies</button><button id="game-exit" type="button" hidden>Exit to title</button></div><details class="game-settings"><summary>Controls &amp; settings</summary><p>Drag anywhere to move. Double tap the garden to cast. Hold Contract to gather; tap it to recall. Hold Run to sprint. Hold Shed to leave flesh.</p><button id="game-settings-camera" type="button">Switch camera</button><div id="game-settings-audio"></div></details><p class="game-footnote" id="game-footnote">Hanging Nursery · the first playable level</p></div><div id="game-level-screen" hidden><div class="eyebrow">YOUR TOWER</div><h1 id="game-level-title">Levels</h1><div class="game-level-tabs" role="tablist" aria-label="Level source"><button id="game-campaign-tab" type="button" role="tab">Campaign</button><button id="game-local-tab" type="button" role="tab">Local Levels</button><button id="game-community-tab" type="button" role="tab">Community</button></div><p id="game-level-instructions">Finish at least half the gold and gems in a garden to unlock the next.</p><label id="game-dev-access" hidden><input type="checkbox" checked> Development: play any level</label><div id="game-level-list"></div><div class="game-buttons"><button id="game-level-back">Back</button></div></div><div id="game-board-screen" hidden><div class="eyebrow">PUDDLE / HIGH SCORES</div><h1 id="game-board-title">High scores</h1><label for="game-board-level">Level</label> <select id="game-board-level"></select><p id="game-board-message" role="status"></p><ol id="game-board-list" class="game-board-list"></ol><p>Log in to portal.raidguild.org to participate in high scores.</p><a href="https://portal.raidguild.org/" target="_blank" rel="noopener noreferrer">Open Portal ↗</a><div class="game-buttons"><button id="game-board-back" type="button">Back</button></div></div></section></div>`;
   document.querySelector('#app').append(root);
   const tabletLayer=document.createElement('div');tabletLayer.className='game-overlay tablet-overlay';tabletLayer.hidden=true;
   tabletLayer.innerHTML='<section class="game-card tablet-card" role="dialog" aria-modal="true" aria-labelledby="tablet-title" aria-describedby="tablet-text"><div class="eyebrow" id="tablet-category"></div><h1 id="tablet-title"></h1><p id="tablet-text"></p><p id="tablet-hint"></p><button id="tablet-continue" type="button">Continue</button></section>';
@@ -32,12 +34,69 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   studyLinks.innerHTML='<a href="./music-source/index.html" target="_blank" rel="noopener">Music studies ↗</a><a href="./editor.html" target="_blank" rel="noopener">Level editor ↗</a><a href="./downloads/puddle-builder-kit.zip" download>Builder kit ↓</a>';
   studyLinks.querySelector('a[href^="./editor"]').href=`./editor.html${localPageQuery()}`;
   root.querySelector('#game-main-card .game-buttons').after(studyLinks);
-  let overlayState='',levelScreen=false,boardScreen=false,levelTab='campaign',devPlayAny=!!devAccess,localRequest=0,boardRequest=0,
+  let pinned=pinnedCommunityFromSearch(globalThis.location?.search||'');
+  let overlayState='',levelScreen=!!pinned,boardScreen=false,levelTab=pinned?'community':'campaign',devPlayAny=!!devAccess,localRequest=0,boardRequest=0,
     shownTablet=null;
   const dismissTablet=()=>{if(closeTablet(sim)){clearInputs();update();readButton.focus({preventScroll:true});}};
   tabletLayer.querySelector('#tablet-continue').addEventListener('click',dismissTablet);
   readButton.addEventListener('click',()=>{if(openTablet(sim,nearbyTablet(sim))){clearInputs();update();}});
   const ranked=createRankedClient({onChange:()=>update()});
+  const community=createCommunityClient();
+  const communityProgress=createLocalLevelProgress({storage:localStorageForPage(),key:'puddle.community-progress.v1'});
+  let communityRequest=0,communityController=null,communityCursor=null,communityNext=null,communityEntries=[],communityDetail=null;
+  const cancelCommunity=()=>{communityRequest++;communityController?.abort();communityController=null;};
+  const leavePinned=()=>{if(!pinned)return;pinned=null;const url=new URL(location.href);
+    url.searchParams.delete('community');url.searchParams.delete('version');history.replaceState(null,'',url);};
+  function communityCard(entry,{detail=false}={}){
+    const card=document.createElement('div');card.className='game-level-row';
+    const info=document.createElement('div'),title=document.createElement('b'),note=document.createElement('small');
+    const best=communityProgress.getBest(`community:${entry.id}`,entry.version);
+    title.textContent=entry.title;note.textContent=`by ${entry.author} · v${entry.version} · ${entry.description||'A community garden'} · ${best?`Best ${best.percent}%`:'Not played'}`;
+    info.append(title,note);const play=document.createElement('button');play.type='button';play.textContent='Play';
+    play.onclick=()=>playCommunity(entry);card.append(info,play);
+    if(!detail){const link=document.createElement('a');link.href=communityLink(entry.id,entry.version);link.textContent='Version link';card.append(link);}
+    return card;
+  }
+  async function loadCommunity({cursor=null,detail=pinned}={}){
+    cancelCommunity();const request=communityRequest,controller=new AbortController();communityController=controller;
+    const list=$('#game-level-list');list.textContent=detail?'Loading shared community level…':'Loading community levels…';
+    try{if(detail){const data=await fetchPinnedCommunity(detail,community,controller.signal);
+      if(request!==communityRequest||!levelScreen||levelTab!=='community')return;
+      communityDetail=data;communityCursor=null;communityNext=null;
+      if(detail.version===null){const url=new URL(location.href);url.searchParams.set('version',String(data.version));
+        history.replaceState(null,'',url);pinned.version=String(data.version);}
+      list.replaceChildren(communityCard(data,{detail:true}));
+    }else{const data=await community.list(cursor,controller.signal);if(request!==communityRequest||!levelScreen||levelTab!=='community')return;
+      communityDetail=null;communityEntries=data.entries;communityCursor=cursor;communityNext=data.nextCursor;
+      list.replaceChildren(...data.entries.map(entry=>communityCard(entry)));
+      if(!data.entries.length)list.textContent='No community levels yet.';
+      if(data.nextCursor){const next=document.createElement('button');next.textContent='Next page';next.onclick=()=>loadCommunity({cursor:data.nextCursor,detail:null});list.append(next);}
+    }}catch(error){if(request!==communityRequest)return;list.replaceChildren();
+      const message=document.createElement('p');message.textContent=error.name==='AbortError'?'Loading stopped.':
+        `Community level unavailable: ${error.message}`;
+      const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>loadCommunity({cursor,detail});
+      const browse=document.createElement('button');browse.textContent='Browse Community';browse.onclick=()=>{leavePinned();loadCommunity({detail:null});};
+      const campaign=document.createElement('button');campaign.textContent='Campaign';campaign.onclick=()=>{leavePinned();levelTab='campaign';renderLevels();};
+      const editor=document.createElement('a');editor.href=`./editor.html${localPageQuery()}`;editor.textContent='Open editor';
+      list.append(message,retry,browse,campaign,editor);
+    }finally{if(request===communityRequest)communityController=null;}
+  }
+  async function playCommunity(entry){cancelCommunity();const request=communityRequest,controller=new AbortController();communityController=controller;
+    const list=$('#game-level-list');list.textContent='Preparing community level…';
+    try{const prepared=await prepareCommunityLevel(entry,{client:community,signal:controller.signal,
+      isCurrent:()=>request===communityRequest&&levelScreen&&levelTab==='community',onReady:onLocalReady});
+      if(!prepared)return;const {level,data}=prepared;
+      levelScreen=false;onStart();sim.startLocalGarden(level,{id:`community:${data.id}`,revision:data.version,
+        community:{id:data.id,version:data.version,author:data.author}});change();
+    }catch(error){if(request!==communityRequest)return;list.replaceChildren();
+      const message=document.createElement('p');message.textContent=`Could not prepare this community level: ${error.message}`;
+      const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>playCommunity(entry);
+      const browse=document.createElement('button');browse.textContent='Browse Community';browse.onclick=()=>{leavePinned();loadCommunity({detail:null});};
+      const campaign=document.createElement('button');campaign.textContent='Campaign';campaign.onclick=()=>{leavePinned();levelTab='campaign';renderLevels();};
+      const editor=document.createElement('a');editor.href=`./editor.html${localPageQuery()}`;editor.textContent='Open editor';
+      list.append(message,retry,browse,campaign,editor);
+    }finally{if(request===communityRequest)communityController=null;}
+  }
   for(const level of GARDEN_LEVELS){const option=document.createElement('option');option.value=String(level.id);option.textContent=`${level.id} · ${level.name}`;$('#game-board-level').append(option);}
   async function loadBoard(){
     const request=++boardRequest,level=Number($('#game-board-level').value),list=$('#game-board-list');
@@ -82,10 +141,13 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
     const list=$('#game-level-list');list.replaceChildren();
     $('#game-campaign-tab').setAttribute('aria-selected',String(levelTab==='campaign'));
     $('#game-local-tab').setAttribute('aria-selected',String(levelTab==='local'));
+    $('#game-community-tab').setAttribute('aria-selected',String(levelTab==='community'));
     $('#game-level-instructions').textContent=levelTab==='campaign'?
-      'Finish at least half the gold and gems in a garden to unlock the next.':
-      'Your saved Workshop gardens. They play separately from campaign progress.';
+      'Finish at least half the gold and gems in a garden to unlock the next.':levelTab==='local'?
+      'Your saved Workshop gardens. They play separately from campaign progress.':
+      'Gardens shared by Portal players. Guests can play; scores stay on this device and do not enter campaign high scores.';
     devToggle.hidden=levelTab!=='campaign'||!devAccess;
+    if(levelTab==='community'){loadCommunity({detail:pinned&&communityDetail===null?pinned:null});return;}
     if(levelTab==='local'){
       const entries=localLibrary.list();
       if(!entries.length){const empty=document.createElement('p');empty.textContent='No local levels yet. Save a garden from the Level Workshop.';
@@ -123,7 +185,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   }
   function openLevels(){if(sim.selectedTest!=='garden'||!['title','paused'].includes(sim.garden.phase))return;
     levelScreen=true;renderLevels();update();$('#game-level-back').focus({preventScroll:true});}
-  function closeLevels(){if(!levelScreen)return;levelScreen=false;localRequest++;update();$('#game-levels').focus({preventScroll:true});}
+  function closeLevels(){if(!levelScreen)return;levelScreen=false;localRequest++;cancelCommunity();update();$('#game-levels').focus({preventScroll:true});}
   function change(){clearInputs();onChange();update();}
   function start(){onStart();sim.startGarden(1,{newGame:true});beginRanked();change();}
   function menu(){if(sim.selectedTest==='garden'&&sim.garden.phase==='playing'){sim.syncGardenClock();sim.garden.phase='paused';change();}}
@@ -135,8 +197,9 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   $('#game-board').addEventListener('click',()=>openBoard());
   $('#game-board-back').addEventListener('click',closeBoard);
   $('#game-board-level').addEventListener('change',loadBoard);
-  $('#game-campaign-tab').addEventListener('click',()=>{levelTab='campaign';localRequest++;renderLevels();});
-  $('#game-local-tab').addEventListener('click',()=>{levelTab='local';renderLevels();});
+  $('#game-campaign-tab').addEventListener('click',()=>{leavePinned();levelTab='campaign';localRequest++;cancelCommunity();renderLevels();});
+  $('#game-local-tab').addEventListener('click',()=>{leavePinned();levelTab='local';cancelCommunity();renderLevels();});
+  $('#game-community-tab').addEventListener('click',()=>{levelTab='community';localRequest++;renderLevels();});
   globalThis.addEventListener?.('storage',event=>{if(levelScreen&&levelTab==='local'&&event.key?.includes('puddle.local-levels.v1'))renderLevels();});
   devToggle.querySelector('input').addEventListener('change',event=>{devPlayAny=!!devAccess&&event.target.checked;renderLevels();update();});
   $('#game-primary').addEventListener('click',()=>{
@@ -164,7 +227,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   });
   $('#game-exit').addEventListener('click',()=>{
     if(sim.garden.phase!=='paused')return;
-    localRequest++;levelScreen=false;
+    localRequest++;cancelCommunity();levelScreen=false;
     sim.startGarden(1,{newGame:true});sim.garden.phase='title';
     change();$('#game-primary').focus({preventScroll:true});
   });
@@ -197,13 +260,14 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
         tabletLayer.querySelector('#tablet-continue').focus({preventScroll:true});}
     }else shownTablet=null;
     if(s.phase==='draining'||s.phase==='complete')ranked.finish(sim);
+    const localRunProgress=progressForLocalRun(sim,localProgress,communityProgress);
     if(s.phase==='complete'){
-      if(sim.isLocalGarden)localProgress.recordCompletion(sim.localRun.id,sim.localRun.revision,
+      if(sim.isLocalGarden)localRunProgress.recordCompletion(sim.localRun.id,sim.localRun.revision,
         {gold:s.goldCount,gems:s.gemCount,totalGold:s.gold.length,totalGems:s.gems.length,
           elapsed:s.finishElapsed,target:level.targetTime});
       else progress.recordCompletion(level.id,{gold:s.goldCount,gems:s.gemCount,elapsed:s.finishElapsed});
     }
-    root.querySelector('.game-top .eyebrow').textContent=sim.isLocalGarden?'PUDDLE / LOCAL':`PUDDLE / 0${level.id}`;
+    root.querySelector('.game-top .eyebrow').textContent=sim.localRun?.community?'PUDDLE / COMMUNITY':sim.isLocalGarden?'PUDDLE / LOCAL':`PUDDLE / 0${level.id}`;
     root.querySelector('.game-top h2').textContent=level.name;
     $('#game-overlay').hidden=!overlay;root.classList.toggle('in-menu',overlay);
     $('#game-main-card').hidden=levelScreen||boardScreen;$('#game-level-screen').hidden=!levelScreen;
@@ -237,7 +301,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       const nextLocked=!sim.isLocalGarden&&s.phase==='complete'&&level.id<GARDEN_LEVELS.length&&!canPlayLevel(level.id+1);
       $('#game-copy').innerHTML=s.phase==='complete'?(nextLocked?'You found the way down. Collect at least 50% of this garden to unlock the next.':'You found the way down.'):
         s.phase==='paused'?'Take your time. The garden will wait.':'A small body. A strange garden.<br>Gather, take shape, and find the way down.';
-      if(sim.isLocalGarden&&s.phase==='complete'&&localProgress.saveFailed)
+      if(sim.isLocalGarden&&s.phase==='complete'&&localRunProgress.saveFailed)
         $('#game-copy').textContent+=' Your score is kept for this session, but could not be saved on this device.';
       $('#game-primary').textContent=s.phase==='paused'?'Resume':s.phase==='complete'?(sim.isLocalGarden?'Replay':
         level.id<GARDEN_LEVELS.length?(nextLocked?'Retry level':`Continue to Level ${level.id+1}`):'New game'):'Begin';
@@ -252,12 +316,14 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       $('#game-results').textContent=s.phase==='complete'&&sim.isLocalGarden?
         resultLine(level.name,current):
         s.phase==='complete'?campaignResultLines(GARDEN_LEVELS,scores,level.id):'';
-      $('#game-footnote').textContent=sim.isLocalGarden?'Local Level · separate from campaign progress':
+      $('#game-footnote').textContent=sim.localRun?.community?`Community · by ${sim.localRun.community.author} · version ${sim.localRun.community.version} · separate from campaign progress`:
+        sim.isLocalGarden?'Local Level · separate from campaign progress':
         s.phase==='complete'?(sim.practiceLevel?'Grip & Slide practice complete':nextLocked?'Explore again to find more gold and gems':level.id<GARDEN_LEVELS.length?'The next garden waits below':`All ${GARDEN_LEVELS.length} gardens explored`):
         sim.practiceLevel?'Grip & Slide practice':`${level.name} · Level ${level.id} of ${GARDEN_LEVELS.length}`;
       if(overlay&&!levelScreen&&!boardScreen)$('#game-primary').focus({preventScroll:true});
     }
   }
+  if(pinned)renderLevels();
   return {update,start,progress,canPlayLevel,restartCurrent(){sim.restartGarden();beginRanked();change();},handleKey(e){
     if(sim.selectedTest!=='garden')return false;
     if(sim.garden.phase==='reading'){

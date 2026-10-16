@@ -13,6 +13,10 @@ The published game lives at `/puddle-study/`. Its start screen links to the
 Level Workshop at `/puddle-study/editor.html` and the Soft Signal music study at
 `/puddle-study/music-source/`.
 
+The Levels menu also has a **Community** tab. Public gardens can be played as a guest; a version link such as `/puddle-study/?community=<level UUID>&version=2` opens a detail card with an explicit Play action. A link without `version` resolves to the latest published version and pins the address before play. Each version keeps separate completion and tablet-reading progress on this device. Community games do not alter campaign unlocks or submit ranked scores. Unpublished links show an unavailable message.
+
+The Workshop's Community panel lets a Portal player publish a valid draft, edit their own latest version, publish a new immutable version, copy its link, or unpublish. Log in at Portal and refresh the editor's login status; guests may still edit, save locally and export. Loading a blank/preset/local file or saving as a new local level clears the publication association. A failed publish can be retried with the same request ID; conflict messages preserve the local draft. Publishing has tighter size and geometry limits than local editing and does not prove a course beatable. Service migration and role grants are in the [leaderboard service README](../../services/leaderboards/README.md).
+
 The start screen also links to **Music studies** (Soft Signal’s mixer and composition controls) and the **Level editor** (Level Workshop). Both open in a new tab and are included in the production build.
 
 A local Three.js study of a living particle puddle on a floating terrace. The visible brain stays coated by real flesh particles and leads movement. Its power comes from flesh currently connected to it; loose pieces draw in more weakly with distance. Marching Cubes gives the moving particles a single translucent body.

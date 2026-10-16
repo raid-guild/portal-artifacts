@@ -2,6 +2,7 @@ import express from 'express';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { jwtVerify } from 'jose';
 import { PUDDLE_LEVELS, PUDDLE_VERSION, scorePuddleRun } from './puddle-rules.js';
+import {mountPuddleCommunity} from './puddle-community.js';
 
 export const GAME = 'puddle-study';
 export const VERSION = PUDDLE_VERSION;
@@ -26,6 +27,9 @@ export function createPuddleApp({ pool, origin, issuer, launchSecret, secure = t
     }
     next();
   });
+  // Published documents are larger than ranked run bodies. Scope the larger
+  // parser to community routes before the existing 4 KB ranked parser.
+  app.use(`${BASE}/community`,express.json({limit:'256kb'}));
   app.use(express.json({ limit: '4kb' }));
   app.get(`${BASE}/ready`, async (_req, res) => {
     const required = {
@@ -33,6 +37,8 @@ export function createPuddleApp({ pool, origin, issuer, launchSecret, secure = t
       players: { columns: ['id','issuer','subject','display_name'], privileges: ['SELECT','INSERT','UPDATE'] },
       sessions: { columns: ['token_hash','player_id','game','expires_at'], privileges: ['SELECT','INSERT','DELETE'] },
       runs: { columns: ['id','player_id','session_hash','game','version','run_config','details','started_at','submitted_at','score','duration_ms'], privileges: ['SELECT','INSERT','UPDATE'] },
+      puddle_community_levels: { columns: ['id','owner_id','current_version','published','created_at','updated_at','unpublished_at'], privileges: ['SELECT','INSERT','UPDATE'] },
+      puddle_community_versions: { columns: ['level_id','version','request_id','document','description','content_hash','title','gold_count','gem_count','target_seconds','validation_version','created_at'], privileges: ['SELECT','INSERT'] },
     };
     try {
       const missing=[];
@@ -175,6 +181,7 @@ export function createPuddleApp({ pool, origin, issuer, launchSecret, secure = t
       await client.query('COMMIT'); res.json({ saved: true, score: finalScore, details: finalDetails });
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   });
+  mountPuddleCommunity(app,{pool,session,base:BASE});
   app.use((_req, res) => res.status(404).json({ message: 'Not found.' }));
   app.use((err, _req, res, _next) => {
     const status = err.status >= 400 && err.status < 500 ? err.status : 503;

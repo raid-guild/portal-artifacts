@@ -29,11 +29,11 @@ export class PuddleSimulation {
     this.garden.phase='arriving';this.garden.arrivalTime=0;
     return true;
   }
-  startLocalGarden(level,{id,revision}={}){
+  startLocalGarden(level,{id,revision,community=null}={}){
     if(!level?.start||!level?.exit||!id||!Number.isInteger(revision)||revision<1)return false;
     this.runSerial++;this.gardenClock=null;
-    level.tabletScope=`local:${id}:${revision}`;
-    this.localRun={id,revision,level};this.selectedTest='garden';this.gardenLevelId=1;
+    level.tabletScope=community?`community:${community.id}:${community.version}`:`local:${id}:${revision}`;
+    this.localRun={id,revision,level,community};this.selectedTest='garden';this.gardenLevelId=1;
     this.practiceLevel=false;this.descending=false;this.reset(1);
     this.gardenInputArmed=false;this.garden.phase='arriving';this.garden.arrivalTime=0;return true;
   }
