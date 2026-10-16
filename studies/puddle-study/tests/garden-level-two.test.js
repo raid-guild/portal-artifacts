@@ -3,16 +3,18 @@ import assert from 'node:assert/strict';
 import {PuddleSimulation} from '../src/simulation.js';
 import {GARDEN,WEIGHT_GARDEN,arrivalPosition,updateGarden} from '../src/garden-level.js';
 import {groundAt,resolveParticle,segmentBlockedBySolid} from '../src/colliders.js';
-import {createWeightGardenView} from '../src/weight-garden-view.js';
+import {createEditorStageView} from '../src/editor-stage-view.js';
+import {closeTablet} from '../src/memory-tablets.js';
 import * as THREE from 'three';
 
-const run=(s,n,input={})=>{for(let i=0;i<n;i++)s.step(input);};
+const tick=(s,input={})=>{s.step(input);if(s.garden?.phase==='reading'){closeTablet(s);s.step({});}};
+const run=(s,n,input={})=>{for(let i=0;i<n;i++)tick(s,input);};
 const second=()=>{const s=new PuddleSimulation();s.startGarden(2);run(s,100);return s;};
 function go(s,x,z){for(let i=0;i<1000;i++){
   if(s.garden.phase!=='playing')return;
   const dx=x-s.brain.x,dz=z-s.brain.z,d=Math.hypot(dx,dz);
   if(d<.11){run(s,30);return;}
-  s.step({x:dx/d,z:dz/d});
+  tick(s,{x:dx/d,z:dz/d});
 }assert.fail(`Could not reach ${x},${z}; brain at ${s.brain.x},${s.brain.z}`);}
 function gem(s){run(s,220,{contract:true});run(s,60);}
 
@@ -64,19 +66,23 @@ test('two funnels share visibility and the elevated gate blocks until a real dep
 
 test('Level 2 follows both stair turns, deposits real weight, and earns all collectibles',()=>{
   const s=second(),g=WEIGHT_GARDEN.gate;
-  go(s,5.3,-2.8);go(s,2.6,-2.8);go(s,-1.5,-2.8);gem(s);
+  go(s,5.3,-3.3);go(s,2.6,-2.4);go(s,-1.5,-2.8);gem(s);
   assert.equal(s.garden.gemCount,1);
   go(s,-6,-2.8);go(s,-7.5,-2.8);go(s,-7.5,-.95);go(s,-7.5,-.25);go(s,-7.5,.35);
   assert.ok(s.brain.y<1.5&&s.brain.y>1,'the first stair turn reaches the middle terrace');
-  go(s,-5.4,.35);go(s,-4.2,1.45);go(s,-3.75,.35);run(s,240,{shed:true});
+  go(s,-5.4,.35);go(s,-4.5,.4);
+  assert.equal(s.garden.tablets.find(t=>t.id==='cistern-basin')?.read,true,'the shedding lesson is encountered before the deposit');
+  go(s,-4.2,1.45);go(s,-3.75,.35);run(s,240,{shed:true});
   assert.ok(s.pressure.weight>=g.threshold,`deposited ${s.pressure.weight} of ${g.threshold}`);
   assert.equal(s.pressure.opening,g.opening);assert.equal(s.fluid.particles.length,297);
   go(s,-3.75,1.7);go(s,-1.3,1.7);go(s,.4,.35);go(s,2.3,.35);
   assert.ok(s.brain.x>g.x+.5,'the brain passed through the raised middle gate');
   go(s,4,.35);gem(s);go(s,7.5,.35);go(s,7.5,2.7);go(s,7.5,3.6);
   assert.ok(s.brain.y<.5,'the second stair turn reaches the rear floor');
-  go(s,5.1,3.6);go(s,-3.5,3.6);gem(s);
+  go(s,5.1,3.6);go(s,4,3.6);go(s,3.5,3.6);go(s,1.8,3.45);
+  go(s,.85,3.1);go(s,-.4,3.05);go(s,-3.5,3.6);gem(s);
   assert.equal(s.garden.gemCount,3);assert.equal(s.garden.goldCount,17);
+  assert.ok(s.garden.tablets.every(t=>t.read),'all four cistern tablets are absorbed on the main route');
   go(s,-7.6,3.65);run(s,180);
   assert.equal(s.garden.phase,'complete');assert.equal(s.fluid.particles.length,297);
   assert.ok(s.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z)));
@@ -84,29 +90,25 @@ test('Level 2 follows both stair turns, deposits real weight, and earns all coll
 });
 
 
-test('rendered Level 2 bands and stair surfaces follow the physical heights',()=>{
-  const previous=globalThis.document;
-  globalThis.document={createElement:()=>({style:{},remove(){}}),querySelector:()=>({append(){}})};
-  try{
-    const view=createWeightGardenView(new THREE.Scene());
-    const floors=view.group.children.filter(o=>o.userData.weightFloor);
-    for(const [region,height] of [['high',2.16],['middle',1.08],['low',0]]){
-      const mesh=floors.find(o=>o.userData.weightFloor===region);assert.ok(mesh,region);
-      const pos=mesh.geometry.attributes.position;
-      assert.ok(Array.from({length:pos.count},(_,i)=>pos.getY(i)).every(y=>Math.abs(y-height)<1e-6),region);
-    }
-    for(const region of ['left-stairs','right-stairs']){
-      const meshes=floors.filter(o=>o.userData.weightFloor===region);assert.ok(meshes.length>=8);
-      const heights=meshes.flatMap(o=>Array.from({length:o.geometry.attributes.position.count},(_,i)=>o.geometry.attributes.position.getY(i)));
-      assert.ok(Math.max(...heights)-Math.min(...heights)>1,region);
-    }
-    view.dispose();
-  }finally{globalThis.document=previous;}
+test('rendered Level 2 has both filter ribs and four memory stones',()=>{
+  const view=createEditorStageView(new THREE.Scene(),WEIGHT_GARDEN);
+  const meshes=[];view.group.traverse(o=>{if(o.isMesh)meshes.push(o);});
+  assert.ok(meshes.some(o=>o.userData.editorId==='cistern-filter-east'));
+  assert.ok(meshes.some(o=>o.userData.editorId==='cistern-filter-west'));
+  assert.ok(meshes.filter(o=>o.geometry.type==='BoxGeometry'&&o.geometry.parameters?.width===.48).length>=4);
+  const gate=meshes.find(o=>o.geometry.type==='BoxGeometry'&&
+    Math.abs(o.geometry.parameters.width-WEIGHT_GARDEN.gate.width)<.001&&
+    Math.abs(o.geometry.parameters.depth-(WEIGHT_GARDEN.gate.maxZ-WEIGHT_GARDEN.gate.minZ))<.001);
+  assert.ok(gate,'the physical shutter has a visible panel');const restY=gate.position.y;
+  const s=second();s.pressure.opening=.58;view.update(s,new THREE.OrthographicCamera());
+  assert.ok(Math.abs(gate.position.y-restY-.58)<.001,'the visible shutter follows its real opening');
+  assert.ok(meshes.every(o=>Number.isFinite(o.position.x+o.position.y+o.position.z)));
+  view.dispose();
 });
 
 test('an early front ledge drop reaches the rear exit with missed optional points',()=>{
   const s=second();go(s,7.6,-.5);
-  for(let i=0;i<180&&s.brain.y>=1.5;i++)s.step({});
+  for(let i=0;i<180&&s.brain.y>=1.5;i++)tick(s);
   assert.ok(s.brain.y<1.5);
   go(s,7.5,2.7);go(s,7.5,3.6);go(s,-7.6,3.65);run(s,180);
   assert.equal(s.garden.phase,'complete');assert.ok(s.garden.goldCount<17);assert.ok(s.garden.gemCount<3);

@@ -14,6 +14,34 @@ const particles=[
 const coords=ps=>Float64Array.from(ps.flatMap(p=>[p.x,p.y,p.z]));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+test('distant shed cannot crop the main body at the marching grid edge',()=>{
+  for(const resolution of [28,48])for(const axis of ['x','z'])for(const sign of [-1,1]){
+    const body=[];
+    for(let x=-.3;x<=.3;x+=.1)for(let y=0;y<=.2;y+=.1)for(let z=-.3;z<=.3;z+=.1){
+      const p={x,y:.3+y,z};p[axis]+=sign*8;body.push(p);
+    }
+    const stray={x:0,y:.3,z:0};stray[axis]=-sign*7;
+    const particles=[...body,stray],surface=createParticleSurface(new THREE.MeshBasicMaterial(),resolution);
+    surface.update(particles,[],.067);
+    const mesh=surface.mesh,component=axis==='x'?0:2;
+    let min=Infinity,max=-Infinity;
+    for(let i=component;i<mesh.count*3;i+=3){
+      const value=mesh.geometry.attributes.position.array[i]*mesh.scale[axis]+mesh.position[axis];
+      if(Math.abs(value-sign*8)>=1)continue;
+      min=Math.min(min,value);max=Math.max(max,value);
+    }
+    assert.ok(min<sign*8-.1&&max>sign*8+.1,
+      `${resolution} ${axis} ${sign}: flesh must cover both sides of the brain (${min}, ${max})`);
+    for(const name of ['position','normal'])assert.ok(
+      mesh.geometry.attributes[name].array.subarray(0,mesh.count*3).every(Number.isFinite));
+    const reply=buildSurfaceJob({id:1,generation:0,surfaceId:1,resolution,
+      coords:coords(particles),colliders:[],radius:.067,maskTerrain:true},new Map());
+    assert.equal(reply.count,mesh.count);
+    assert.deepEqual(Array.from(reply.positions),Array.from(mesh.geometry.attributes.position.array.subarray(0,mesh.count*3)));
+    mesh.geometry.dispose();
+  }
+});
+
 test('bounded collider masks produce the same field and mesh as the full collider path',()=>{
   const near=(x,y,z)=>[0,.055,-.055].flatMap(dx=>[0,.055,-.055].map(dz=>
     ({x:x+dx,y:y+dx*.2,z:z+dz})));
@@ -90,6 +118,117 @@ class FakeWorker{
   terminate(){this.terminated=true;}
 }
 
+class ManualWorker{
+  constructor(){this.jobs=[];this.cache=new Map();this.terminated=false;}
+  postMessage(job){if(job.type==='build')this.jobs.push(job);}
+  complete(){
+    const job=this.jobs.shift();
+    assert.ok(job,'expected a queued surface build');
+    this.onmessage?.({data:buildSurfaceJob(job,this.cache)});
+  }
+  terminate(){this.terminated=true;}
+}
+
+test('stale living skin refreshes from the latest particles and ignores older worker geometry',()=>{
+  let clock=0;
+  const worker=new ManualWorker();
+  const pipeline=createSurfacePipeline({createWorker:()=>worker,now:()=>clock});
+  const surface=pipeline.create(new THREE.MeshBasicMaterial(),48,{priority:0});
+  const roof={type:'roof',minX:1,maxX:1.5,minZ:-3,maxZ:-2,bottom:2.2,top:2.7};
+  const colliders=[{type:'terraces',height:2.16,steps:[]},roof];
+  surface.update(particles,colliders,.067,{maskTerrain:true});
+  assert.equal(surface.mesh.count,0);
+  clock=110;
+  const moved=particles.map(p=>({...p,x:p.x+.3}));
+  surface.update(moved,colliders,.067,{maskTerrain:true});
+  const expected=createParticleSurface(new THREE.MeshBasicMaterial(),28);
+  expected.update(moved,colliders,.067,{maskTerrain:true});
+  assert.equal(pipeline.stats.bodyFallbacks,1);
+  assert.ok(expected.mesh.count>0);
+  assert.equal(surface.mesh.count,expected.mesh.count);
+  assert.deepEqual(surface.mesh.position.toArray(),expected.mesh.position.toArray());
+  assert.deepEqual(Array.from(surface.mesh.geometry.attributes.position.array.slice(0,surface.mesh.count*3)),
+    Array.from(expected.mesh.geometry.attributes.position.array.slice(0,expected.mesh.count*3)));
+  // A late, older snapshot must not put the skin back where it was.
+  worker.complete();
+  assert.equal(pipeline.stats.discarded,1);
+  assert.deepEqual(surface.mesh.position.toArray(),expected.mesh.position.toArray());
+  // The latest worker result restores the full resolution without changing pose.
+  worker.complete();
+  const full=createParticleSurface(new THREE.MeshBasicMaterial(),48);
+  full.update(moved,colliders,.067,{maskTerrain:true});
+  assert.equal(pipeline.stats.completed,1);
+  assert.equal(surface.mesh.count,full.mesh.count);
+  assert.deepEqual(surface.mesh.position.toArray(),full.mesh.position.toArray());
+  clock=125;
+  surface.update(moved,colliders,.067,{maskTerrain:true});
+  assert.equal(pipeline.stats.bodyFallbacks,1);
+  pipeline.invalidate();
+  assert.equal(surface.mesh.count,0);
+  assert.equal(surface.completedCentroid,null);
+  pipeline.dispose();expected.mesh.geometry.dispose();full.mesh.geometry.dispose();
+  assert.equal(worker.terminated,true);
+});
+
+test('stale body refresh stays throttled while a newer worker build is delayed',()=>{
+  let clock=0;
+  const worker=new ManualWorker();
+  const pipeline=createSurfacePipeline({createWorker:()=>worker,now:()=>clock});
+  const surface=pipeline.create(new THREE.MeshBasicMaterial(),48,{priority:0});
+  surface.update(particles,[],.067);
+  clock=101;
+  surface.update(particles.map(p=>({...p,x:p.x+.1})),[],.067);
+  assert.equal(pipeline.stats.bodyFallbacks,1);
+  clock=120;
+  surface.update(particles.map(p=>({...p,x:p.x+.2})),[],.067);
+  assert.equal(pipeline.stats.bodyFallbacks,1);
+  clock=143;
+  surface.update(particles.map(p=>({...p,x:p.x+.3})),[],.067);
+  assert.equal(pipeline.stats.bodyFallbacks,2);
+  pipeline.dispose();
+});
+
+test('fast motion gets current body geometry before the first delayed worker reply',()=>{
+  let clock=0;
+  const worker=new ManualWorker();
+  const pipeline=createSurfacePipeline({createWorker:()=>worker,now:()=>clock});
+  const surface=pipeline.create(new THREE.MeshBasicMaterial(),48,{priority:0});
+  surface.update(particles,[],.067);
+  clock=20;
+  const moved=particles.map(p=>({...p,y:p.y-.45}));
+  surface.update(moved,[],.067);
+  assert.equal(surface.mesh.count,0,'the first worker build has not returned');
+  clock=24;
+  worker.complete();
+  const expected=createParticleSurface(new THREE.MeshBasicMaterial(),28);
+  expected.update(moved,[],.067);
+  assert.equal(pipeline.stats.bodyFallbacks,1);
+  assert.equal(pipeline.stats.discarded,1);
+  assert.deepEqual(surface.mesh.position.toArray(),expected.mesh.position.toArray());
+  assert.equal(surface.mesh.count,expected.mesh.count);
+  worker.complete();
+  assert.equal(pipeline.stats.completed,1);
+  pipeline.dispose();expected.mesh.geometry.dispose();
+});
+
+test('small one-frame-old worker motion still displays at full resolution',()=>{
+  let clock=0;
+  const worker=new ManualWorker();
+  const pipeline=createSurfacePipeline({createWorker:()=>worker,now:()=>clock});
+  const surface=pipeline.create(new THREE.MeshBasicMaterial(),48,{priority:0});
+  surface.update(particles,[],.067);
+  clock=16;
+  surface.update(particles.map(p=>({...p,x:p.x+.04})),[],.067);
+  clock=20;
+  worker.complete();
+  assert.equal(pipeline.stats.completed,1);
+  assert.equal(pipeline.stats.bodyFallbacks,0);
+  assert.ok(surface.mesh.count>0);
+  worker.complete();
+  assert.equal(pipeline.stats.completed,2);
+  pipeline.dispose();
+});
+
 test('one-flight queue drops stale generations and keeps latest completed mesh',async()=>{
   const worker=new FakeWorker(),pipeline=createSurfacePipeline({createWorker:()=>worker});
   const surface=pipeline.create(new THREE.MeshBasicMaterial(),28,{priority:0});
@@ -120,7 +259,8 @@ test('rapid updates coalesce to the newest pending particle snapshot',async()=>{
   await sleep(100);
   const expected=createParticleSurface(new THREE.MeshBasicMaterial(),28);
   expected.update(newest,[],.067);
-  assert.equal(pipeline.stats.completed,2);
+  assert.equal(pipeline.stats.completed,1);
+  assert.equal(pipeline.stats.discarded,1);
   assert.equal(surface.mesh.count,expected.mesh.count);
   assert.deepEqual(Array.from(surface.mesh.geometry.attributes.position.array.slice(0,surface.mesh.count*3)),
     Array.from(expected.mesh.geometry.attributes.position.array.slice(0,expected.mesh.count*3)));

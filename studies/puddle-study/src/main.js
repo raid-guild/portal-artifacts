@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import './style.css';
-import {GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN,HOLLOW_CROWN,EMBER_CASCADE,gardenWorldOffset,drainPosition,arrivalPosition,looseGardenParticles,gardenCanCast} from './garden-level.js';
+import {GARDEN,WEIGHT_GARDEN,PASSAGE_GARDEN,REACH_GARDEN,GRIP_GARDEN,HOLLOW_CROWN,EMBER_CASCADE,gardenWorldOffset,drainPosition,arrivalPosition,looseGardenParticles,gardenCanCast} from './garden-level.js';
 import {createEditorStageView} from './editor-stage-view.js';
-import {createGardenView} from './garden-view.js';
-import {createWeightGardenView} from './weight-garden-view.js';
 import {createGardenScenery} from './garden-scenery.js';
 import {createPrintedMaterialLibrary} from './printed-material.js';
 import {setupGameShell} from './game-shell.js';
+import {localStorageForPage} from './local-levels.js';
 import {PullGesture} from './pull-gesture.js';
 import {setupPickupAudio} from './pickup-audio.js';
 const pickupAudio=setupPickupAudio();
@@ -25,6 +24,8 @@ import {FollowGardenCamera,cameraPointVisible,gardenMovementBasis} from './game-
 import {createBurnFeedback} from './burn-feedback.js';
 
 const sim = new PuddleSimulation();
+sim.tabletStorage=localStorageForPage();
+sim.enableWallClock();
 const perfEnabled=new URLSearchParams(location.search).has('perf');
 const perfNode=perfEnabled?document.createElement('div'):null;
 if(perfNode){
@@ -44,11 +45,20 @@ scene.background = new THREE.Color(0xc7e2df);
 const burnFeedback=createBurnFeedback(scene);
 if(import.meta.hot)import.meta.hot.dispose(()=>burnFeedback.dispose());
 const printLibrary=createPrintedMaterialLibrary();
-const gardenView=createGardenView(scene,{printLibrary});
-const weightGardenView=createWeightGardenView(scene,{printLibrary});
-const passageGardenView=createWeightGardenView(scene,{printLibrary,level:PASSAGE_GARDEN});
-const reachGardenView=createWeightGardenView(scene,{printLibrary,level:REACH_GARDEN});
-const gripGardenView=createWeightGardenView(scene,{printLibrary,level:GRIP_GARDEN});
+const nurseryView=createEditorStageView(scene,GARDEN,{printLibrary,labelRoot:document.querySelector('#app')});
+nurseryView.setPlaying(true);
+const weightGardenView=createEditorStageView(scene,WEIGHT_GARDEN,{printLibrary,labelRoot:document.querySelector('#app')});
+weightGardenView.group.position.y=gardenWorldOffset(2);
+weightGardenView.setPlaying(true);
+const passageGardenView=createEditorStageView(scene,PASSAGE_GARDEN,{printLibrary,labelRoot:document.querySelector('#app')});
+passageGardenView.group.position.y=gardenWorldOffset(3);
+passageGardenView.setPlaying(true);
+const reachGardenView=createEditorStageView(scene,REACH_GARDEN,{printLibrary,labelRoot:document.querySelector('#app')});
+reachGardenView.group.position.y=gardenWorldOffset(4);
+reachGardenView.setPlaying(true);
+const gripGardenView=createEditorStageView(scene,GRIP_GARDEN,{printLibrary,labelRoot:document.querySelector('#app')});
+gripGardenView.group.position.y=gardenWorldOffset(5);
+gripGardenView.setPlaying(true);
 const crownView=createEditorStageView(scene,HOLLOW_CROWN,{printLibrary,labelRoot:document.querySelector('#app')});
 crownView.group.position.y=-36;
 crownView.setPlaying(true);
@@ -56,8 +66,8 @@ const emberView=createEditorStageView(scene,EMBER_CASCADE,{printLibrary,labelRoo
 emberView.group.position.y=gardenWorldOffset(7);
 emberView.setPlaying(true);
 let localView=null;
-const gardenScenery=createGardenScenery(scene,{printLibrary,onExitReady:ready=>{gardenView.setCollarReady(ready);weightGardenView.setCollarReady(ready);passageGardenView.setCollarReady(ready);reachGardenView.setCollarReady(ready);gripGardenView.setCollarReady(ready);}});
-if(import.meta.hot)import.meta.hot.dispose(()=>{localView?.dispose();crownView.dispose();emberView.dispose();gardenScenery.dispose();weightGardenView.dispose();passageGardenView.dispose();reachGardenView.dispose();gripGardenView.dispose();printLibrary.dispose();});
+const gardenScenery=createGardenScenery(scene,{printLibrary,onExitReady:ready=>{nurseryView.setCollarReady(ready);weightGardenView.setCollarReady(ready);passageGardenView.setCollarReady(ready);reachGardenView.setCollarReady(ready);gripGardenView.setCollarReady(ready);}});
+if(import.meta.hot)import.meta.hot.dispose(()=>{localView?.dispose();nurseryView.dispose();crownView.dispose();emberView.dispose();gardenScenery.dispose();weightGardenView.dispose();passageGardenView.dispose();reachGardenView.dispose();gripGardenView.dispose();printLibrary.dispose();});
 const camera = new THREE.OrthographicCamera();
 camera.position.set(9, 13, 18);
 camera.lookAt(0, 1.65, 0);
@@ -212,7 +222,7 @@ function aimFromPointer(e){
   raycaster.setFromCamera(pointer,activeCamera);
   const reach=sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel);
   const activeGardenView=sim.isLocalGarden?localView:
-    [gardenView,weightGardenView,passageGardenView,reachGardenView,gripGardenView,crownView,emberView][sim.gardenLevelId-1];
+    [nurseryView,weightGardenView,passageGardenView,reachGardenView,gripGardenView,crownView,emberView][sim.gardenLevelId-1];
   const targets=reach?activeGardenView?.group.children.filter(o=>o.userData.pickableTerrain)||[]:
     [terrace,...(sim.selectedTest==='pressure'?[basin,plate]:[])];
   const hits=raycaster.intersectObjects(targets,false);
@@ -551,12 +561,14 @@ let framedLevel=sim.gardenLevelId;
 let last=performance.now(),acc=0;
 let lastIdleDraw=0;
 let perfWindow={started:last,frames:0,frame:0,physics:0,surface:0,render:0,steps:0,intervals:[],meshStart:0,bodyMeshStart:0};
-document.addEventListener('visibilitychange',()=>{last=performance.now();acc=0;});
+let wasHidden=document.hidden;
+document.addEventListener('visibilitychange',()=>{sim.syncGardenClock(performance.now(),wasHidden);wasHidden=document.hidden;last=performance.now();acc=0;});
 function frame(now){
   const frameStart=perfEnabled?performance.now():0;
   const interval=Math.max(0,now-last),elapsed=Math.min(interval/1000,.08);last=now;
+  sim.syncGardenClock(now,document.hidden);
   if(document.hidden){acc=0;requestAnimationFrame(frame);return;}
-  const idle=sim.selectedTest==='garden'&&['title','paused','complete'].includes(sim.garden.phase);
+  const idle=sim.selectedTest==='garden'&&['title','paused','complete','reading'].includes(sim.garden.phase);
   if(idle){acc=0;if(now-lastIdleDraw<100){requestAnimationFrame(frame);return;}lastIdleDraw=now;}
   if(!idle)acc+=elapsed;
   if(sim.selectedTest==='garden'&&framedLevel!==sim.gardenLevelId){framedLevel=sim.gardenLevelId;resize();}
@@ -571,6 +583,7 @@ function frame(now){
   const physicsStart=perfEnabled?performance.now():0;
   let steps=0;
   while(acc>=DT){const draining=sim.selectedTest==='garden'&&sim.garden.phase==='draining';sim.step({x:draining?0:x,z:draining?0:z,contract:draining?false:contracting,shed:shedHold.active||keys.has('KeyF'),push:pushHold.active||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;steps++;}
+  sim.syncGardenClock(performance.now(),document.hidden);
   const physicsMs=perfEnabled?performance.now()-physicsStart:0;
   if(sim.selectedTest==='garden'){
     const id=sim.gardenLevelId,progress=sim.descending&&sim.garden.phase==='arriving'?Math.min(1,sim.garden.arrivalTime/1.1):1;
@@ -589,14 +602,28 @@ function frame(now){
   camera.updateMatrixWorld(true);
   activeCamera=sim.selectedTest==='garden'&&cameraMode==='follow'?followCamera.update(sim,elapsed,innerWidth/innerHeight):camera;
   activeCamera.updateMatrixWorld(true);
-  syncOozeButton();updateSkin();updateHud();updateWorldLabels();gardenView.update(sim,activeCamera);weightGardenView.update(sim,activeCamera);passageGardenView.update(sim,activeCamera);reachGardenView.update(sim,activeCamera);gripGardenView.update(sim,activeCamera);
+  syncOozeButton();updateSkin();updateHud();updateWorldLabels();
+  nurseryView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&sim.gardenLevelId===1;
+  if(nurseryView.group.visible)nurseryView.update(sim,activeCamera);
+  weightGardenView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&
+    (sim.gardenLevelId===2||sim.descending&&sim.gardenLevelId===3&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5);
+  if(sim.gardenLevelId===2&&weightGardenView.group.visible)weightGardenView.update(sim,activeCamera);
+  passageGardenView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&
+    (sim.gardenLevelId===3||sim.descending&&sim.gardenLevelId===4&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5);
+  if(sim.gardenLevelId===3&&passageGardenView.group.visible)passageGardenView.update(sim,activeCamera);
+  reachGardenView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&
+    (sim.gardenLevelId===4||sim.descending&&sim.gardenLevelId===5&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5);
+  if(sim.gardenLevelId===4&&reachGardenView.group.visible)reachGardenView.update(sim,activeCamera);
+  gripGardenView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&
+    (sim.gardenLevelId===5||sim.descending&&sim.gardenLevelId===6&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5);
+  if(sim.gardenLevelId===5&&gripGardenView.group.visible)gripGardenView.update(sim,activeCamera);
   burnFeedback.update(sim,{offsetY:sim.selectedTest==='garden'&&!sim.isLocalGarden?gardenWorldOffset(sim.gardenLevelId):0});
   crownView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&sim.gardenLevelId===6;
   if(crownView.group.visible)crownView.update(sim,activeCamera);
   emberView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&sim.gardenLevelId===7;
   if(emberView.group.visible)emberView.update(sim,activeCamera);
   const showUpper=sim.selectedTest==='garden'&&sim.descending&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5;
-  if(sim.isLocalGarden){for(const view of [gardenView,weightGardenView,passageGardenView,reachGardenView,gripGardenView,crownView,emberView])view.group.visible=false;
+  if(sim.isLocalGarden){for(const view of [nurseryView,weightGardenView,passageGardenView,reachGardenView,gripGardenView,crownView,emberView])view.group.visible=false;
     localView?.update(sim,activeCamera);}
   gardenScenery.update(sim.selectedTest==='garden',innerWidth,innerHeight,sim.gardenLevelId,showUpper,sim.isLocalGarden);
   pickupAudio.update(sim.selectedTest==='garden'?sim.garden:null);

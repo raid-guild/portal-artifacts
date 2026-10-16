@@ -2,19 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PuddleSimulation} from '../src/simulation.js';
 import {GARDEN,gemCoverage,gemSamples,updateGarden} from '../src/garden-level.js';
-import {groundAt,resolveParticle} from '../src/colliders.js';
+import {groundAt,supportedGroundAt,resolveParticle} from '../src/colliders.js';
 import {drainPosition} from '../src/garden-level.js';
 import {createParticleSurface} from '../src/particle-surface.js';
-import {createGardenView} from '../src/garden-view.js';
+import {createEditorStageView} from '../src/editor-stage-view.js';
+import {closeTablet} from '../src/memory-tablets.js';
 import * as THREE from 'three';
-const run=(s,n,input={})=>{for(let i=0;i<n;i++)s.step(input);};
+const tick=(s,input={})=>{s.step(input);if(s.garden?.phase==='reading'){closeTablet(s);s.step({});}};
+const run=(s,n,input={})=>{for(let i=0;i<n;i++)tick(s,input);};
 const fresh=()=>{const s=new PuddleSimulation();s.selectTest('garden');s.garden.phase='playing';run(s,30);return s;};
 function go(s,x,z){
   for(let i=0;i<1000;i++){
     if(s.garden.phase==='draining'||s.garden.phase==='complete')return;
     const dx=x-s.brain.x,dz=z-s.brain.z,d=Math.hypot(dx,dz);
-    if(d<.08){run(s,45);return;}
-    s.step({x:dx/d,z:dz/d});
+    if(d<.18){run(s,15);return;}
+    tick(s,{x:dx/d,z:dz/d});
   }
   assert.fail(`Could not reach ${x},${z}: brain at ${s.brain.x},${s.brain.z}`);
 }
@@ -49,76 +51,60 @@ test('loose or disconnected flesh cannot collect gold or gems for the brain',()=
   assert.equal(g.collected,false);
 });
 
-test('the switchback route collects all three gems and 17 gold before descending',()=>{
+test('Hanging Nursery completes through the arcade, stairs, optional bridge, and drain',()=>{
   const s=fresh();
-  go(s,4.8,-2.6);go(s,2.5,-2.6);go(s,0,-2.6);
-  assert.ok(s.fluid.attachedCount>=175);assert.equal(s.garden.gemCount,0,'walking flat must not collect the first gem');
+  for(const [x,z] of [[4.8,-2.6],[2.5,-3.2],[.6,-2.7],[-2,-2.7]])go(s,x,z);
+  assert.ok(s.fluid.attachedCount>=175);
+  assert.equal(s.garden.under,true,'westward arcade is recognized from the far side');
+  assert.equal(s.garden.gemCount,0,'passing the cup does not automatically enclose its gem');
   run(s,220,{contract:true});assert.equal(s.garden.gemCount,1);
-  run(s,90);go(s,-6,-2.6);go(s,-7.5,-2.6);
-  go(s,-7.5,.3);go(s,-7.5,1.4);go(s,-7.5,2.2);
-  assert.ok(s.brain.y<.5,'the body descends the left stair corridor');
-  go(s,-5.5,2.2);go(s,-3,2.2);run(s,220,{contract:true});
-  assert.equal(s.garden.gemCount,2);run(s,80);
-  go(s,-1.5,2.2);go(s,1.1,2.2);assert.equal(s.garden.under,true);
-  go(s,2.2,2.6175);go(s,3.5,2.6175);go(s,4.5,2.6175);
-  assert.ok(s.fluid.coatContacts(s.activeColliders()).length>=8,'living brain crosses both post columns');
-  go(s,5.15,2.2);
-  for(let attempt=0;attempt<3&&!s.garden.gems[2].collected;attempt++){
-    go(s,6.35,2.2);run(s,160,{contract:true});run(s,30);
-  }
-  assert.equal(s.garden.gemCount,3,`third gem coverage ${s.garden.gems[2].coverage}; attached ${s.fluid.attachedCount}; brain ${s.brain.x},${s.brain.z}`);run(s,80);
-  go(s,7.1,2.2);
-  assert.equal(s.garden.goldCount,s.garden.gold.length);
-  go(s,7.6,2.8);run(s,220);
-  assert.equal(s.garden.phase,'complete');assert.equal(s.fluid.particles.length,297);
-  assert.ok(s.fluid.coatContacts(s.activeColliders()).length>=8);
+  run(s,90);
+  for(const [x,z] of [[-5,-2.7],[-7.5,-2.6],[-7.5,.3],[-7.5,1.4],[-7.5,2.2],[-5.8,2.5],
+    [-6.2,1.3],[-4.5,1.3],[-2.4,1.3],[1.55,1.3]])go(s,x,z);
+  assert.ok(s.brain.y>.65,'the raised gem landing is supported');
+  run(s,220,{contract:true});assert.equal(s.garden.gemCount,2);
+  run(s,80);
+  for(const [x,z] of [[2.6,1.3],[4.6,1.3],[4.8,3.5],[5.6,2.6]])go(s,x,z);
+  run(s,220,{contract:true});assert.equal(s.garden.gemCount,3);
+  run(s,80);go(s,6.8,3.2);go(s,7.6,2.8);run(s,220);
+  assert.equal(s.garden.phase,'complete');
+  assert.equal(s.garden.goldCount,17);
+  assert.ok(s.garden.tablets.every(t=>t.read),'all five route instructions are reachable');
   assert.ok(s.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z)));
 });
 
-test('the exposed upper edge offers an early drop that skips optional collection',()=>{
+test('nursery geometry leaves a westward arcade and a broad lower recovery route',()=>{
+  const s=fresh(),c=s.activeColliders();
+  assert.equal(GARDEN.posts,undefined,'the old uniform pillar barrier is gone');
+  assert.ok(Math.abs(GARDEN.roof.bottom-GARDEN.terrain.upperHeight-.32)<1e-8);
+  assert.ok(GARDEN.editorFixtures.some(f=>f.sourceId==='nursery-skywalk'));
+  assert.ok(GARDEN.editorFixtures.some(f=>f.sourceId==='nursery-gem-landing'&&f.maxX-f.minX>=3));
+  assert.equal(groundAt(-2,3.5,c).height,0,'falls from the bridge land in the lower garden');
+  assert.equal(supportedGroundAt({x:.8,y:.9,z:1.25},.067,c),.7,'the crossing gem has a real landing');
+  assert.equal(groundAt(-5.8,2.5,c).height,0,'the lower flesh pool is physically reachable');
+});
+
+test('an early wall drop reaches the lower court without the optional rewards',()=>{
   const s=fresh();go(s,2.2,-.2);
-  for(let i=0;i<180&&s.brain.y>=.5;i++)s.step({});
-  assert.ok(s.brain.y<.5);
-  go(s,2.2,2.6175);go(s,4.5,2.6175);
-  assert.ok(s.brain.x>4.4,'the physical brain crosses both post columns');
-  assert.ok(s.fluid.coatContacts(s.activeColliders()).length>=8,'the brain keeps real flesh through the gaps');
-  assert.ok(s.fluid.particles.every(p=>Number.isFinite(p.x+p.y+p.z)));
-  go(s,7.6,2.8);run(s,220);
+  for(let i=0;i<180&&s.brain.y>=.5;i++)tick(s);
+  assert.ok(s.brain.y<.5,'fall reaches the lower garden');
+  go(s,4.8,3.5);go(s,7.6,2.8);run(s,220);
   assert.equal(s.garden.phase,'complete');
   assert.ok(s.garden.goldCount<17);assert.ok(s.garden.gemCount<3);
 });
 
-test('two transverse post columns leave aligned gaps across the lower lane without blocking fixtures',()=>{
-  const posts=GARDEN.posts,r=.42,b=GARDEN.boundary,roof=GARDEN.roof;
-  assert.equal(posts.length,10);
-  assert.deepEqual([...new Set(posts.map(p=>p.x))],[3,4.035]);
-  const circleTouchesRect=(p,box)=>{
-    const dx=Math.max(box.minX-p.x,0,p.x-box.maxX),dz=Math.max(box.minZ-p.z,0,p.z-box.maxZ);
-    return dx*dx+dz*dz<p.radius*p.radius;
-  };
-  const supports=[roof.minZ-.14,roof.maxZ+.14].map(z=>({minX:0,maxX:.75,minZ:z-.14,maxZ:z+.14}));
-  for(const colX of [3,4.035]){
-    const col=posts.filter(p=>p.x===colX).sort((a,b)=>a.z-b.z);
-    assert.equal(col.length,5);
-    assert.ok(Math.abs(col[0].z-r-GARDEN.terrain.frontZ-.21)<1e-8);
-    assert.ok(Math.abs(b.maxZ-(col.at(-1).z+r)-.21)<1e-8);
-    for(let i=1;i<col.length;i++)assert.ok(Math.abs(col[i].z-col[i-1].z-2*r-.195)<1e-8);
-  }
-  assert.ok(Math.abs(4.035-3-2*r-.195)<1e-8);
-  for(const p of posts){
-    assert.ok(![roof,...supports].some(box=>circleTouchesRect(p,box)));
-    assert.equal(p.height,.65);
-    assert.equal(groundAt(p.x,p.z,[GARDEN.terrain]).height,0);
-  }
-  for(const [points,radius] of [[GARDEN.gold.map(([x,z])=>({x,z})),.13],[GARDEN.gems,.31],
-    [GARDEN.pools.map(([x,z])=>({x,z})),.35]])for(const item of points)
-    assert.ok(posts.every(p=>Math.hypot(item.x-p.x,item.z-p.z)>p.radius+radius),`fixture at ${item.x},${item.z} stays outside pillars`);
-  assert.ok(posts.every(p=>p.x>roof.maxX),'both columns are beyond the low roof');
+test('the arcade lesson only completes on the opposite-side exit',()=>{
+  const s=fresh(),roof=GARDEN.roof;s.tabletAutoRead=false;
+  const visit=x=>{Object.assign(s.brain,{x,z:-2.7,y:1.75});updateGarden(s,1/60);};
+  visit(roof.maxX+.4);visit((roof.minX+roof.maxX)/2);visit(roof.maxX+.4);
+  assert.equal(s.garden.enteredGap,false);assert.equal(s.garden.under,false,'backing out does not complete the lesson');
+  visit((roof.minX+roof.maxX)/2);visit(roof.minX-.4);
+  assert.equal(s.garden.under,true,'a later complete westward crossing does');
 });
 
 test('terrace heights and funnel floor match the playable descent',()=>{
   const s=fresh(),c=s.activeColliders();
-  assert.equal(groundAt(7,-2.6,c).height,2.16);
+  assert.ok(groundAt(7,-2.6,c).height<=2.16&&groundAt(7,-2.6,c).height>=2.06,'arrival bowl is shallow');
   assert.equal(groundAt(4.8,-2.6,c).height,1.62);
   assert.ok(Math.abs(groundAt(-7.5,.75,c).height-.81)<1e-9);
   assert.ok(Math.abs(groundAt(-7.5,2.2,c).height)<1e-9);
@@ -165,19 +151,15 @@ test('start patch blocks low side entry at both exposed edges and allows a drop'
   assert.ok(outside.y<1.9,'the tier corner does not raise material outside its footprint');
 });
 
-test('rendered lower lane stays level beneath its pickups',()=>{
-  const previous=globalThis.document;
-  globalThis.document={createElement:()=>({style:{}}),querySelector:()=>({append(){}})};
-  try{
-    const {group}=createGardenView(new THREE.Scene());
-    const floor=group.children.filter(o=>o.userData.gardenFloor==='lower');
-    const upper=group.children.filter(o=>o.userData.gardenFloor==='upper');
-    const start=group.children.filter(o=>o.userData.gardenFloor==='start');
-    assert.ok(floor.length>=3);assert.equal(upper.length,3);assert.ok(start.length>=4);
-    assert.ok(floor.every(o=>{const p=o.geometry.attributes.position;return Array.from({length:p.count},(_,i)=>p.getY(i)).every(y=>Math.abs(y)<1e-8);}));
-    assert.ok(upper.every(o=>Array.from({length:o.geometry.attributes.position.count},(_,i)=>o.geometry.attributes.position.getY(i)).every(y=>Math.abs(y-1.62)<1e-6)));
-    assert.ok(start.every(o=>Array.from({length:o.geometry.attributes.position.count},(_,i)=>o.geometry.attributes.position.getY(i)).every(y=>y>=1.62-1e-6&&y<=2.16+1e-6)));
-  }finally{globalThis.document=previous;}
+test('the nursery renders its raised crossing, memory stones, and drain court',()=>{
+  const scene=new THREE.Scene(),view=createEditorStageView(scene,GARDEN);
+  const meshes=[];view.group.traverse(o=>{if(o.isMesh)meshes.push(o);});
+  assert.ok(meshes.length>30);
+  assert.ok(meshes.some(o=>o.userData.editorId==='nursery-gem-landing'));
+  assert.ok(view.group.children.some(o=>o.isLineSegments),'planting pockets and drain court have visible inlays');
+  assert.ok(meshes.some(o=>o.geometry.type==='ConeGeometry'&&o.position.z>4),'lower garden has planting');
+  assert.ok(meshes.every(o=>Number.isFinite(o.position.x+o.position.y+o.position.z)));
+  view.dispose();
 });
 
 test('drain gathers over the opening before dropping below the terrain mask',()=>{

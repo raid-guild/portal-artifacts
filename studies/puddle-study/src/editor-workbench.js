@@ -4,6 +4,7 @@ import {commitEditorSolid} from './editor-solid.js';
 import {solidInside,solidRay,disposeEditorSolid} from './editor-solid-physics.js';
 import {groundAt} from './colliders.js';
 import {DEFAULT_TARGET_TIME,CAMPAIGN_TARGETS} from './game-score.js';
+import {TABLET_HINTS} from './memory-tablets.js';
 
 const copy=value=>JSON.parse(JSON.stringify(value));
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<=1000;
@@ -52,7 +53,7 @@ function objectShapeErrors(objects){
   const errors=[],ids=new Set();
   const known=new Set(['start','exit','flesh','gem','gold','pillar','legacy-roof','legacy-passage',
     'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap',
-    'stairs','paint','pit','cutter','label']);
+    'stairs','paint','pit','cutter','label','tablet']);
   const numeric=new Set(['x','y','z','base','offset','radius','bottomRadius','depth','width','height',
     'minX','maxX','minY','maxY','minZ','maxZ','bottom','top','run','rise','steps','weight',
     'opening','threshold','releaseThreshold','rate','climbHeight','supportWidth',
@@ -76,7 +77,7 @@ function objectShapeErrors(objects){
     };
     visit(o);
     if(['start','exit','flesh','gem','gold','pillar','pressure-basin','basin',
-      'casting-bank','stairs','pit','cutter','label'].includes(o.kind)&&!point(o))
+      'casting-bank','stairs','pit','cutter','label','tablet'].includes(o.kind)&&!point(o))
       errors.push(`${o.kind} needs finite X and Z coordinates.`);
     if(['block','lowgap','legacy-roof','legacy-passage','paint','slippery'].includes(o.kind)&&!rect(o))
       errors.push(`${o.kind} needs a positive footprint.`);
@@ -88,6 +89,10 @@ function objectShapeErrors(objects){
     if(o.kind==='cutter'&&(!finite(o.y)||!o.rotation||
       !['x','y','z'].every(key=>finite(o.rotation[key]))))
       errors.push('A cutter needs finite height and XYZ rotation.');
+    if(o.kind==='tablet'&&(!finite(o.base)||o.base<0||o.base>16||
+      !['tutorial','story'].includes(o.category)||typeof o.title!=='string'||!o.title.trim()||o.title.length>60||
+      typeof o.text!=='string'||!o.text.trim()||o.text.length>320||!TABLET_HINTS.includes(o.hint)))
+      errors.push('Memory tablets need a short title, message, category, control hint, and safe height.');
   }
   return [...new Set(errors)];
 }
@@ -167,7 +172,8 @@ export function draftFromPreset(id){
   add('start',{x:l.start.x,z:l.start.z,...(l.start.y!==undefined?{base:l.start.y}:{})});add('exit',l.exit);
   l.pools.forEach(([x,z,base],i)=>add('flesh',{x,z,...(base!==undefined?{base}:{}),weight:l.poolCounts?.[i]??58}));
   l.gems.forEach(g=>add('gem',g));l.gold.forEach(([x,z,base])=>add('gold',{x,z,...(base!==undefined?{base}:{})}));
-  if(id===6||id===7){
+  for(const tablet of l.tablets||[])add('tablet',tablet,tablet.id);
+  if(l.editorFixtures?.length){
     for(const p of l.posts||[])add('pillar',{x:p.x,z:p.z,radius:p.radius,height:p.height},p.sourceId);
     for(const c of l.editorFixtures){
       if(c.type==='box')add('block',{minX:c.minX,maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,
@@ -176,7 +182,8 @@ export function draftFromPreset(id){
         minZ:c.minZ,maxZ:c.maxZ,minY:c.bottom,maxY:c.top,
         ...(c.approachBothSides?{approachBothSides:true}:{})},c.sourceId);
       else if(c.type==='editor-stairs')add('stairs',{x:(c.minX+c.maxX)/2,z:(c.minZ+c.maxZ)/2,
-        axis:c.axis,reverse:c.reverse,run:c.maxZ-c.minZ,width:c.maxX-c.minX,
+        axis:c.axis,reverse:c.reverse,run:c.axis==='x'?c.maxX-c.minX:c.maxZ-c.minZ,
+        width:c.axis==='x'?c.maxZ-c.minZ:c.maxX-c.minX,
         rise:c.rise,steps:c.steps,base:c.base},c.sourceId);
       else if(c.type==='sticky-wall')add('paint',{surface:'sticky',face:c.face,
         minX:c.minX,maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,minY:c.minY,maxY:c.maxY,
@@ -186,9 +193,15 @@ export function draftFromPreset(id){
         maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,base:c.base,
         ...(c.targetId?{targetId:c.targetId}:{})},c.sourceId);
     }
-    if(id===7)for(const pit of l.pits||[])add('pit',{x:pit.x,z:pit.z,radius:pit.radius},pit.sourceId);
+    for(const pit of l.pits||[])add('pit',{x:pit.x,z:pit.z,radius:pit.radius},pit.sourceId);
+    if(l.roof)add('legacy-roof',l.roof);
+    if(l.passage)add('legacy-passage',l.passage);
+    for(const channel of l.channels||[])add('basin',channel);
     if(l.basin)add('pressure-basin',l.basin);
     if(l.gate)add('pressure-gate',l.gate);
+    if(l.castingBank)add('casting-bank',l.castingBank);
+    if(l.grip)add('grip',l.grip);
+    if(l.slip)add('slippery',l.slip);
     return draft;
   }
   for(const post of l.posts||[])add('pillar',post);
@@ -203,6 +216,7 @@ export function draftFromPreset(id){
   if(l.castingBank)add('casting-bank',l.castingBank);
   if(l.grip)add('grip',l.grip);
   if(l.slip)add('slippery',l.slip);
+  for(const pit of l.pits||[])add('pit',{x:pit.x,z:pit.z,radius:pit.radius},pit.sourceId);
   return draft;
 }
 
@@ -227,9 +241,10 @@ function gapColliders(o){
 
 function stairColliders(o){
   const axis=o.axis==='z'?'z':'x',half=o.width/2;
+  const coordinate=n=>Number(n.toFixed(6));
   return [{type:'editor-stairs',axis,reverse:!!o.reverse,steps:Math.max(1,Math.min(12,Math.round(o.steps||4))),
-    minX:axis==='x'?o.x-o.run/2:o.x-half,maxX:axis==='x'?o.x+o.run/2:o.x+half,
-    minZ:axis==='z'?o.z-o.run/2:o.z-half,maxZ:axis==='z'?o.z+o.run/2:o.z+half,
+    minX:coordinate(axis==='x'?o.x-o.run/2:o.x-half),maxX:coordinate(axis==='x'?o.x+o.run/2:o.x+half),
+    minZ:coordinate(axis==='z'?o.z-o.run/2:o.z-half),maxZ:coordinate(axis==='z'?o.z+o.run/2:o.z+half),
     base:o.base??0,rise:o.rise,sourceId:o.id}];
 }
 
@@ -266,6 +281,8 @@ export function compileDraft(draft){
     pools:pools.map(o=>o.base===undefined?[o.x,o.z]:[o.x,o.z,o.base]),poolCounts:counts,
     gems:objects.filter(o=>o.kind==='gem').map(o=>({x:o.x,z:o.z,...(o.base!==undefined?{base:o.base}:{})})),
     gold:objects.filter(o=>o.kind==='gold').map(o=>o.base===undefined?[o.x,o.z]:[o.x,o.z,o.base]),
+    tablets:objects.filter(o=>o.kind==='tablet').map(o=>({id:o.id,x:o.x,z:o.z,base:o.base??0,
+      category:o.category,title:o.title,text:o.text,hint:o.hint})),
     labels:objects.filter(o=>o.kind==='label').map(o=>({id:o.id,text:o.text,x:o.x,z:o.z,
       base:o.base,offset:o.offset})),editorFixtures:[]};
   for(const o of objects){
@@ -284,7 +301,8 @@ export function compileDraft(draft){
       case 'pressure-gate':level.gate={x:o.x,width:o.width,height:o.height,opening:o.opening,minZ:o.minZ,maxZ:o.maxZ,
         threshold:o.threshold,releaseThreshold:o.releaseThreshold,rate:o.rate,base:o.base,...(o.latch?{latch:true}:{})};break;
       case 'basin':(level.channels??=[]).push({type:'funnel',x:o.x,z:o.z,radius:o.radius,
-        bottomRadius:o.bottomRadius,depth:o.depth,...(o.targetId?{raised:true,base:o.base,targetId:o.targetId}:{})});break;
+        bottomRadius:o.bottomRadius,depth:o.depth,...(o.targetId||o.raised?{raised:true,base:o.base,
+          ...(o.targetId?{targetId:o.targetId}:{})}:{})});break;
       case 'casting-bank':level.castingBank={x:o.x,z:o.z};break;
       case 'grip':level.grip={ramp:o.ramp,platform:o.platform,climbHeight:o.climbHeight};
         Object.defineProperty(level.grip.platform,'sourceId',{value:o.id});
@@ -372,7 +390,7 @@ export function validateDraft(draft){
   if(shapeErrors.length)return {errors:[...new Set([...errors,...shapeErrors])],warnings};
   const objects=Array.isArray(draft.objects)?draft.objects:[],ids=new Set();
   const known=new Set(['start','exit','flesh','gem','gold','pillar','legacy-roof','legacy-passage',
-    'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap','stairs','paint','pit','cutter','label']);
+    'pressure-basin','pressure-gate','basin','casting-bank','grip','slippery','block','lowgap','stairs','paint','pit','cutter','label','tablet']);
   for(const o of objects){
     if(!known.has(o.kind))errors.push('Unknown object type cannot be play-tested.');
     if(typeof o.id!=='string'||!o.id||ids.has(o.id))errors.push('Every object needs a unique stable ID.');
@@ -412,6 +430,10 @@ export function validateDraft(draft){
     if(o.kind==='label'&&(typeof o.text!=='string'||o.text.length>120||!o.text.trim()||
       !point(o)||!finite(o.base)||!finite(o.offset)||o.offset<0||o.offset>8))
       errors.push('Labels need text up to 120 characters, a valid position, and a safe height.');
+    if(o.kind==='tablet'&&(!point(o)||!finite(o.base)||o.base<0||o.base>16||
+      !['tutorial','story'].includes(o.category)||typeof o.title!=='string'||!o.title.trim()||o.title.length>60||
+      typeof o.text!=='string'||!o.text.trim()||o.text.length>320||!TABLET_HINTS.includes(o.hint)))
+      errors.push('Memory tablets need a valid height, tutorial or story category, a short title and message, and a supported control hint.');
   }
   if(objects.filter(o=>o.kind==='start').length!==1)errors.push('Place one start point before play-testing.');
   if(objects.filter(o=>o.kind==='exit').length!==1)errors.push('Place one exit before play-testing.');
@@ -483,16 +505,22 @@ export function importDraft(text){
 }
 
 function draftFromLegacy(level){
-  const draft=draftFromPreset(level.id);
-  draft.name=level.name;draft.boundary=copy(level.boundary);draft.terrain=copy(level.terrain);
-  draft.totalFlesh=level.capacity;draft.startingFlesh=level.seedCount;draft.tendrils=true;
+  // Build only what the old document actually contains. Starting with today's
+  // preset would silently add new nursery bridges and tablets to old saves.
+  const draft={name:level.name,presetId:level.id,boundary:copy(level.boundary),terrain:copy(level.terrain),
+    totalFlesh:level.capacity,startingFlesh:level.seedCount,targetTime:CAMPAIGN_TARGETS[level.id-1],
+    tendrils:true,nextObjectId:1,objects:[]};
+  draft.objects.push({id:nextId(draft),kind:'start',...copy(level.start)},
+    {id:nextId(draft),kind:'exit',...copy(level.exit)});
   const from=(kind)=>draft.objects.filter(o=>o.kind===kind);
   Object.assign(from('start')[0],level.start);Object.assign(from('exit')[0],level.exit);
   for(const [kind,values] of [['flesh',level.pools],['gem',level.gems],['gold',level.gold]]){
     const list=from(kind);if(list.length!==values.length){draft.objects=draft.objects.filter(o=>o.kind!==kind);
       values.forEach((value,i)=>draft.objects.push({id:nextId(draft),kind,
-        ...(Array.isArray(value)?{x:value[0],z:value[1]}:copy(value)),...(kind==='flesh'?{weight:level.poolCounts?.[i]??58}:{})}));}
-    else values.forEach((value,i)=>Object.assign(list[i],Array.isArray(value)?{x:value[0],z:value[1]}:value,
+        ...(Array.isArray(value)?{x:value[0],z:value[1],...(value.length===3?{base:value[2]}:{})}:copy(value)),
+        ...(kind==='flesh'?{weight:level.poolCounts?.[i]??58}:{})}));}
+    else values.forEach((value,i)=>Object.assign(list[i],Array.isArray(value)?
+      {x:value[0],z:value[1],...(value.length===3?{base:value[2]}:{})}:value,
       kind==='flesh'?{weight:level.poolCounts?.[i]??58}:{}));
   }
   for(const [kind,values] of [['pillar',level.posts||[]],['basin',level.channels||[]]]){
@@ -503,6 +531,21 @@ function draftFromLegacy(level){
     ['pressure-gate',level.gate],['casting-bank',level.castingBank],['grip',level.grip],['slippery',level.slip]]){
     draft.objects=draft.objects.filter(o=>o.kind!==kind);
     if(value)draft.objects.push({id:nextId(draft),kind,...copy(value)});
+  }
+  for(const pit of level.pits||[])draft.objects.push({id:pit.sourceId||nextId(draft),kind:'pit',
+    x:pit.x,z:pit.z,radius:pit.radius});
+  for(const tablet of level.tablets||[])draft.objects.push({kind:'tablet',...copy(tablet)});
+  for(const c of level.editorFixtures||[]){
+    const id=c.sourceId||nextId(draft);
+    if(c.type==='box')draft.objects.push({id,kind:'block',minX:c.minX,maxX:c.maxX,
+      minZ:c.minZ,maxZ:c.maxZ,minY:c.minY,maxY:c.maxY});
+    else if(c.type==='roof')draft.objects.push({id,kind:'block',role:'crown-roof',
+      minX:c.minX,maxX:c.maxX,minZ:c.minZ,maxZ:c.maxZ,minY:c.bottom,maxY:c.top,
+      ...(c.approachBothSides?{approachBothSides:true}:{})});
+    else if(c.type==='editor-stairs')draft.objects.push({id,kind:'stairs',
+      x:(c.minX+c.maxX)/2,z:(c.minZ+c.maxZ)/2,axis:c.axis,reverse:c.reverse,
+      run:c.axis==='x'?c.maxX-c.minX:c.maxZ-c.minZ,
+      width:c.axis==='x'?c.maxZ-c.minZ:c.maxX-c.minX,rise:c.rise,steps:c.steps,base:c.base});
   }
   if(level.id===1){
     draft.objects=draft.objects.filter(o=>o.role!=='roof-support');
@@ -531,6 +574,8 @@ export function placedObjectDefaults(kind,p){
     case 'stairs':return {x,z,axis:'x',reverse:false,run:1.4,width:1.5,rise:1.08,steps:4,base};
     case 'flesh':return {x,z,weight:1};
     case 'gem':case 'gold':return {x,z};
+    case 'tablet':return {x,z,base,category:'tutorial',title:'A memory of the tower',
+      text:'The stone holds a small memory. Surround it to read.',hint:'none'};
     case 'start':return {x,z,base};
     case 'label':return {x,z,base,text:'New label',offset:.45};
     case 'exit':return {type:'funnel',x,z,radius:.95,bottomRadius:.36,depth:.9};
@@ -597,7 +642,7 @@ export function snapDraftObjectToHighest(draft,id){
     return {ok:false,reason:'This object does not support height snapping.'};
   const support=highestDraftSupport(draft,position.x,position.z,id),next=support.height;
   if(o.kind==='block'){const delta=next-(o.minY??0);o.minY=(o.minY??0)+delta;o.maxY+=delta;}
-  else if(o.kind==='pillar'||o.kind==='stairs'||o.kind==='start'||o.kind==='label')o.base=next;
+  else if(o.kind==='pillar'||o.kind==='stairs'||o.kind==='start'||o.kind==='label'||o.kind==='tablet')o.base=next;
   else if(o.kind==='lowgap'){const delta=next-(o.base??0);o.base=next;o.bottom+=delta;o.top+=delta;}
   else if(o.kind==='basin'){if(support.targetId){o.base=next;o.targetId=support.targetId;}
     else{delete o.base;delete o.targetId;}}
@@ -748,10 +793,15 @@ export function resetDraftPaint(draft,area){
 }
 
 export class WorkbenchSimulation extends PuddleSimulation{
-  constructor(draft){
+  constructor(draft,{tabletScope,tabletStorage}={}){
     super();
     const unsafe=boardErrors(draft);if(unsafe.length)throw new Error(unsafe.join(' '));
     this.editorLevel=compileDraft(draft);
+    // Editor play tests are separate from campaign and saved local attempts.
+    // Include document content so two drafts using object-1 cannot share reads.
+    let hash=2166136261;for(const ch of exportDraft(draft))hash=Math.imul(hash^ch.charCodeAt(0),16777619)>>>0;
+    this.editorLevel.tabletScope=tabletScope||`editor:${hash.toString(16)}`;
+    this.tabletStorage=tabletStorage;
     this.selectedTest='garden';this.gardenLevelId=this.editorLevel.id;
     this.reset(1);
   }

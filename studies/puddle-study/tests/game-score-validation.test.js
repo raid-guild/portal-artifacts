@@ -27,7 +27,18 @@ test('invalid persisted timers are discarded while genuine legacy results remain
     assert.equal(createLocalLevelProgress({storage:store}).getBest('level',1),null);
   }
   const store=memory();store.setItem(PROGRESS_KEY,JSON.stringify({version:1,best:{1:{gold:9,gems:1}}}));
-  const progress=createGameProgress({storage:store});assert.equal(progress.getBest(1).percent,50);
+  const progress=createGameProgress({storage:store});assert.equal(progress.getBest(1),null,'retired nursery PB is archived');
   assert.equal(progress.isUnlocked(2),true);
   assert.equal(scoreRun(counts).percent,50);
+});
+test('old blended campaign scores retain collection and unlocks without a retroactive time bonus',()=>{
+  const store=memory();store.setItem(PROGRESS_KEY,JSON.stringify({version:2,
+    best:{1:{gold:8,gems:1,elapsed:12,target:30}},
+    bestCollection:{1:{gold:9,gems:1}}}));
+  const progress=createGameProgress({storage:store});
+  assert.equal(progress.getBest(1),null,'the revised course needs a fresh result');
+  assert.equal(progress.isUnlocked(2),true);
+  progress.recordCompletion(1,{gold:17,gems:3,elapsed:20});
+  assert.equal(progress.getBest(1).percent,100);
+  assert.equal(progress.getBest(1).points,1100);
 });

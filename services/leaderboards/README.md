@@ -4,6 +4,59 @@ Optional backend for standalone Portal artifacts. The first game is Cosmic Carni
 (scoring version `1`). API and static host deploy independently from this repository.
 Portal owns login and profile identity; this service owns only game sessions and runs.
 
+## Puddle ranked gardens
+
+Puddle uses this same service at `/leaderboard-api/puddle-study/*`. Each of its seven
+campaign levels has a public board with one highest-point run per player. Direct
+links and embedded play remain available to guests; the game tells them to log in
+to `portal.raidguild.org` to participate in high scores. The standalone Puddle
+module must be opened through Portal after login for a ranked session. Workshop
+levels, physics studies, practice runs, and development access are local only.
+
+Completion is collected items divided by total items, capped at 100%. Finishing
+with at least half the gems and gold still unlocks the next level locally. Ranked
+points are `round(1000 × items collected / total items) +
+10 × floor(max(0, target milliseconds − elapsed milliseconds) / 1000)`.
+The time bonus counts whole seconds under the target. A full Level 1 clear in
+20 seconds is 100% complete and earns 1,100 points. The timer uses active wall
+time after the first landing, counts respawns, and excludes explicit pause and
+hidden-tab time. A run is fixed when the player enters the exit; continuing to
+explore afterward cannot alter the submitted result. The API derives points from
+canonical level totals and target times and checks the campaign content ID, item
+counts, run lifetime, and reported elapsed time. As with the other games, this is
+a casual leaderboard, not server-side physics replay validation. Puddle allows
+240 ranked starts per player per rolling hour; each start counts even if the
+player restarts or leaves the level. A renewed Portal session for the same
+account can finish an existing run while it remains within the two-hour limit.
+Client requests time out after eight seconds; a timed-out finish retries once
+with the identical exit snapshot. Guest and local progress continue if the API
+is unavailable.
+
+`PUDDLE_LAUNCH_SECRET` must be a dedicated random value of at least 32 characters
+on the leaderboard API and Portal. Missing configuration disables only Puddle's
+ranked route; guest play and other games continue. Caddy proxies the path through
+the existing `LEADERBOARD_UPSTREAM`. The existing shared schema already has the
+required `runs.run_config` and `runs.details` fields; `GET /ready` checks their
+presence, schema access, required CRUD grants, and the player identity sequence
+grant before Portal auth is enabled.
+
+Portal configuration is prepared in `ops/configure-puddle.ts`. Copy it into a
+Portal checkout and run it with Payload's CLI: dry-run first, inspect its receipt,
+then run with `--apply` when the module identity and target deployment have been
+reviewed. The script requires exactly one existing external `puddle-study` module
+at `https://portal-artifacts-production.up.railway.app/puddle-study/` and changes
+only its launch auth fields. Neither the script nor this repository deployment
+automatically configures Portal or the production secret.
+
+For local verification, run `npm run build:ranked` in `studies/puddle-study` before
+the frontend build; it generates matching level totals and content IDs for both
+client and API. Run the Puddle frontend tests/build and this service's full test
+suite against a disposable local Postgres database named `*_test`. Check guest
+direct play, `/leaderboard-api/puddle-study/ready`, each public board, and a signed
+Portal launch before considering ranked play live. A future campaign rules change
+must increment `PUDDLE_VERSION` in `src/puddle-rules.js` and `RANKED_VERSION` in
+Puddle's `ranked-client.js` to create a separate board.
+
 ## Architecture
 
 The static Caddy host proxies `/leaderboard-api/cosmic-carnival/*` to this service's

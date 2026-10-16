@@ -50,9 +50,8 @@ test('unsupported seed and full bodies fall from both terrace heights at both si
 test('normal and Run movement can carry real flesh across an exposed ledge, then release to fall',()=>{
   const colliders=gardenColliders(GARDEN);
   for(const push of [false,true])for(const count of [65,297]){
-    // Use an exposed stretch of this ledge. Level 1's two pillar rows now
-    // occupy x=3 and x=4.035, where a falling body can land on a post top.
-    const fluid=raised(count,1,1.62,1.7,-2.1);
+    // Use the exposed nursery ledge east of its short garden divider.
+    const fluid=raised(count,1,1.62,-5,-2.1);
     let airborne=false,downward=false;
     run(fluid,220,i=>{
       if(fluid.brainAirborne)airborne=true;
@@ -61,7 +60,7 @@ test('normal and Run movement can carry real flesh across an exposed ledge, then
     },colliders);
     assert.ok(fluid.brain.z>GARDEN.terrain.frontZ,`crossed edge: ${fluid.brain.z}`);
     assert.ok(airborne&&downward,'controller accepted a gravity-driven fall');
-    assert.ok(fluid.brain.y<.5,`landed after movement release: ${fluid.brain.y}`);
+    assert.ok(fluid.brain.y<1.1,`landed below the upper ledge after movement release: ${fluid.brain.y}`);
     intact(fluid,count,colliders);
   }
 });
@@ -81,8 +80,8 @@ test('holding contract in air does not lift a floating mound; landing restores m
   intact(fluid,297);
 });
 
-test('Grip Garden slippery terrace still sends the body over its 1.08-unit edge',()=>{
-  const colliders=gardenColliders(GRIP_GARDEN),fluid=raised(65,1,1.08,4.2,1.1);
+test('the slippery terrace still sends an intact body over its 1.08-unit edge without a well below',()=>{
+  const colliders=gardenColliders({...GRIP_GARDEN,pits:[]}),fluid=raised(65,1,1.08,4.2,1.1);
   let onSlip=false,airborne=false;
   run(fluid,210,i=>{
     if(fluid.brainSlipping)onSlip=true;

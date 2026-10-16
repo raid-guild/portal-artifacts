@@ -2,6 +2,7 @@ import {GARDEN_LEVELS,gardenColliders,gardenFixtureHeight} from './garden-level.
 import {PuddleSimulation} from './simulation.js';
 import {pointInsideSolid,groundAt} from './colliders.js';
 import {gripAxis,gripLowHeight,gripHighHeight} from './grip-ramp.js';
+import {TABLET_HINTS} from './memory-tablets.js';
 export const clone=value=>JSON.parse(JSON.stringify(value));
 export function preset(id){if(![2,3,4,5].includes(Number(id)))throw new Error('Choose a supported puzzle preset (2–5).');return clone(GARDEN_LEVELS[Number(id)-1]);}
 export function objectRef(level,selection){
@@ -52,10 +53,51 @@ export function validateLevel(l){
   try{
     if(!l||![2,3,4,5].includes(l.id))throw new Error('Unsupported puzzle preset.');
     if(typeof l.name!=='string'||!l.name.trim()||l.name.length>60)throw new Error('Give the garden a name (up to 60 characters).');
-    const numeric=new Set(['x','z','minX','maxX','minZ','maxZ','minY','maxY','radius','bottomRadius','depth','width','height','opening','threshold','releaseThreshold','rate','base','bottom','top','frontHeight','middleHeight','frontZ','rearZ','descendZ','startZ','endZ','drop','northHeight','southHeight','minHeight','maxHeight','climbHeight','seedCount','capacity','id']);
+    const numeric=new Set(['x','z','minX','maxX','minZ','maxZ','minY','maxY','radius','bottomRadius','depth','width','height','opening','threshold','releaseThreshold','rate','base','bottom','top','frontHeight','middleHeight','frontZ','rearZ','descendZ','startZ','endZ','drop','northHeight','southHeight','minHeight','maxHeight','climbHeight','seedCount','capacity']);
     const visit=(o,depth=0)=>{if(depth>12)throw new Error('Level definition is too deeply nested.');if(typeof o==='number'&&(!Number.isFinite(o)||Math.abs(o)>1000))throw new Error('Coordinates and settings must be finite and within 1,000 units.');if(Array.isArray(o)&&o.length>300)throw new Error('Too many objects.');if(o&&typeof o==='object')for(const [key,value] of Object.entries(o)){if(numeric.has(key)&&!Number.isFinite(value))throw new Error('Numeric settings must be numbers.');visit(value,depth+1);}};visit(l);
+    if(l.tablets!==undefined){
+      if(!Array.isArray(l.tablets)||l.tablets.length>30)throw new Error('Keep no more than 30 memory tablets.');
+      const ids=new Set();for(const tablet of l.tablets){
+        if(!tablet||typeof tablet.id!=='string'||!tablet.id.trim()||ids.has(tablet.id)||
+          !Number.isFinite(tablet.x)||!Number.isFinite(tablet.z)||!Number.isFinite(tablet.base)||
+          !['tutorial','story'].includes(tablet.category)||!TABLET_HINTS.includes(tablet.hint)||
+          typeof tablet.title!=='string'||!tablet.title.trim()||tablet.title.length>60||
+          typeof tablet.text!=='string'||!tablet.text.trim()||tablet.text.length>320)
+          throw new Error('Memory tablets need unique stable IDs, safe positions, and valid short messages.');
+        ids.add(tablet.id);
+      }
+    }
     const t=l.terrain,b=l.boundary;
     if(t?.type!=='depth-terraces'||t.descendZ!==1||!b||b.minX!==-9||b.maxX!==9||b.minZ!==-6||b.maxZ!==4.8)throw new Error('Use the supported three-terrace board.');
+    if(l.editorFixtures!==undefined){
+      if(!Array.isArray(l.editorFixtures)||l.editorFixtures.length>100)
+        throw new Error('Keep no more than 100 supported editor fixtures.');
+      const ids=new Set(),finite=Number.isFinite;
+      for(const fixture of l.editorFixtures){
+        if(!fixture||!['box','roof','editor-stairs'].includes(fixture.type))
+          throw new Error('Editor fixtures must be boxes, roofs, or stairs.');
+        if(fixture.sourceId!==undefined){
+          if(typeof fixture.sourceId!=='string'||!fixture.sourceId.trim()||fixture.sourceId.length>80||ids.has(fixture.sourceId))
+            throw new Error('Editor fixture IDs must be unique short strings.');
+          ids.add(fixture.sourceId);
+        }
+        if(fixture.walkableTop!==undefined&&typeof fixture.walkableTop!=='boolean')
+          throw new Error('Editor fixture walkableTop must be a boolean.');
+        if(!['minX','maxX','minZ','maxZ'].every(key=>finite(fixture[key]))||
+          !(fixture.minX<fixture.maxX&&fixture.minZ<fixture.maxZ)||
+          fixture.minX<b.minX||fixture.maxX>b.maxX||fixture.minZ<b.minZ||fixture.maxZ>b.maxZ)
+          throw new Error('Editor fixture footprint needs finite, ordered bounds inside the board.');
+        if(fixture.type==='box'&&(!finite(fixture.minY)||!finite(fixture.maxY)||fixture.minY>=fixture.maxY))
+          throw new Error('Editor fixture box needs finite, ordered vertical bounds.');
+        if(fixture.type==='roof'&&(!finite(fixture.bottom)||!finite(fixture.top)||fixture.bottom>=fixture.top||
+          fixture.approachBothSides!==undefined&&typeof fixture.approachBothSides!=='boolean'))
+          throw new Error('Editor fixture roof needs finite, ordered heights.');
+        if(fixture.type==='editor-stairs'&&(!['x','z'].includes(fixture.axis)||
+          typeof fixture.reverse!=='boolean'||!Number.isInteger(fixture.steps)||fixture.steps<1||fixture.steps>32||
+          !finite(fixture.base)||!finite(fixture.rise)||fixture.rise<=0))
+          throw new Error('Editor fixture stairs need an axis, direction, steps, base, and positive rise.');
+      }
+    }
     if(!(t.frontHeight>=1.5&&t.frontHeight<=3.5&&t.middleHeight>=.4&&t.middleHeight<=1.5&&t.frontHeight>t.middleHeight&&t.frontZ>=-2.6&&t.frontZ<=-.4&&t.rearZ>=1&&t.rearZ<=2.8))throw new Error('Terrace heights or dividers are outside the editor limits.');
     for(const [s,start,drop] of [[t.leftStairs,t.frontZ,t.frontHeight-t.middleHeight],[t.rightStairs,t.rearZ,t.middleHeight]]){
       if(!s||!(s.maxX-s.minX>=1.2&&s.maxX-s.minX<=3.5)||s.minX<-9||s.maxX>9||s.startZ!==start||Math.abs(s.endZ-start-1.4)>.001||s.steps?.length!==4)throw new Error('Stairs must stay on the board and have four continuous steps.');
@@ -63,7 +105,7 @@ export function validateLevel(l){
     }
     if(!Number.isInteger(l.seedCount)||l.seedCount<17||l.seedCount>200||l.capacity!==297)throw new Error('Starting flesh must be 17–200; capacity stays at 297.');
     if(!Array.isArray(l.pools)||l.pools.length>12||!Array.isArray(l.gems)||l.gems.length>20||!Array.isArray(l.gold)||l.gold.length>100)throw new Error('Limit the board to 12 pools, 20 gems, and 100 gold pieces.');
-    for(const pair of [...l.pools,...l.gold])if(!Array.isArray(pair)||pair.length!==2||pair.some(n=>!Number.isFinite(n)))throw new Error('Pool and gold coordinates must be pairs of numbers.');
+    for(const pair of [...l.pools,...l.gold])if(!Array.isArray(pair)||![2,3].includes(pair.length)||pair.some(n=>!Number.isFinite(n)))throw new Error('Pool and gold coordinates must be pairs or raised triples of numbers.');
     if(!Array.isArray(l.poolCounts)||l.poolCounts.length!==l.pools.length||l.poolCounts.some(n=>!Number.isInteger(n)||n<1||n>232))throw new Error('Each pool needs a whole-particle count from 1 to 232.');
     const total=l.seedCount+l.poolCounts.reduce((a,c)=>a+c,0);if(total>297)errors.push('Flesh budget exceeds 297. Reduce pool counts or starting flesh.');if(total<110)warnings.push('This little flesh may not surround a gem.');
     const inside=(p,margin=.15)=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&p.x>=b.minX+margin&&p.x<=b.maxX-margin&&p.z>=b.minZ+margin&&p.z<=b.maxZ-margin;
@@ -87,6 +129,28 @@ export function validateLevel(l){
         low=south?g.ramp.southHeight:g.ramp.northHeight;high=south?g.ramp.northHeight:g.ramp.southHeight;
       }
       if(!adjacent||low!==t.middleHeight||g.platform.minY!==t.middleHeight||!(high>low&&g.platform.maxY>high&&g.platform.maxY<=t.middleHeight+3))errors.push('The ramp must meet the platform below its top, with the platform no more than 3 units above the middle terrace.');}
+    if(l.pits!==undefined){
+      if(!Array.isArray(l.pits)||l.pits.length>24)throw new Error('Keep no more than 24 floor pits.');
+      for(const pit of l.pits){
+        if(!pit||pit.type!=='pit'||!Number.isFinite(pit.x)||!Number.isFinite(pit.z)||
+          !Number.isFinite(pit.radius)||pit.radius<.35||pit.radius>2)
+          throw new Error('Floor pits need finite positions and a radius from 0.35 to 2.');
+        const margin=pit.radius+.12;
+        if(pit.x-margin<b.minX||pit.x+margin>b.maxX||pit.z-margin<b.minZ||pit.z+margin>b.maxZ)
+          errors.push('Keep each pit fully inside the board.');
+        const height=groundAt(pit.x,pit.z,[t]).height;
+        for(let i=0;i<16;i++){const angle=i*Math.PI/8;
+          if(Math.abs(groundAt(pit.x+Math.cos(angle)*margin,pit.z+Math.sin(angle)*margin,[t]).height-height)>.06)
+            errors.push('Keep each pit entirely on one flat terrace.');}
+        for(const point of [l.start,l.exit,...l.gems,...l.pools.map(([x,z])=>({x,z}))])
+          if(Math.hypot(point.x-pit.x,point.z-pit.z)<pit.radius+(point===l.exit?point.radius:.2)+.08)
+            errors.push('Keep pits clear of starts, exits, and rewards.');
+        for(const fixture of [...(l.editorFixtures||[]),l.grip?.platform,l.grip?.ramp].filter(Boolean))
+          if(fixture.minX!==undefined&&Math.hypot(pit.x-Math.max(fixture.minX,Math.min(pit.x,fixture.maxX)),
+            pit.z-Math.max(fixture.minZ,Math.min(pit.z,fixture.maxZ)))<pit.radius+.08)
+            errors.push('Keep pits away from raised fixtures.');
+      }
+    }
     const colliders=gardenColliders(l);
     for(const [kind,points] of [['Pool',l.pools.map(([x,z])=>({x,z}))],['Gem',l.gems],['Gold',l.gold.map(([x,z])=>({x,z}))]])for(const p of points){if(!inside(p,kind==='Pool'?.5:.15))errors.push(kind+' is outside the board.');else if(pointInsideSolid(p.x,(kind==='Pool'?groundAt(p.x,p.z,colliders).height:gardenFixtureHeight(l,p.x,p.z))+.15,p.z,colliders,.01))errors.push(kind+' is inside an obstacle.');}
     if(funnels.some(f=>Math.hypot(l.start.x-f.x,l.start.z-f.z)<f.radius+.4))errors.push('The start is too close to a funnel.');

@@ -6,6 +6,8 @@ import {createGameProgress,meetsUnlockThreshold} from './game-progress.js';
 import {campaignResultLines,resultLine} from './game-results.js';
 import {gripKey} from './grip-ramp.js';
 import {createLocalLevelLibrary,createLocalLevelProgress,localStorageForPage,localPageQuery} from './local-levels.js';
+import {createRankedClient} from './ranked-client.js';
+import {openTablet,closeTablet,nearbyTablet} from './memory-tablets.js';
 
 export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCameraToggle=()=>{},cameraMode=()=> 'follow',
   onLocalReady=async()=>{},
@@ -13,10 +15,15 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   localLibrary=createLocalLevelLibrary({storage:localStorageForPage()}),
   localProgress=createLocalLevelProgress({storage:localStorageForPage()})}={}){
   const root=document.createElement('div');root.id='game-shell';
-  root.innerHTML=`<div class="game-top"><div><span class="eyebrow">PUDDLE / 01</span><h2>Gathering Garden</h2></div><div class="game-score" aria-label="Collection progress"><span id="gem-score">◇ 0 / 3</span><span id="gold-score">● 0 / 17</span><span id="game-timer" aria-label="Play time">0:00 / 0:30</span><button id="game-camera" type="button" aria-label="Camera: Follow. Press C to switch view">Camera: Follow <kbd>C</kbd></button><button id="game-menu">Menu <kbd>ESC</kbd></button></div></div>
+  root.innerHTML=`<div class="game-top"><div><span class="eyebrow">PUDDLE / 01</span><h2>Hanging Nursery</h2></div><div class="game-score" aria-label="Collection progress"><span id="gem-score">◇ 0 / 3</span><span id="gold-score">● 0 / 17</span><span id="game-timer" aria-label="Play time">0:00 / 0:30</span><button id="game-camera" type="button" aria-label="Camera: Follow. Press C to switch view">Camera: Follow <kbd>C</kbd></button><button id="game-menu">Menu <kbd>ESC</kbd></button></div></div>
     <div class="game-hint"><b id="lesson-title" role="status"></b><p id="lesson-text"></p><small id="game-tendril-status" hidden></small></div>
-    <div id="game-overlay" class="game-overlay"><section id="game-card-section" class="game-card" aria-labelledby="game-title"><div id="game-main-card"><div class="eyebrow" id="game-eyebrow">A LIVING MATERIAL</div><h1 id="game-title">Puddle</h1><p id="game-copy">A small body. A strange garden.<br>Gather, take shape, and find the way down.</p><div id="game-results"></div><div class="game-buttons"><button id="game-primary">Begin</button><button id="game-secondary" hidden>Keep exploring</button><button id="game-levels">Levels</button><button id="game-studies">Material studies</button><button id="game-exit" type="button" hidden>Exit to title</button></div><details class="game-settings"><summary>Controls &amp; settings</summary><p>Drag anywhere to move. Double tap the garden to cast. Hold Contract to gather; tap it to recall. Hold Run to sprint. Hold Shed to leave flesh.</p><button id="game-settings-camera" type="button">Switch camera</button><div id="game-settings-audio"></div></details><p class="game-footnote" id="game-footnote">Gathering Garden · the first playable level</p></div><div id="game-level-screen" hidden><div class="eyebrow">YOUR TOWER</div><h1 id="game-level-title">Levels</h1><div class="game-level-tabs" role="tablist" aria-label="Level source"><button id="game-campaign-tab" type="button" role="tab">Campaign</button><button id="game-local-tab" type="button" role="tab">Local Levels</button></div><p id="game-level-instructions">Finish at least half the gold and gems in a garden to unlock the next.</p><label id="game-dev-access" hidden><input type="checkbox" checked> Development: play any level</label><div id="game-level-list"></div><div class="game-buttons"><button id="game-level-back">Back</button></div></div></section></div>`;
+    <div id="game-overlay" class="game-overlay"><section id="game-card-section" class="game-card" aria-labelledby="game-title"><div id="game-main-card"><div class="eyebrow" id="game-eyebrow">A LIVING MATERIAL</div><h1 id="game-title">Puddle</h1><p id="game-copy">A small body. A strange garden.<br>Gather, take shape, and find the way down.</p><div id="game-results"></div><p id="game-ranked-status" class="game-ranked-status"></p><div class="game-buttons"><button id="game-primary">Begin</button><button id="game-secondary" hidden>Keep exploring</button><button id="game-levels">Levels</button><button id="game-board" type="button">High scores</button><button id="game-studies">Material studies</button><button id="game-exit" type="button" hidden>Exit to title</button></div><details class="game-settings"><summary>Controls &amp; settings</summary><p>Drag anywhere to move. Double tap the garden to cast. Hold Contract to gather; tap it to recall. Hold Run to sprint. Hold Shed to leave flesh.</p><button id="game-settings-camera" type="button">Switch camera</button><div id="game-settings-audio"></div></details><p class="game-footnote" id="game-footnote">Hanging Nursery · the first playable level</p></div><div id="game-level-screen" hidden><div class="eyebrow">YOUR TOWER</div><h1 id="game-level-title">Levels</h1><div class="game-level-tabs" role="tablist" aria-label="Level source"><button id="game-campaign-tab" type="button" role="tab">Campaign</button><button id="game-local-tab" type="button" role="tab">Local Levels</button></div><p id="game-level-instructions">Finish at least half the gold and gems in a garden to unlock the next.</p><label id="game-dev-access" hidden><input type="checkbox" checked> Development: play any level</label><div id="game-level-list"></div><div class="game-buttons"><button id="game-level-back">Back</button></div></div><div id="game-board-screen" hidden><div class="eyebrow">PUDDLE / HIGH SCORES</div><h1 id="game-board-title">High scores</h1><label for="game-board-level">Level</label> <select id="game-board-level"></select><p id="game-board-message" role="status"></p><ol id="game-board-list" class="game-board-list"></ol><p>Log in to portal.raidguild.org to participate in high scores.</p><a href="https://portal.raidguild.org/" target="_blank" rel="noopener noreferrer">Open Portal ↗</a><div class="game-buttons"><button id="game-board-back" type="button">Back</button></div></div></section></div>`;
   document.querySelector('#app').append(root);
+  const tabletLayer=document.createElement('div');tabletLayer.className='game-overlay tablet-overlay';tabletLayer.hidden=true;
+  tabletLayer.innerHTML='<section class="game-card tablet-card" role="dialog" aria-modal="true" aria-labelledby="tablet-title" aria-describedby="tablet-text"><div class="eyebrow" id="tablet-category"></div><h1 id="tablet-title"></h1><p id="tablet-text"></p><p id="tablet-hint"></p><button id="tablet-continue" type="button">Continue</button></section>';
+  root.append(tabletLayer);
+  const readButton=document.createElement('button');readButton.id='tablet-read';readButton.type='button';readButton.hidden=true;readButton.textContent='Read tablet  Q';
+  root.append(readButton);
   if(new URLSearchParams(globalThis.location?.search||'').get('storage')==='test'){
     const badge=document.createElement('small');badge.className='game-test-badge';
     badge.textContent='ISOLATED TEST SESSION';root.querySelector('.game-top > div').append(badge);}
@@ -25,7 +32,27 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   studyLinks.innerHTML='<a href="./music-source/index.html" target="_blank" rel="noopener">Music studies ↗</a><a href="./editor.html" target="_blank" rel="noopener">Level editor ↗</a><a href="./downloads/puddle-builder-kit.zip" download>Builder kit ↓</a>';
   studyLinks.querySelector('a[href^="./editor"]').href=`./editor.html${localPageQuery()}`;
   root.querySelector('#game-main-card .game-buttons').after(studyLinks);
-  let overlayState='',levelScreen=false,levelTab='campaign',devPlayAny=!!devAccess,localRequest=0;
+  let overlayState='',levelScreen=false,boardScreen=false,levelTab='campaign',devPlayAny=!!devAccess,localRequest=0,boardRequest=0,
+    shownTablet=null;
+  const dismissTablet=()=>{if(closeTablet(sim)){clearInputs();update();readButton.focus({preventScroll:true});}};
+  tabletLayer.querySelector('#tablet-continue').addEventListener('click',dismissTablet);
+  readButton.addEventListener('click',()=>{if(openTablet(sim,nearbyTablet(sim))){clearInputs();update();}});
+  const ranked=createRankedClient({onChange:()=>update()});
+  for(const level of GARDEN_LEVELS){const option=document.createElement('option');option.value=String(level.id);option.textContent=`${level.id} · ${level.name}`;$('#game-board-level').append(option);}
+  async function loadBoard(){
+    const request=++boardRequest,level=Number($('#game-board-level').value),list=$('#game-board-list');
+    list.replaceChildren();$('#game-board-message').textContent='Loading scores…';
+    try{const data=await ranked.board(level);if(request!==boardRequest||!boardScreen)return;
+      $('#game-board-message').textContent=data.entries.length?'Best run per player · points include a time bonus':'No high scores yet.';
+      for(const entry of data.entries){const row=document.createElement('li');
+        row.textContent=`${entry.displayName} · ${entry.score} points · ${entry.collectionPercent}% collected · ${(entry.durationMs/1000).toFixed(1)}s`;
+        list.append(row);}}
+    catch{if(request===boardRequest&&boardScreen)$('#game-board-message').textContent='High scores are temporarily unavailable. You can still play.';}
+  }
+  function openBoard(level=sim.gardenLevelId){if(sim.isLocalGarden||!['title','paused','complete'].includes(sim.garden.phase))return;
+    levelScreen=false;boardScreen=true;$('#game-board-level').value=String(level);loadBoard();update();}
+  function closeBoard(){boardScreen=false;boardRequest++;update();}
+  const beginRanked=()=>ranked.begin(sim,{eligible:!devPlayAny&&!sim.practiceLevel&&!sim.isLocalGarden});
   const devToggle=$('#game-dev-access');devToggle.hidden=!devAccess;
   devToggle.querySelector('input').checked=devPlayAny;
   const canPlayLevel=id=>progress.isUnlocked(id)||devPlayAny;
@@ -81,36 +108,42 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       const details=document.createElement('div'),title=document.createElement('b'),note=document.createElement('small');
       title.textContent=`${String(level.id).padStart(2,'0')} / ${level.name}`;
       const best=progress.getBest(level.id),unlocked=progress.isUnlocked(level.id);
-      const score=`Best ${best?.percent??0}%`+(best?` · ${best.gems}/${level.gems.length} gems · ${best.gold}/${level.gold.length} gold`:'');
+      const score=best?`Most collected ${best.collectionPercent}% · ${best.bestCollection.gems}/${level.gems.length} gems · ${best.bestCollection.gold}/${level.gold.length} gold · High score ${best.points} points (${best.bestPointsRun.percent}% collected${best.bestPointsRun.elapsed===null?'':` · ${best.bestPointsRun.elapsed.toFixed(1)}s`})`:
+        'Most collected 0% · No high score yet';
       note.textContent=`${score} · ${unlocked?'Ready to explore':
         `${devPlayAny?'Development access':'Locked'} · finish Level ${level.id-1} with at least 50%`}`;
       details.append(title,note);
       const button=document.createElement('button');button.type='button';button.textContent=best?'Replay':'Play';
       button.disabled=!canPlayLevel(level.id);button.setAttribute('aria-label',`${button.textContent} ${level.name}`);
-      button.addEventListener('click',()=>{if(!canPlayLevel(level.id))return;levelScreen=false;onStart();sim.startGarden(level.id,{newGame:true});change();});
-      card.append(details,button);list.append(card);
+      button.addEventListener('click',()=>{if(!canPlayLevel(level.id))return;levelScreen=false;onStart();sim.startGarden(level.id,{newGame:true});beginRanked();change();});
+      const board=document.createElement('button');board.type='button';board.textContent='High scores';
+      board.addEventListener('click',()=>openBoard(level.id));
+      card.append(details,button,board);list.append(card);
     }
   }
   function openLevels(){if(sim.selectedTest!=='garden'||!['title','paused'].includes(sim.garden.phase))return;
     levelScreen=true;renderLevels();update();$('#game-level-back').focus({preventScroll:true});}
   function closeLevels(){if(!levelScreen)return;levelScreen=false;localRequest++;update();$('#game-levels').focus({preventScroll:true});}
   function change(){clearInputs();onChange();update();}
-  function start(){onStart();sim.startGarden(1,{newGame:true});change();}
-  function menu(){if(sim.selectedTest==='garden'&&sim.garden.phase==='playing'){sim.garden.phase='paused';change();}}
+  function start(){onStart();sim.startGarden(1,{newGame:true});beginRanked();change();}
+  function menu(){if(sim.selectedTest==='garden'&&sim.garden.phase==='playing'){sim.syncGardenClock();sim.garden.phase='paused';change();}}
   $('#game-menu').addEventListener('click',menu);
   $('#game-camera').addEventListener('click',()=>{onCameraToggle();update();});
   $('#game-settings-camera').addEventListener('click',()=>{onCameraToggle();update();});
   $('#game-levels').addEventListener('click',openLevels);
   $('#game-level-back').addEventListener('click',closeLevels);
+  $('#game-board').addEventListener('click',()=>openBoard());
+  $('#game-board-back').addEventListener('click',closeBoard);
+  $('#game-board-level').addEventListener('change',loadBoard);
   $('#game-campaign-tab').addEventListener('click',()=>{levelTab='campaign';localRequest++;renderLevels();});
   $('#game-local-tab').addEventListener('click',()=>{levelTab='local';renderLevels();});
   globalThis.addEventListener?.('storage',event=>{if(levelScreen&&levelTab==='local'&&event.key?.includes('puddle.local-levels.v1'))renderLevels();});
   devToggle.querySelector('input').addEventListener('change',event=>{devPlayAny=!!devAccess&&event.target.checked;renderLevels();update();});
   $('#game-primary').addEventListener('click',()=>{
-    if(sim.garden.phase==='paused'){sim.garden.phase='playing';change();}
+    if(sim.garden.phase==='paused'){sim.syncGardenClock();sim.garden.phase='playing';change();}
     else if(sim.isLocalGarden&&sim.garden.phase==='complete'){sim.restartGarden();change();}
     else if(sim.garden.phase==='complete'&&sim.gardenLevelId<GARDEN_LEVELS.length){
-      if(canPlayLevel(sim.gardenLevelId+1))sim.continueGarden();else sim.restartGarden();change();}
+      if(canPlayLevel(sim.gardenLevelId+1))sim.continueGarden();else sim.restartGarden();beginRanked();change();}
     else start();
   });
   $('#game-secondary').addEventListener('click',()=>{
@@ -127,7 +160,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
         p.px=p.x;p.py=p.y;p.pz=p.z;p.vx=p.vy=p.vz=0;
       }
       f.contractAnchor=null;sim.garden.phase='playing';sim.garden.drainTime=0;sim.garden.finishElapsed=null;change();
-    }else{sim.restartGarden();change();}
+    }else{sim.restartGarden();beginRanked();change();}
   });
   $('#game-exit').addEventListener('click',()=>{
     if(sim.garden.phase!=='paused')return;
@@ -139,12 +172,31 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
   const returnButton=document.createElement('button');returnButton.id='return-to-game';returnButton.textContent='PLAY GARDEN';returnButton.addEventListener('click',start);document.querySelector('.test-controls').prepend(returnButton);
   function update(){
     const gripPractice=document.querySelector('[data-test="grip"]');
-    if(gripPractice){gripPractice.disabled=!canPlayLevel(5);gripPractice.title=gripPractice.disabled?'Unlock Grip Garden by finishing Level 4 with at least 50%':'';}
+    if(gripPractice){gripPractice.disabled=!canPlayLevel(5);gripPractice.title=gripPractice.disabled?'Unlock Rootwell Gallery by finishing Level 4 with at least 50%':'';}
     const game=sim.selectedTest==='garden';document.body.classList.toggle('playing-game',game);root.hidden=!game;
     const audio=document.querySelector('.music-controls');
     if(!game){root.classList.remove('in-menu');if(audio&&audio.parentElement!==document.querySelector('#app')&&audio.parentElement?.id!=='study-menu-body')document.querySelector('#app').append(audio);return;}
     if(audio&&audio.parentElement!==$('#game-settings-audio'))$('#game-settings-audio').append(audio);
     const s=sim.garden,level=sim.gardenLevel,overlay=['title','paused','complete'].includes(s.phase);
+    const tablet=s.tablets?.find(t=>t.id===s.activeTabletId)||null;
+    const reading=s.phase==='reading'&&!!tablet;
+    tabletLayer.hidden=!reading;
+    const nearby=!reading&&nearbyTablet(sim);
+    readButton.hidden=!nearby;
+    if(nearby)readButton.textContent=`${nearby.read?'Reread':'Read'} tablet${matchMedia('(pointer: coarse)').matches?'':'  Q'}`;
+    if(reading){
+      if(shownTablet!==`${sim.runSerial}:${tablet.id}`){clearInputs();shownTablet=`${sim.runSerial}:${tablet.id}`;
+        tabletLayer.querySelector('#tablet-category').textContent=tablet.category==='story'?'A MEMORY OF THE TOWER':
+          level.id===1?'A NOTE FROM THE NURSERY':level.id===2?'A NOTE FROM THE CISTERN':'A NOTE FROM THE TOWER';
+        tabletLayer.querySelector('#tablet-title').textContent=tablet.title;
+        tabletLayer.querySelector('#tablet-text').textContent=tablet.text;
+        const keyboard={move:'Move with WASD or arrow keys.',contract:'Hold Space to contract.',cast:'Press E or click to cast a tendril.',shed:'Hold F to shed flesh.',run:'Hold Shift to run.'};
+        const touch={move:'Drag anywhere to move.',contract:'Hold Contract to gather.',cast:'Double tap to cast a tendril.',shed:'Hold Shed to leave flesh.',run:'Hold Run to sprint.'};
+        const hint=matchMedia('(pointer: coarse)').matches?touch[tablet.hint]:keyboard[tablet.hint];
+        tabletLayer.querySelector('#tablet-hint').textContent=hint||'';
+        tabletLayer.querySelector('#tablet-continue').focus({preventScroll:true});}
+    }else shownTablet=null;
+    if(s.phase==='draining'||s.phase==='complete')ranked.finish(sim);
     if(s.phase==='complete'){
       if(sim.isLocalGarden)localProgress.recordCompletion(sim.localRun.id,sim.localRun.revision,
         {gold:s.goldCount,gems:s.gemCount,totalGold:s.gold.length,totalGems:s.gems.length,
@@ -154,8 +206,9 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
     root.querySelector('.game-top .eyebrow').textContent=sim.isLocalGarden?'PUDDLE / LOCAL':`PUDDLE / 0${level.id}`;
     root.querySelector('.game-top h2').textContent=level.name;
     $('#game-overlay').hidden=!overlay;root.classList.toggle('in-menu',overlay);
-    $('#game-main-card').hidden=levelScreen;$('#game-level-screen').hidden=!levelScreen;
-    $('#game-card-section').setAttribute('aria-labelledby',levelScreen?'game-level-title':'game-title');
+    $('#game-main-card').hidden=levelScreen||boardScreen;$('#game-level-screen').hidden=!levelScreen;
+    $('#game-board-screen').hidden=!boardScreen;
+    $('#game-card-section').setAttribute('aria-labelledby',boardScreen?'game-board-title':levelScreen?'game-level-title':'game-title');
     $('#gem-score').textContent=`◇ ${s.gemCount} / ${s.gems.length} gems`;$('#gold-score').textContent=`● ${s.goldCount} / ${s.gold.length} gold`;
     const elapsed=s.finishElapsed??s.playElapsed??0,target=level.targetTime??30;
     const clock=seconds=>`${Math.floor(seconds/60)}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
@@ -173,6 +226,10 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       `GRIPPING · KEEP PRESSING ${gripKey(level.grip.ramp,level.grip.platform,sim.brain)}`:
       sim.brain.x>=level.slip.minX&&sim.brain.x<=level.slip.maxX&&sim.brain.z>=level.slip.minZ&&sim.brain.z<=level.slip.maxZ?
         'SLIPPING · BRAKE EARLY':'RIBBED SAGE HOLDS · SMOOTH AQUA SLIPS';
+    $('#game-ranked-status').textContent=sim.isLocalGarden?'':ranked.lastResult?
+      ranked.lastResult.saved?`High score submitted · ${ranked.lastResult.score} points`:`High score not submitted · ${ranked.lastResult.message}`:
+      ranked.active?'Ranked run in progress':ranked.session?`Portal player: ${ranked.session.displayName}`:
+      'Guest play · Log in to portal.raidguild.org to participate in high scores.';
     if(`${sim.isLocalGarden?'local:'+sim.localRun.id+':'+sim.localRun.revision:level.id}:${s.phase}:${levelScreen}:${levelTab}`!==overlayState){
       overlayState=`${sim.isLocalGarden?'local:'+sim.localRun.id+':'+sim.localRun.revision:level.id}:${s.phase}:${levelScreen}:${levelTab}`;
       $('#game-title').textContent=s.phase==='paused'?'A quiet moment':s.phase==='complete'?'Garden explored':'Puddle';
@@ -186,6 +243,7 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
         level.id<GARDEN_LEVELS.length?(nextLocked?'Retry level':`Continue to Level ${level.id+1}`):'New game'):'Begin';
       $('#game-secondary').hidden=s.phase==='title';$('#game-secondary').textContent=s.phase==='complete'?'Keep exploring':'Restart level';
       $('#game-levels').hidden=!['title','paused'].includes(s.phase);
+      $('#game-board').hidden=sim.isLocalGarden;
       $('#game-exit').hidden=s.phase!=='paused';
       studyLinks.hidden=levelScreen||s.phase!=='title';
       const current={gems:s.gemCount,gold:s.goldCount,totalGold:s.gold.length,totalGems:s.gems.length,
@@ -197,15 +255,23 @@ export function setupGameShell(sim,{clearInputs,onChange,onStart=()=>{},onCamera
       $('#game-footnote').textContent=sim.isLocalGarden?'Local Level · separate from campaign progress':
         s.phase==='complete'?(sim.practiceLevel?'Grip & Slide practice complete':nextLocked?'Explore again to find more gold and gems':level.id<GARDEN_LEVELS.length?'The next garden waits below':`All ${GARDEN_LEVELS.length} gardens explored`):
         sim.practiceLevel?'Grip & Slide practice':`${level.name} · Level ${level.id} of ${GARDEN_LEVELS.length}`;
-      if(overlay&&!levelScreen)$('#game-primary').focus({preventScroll:true});
+      if(overlay&&!levelScreen&&!boardScreen)$('#game-primary').focus({preventScroll:true});
     }
   }
-  return {update,start,progress,canPlayLevel,restartCurrent(){sim.restartGarden();change();},handleKey(e){
+  return {update,start,progress,canPlayLevel,restartCurrent(){sim.restartGarden();beginRanked();change();},handleKey(e){
     if(sim.selectedTest!=='garden')return false;
+    if(sim.garden.phase==='reading'){
+      if(e.code==='Tab'){e.preventDefault();tabletLayer.querySelector('#tablet-continue').focus({preventScroll:true});return true;}
+      if(e.code==='Escape'||e.code==='Enter'||e.code==='Space'){e.preventDefault();if(!e.repeat)dismissTablet();}
+      return true;
+    }
+    if(e.code==='KeyQ'&&sim.garden.phase==='playing'){
+      const tablet=nearbyTablet(sim);if(tablet){e.preventDefault();if(openTablet(sim,tablet)){clearInputs();update();}return true;}
+    }
     if(e.target?.closest?.('input,select,textarea,[contenteditable="true"]'))return false;
     const cameraAction=cameraShortcutAction(e,sim.selectedTest);
     if(cameraAction){e.preventDefault();if(cameraAction==='toggle'){onCameraToggle();update();}return true;}
-    if(e.code==='Escape'){e.preventDefault();if(!e.repeat){if(levelScreen)closeLevels();else if(sim.garden.phase==='paused'){sim.garden.phase='playing';change();}else menu();}return true;}
+    if(e.code==='Escape'){e.preventDefault();if(!e.repeat){if(boardScreen)closeBoard();else if(levelScreen)closeLevels();else if(sim.garden.phase==='paused'){sim.syncGardenClock();sim.garden.phase='playing';change();}else menu();}return true;}
     return sim.garden.phase!=='playing';
   }};
 }

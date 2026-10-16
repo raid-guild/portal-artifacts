@@ -14,13 +14,14 @@ export const PRESSURE={startX:-4.8,rate:42,threshold:48,releaseThreshold:36,
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 export class PuddleSimulation {
-  constructor({size=1}={}){this.selectedTest='puddle';this.gardenLevelId=1;this.completedLevels={};this.practiceLevel=false;this.reset(size);}
+  constructor({size=1}={}){this.selectedTest='puddle';this.gardenLevelId=1;this.completedLevels={};this.practiceLevel=false;this.runSerial=0;this.wallClockEnabled=false;this.tabletMemorySeen=new Set();this.reset(size);}
   get body(){return this.fluid.centroid();}
   get brain(){return this.fluid.brain;}
   get gardenLevel(){return this.localRun?.level||GARDEN_LEVELS[this.gardenLevelId-1]||null;}
   get isLocalGarden(){return !!this.localRun;}
   startGarden(levelId=1,{newGame=false,practice=false}={}){
     if(!Number.isInteger(levelId)||!GARDEN_LEVELS[levelId-1])return false;
+    this.runSerial++;this.gardenClock=null;
     this.localRun=null;
     if(newGame){this.completedLevels={};this.practiceLevel=practice;}
     this.selectedTest='garden';this.gardenLevelId=levelId;this.descending=false;this.reset(1);
@@ -30,6 +31,8 @@ export class PuddleSimulation {
   }
   startLocalGarden(level,{id,revision}={}){
     if(!level?.start||!level?.exit||!id||!Number.isInteger(revision)||revision<1)return false;
+    this.runSerial++;this.gardenClock=null;
+    level.tabletScope=`local:${id}:${revision}`;
     this.localRun={id,revision,level};this.selectedTest='garden';this.gardenLevelId=1;
     this.practiceLevel=false;this.descending=false;this.reset(1);
     this.gardenInputArmed=false;this.garden.phase='arriving';this.garden.arrivalTime=0;return true;
@@ -48,6 +51,27 @@ export class PuddleSimulation {
     this.garden.phase='arriving';this.garden.arrivalTime=0;this.gardenInputArmed=false;
     this.garden.notice=cause==='lava'?'The heat scattered your body':'You fell into a pit';
     return true;
+  }
+  enableWallClock(){this.wallClockEnabled=true;}
+  syncGardenClock(now=globalThis.performance?.now?.()??Date.now(),hidden=!!globalThis.document?.hidden){
+    if(!this.wallClockEnabled||this.selectedTest!=='garden'||!this.garden)return;
+    const phase=this.garden.phase;
+    if(!this.gardenClock){
+      if(phase!=='playing')return;
+      this.gardenClock={start:now,last:now,activeMs:0,excludedMs:0,finished:false};
+    }
+    const clock=this.gardenClock;
+    if(clock.finished)return;
+    const delta=Math.max(0,now-clock.last);
+    if(phase==='paused'||phase==='reading'||hidden)clock.excludedMs+=delta;
+    else if(phase!=='title'&&phase!=='complete'&&phase!=='draining')clock.activeMs+=delta;
+    clock.last=now;
+    this.garden.playElapsed=clock.activeMs/1000;
+  }
+  finishGardenClock(now=globalThis.performance?.now?.()??Date.now()){
+    this.syncGardenClock(now);
+    if(this.gardenClock){this.gardenClock.finished=true;this.garden.finishElapsed=this.gardenClock.activeMs/1000;
+      this.garden.excludedMs=Math.round(this.gardenClock.excludedMs);}
   }
   continueGarden(){if(this.localRun||this.gardenLevelId>=GARDEN_LEVELS.length||this.garden.phase!=='complete')return false;
     const next=this.gardenLevelId+1;
@@ -71,7 +95,7 @@ export class PuddleSimulation {
     this.oozeForward=false;this.materialState='oozing';this.relaxTime=0;
     this.fleshThrough=0;this.brainThrough=false;this.gapStage='approach';
     if(this.selectedTest==='field')this.seedField();
-    if(this.selectedTest==='garden'){this.garden=createGarden(this.gardenLevel);seedGarden(this.fluid,this.gardenLevel);}
+    if(this.selectedTest==='garden'){this.garden=createGarden(this.gardenLevel,{tabletStorage:this.tabletStorage,tabletMemorySeen:this.tabletMemorySeen});seedGarden(this.fluid,this.gardenLevel);}
   }
   selectTest(test){if(!['field','growth','gap','pressure','puddle','garden'].includes(test))return false;
     this.retrievalSetup=false;this.selectedTest=test;this.reset(test==='gap'?this.size:1);return true;}

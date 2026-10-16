@@ -5,8 +5,8 @@ export function resultLine(name,result){
   const time=score.elapsed===null?'Legacy time unknown':
     `${score.elapsed.toFixed(1)}s / ${score.target}s target`;
   return `${name}: ${result.gems}/${result.totalGems} gems · ${result.gold}/${result.totalGold} gold · `+
-    `${score.collectionPercent}% collected · ${score.collectionPoints.toFixed(1)} collection + `+
-    `${score.timePoints} time = ${score.percent}% · ${time}`;
+    `${score.collectionPercent}% collected · ${score.collectionPoints} collection + `+
+    `${score.timePoints} time = ${score.points} points · ${time}`;
 }
 export function campaignResultLines(levels,scores,throughLevel){
   return levels.slice(0,throughLevel).filter(level=>scores[level.id]).map(level=>{

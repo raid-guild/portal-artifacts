@@ -17,6 +17,7 @@ import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
 import {TouchJoystick} from './touch-joystick.js';
 import {bindHoldButton,bindPullButton} from './touch-actions.js';
 import {createBurnFeedback} from './burn-feedback.js';
+import {openTablet,closeTablet,nearbyTablet} from './memory-tablets.js';
 
 const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
@@ -37,6 +38,11 @@ let history=new DraftHistory(draft),selected=null,tool='select',playing=false,si
   drag=null,aim=null,pendingPreview=false,frameCount=0,orbit={azimuth:.19,elevation:.85,distance:22.5},
   pointerPose=null,brushStart=null,paintMode='fill';
 const keys=new Set(),canvas=$('world'),scene=new THREE.Scene();scene.background=new THREE.Color(0xc6dfd9);
+const tabletRead=document.createElement('button');tabletRead.id='tablet-read';tabletRead.type='button';tabletRead.hidden=true;
+const tabletDialog=document.createElement('div');tabletDialog.id='tablet-dialog';tabletDialog.hidden=true;
+tabletDialog.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="tablet-dialog-title" aria-describedby="tablet-dialog-text"><small id="tablet-dialog-kind"></small><h2 id="tablet-dialog-title"></h2><p id="tablet-dialog-text"></p><p id="tablet-dialog-hint"></p><button id="tablet-dialog-continue" type="button">Continue</button></section>';
+$('app').append(tabletRead,tabletDialog);
+let shownTablet=null;
 const burnFeedback=createBurnFeedback(scene);
 const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
   if(!playing||sim?.garden.phase!=='playing'||!sim.gardenInputArmed||!sim.gardenLevel.tendrils)return;
@@ -50,7 +56,7 @@ const handles=new THREE.Group();scene.add(handles);
 const handleGeo=new THREE.SphereGeometry(.27,12,8),haloGeo=new THREE.TorusGeometry(.34,.048,6,20),
   haloMaterial=new THREE.MeshBasicMaterial({color:0xf5e9d2,transparent:true,opacity:1,depthTest:false,depthWrite:false}),
   handleMaterials={start:0xb96e68,exit:0x364f4c,flesh:0x80a593,
-  gem:0x9b81ae,gold:0xd1a04d,pillar:0xe2d1b9,block:0xb3a792,lowgap:0x8aa69e,stairs:0xb6ba9b,label:0x755c78,
+  gem:0x9b81ae,gold:0xd1a04d,tablet:0xc9b181,pillar:0xe2d1b9,block:0xb3a792,lowgap:0x8aa69e,stairs:0xb6ba9b,label:0x755c78,
   basin:0xa78374,paint:0x91b7aa,cutter:0xb66a67};
 const markerMaterials=new Map(Object.entries(handleMaterials).map(([key,color])=>[key,new THREE.MeshBasicMaterial({color,transparent:true,opacity:1,depthTest:false,depthWrite:false})]));
 const outlineMaterial=new THREE.MeshBasicMaterial({color:0xa65855,wireframe:true,transparent:true,opacity:1,depthTest:false,depthWrite:false});
@@ -93,6 +99,7 @@ function renderHandles(){clearHandles();if(playing)return;
       o.kind==='paint'?o.base+.15:
       o.kind==='pillar'?(o.base??0)+o.height+.28:
       o.kind==='basin'&&Number.isFinite(o.base)?o.base+.3:
+      o.kind==='tablet'&&Number.isFinite(o.base)?o.base+.35:
       Math.max(0,groundAt(p.x,p.z,gardenColliders(level)).height)+.35,p.z);
     m.userData.editorId=o.id;m.renderOrder=11;m.scale.setScalar(o.id===selected?1.35:1);handles.add(m);
     const halo=new THREE.Mesh(haloGeo,haloMaterial);halo.position.copy(m.position);halo.userData.editorId=o.id;
@@ -113,11 +120,12 @@ function rebuild(test=false){const checks=validateDraft(draft);
     const sourceOnly={...draft,objects:draft.objects.filter(o=>o.kind!=='cutter')};
     level=compileDraft(sourceOnly);level.editorCutters=draft.objects.filter(o=>o.kind==='cutter');
   }
-  view?.dispose();view=createEditorStageView(scene,level,{printLibrary,labelRoot:$('app')});view.setEditing(!test);
+  view?.dispose();view=createEditorStageView(scene,level,{printLibrary,labelRoot:$('app')});view.setEditing(!test);view.setPlaying(test);
   if(checks.errors.length){sim=null;pipeline.invalidate();body.mesh.visible=brain.visible=false;
     for(const surface of poolSurfaces)surface.mesh.visible=false;
     pendingPreview=false;renderHandles();return;}
-  sim=new WorkbenchSimulation(draft);
+  sim=new WorkbenchSimulation(draft,{tabletStorage:editorStorage});
+  sim.tabletAutoRead=!!test;
   resetSurfaces();aim=null;clearInput();
   if(test){sim.garden.phase='arriving';sim.garden.arrivalTime=0;sim.gardenInputArmed=false;}
   else{sim.garden.phase='playing';for(let i=0;i<4;i++)sim.step({});}
@@ -156,7 +164,7 @@ $('tower-view').onclick=()=>{orbit={azimuth:.19,elevation:.85,distance:22.5};fit
 $('reset-view').onclick=()=>{target.set(0,.5,0);orbit={azimuth:.19,elevation:.85,distance:22.5};fitCamera();};
 canvas.addEventListener('wheel',e=>{e.preventDefault();orbit.distance=clamp(orbit.distance*Math.exp(e.deltaY*.001),9,70);updateCamera();},{passive:false});
 const tools=[['select','Select / move'],['erase','Erase'],['pillar','Pillar'],['block','Block'],['lowgap','Low gap'],
-  ['stairs','Ramp'],['pit','Pit · terrain only'],['flesh','Loose flesh'],['gem','Gem'],['gold','Gold'],['start','Start'],['exit','Exit'],['label','Label'],
+  ['stairs','Ramp'],['pit','Pit · terrain only'],['flesh','Loose flesh'],['gem','Gem'],['gold','Gold'],['tablet','Memory tablet'],['start','Start'],['exit','Exit'],['label','Label'],
   ['basin','Basin · shallow clay depression'],['cutter-box','Cut box'],['cutter-cylinder','Cut cylinder'],
   ['paint-slip','Paint slippery'],['paint-sticky','Paint sticky'],['paint-lava','Paint lava'],['paint-normal','Paint normal']];
 function renderTools(){$('tools').replaceChildren(...tools.map(([key,name])=>{const button=document.createElement('button');button.textContent=name;
@@ -303,6 +311,10 @@ function addTextField(label,value,change){const wrap=document.createElement('lab
   const input=document.createElement('input');input.type='text';input.maxLength=120;input.value=value;
   input.onchange=()=>{const text=input.value.trim();if(!text){input.value=value;status('Enter some text for the label.');return;}
     change(text);commit();};wrap.append(input);return wrap;}
+function addTabletMessage(value,change){const wrap=document.createElement('label');wrap.textContent='Message';
+  const input=document.createElement('textarea');input.maxLength=320;input.rows=5;input.value=value;
+  input.onchange=()=>{const message=input.value.trim();if(!message){input.value=value;status('Enter a message for the tablet.');return;}
+    change(message);commit();};wrap.append(input);return wrap;}
 function renderInspector(){const panel=$('inspector');panel.replaceChildren();const o=selectedObject();
   if(!o){const text=document.createElement('p');text.className='hint';text.textContent='Select an object in the 3D garden.';panel.append(text);return;}
   const title=document.createElement('div');title.className='selection-title';title.textContent=(o.kind==='stairs'?'RAMP':o.kind.toUpperCase())+' · '+o.id;panel.append(title);
@@ -336,7 +348,14 @@ function renderInspector(){const panel=$('inspector');panel.replaceChildren();co
   if(o.kind==='label'){panel.append(addTextField('Text',o.text,n=>{o.text=n;}));
     number('Surface height',o.base,n=>{o.base=n;},{min:-8,max:16});
     number('Height above surface',o.offset,n=>{o.offset=n;},{min:0,max:8});}
-  if(['block','pillar','stairs','lowgap','start','label','basin'].includes(o.kind)){
+  if(o.kind==='tablet'){
+    panel.append(addTextField('Title',o.title,n=>{o.title=n.slice(0,60);}));
+    panel.append(addTabletMessage(o.text,n=>{o.text=n;}));
+    choice('Kind',o.category,['tutorial','story'],n=>{o.category=n;});
+    choice('Control hint',o.hint,['none','move','contract','cast','shed','run'],n=>{o.hint=n;});
+    number('Surface height',o.base??0,n=>{o.base=n;},{min:0,max:16});
+  }
+  if(['block','pillar','stairs','lowgap','start','label','basin','tablet'].includes(o.kind)){
     const snapButton=document.createElement('button');snapButton.textContent='Snap to highest surface';
     snapButton.onclick=()=>{const result=snapDraftObjectToHighest(draft,o.id);
       if(result.ok)commit(`Snapped to height ${result.height.toFixed(2)}.`);else status(result.reason);};
@@ -450,9 +469,27 @@ $('file').onchange=async()=>{const file=$('file').files[0];if(!file)return;try{i
   selected=null;tool='select';commit('Imported '+draft.name+'.');}
   catch(e){status('Import failed: '+e.message);}};
 function clearInput(){keys.clear();joystick.cancel();contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();recall=false;}
+function dismissTablet(){if(closeTablet(sim)){clearInput();tabletDialog.hidden=true;tabletRead.focus({preventScroll:true});}}
+tabletDialog.querySelector('#tablet-dialog-continue').onclick=dismissTablet;
+tabletRead.onclick=()=>{if(openTablet(sim,nearbyTablet(sim))){clearInput();syncTabletDialog();}};
+function syncTabletDialog(){const active=playing&&sim?.garden.phase==='reading',t=active?
+  sim.garden.tablets.find(item=>item.id===sim.garden.activeTabletId):null;
+  tabletDialog.hidden=!active;const nearby=!active&&playing?nearbyTablet(sim):null;
+  tabletRead.hidden=!nearby;if(nearby)tabletRead.textContent=`${nearby.read?'Reread':'Read'} tablet  Q`;
+  if(!t){shownTablet=null;return;}
+  if(shownTablet===t.id)return;shownTablet=t.id;clearInput();
+  tabletDialog.querySelector('#tablet-dialog-kind').textContent=t.category==='story'?'A MEMORY OF THE TOWER':'A NOTE FROM THE GARDEN';
+  tabletDialog.querySelector('#tablet-dialog-title').textContent=t.title;
+  tabletDialog.querySelector('#tablet-dialog-text').textContent=t.text;
+  const touch={move:'Drag anywhere to move.',contract:'Hold Contract to gather.',cast:'Double tap to cast.',shed:'Hold Shed to leave flesh.',run:'Hold Run to sprint.'};
+  const keyboard={move:'Move with WASD or arrow keys.',contract:'Hold Space to contract.',cast:'Press E or click to cast.',shed:'Hold F to shed flesh.',run:'Hold Shift to run.'};
+  tabletDialog.querySelector('#tablet-dialog-hint').textContent=(matchMedia('(pointer: coarse)').matches?touch:keyboard)[t.hint]||'';
+  tabletDialog.querySelector('#tablet-dialog-continue').focus({preventScroll:true});
+}
 function togglePlay(){clearInput();if(!playing){const result=validateDraft(draft);if(result.errors.length)return status(result.errors[0]);
     prePlayDistance=orbit.distance;playing=true;rebuild(true);music.begin();audio.unlock();}
   else{playing=false;if(prePlayDistance!==null)orbit.distance=prePlayDistance;prePlayDistance=null;rebuild(false);}
+  tabletDialog.hidden=true;tabletRead.hidden=true;shownTablet=null;
   document.body.classList.toggle('playing',playing);$('play').textContent=playing?'■ Back to edit':'▶ Play test';
   $('restart').hidden=!playing;$('play-hud').hidden=!playing;$('touch').hidden=!playing;$('back-to-edit').hidden=!playing;
   $('play-settings').hidden=!playing;
@@ -477,13 +514,18 @@ function cast(){if(!playing||!sim?.gardenLevel.tendrils||sim.garden.phase!=='pla
     aim=target||{x:sim.brain.x+1.5,z:sim.brain.z};}
   if(aim){const ok=sim.castTendril(aim);status(ok?'Tendril cast. Tap Space to recall.':sim.tendril.feedback||'Cast at loose flesh on a clear path.');}}
 function editingInput(e){return e.target.matches('input,select,textarea');}
-window.addEventListener('keydown',e=>{if(editingInput(e))return;
+window.addEventListener('keydown',e=>{
+  if(playing&&sim?.garden.phase==='reading'){
+    if(e.code==='Tab'){e.preventDefault();tabletDialog.querySelector('#tablet-dialog-continue').focus({preventScroll:true});return;}
+    if(['Escape','Enter','Space'].includes(e.code)){e.preventDefault();if(!e.repeat)dismissTablet();}return;}
+  if(editingInput(e))return;
   if(!playing){if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){e.preventDefault();(e.shiftKey?$('redo'):$('undo')).click();}
     else if(e.code==='Delete'||e.code==='Backspace'){e.preventDefault();erase();}
     else if(e.code==='KeyR'){e.preventDefault();rotateSelection();}
     else if(e.code==='Escape'){selected=null;renderEditor();}return;}
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='Escape'){togglePlay();return;}if(e.repeat)return;keys.add(e.code);
+  if(e.code==='KeyQ'){const tablet=nearbyTablet(sim);if(tablet&&openTablet(sim,tablet)){clearInput();syncTabletDialog();}return;}
   if(e.code==='Space'&&sim.garden.phase==='playing')pull.down('keyboard',performance.now());
   if(e.code==='KeyE')cast();});
 window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')pull.up('keyboard',performance.now());});
@@ -506,7 +548,7 @@ function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
     const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);forward.y=0;forward.normalize();
     const axes=movementAxes('garden',horizontal,vertical,right,forward),contract=pull.update(now);
     while(acc>=DT){sim.step({...axes,contract,shed:keys.has('KeyF')||shedHold.active,push:keys.has('ShiftLeft')||keys.has('ShiftRight')||runHold.active,recallToggle:recall});recall=false;acc-=DT;}
-    if(frameCount++%3===0)updateParticles();updateHUD();audio.update(sim.garden);}
+    if(frameCount++%3===0)updateParticles();updateHUD();audio.update(sim.garden);syncTabletDialog();}
   if(view&&sim)view.update(sim,camera);
   burnFeedback.update(sim,{active:playing});
   aimRing.visible=playing&&!!draft.tendrils&&!!aim&&sim.garden.phase==='playing';
