@@ -6,12 +6,23 @@ Portal owns login and profile identity; this service owns only game sessions and
 
 ## Puddle ranked gardens
 
+### Community workshop levels
+
+The Puddle Workshop can publish versioned community gardens after a Portal launch. Guests can browse and play public versions through `/leaderboard-api/puddle-study/community/*`. Community play keeps its own device progress and never creates ranked campaign runs. A share link pins an exact version; unpublishing hides all versions from public reads while leaving the author's source available for a later republish.
+
+Apply `schema.sql` administratively before enabling the feature. It adds only `puddle_community_levels` and `puddle_community_versions`; the runtime service does not perform DDL. The Puddle service role needs `SELECT, INSERT, UPDATE` on `puddle_community_levels` and `SELECT, INSERT` on `puddle_community_versions`, plus its existing player/session permissions. The Puddle readiness route checks these grants and columns. Version rows are immutable through the API. Keep the usual database backup and migration procedure; do not grant DDL to the runtime role.
+
+The browser and service use a byte-identical portable validator. Run `npm run build:published-schema` in `studies/puddle-study` after any change to `src/published-level-schema.js`; the committed copy lives at `services/leaderboards/src/puddle-level-schema.js`. The Workshop still runs its full local physical validation before publish. The service enforces the 240 KB document and bounded geometry limits, but does not certify that a level is beatable.
+
+For disposable local testing, set `PUDDLE_COMMUNITY_API_TARGET=http://127.0.0.1:5190` when starting Vite. This proxies `/leaderboard-api` to a separately running local API; production uses the existing same-origin service path. Avoid entering real Portal secrets into the local preview. Test the Portal callback, guest link, owner publish/update/unpublish, and a pinned historical version against a disposable database before deployment.
+
 Puddle uses this same service at `/leaderboard-api/puddle-study/*`. Each of its seven
 campaign levels has a public board with one highest-point run per player. Direct
 links and embedded play remain available to guests; the game tells them to log in
 to `portal.raidguild.org` to participate in high scores. The standalone Puddle
 module must be opened through Portal after login for a ranked session. Workshop
-levels, physics studies, practice runs, and development access are local only.
+levels use separate community publishing and device progress; physics studies,
+practice runs, and development access do not submit campaign scores.
 
 Completion is collected items divided by total items, capped at 100%. Finishing
 with at least half the gems and gold still unlocks the next level locally. Ranked

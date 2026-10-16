@@ -3,6 +3,9 @@ import {fileURLToPath} from 'node:url';
 
 export default defineConfig({
   base: '/puddle-study/',
+  server: {proxy: process.env.PUDDLE_COMMUNITY_API_TARGET?{
+    '/leaderboard-api': {target:process.env.PUDDLE_COMMUNITY_API_TARGET,changeOrigin:true},
+  }:{}},
   build: {
     target: 'esnext',
     outDir: '../../public/puddle-study',

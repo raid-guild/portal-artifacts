@@ -32,3 +32,36 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.raid_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS raid_runs_level_ranking ON artifact_leaderboards.runs (game,version,(run_config->>'level'),score DESC,submitted_at,id) WHERE submitted_at IS NOT NULL;
+
+-- Puddle community drafts are immutable once a version is published. Hiding a
+-- level changes only its parent row, so old pinned versions remain consistent.
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.puddle_community_levels (
+  id uuid PRIMARY KEY,
+  owner_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id),
+  current_version integer NOT NULL CHECK (current_version >= 1),
+  published boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  unpublished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS puddle_community_public_latest
+  ON artifact_leaderboards.puddle_community_levels (updated_at DESC,id DESC) WHERE published;
+CREATE INDEX IF NOT EXISTS puddle_community_owner_latest
+  ON artifact_leaderboards.puddle_community_levels (owner_id,updated_at DESC,id DESC);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.puddle_community_versions (
+  level_id uuid NOT NULL REFERENCES artifact_leaderboards.puddle_community_levels(id),
+  version integer NOT NULL CHECK (version >= 1),
+  request_id uuid NOT NULL UNIQUE,
+  document jsonb NOT NULL,
+  description text NOT NULL CHECK (char_length(description) <= 500),
+  content_hash text NOT NULL,
+  title text NOT NULL,
+  gold_count integer NOT NULL CHECK (gold_count >= 0),
+  gem_count integer NOT NULL CHECK (gem_count >= 0),
+  target_seconds numeric NOT NULL CHECK (target_seconds > 0),
+  validation_version integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (level_id,version)
+);
+CREATE INDEX IF NOT EXISTS puddle_community_versions_created
+  ON artifact_leaderboards.puddle_community_versions (created_at DESC);

@@ -36,7 +36,7 @@ export function paintFaceForHit(draft,hit){
       return {error:'Choose the outside top; basin interiors and cut faces cannot be painted.'};
     const r=rampPart?ramp:owner?rectOf(owner):draft.boundary;
     if(!r)return {error:'This face cannot be painted.'};
-    return {face:'floor',targetId:owner?.id||null,base:hit.y,...(rampPart?{part:'ramp'}:owner?.kind==='grip'?{part:'platform'}:{}),
+    return {face:'floor',...(owner?{targetId:owner.id}:{}),base:hit.y,...(rampPart?{part:'ramp'}:owner?.kind==='grip'?{part:'platform'}:{}),
       minX:r.minX,maxX:r.maxX,minZ:r.minZ,maxZ:r.maxZ};
   }
   if(!wallFaces.has(hit.face)||!owner||!['block','legacy-roof','legacy-passage','lowgap','grip'].includes(owner.kind))

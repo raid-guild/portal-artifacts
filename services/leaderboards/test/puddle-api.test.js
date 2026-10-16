@@ -19,12 +19,12 @@ const issuer='https://portal.example.test',origin='http://localhost:5173';
 let server,base;
 before(async()=>{
   const schema=await readFile(new URL('../schema.sql',import.meta.url),'utf8');await pool.query(schema);
-  await pool.query('TRUNCATE artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
+  await pool.query('TRUNCATE artifact_leaderboards.puddle_community_versions, artifact_leaderboards.puddle_community_levels, artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');
   server=createPuddleApp({pool,origin,issuer,launchSecret:secret,secure:false}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}/leaderboard-api/${GAME}`;
 });
 after(async()=>{await new Promise(resolve=>server.close(resolve));await pool.end();});
-beforeEach(async()=>{await pool.query('TRUNCATE artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');});
+beforeEach(async()=>{await pool.query('TRUNCATE artifact_leaderboards.puddle_community_versions, artifact_leaderboards.puddle_community_levels, artifact_leaderboards.raid_profiles, artifact_leaderboards.runs, artifact_leaderboards.sessions, artifact_leaderboards.players, artifact_leaderboards.launches RESTART IDENTITY');});
 async function token(overrides={},key=secret){return new SignJWT({typ:'portal_module_launch',moduleSlug:GAME,handle:'Puddle Maker',...overrides})
   .setProtectedHeader({alg:'HS256'}).setIssuer(issuer).setAudience(GAME).setSubject(overrides.sub||'user:'+Math.floor(Math.random()*1e8))
   .setJti(randomUUID()).setIssuedAt().setExpirationTime('2m').sign(new TextEncoder().encode(key));}
@@ -35,6 +35,113 @@ const startBody=level=>({version:VERSION,level,contentId:PUDDLE_LEVELS[level].co
 const finishBody=(level,durationMs,gold,gems)=>({version:VERSION,level,durationMs,gold,gems,excludedMs:0});
 async function start(cookie,level=1){const response=await post('/runs',cookie,startBody(level));assert.equal(response.status,201,JSON.stringify(await response.clone().json()));return (await response.json()).runId;}
 async function elapsed(id,seconds){await pool.query("UPDATE artifact_leaderboards.runs SET started_at=now()-($2::int * interval '1 second') WHERE id=$1",[id,seconds]);}
+const communityDocument=()=>({format:'puddle-level',version:3,draft:{name:'Shared garden',presetId:0,
+  boundary:{type:'boundary',minX:-9,maxX:9,minZ:-6,maxZ:4.8},terrain:{type:'flat',height:0},
+  totalFlesh:297,startingFlesh:65,targetTime:45,tendrils:true,nextObjectId:3,
+  objects:[{id:'object-1',kind:'start',x:7,z:-2.6},
+    {id:'object-2',kind:'exit',type:'funnel',x:-7,z:2.6,radius:.95,bottomRadius:.36,depth:.9}]}});
+
+test('community levels publish immutable versions, hide all public links, and isolate owners',async()=>{
+  const first=await launch(await token({sub:'user:921001'})),other=await launch(await token({sub:'user:921002'}));
+  const payload={requestId:randomUUID(),description:'A garden to explore',document:communityDocument()};
+  assert.equal((await fetch(base+'/community/levels')).status,200);
+  assert.equal((await post('/community/levels',null,payload)).status,401);
+  assert.equal((await post('/community/levels',first.cookie,payload,'https://evil.example')).status,403);
+  let response=await post('/community/levels',first.cookie,payload);assert.equal(response.status,201);
+  const created=await response.json();assert.equal(created.version,1);
+  response=await post('/community/levels',first.cookie,payload);assert.equal(response.status,201);
+  assert.deepEqual(await response.json(),created);
+  assert.equal((await post('/community/levels',first.cookie,{...payload,description:'Different'})).status,409);
+  assert.equal((await fetch(`${base}/community/levels/${created.id}`)).status,200);
+  assert.equal((await fetch(`${base}/community/levels/${created.id}/versions/1`)).status,200);
+  const mine=await (await fetch(base+'/community/mine',{headers:{Cookie:first.cookie}})).json();
+  assert.equal(mine.entries[0].id,created.id);
+  assert.equal((await fetch(`${base}/community/mine/${created.id}`,{headers:{Cookie:other.cookie}})).status,404);
+  const revised=communityDocument();revised.draft.name='Revised shared garden';
+  const update={requestId:randomUUID(),baseVersion:1,description:'Second chapter',document:revised};
+  assert.equal((await post(`/community/levels/${created.id}/versions`,other.cookie,update)).status,404);
+  response=await post(`/community/levels/${created.id}/versions`,first.cookie,update);assert.equal(response.status,201);
+  assert.equal((await response.json()).version,2);
+  assert.equal((await post(`/community/levels/${created.id}/versions`,first.cookie,{...update,requestId:randomUUID()})).status,409);
+  assert.equal((await (await fetch(`${base}/community/levels/${created.id}/versions/1`)).json()).title,'Shared garden');
+  assert.equal((await (await fetch(`${base}/community/levels/${created.id}`)).json()).title,'Revised shared garden');
+  response=await post(`/community/levels/${created.id}/unpublish`,first.cookie,{expectedVersion:2});
+  assert.equal(response.status,200);assert.equal((await response.json()).published,false);
+  assert.equal((await fetch(`${base}/community/levels/${created.id}`)).status,404);
+  assert.equal((await fetch(`${base}/community/levels/${created.id}/versions/1`)).status,404);
+  response=await post(`/community/levels/${created.id}/versions`,first.cookie,{...update,requestId:randomUUID(),baseVersion:2});
+  assert.equal(response.status,201);assert.equal((await response.json()).version,3);
+  assert.equal((await fetch(`${base}/community/levels/${created.id}`)).status,200);
+});
+
+test('community publication applies bounded validation and distinct body limit',async()=>{
+  const {cookie}=await launch(await token({sub:'user:921003'}));
+  const valid={requestId:randomUUID(),description:'Valid',document:communityDocument()};
+  assert.equal((await post('/community/levels',cookie,{...valid,document:{...valid.document,evil:true}})).status,400);
+  const invalidAttachment=communityDocument();
+  invalidAttachment.draft.objects.push({id:'basin-1',kind:'basin',type:'funnel',x:0,z:0,
+    radius:.45,bottomRadius:.2,depth:.2,base:1.5,targetId:'object-1'});
+  assert.equal((await post('/community/levels',cookie,{...valid,document:invalidAttachment})).status,400);
+  const oversized={...valid,requestId:randomUUID(),description:'x'.repeat(5000)};
+  assert.equal((await post('/community/levels',cookie,oversized)).status,400);
+  const huge=JSON.stringify({...valid,document:{...valid.document,draft:{...valid.document.draft,
+    objects:[...valid.document.draft.objects,{id:'oversized',kind:'label',x:0,z:0,base:0,offset:0,text:'x'.repeat(270000)}]}}});
+  assert.equal((await fetch(base+'/community/levels',{method:'POST',headers:{Cookie:cookie,Origin:origin,'Content-Type':'application/json'},body:huge})).status,413);
+  assert.equal((await post('/runs',cookie,{padding:'x'.repeat(5000)})).status,413);
+});
+
+test('daily publication quota serializes updates to different levels by one author',async()=>{
+  const {cookie}=await launch(await token({sub:'user:921006'}));
+  const document=communityDocument(),description='Quota race';
+  const publish=async()=>{const response=await post('/community/levels',cookie,
+    {requestId:randomUUID(),description,document});
+    assert.equal(response.status,201);return (await response.json()).id;};
+  const [first,second]=[await publish(),await publish()];
+  const ownerId=(await pool.query("SELECT id FROM artifact_leaderboards.players WHERE subject='user:921006'" )).rows[0].id;
+  const fillerId=randomUUID();
+  await pool.query(`INSERT INTO artifact_leaderboards.puddle_community_levels(id,owner_id,current_version,published)
+    VALUES($1,$2,97,false)`,[fillerId,ownerId]);
+  await pool.query(`INSERT INTO artifact_leaderboards.puddle_community_versions
+    (level_id,version,request_id,document,description,content_hash,title,gold_count,gem_count,target_seconds,validation_version)
+    SELECT $1,i,gen_random_uuid(),$2,'filler','test','Filler',0,0,30,1
+    FROM generate_series(1,97) AS i`,[fillerId,document]);
+  const update=levelId=>post(`/community/levels/${levelId}/versions`,cookie,
+    {requestId:randomUUID(),baseVersion:1,description,document});
+  const results=await Promise.all([update(first),update(second)]);
+  assert.deepEqual(results.map(response=>response.status).sort(),[201,429]);
+});
+
+test('community updates enforce concurrent version, request ownership, pagination and quotas',async()=>{
+  const author=await launch(await token({sub:'user:921004'})),outsider=await launch(await token({sub:'user:921005'}));
+  const doc=communityDocument(),description='A room';
+  const first=await (await post('/community/levels',author.cookie,{requestId:randomUUID(),description,document:doc})).json();
+  const common={baseVersion:1,description,document:doc};
+  const a={...common,requestId:randomUUID()},b={...common,requestId:randomUUID()};
+  const raced=await Promise.all([post(`/community/levels/${first.id}/versions`,author.cookie,a),
+    post(`/community/levels/${first.id}/versions`,author.cookie,b)]);
+  assert.deepEqual(raced.map(r=>r.status).sort(),[201,409]);
+  const winner=raced[0].status===201?a:b;
+  assert.equal((await post(`/community/levels/${first.id}/versions`,author.cookie,winner)).status,201);
+  assert.equal((await post(`/community/levels/${first.id}/versions`,outsider.cookie,winner)).status,404);
+  assert.equal((await post('/community/levels',outsider.cookie,{requestId:winner.requestId,description,document:doc})).status,409);
+  for(let i=0;i<21;i++){
+    const levelId=randomUUID();await pool.query(`INSERT INTO artifact_leaderboards.puddle_community_levels(id,owner_id,current_version,published,updated_at)
+      SELECT $1,p.id,1,true,now()-($2::int * interval '1 second') FROM artifact_leaderboards.players p WHERE p.subject='user:921004'`,
+      [levelId,i+1]);
+    await pool.query(`INSERT INTO artifact_leaderboards.puddle_community_versions
+      (level_id,version,request_id,document,description,content_hash,title,gold_count,gem_count,target_seconds,validation_version)
+      VALUES($1,1,$2,$3,$4,'test','Seeded garden',0,0,30,1)`,[levelId,randomUUID(),doc,description]);
+  }
+  const page=await (await fetch(base+'/community/levels?limit=10')).json();
+  assert.equal(page.entries.length,10);assert.ok(page.nextCursor);
+  const second=await (await fetch(`${base}/community/levels?limit=10&cursor=${encodeURIComponent(page.nextCursor)}`)).json();
+  assert.equal(second.entries.length,10);
+  assert.equal(new Set([...page.entries,...second.entries].map(x=>x.id)).size,20);
+  const ownerId=(await pool.query("SELECT id FROM artifact_leaderboards.players WHERE subject='user:921004'")).rows[0].id;
+  await pool.query(`INSERT INTO artifact_leaderboards.puddle_community_levels(id,owner_id,current_version,published)
+    SELECT gen_random_uuid(),$1,1,false FROM generate_series(1,29)`,[ownerId]);
+  assert.equal((await post('/community/levels',author.cookie,{requestId:randomUUID(),description,document:doc})).status,429);
+});
 
 test('public boards, signed handoff and one-use launch',async()=>{
   assert.deepEqual(await (await fetch(base+'/ready')).json(),{ready:true,missing:[]});
@@ -101,7 +208,7 @@ test('readiness reports missing grants for a restricted service role',async()=>{
   try{
     await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`);
     await pool.query(`GRANT USAGE ON SCHEMA artifact_leaderboards TO ${role}`);
-    for(const table of ['launches','players','sessions','runs'])
+    for(const table of ['launches','players','sessions','runs','puddle_community_levels','puddle_community_versions'])
       await pool.query(`GRANT SELECT ON artifact_leaderboards.${table} TO ${role}`);
     restrictedPool=new pg.Pool({connectionString:roleUrl.toString()});
     restrictedServer=createPuddleApp({pool:restrictedPool,origin,issuer,launchSecret:secret,secure:false}).listen(0,'127.0.0.1');
@@ -113,6 +220,8 @@ test('readiness reports missing grants for a restricted service role',async()=>{
     assert.ok(missing.some(value=>value.includes('players_id_seq')));
     await pool.query(`GRANT INSERT, DELETE ON artifact_leaderboards.launches,artifact_leaderboards.sessions TO ${role}`);
     await pool.query(`GRANT INSERT, UPDATE ON artifact_leaderboards.players,artifact_leaderboards.runs TO ${role}`);
+    await pool.query(`GRANT INSERT, UPDATE ON artifact_leaderboards.puddle_community_levels TO ${role}`);
+    await pool.query(`GRANT INSERT ON artifact_leaderboards.puddle_community_versions TO ${role}`);
     await pool.query(`GRANT USAGE ON SEQUENCE artifact_leaderboards.players_id_seq TO ${role}`);
     assert.deepEqual(await (await fetch(ready)).json(),{ready:true,missing:[]});
   }finally{

@@ -18,6 +18,7 @@ import {TouchJoystick} from './touch-joystick.js';
 import {bindHoldButton,bindPullButton} from './touch-actions.js';
 import {createBurnFeedback} from './burn-feedback.js';
 import {openTablet,closeTablet,nearbyTablet} from './memory-tablets.js';
+import {setupEditorCommunity} from './editor-community.js';
 
 const $=id=>document.getElementById(id),copy=o=>JSON.parse(JSON.stringify(o));
 const storageKey='puddle-level-workshop-v3',memory=new URLSearchParams(location.search).get('storage')==='memory';
@@ -25,6 +26,7 @@ const testSession=new URLSearchParams(location.search).get('storage')==='test';
 const editorStorage=localStorageForPage(location.search),localLibrary=createLocalLevelLibrary({storage:editorStorage});
 document.querySelector('#open-game-link').href=`./index.html${localPageQuery(location.search)}`;
 let linkedLevelId=null,linkedDocument=null;
+let community;
 let draft=createBlankDraft(),startup='Blank garden ready. Choose a tool or load a preset.';
 if(memory)startup='Temporary test session. Export JSON to keep this draft.';
 try{if(!memory){const saved=editorStorage?.getItem(storageKey)||editorStorage?.getItem('puddle-level-workshop-v2')||editorStorage?.getItem('puddle-level-workshop-v1');
@@ -439,6 +441,7 @@ function renderEditor(){updateLinkedStatus();const errors=validateDraft(draft).e
   if(!errors.length){const li=document.createElement('li');li.className='good';li.textContent='Ready for a physical play test.';$('validation').append(li);}
   renderTools();renderInspector();renderHandles();}
 $('load-preset').onclick=()=>{const value=$('preset').value,id=value==='hazards'?value:Number(value);draft=id?draftFromPreset(id):createBlankDraft();linkedLevelId=null;linkedDocument=null;
+  community?.clearAssociation();
   selected=null;tool='select';commit('Garden loaded. Undo restores the previous draft.');};
 $('name').onchange=()=>{draft.name=$('name').value;commit();};
 $('total').onchange=()=>{draft.totalFlesh=Number($('total').value);commit();};
@@ -459,6 +462,7 @@ $('save-level').onclick=()=>{if(memory){status('Temporary session · export JSON
   catch(error){status(`Could not save local level: ${error.message}`);}};
 $('save-level-new').onclick=()=>{if(memory){status('Temporary session · export JSON to keep this level.');return;}
   try{const entry=localLibrary.save(exportDraft(draft),{asNew:true});linkedLevelId=entry.id;
+    community?.clearAssociation();
     linkedDocument=entry.document;updateLinkedStatus();status(`Saved a new local level “${entry.name}”.`);}
   catch(error){status(`Could not save local level: ${error.message}`);}};
 $('export').onclick=()=>{const blob=new Blob([exportDraft(draft)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -466,6 +470,7 @@ $('export').onclick=()=>{const blob=new Blob([exportDraft(draft)],{type:'applica
 $('import').onclick=()=>{$('file').value='';$('file').click();};
 $('file').onchange=async()=>{const file=$('file').files[0];if(!file)return;try{if(file.size>250000)throw new Error('Level file is too large.');
   const imported=importDraft(await file.text());draft=imported;linkedLevelId=null;linkedDocument=null;
+  community?.clearAssociation();
   selected=null;tool='select';commit('Imported '+draft.name+'.');}
   catch(e){status('Import failed: '+e.message);}};
 function clearInput(){keys.clear();joystick.cancel();contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();recall=false;}
@@ -558,7 +563,11 @@ function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
 $('session-badge').hidden=!memory&&!testSession;
 if(testSession)$('session-badge').textContent='Isolated test session · local levels stay separate from your saves';
 if(memory){$('save').disabled=true;$('save').textContent='Save unavailable in test session';$('save').title='Export JSON to keep this draft.';}
+community=setupEditorCommunity({getDraft:()=>draft,exportDraft,validateDraft,importDraft,
+  loadDraft:next=>{draft=next;history=new DraftHistory(draft);selected=null;tool='select';
+    renderEditor();pendingPreview=true;persist();},
+  clearLocalLink:()=>{linkedLevelId=null;linkedDocument=null;updateLinkedStatus();},notify:status});
 renderEditor();rebuild(false);resize();status(startup);requestAnimationFrame(frame);
-if(import.meta.hot)import.meta.hot.dispose(()=>{music();audio.dispose();view?.dispose();printLibrary.dispose();pipeline.dispose();
+if(import.meta.hot)import.meta.hot.dispose(()=>{community?.dispose();music();audio.dispose();view?.dispose();printLibrary.dispose();pipeline.dispose();
   burnFeedback.dispose();
   handleGeo.dispose();haloGeo.dispose();haloMaterial.dispose();for(const m of markerMaterials.values())m.dispose();outlineMaterial.dispose();bodyMaterial.dispose();poolMaterial.dispose();renderer.dispose();});

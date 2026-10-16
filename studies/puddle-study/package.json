@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "npm run build:kit && npm run build:ranked && vite build",
+    "build": "npm run build:published-schema && npm run build:kit && npm run build:ranked && vite build",
+    "build:published-schema": "node scripts/generate-published-schema.mjs",
     "build:ranked": "node scripts/generate-ranked-rules.mjs",
     "build:kit": "node scripts/build-builder-kit.mjs",
     "test": "node --test tests/*.test.js",
