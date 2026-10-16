@@ -5,6 +5,7 @@ import {ArcadeRadio} from './arcade-radio.js';
 import {RADIO_STATIONS,RADIO_BY_ID} from './radio-stations.js';
 import {FlowCountdown,canSkipRound,preserveEncoreOnSkip} from './flow-control.js';
 import {hitSwitch,expireSwitchboard,forgetSwitchBall} from './switchboard.js';
+import {upgradeValue,ordinaryAttribution,newFeedbackStats,recordOrdinary,recordEcho,FeedbackBatcher,feedbackLines} from './upgrade-feedback.js';
 import './style.css';
 import { NeonMachine } from './game.js';
 import {CINEMATIC_JACKPOTS,DEMO_JACKPOT,JackpotShow,rollJackpotBonus,applyJackpotBonus,reservePaidDrop,refundPaidDrops} from './jackpot.js';
@@ -20,18 +21,20 @@ app.innerHTML=`<div class="shell">
   <aside class="right-panel"><div class="eyebrow">THE MACHINE <span class="tiny-line"></span> LIVE</div><div class="mini-title" id="machineTitle">Neon Classic</div><p id="machineDescription">Time your release. Let gravity write the story.</p><div class="legend"><div><span class="legend-dot cyan"></span> TICKETS <b>10–100</b></div><div><span class="legend-dot pink"></span> FREE DROP <b>+2</b></div><div><span class="legend-dot amber"></span> JACKPOT <b id="legendJackpot">150</b></div></div><div class="camera-control"><span class="metric-label">CAMERA</span><div class="segmented"><button id="camCabinet" class="active">CABINET</button><button id="camFollow">BALL FOLLOW</button></div></div><div class="machine-note"><span>✧</span><span>Watch the return lift carry every ball back to the top.</span></div>
   <section id="radioFace" class="radio-face" aria-label="Arcade Radio"><div class="radio-head"><span>◈ ARCADE RADIO</span><span id="radioSignal">87.9 FM</span></div><div class="radio-display"><div><strong id="radioStation">CIRCUIT FM</strong><small id="radioStatus" aria-live="polite">PRESS PLAY TO TUNE IN</small></div><div class="radio-eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="radio-controls"><button id="radioPlay" aria-label="Play Arcade Radio" aria-pressed="false">▶ PLAY</button><button id="radioNext" aria-label="Next owned radio station">NEXT ↗</button><button id="radioShop">STATIONS</button></div><label class="radio-volume">MUSIC <input id="radioVolume" type="range" min="0" max="100" value="45" aria-label="Arcade Radio music volume"></label></section></aside>
   <div class="bottom-bar"><div class="ball-pick"><span class="metric-label">LOADED BALL</span><div id="ballOptions" class="ball-options"></div></div><div class="drop-area"><button id="dropBtn" class="drop-btn"><span class="drop-glyph" id="dropGlyph">↓</span><span id="dropLabel">DROP BALL</span><small>SPACE</small></button><div class="drop-hint" id="dropHint">WAIT FOR YOUR MOMENT</div></div><div class="utility"><button id="autoBtn" class="text-btn">AUTO DROP <span id="autoState">OFF</span></button><button id="workshopBtn" class="text-btn">◈ WORKSHOP <span id="chips">0</span></button></div></div>
-  <div id="toast" class="toast" role="status"></div><div id="fxPreview" class="fx-preview hidden"><div><small>WORKSHOP PREVIEW</small><strong id="fxPreviewName"></strong><span>Visual sample only · no tickets or drops spent</span></div><button id="fxPreviewBack">← BACK TO WORKSHOP</button></div><a class="guild-credit" href="https://raidguild.org/" target="_blank" rel="noopener noreferrer"><img src="${import.meta.env.BASE_URL}assets/raidguild-stamp.svg" alt="RaidGuild brand stamp"><span>Built by <b>RaidGuild</b></span></a><div class="footer-note">NO REAL MONEY</div>
+  <div id="toast" class="toast" role="status"></div><div id="upgradeCallouts" class="upgrade-callouts" aria-live="polite"><div></div><div></div><div></div></div><div id="upgradeInstall" class="upgrade-install" role="status"></div><div id="fxPreview" class="fx-preview hidden"><div><small>WORKSHOP PREVIEW</small><strong id="fxPreviewName"></strong><span>Visual sample only · no tickets or drops spent</span></div><button id="fxPreviewBack">← BACK TO WORKSHOP</button></div><a class="guild-credit" href="https://raidguild.org/" target="_blank" rel="noopener noreferrer"><img src="${import.meta.env.BASE_URL}assets/raidguild-stamp.svg" alt="RaidGuild brand stamp"><span>Built by <b>RaidGuild</b></span></a><div class="footer-note">NO REAL MONEY</div>
   <div id="modalBackdrop" class="modal-backdrop hidden"><div class="modal" id="modal"></div></div>
 </div>`;
 
 let meta=loadMeta(), run=newRun(meta), machine=null, toastTimer=null, modalKind=null, autoTimer=0, ended=false, settledAt=0, workshopTab="power",saveBlocked=false;
+let feedbackStats=newFeedbackStats(),feedbackHideTimer=0,installTimer=0;
+const feedbackBatcher=new FeedbackBatcher(renderFeedback);
 const radio=new ArcadeRadio();radio.configure(meta.audio);
 const releases=new ReleaseQueue();let jackpotShow=null,showQueue=[],showPending=false;
 const choiceTimer=new FlowCountdown(10);
 const ranked=rankedClient();let mode='casual',generation=0,challengeStarted=0,rankedRun=null,challengeDone=false;
 function blockSave(result){
   if(saveBlocked)return;
-  saveBlocked=true;generation++;choiceTimer.cancel();clearJackpotShows();ranked.cancel();releases.clear();run.auto=false;run.status='blocked';
+  saveBlocked=true;generation++;choiceTimer.cancel();clearUpgradeFeedback();clearJackpotShows();ranked.cancel();releases.clear();run.auto=false;run.status='blocked';
   // A conflict may be detected inside a scoring callback while recycle is still
   // removing a ball. Clear physics after that callback and frame unwind.
   queueMicrotask(()=>{if(saveBlocked&&machine?.world&&machine.boardBody)machine.resetSimulation();});
@@ -53,6 +56,13 @@ function touchIdle(){if(saveBlocked)return;persist({...meta,idleAt:Date.now()});
 function creditIdle(){if(saveBlocked)return;const time=Date.now(),earned=idleEarnings(meta,time);if(!persist({...meta,totalTickets:meta.totalTickets+earned,chips:meta.chips+Math.floor(earned/200),idleAt:time}))return;if(earned){toast(`EXHIBITION EARNED ${earned} TICKETS WHILE AWAY`,'gold');sync();}}
 
 function toast(message,tone='cyan'){const el=$('#toast');el.textContent=message;el.className=`toast show ${tone}`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600);}
+function clearUpgradeFeedback(){feedbackBatcher.reset();clearTimeout(feedbackHideTimer);clearTimeout(installTimer);feedbackHideTimer=installTimer=0;$('#upgradeCallouts').classList.remove('show');$('#upgradeInstall').classList.remove('show');}
+function feedbackBurst(item){if(mode==='casual'&&!saveBlocked&&!showPending&&!jackpotShow?.active)feedbackBatcher.push(item);}
+function renderFeedback(batch){
+  if(saveBlocked||mode!=='casual'||showPending||jackpotShow?.active)return;
+  const lines=feedbackLines(batch),el=$('#upgradeCallouts');el.querySelectorAll('div').forEach((slot,i)=>slot.textContent=lines[i]||'');el.classList.add('show');clearTimeout(feedbackHideTimer);feedbackHideTimer=setTimeout(()=>el.classList.remove('show'),1100);
+}
+function showUpgradeInstall(id,value){const upgrade=[...UPGRADES,...OVERDRIVE_UPGRADES,...SWITCH_UPGRADES].find(u=>u.id===id);if(!upgrade)return;machine.playUpgradeInstall(id);const el=$('#upgradeInstall');el.textContent=`${upgrade.title.toUpperCase()} INSTALLED · ${value}`;el.classList.add('show');clearTimeout(installTimer);installTimer=setTimeout(()=>el.classList.remove('show'),500);}
 function saveAudioPrefs(){return persist({...meta,audio:{...meta.audio,station:radio.station,musicVolume:radio.musicVolume,effectsVolume:radio.effectsVolume,playing:radio.wanted,muted:radio.muted}});}
 function syncRadioUI(){
   const station=RADIO_BY_ID[radio.station];
@@ -91,6 +101,12 @@ function buildSummary(){
   for(const id of new Set(run.upgrades)){const title=[...UPGRADES,...OVERDRIVE_UPGRADES,...SWITCH_UPGRADES].find(upgrade=>upgrade.id===id)?.title,count=run.upgrades.filter(item=>item===id).length;if(title)parts.push(`${title}${count>1?` ×${count}`:''}`);}
   return parts.length?parts.join(' · '):'Pure physics. Pure potential.';
 }
+function feedbackSummary(){
+  const labels={rim:'Charged rims',lucky:'Lucky pockets',spark:'Light show','od-gain':'Voltage amplifier'};
+  const earned=Object.entries(labels).map(([id,name])=>`<span>${name}: +${feedbackStats.tickets[id].toLocaleString()} actual tickets</span>`).join('');
+  const installed=[...new Set(run.upgrades)].map(id=>{const item=[...UPGRADES,...OVERDRIVE_UPGRADES,...SWITCH_UPGRADES].find(up=>up.id===id);return item?`${item.title} ×${run.upgrades.filter(value=>value===id).length}`:null;}).filter(Boolean).join(' · ')||'No mutations installed yet';
+  return `<details class="run-feedback"><summary>Mutation impact this run</summary><div class="run-feedback-grid">${earned}<span>Jackpot charge added: +${feedbackStats.chargeAdded.toLocaleString()} (next JP, not tickets)</span><span>Echo balls released: ${feedbackStats.echoesReleased}</span></div><p>Installed: ${installed}</p><small>Actual payouts only. Ball, permanent power, cabinet, and Switchboard effects stay in the base award.</small></details>`;
+}
 function sync(){
   if(mode==='challenge'){syncChallenge();return;}
   $('#roundTag').textContent=run.overdrive?`OVERDRIVE ${String(run.round+1).padStart(2,'0')}`:`ROUND ${String(run.round+1).padStart(2,'0')} / 04`;
@@ -107,11 +123,11 @@ function sync(){
   document.querySelectorAll('[data-ball]').forEach(b=>b.onclick=()=>{const id=b.dataset.ball;if(meta.unlocked.includes(id)){run.ball=id;sync();toast(`${BALLS[id].name} ball loaded`)}else openWorkshop();});
 }
 function syncSwitchHud(){const active=mode==='casual'&&run.cabinet==='switchboard',hud=$('#switchHud');hud.classList.toggle('active',active);if(!active)return;const s=run.switchboard,now=machine?.playTime||0;hud.querySelectorAll('.switch-pips i').forEach((pip,i)=>pip.classList.toggle('lit',s.channels[i]>now));$('#reactorPercent').textContent=s.reactor>=50?'READY +50%':`+${s.reactor}%${s.overloadUntil>now?' · OVERLOAD':''}`;}
-function spendDrop(free){if(saveBlocked)return;if(mode==='challenge'){run={...run,drops:run.drops-1,dropped:run.dropped+1};sync();return;}if(!free){run.dropped++;if(run.upgrades.includes('double')&&run.dropped%4===0)releases.enqueue('chrome',true,machine.playTime+.42);}syncDropStatus();}
+function spendDrop(free){if(saveBlocked)return;if(mode==='challenge'){run={...run,drops:run.drops-1,dropped:run.dropped+1};sync();return;}if(!free){run.dropped++;if(run.upgrades.includes('double')&&run.dropped%4===0)releases.enqueue('chrome',true,machine.playTime+.42,false,'echo');}syncDropStatus();}
 function refundDrop(free=false,encore=false){if(saveBlocked)return;if(mode==='challenge'){challengeOutcome('miss');return;}if(['playing','choose'].includes(run.status)&&!free){run=refundPaidDrops(run,[{free,encore}]);toast('BALL RECYCLED • DROP REFUNDED');syncDropStatus();}}
 function refundPending(items){run=refundPaidDrops(run,items);if(items.some(item=>!item.free))syncDropStatus();}
 function cancelPending(){refundPending(releases.clear());}
-function processReleases(){if(saveBlocked||!machine||showPending||mode!=='casual'||document.hidden||modalKind||run.status!=='playing')return;const released=releases.flush(machine.playTime,()=>machine.canDrop(),item=>machine.drop(item.type,item.free,item.encore));if(released)syncDropStatus();}
+function processReleases(){if(saveBlocked||!machine||showPending||mode!=='casual'||document.hidden||modalKind||run.status!=='playing')return;const released=releases.flush(machine.playTime,()=>machine.canDrop(),item=>machine.drop(item.type,item.free,item.encore));if(released){if(released.source==='echo'){feedbackStats=recordEcho(feedbackStats);feedbackBurst({echoes:1});}syncDropStatus();}}
 function drop(free=false,ball=run.ball){if(saveBlocked||showPending)return;if(mode==='challenge'){if(!modalKind&&run.status==='playing'&&run.drops>0&&!machine.active.length)machine.drop('chrome');return;}if(run.status!=='playing'||modalKind||!machine)return;let encore=false;if(!free){const reserved=reservePaidDrop(run);if(!reserved)return;run=reserved.run;encore=reserved.encore;}releases.enqueue(ball,free,machine.playTime,encore);syncDropStatus();processReleases();}
 function primaryAction(){
   if(canSkipRound(run,{mode,modal:!!modalKind,show:showPending,blocked:saveBlocked})){
@@ -122,24 +138,27 @@ function primaryAction(){
   drop();
 }
 function clearJackpotShows(){showQueue=[];showPending=false;jackpotShow?.cancel();document.body.classList.remove('jackpot-playing');}
-function startNextJackpotShow(){if(saveBlocked||!showPending||jackpotShow?.active)return;const next=showQueue.shift();if(!next){showPending=false;document.body.classList.remove('jackpot-playing');sync();return;}if(next.generation!==generation||mode!=='casual'){startNextJackpotShow();return;}document.body.classList.add('jackpot-playing');jackpotShow.start(next.bonus,next.style,{onFinish:()=>{if(next.generation===generation)startNextJackpotShow();}});sync();}
+function startNextJackpotShow(){if(saveBlocked||!showPending||jackpotShow?.active)return;const next=showQueue.shift();if(!next){showPending=false;document.body.classList.remove('jackpot-playing');sync();return;}if(next.generation!==generation||mode!=='casual'){startNextJackpotShow();return;}clearUpgradeFeedback();document.body.classList.add('jackpot-playing');jackpotShow.start(next.bonus,next.style,{onFinish:()=>{if(next.generation===generation)startNextJackpotShow();}});sync();}
 function score(hole,ball,rimHits){
   if(saveBlocked)return;if(mode==='challenge'){challengeOutcome(hole.id);return;}
   if(run.status!=='playing'&&run.status!=='choose')return;
+  const attribution=ordinaryAttribution(run,hole,ball,rimHits,machine.playTime);
   const previousStatus=run.status;
   run=applyScore(run,hole,ball,rimHits,machine.playTime);
   const reward=run.lastScore;
   const bonus=hole.kind==='jackpot'?{...rollJackpotBonus(reward.amount),baseJackpot:reward.baseJackpot,reactorBoost:reward.reactorBoost}:null;
+  if(bonus)clearUpgradeFeedback();
   if(bonus)run=applyJackpotBonus(run,bonus);
   if(previousStatus==='playing'&&run.status==='choose')refundPending(releases.clear());
   machine.setRun(run);
   if((run.overdrive||bonus)&&!bankProgress())return;
+  if(attribution){feedbackStats=recordOrdinary(feedbackStats,attribution);feedbackBurst({tickets:reward.amount,contributions:attribution.contributions,charge:attribution.charge});}
   if(bonus){
     const style=meta.equipped.jackpot;
     if(CINEMATIC_JACKPOTS.has(style)&&meta.jackpotCinematics){showQueue.push({bonus,style,generation});showPending=true;queueMicrotask(startNextJackpotShow);}
     else toast(`JACKPOT ${reward.baseJackpot.toLocaleString()} + ${reward.reactorBoost} REACTOR + ${bonus.tickets} BONUS TIX`,'gold');
     if(!showPending){machine.shake=machine.reducedEffects?0:.24;if(!machine.reducedEffects){document.body.classList.add('jackpot-flash');setTimeout(()=>document.body.classList.remove('jackpot-flash'),650)}}
-  }else if(hole.kind==='free')toast('+2 FREE DROPS','pink');else toast(`+${reward.amount} TICKETS`);
+  }else if(hole.kind==='free')toast('+2 FREE DROPS','pink');else if(!attribution)toast(`+${reward.amount} TICKETS`);
   sync();
 }
 function switchContact(index,ballId,now){if(saveBlocked||mode!=='casual'||!['playing','choose'].includes(run.status))return false;const result=hitSwitch(run,index,ballId,now);if(!result.hit)return false;run=result.run;machine.setRun(run);syncSwitchHud();if(result.overload)toast('SWITCHBOARD OVERLOAD · UP TO 4×','gold');return true;}
@@ -161,10 +180,10 @@ function endRun(){
   openModal(`<div class="modal-eyebrow">${run.mastered?'CABINET MASTERED':'RUN COMPLETE'}</div><h2>${run.overdrive?'Overdrive burns bright.':'The build becomes your next advantage.'}</h2><p>${CABINETS.find(c=>c.id===run.cabinet).name} · Round ${run.round+1} · ${run.totalTickets.toLocaleString()} tickets</p><div class="reward-row"><span>◈</span><strong>${run.bankedChips}</strong><small>CHIPS BANKED THIS RUN</small></div><p>Cabinet best: ${record.tickets.toLocaleString()} tickets · Round ${record.round}</p><p class="modal-note">Permanent power applies next run. Unlock Double Trouble in CABINETS for a new two-deck machine.</p><div class="modal-actions"><button class="primary" id="retryBtn">NEW RUN →</button><button class="secondary" id="endShopBtn">OPEN WORKSHOP</button></div>`,'end');
   $('#retryBtn').onclick=startRun;$('#endShopBtn').onclick=()=>openWorkshop();
 }
-function startRun(){if(saveBlocked)return;generation++;choiceTimer.cancel();ranked.cancel();clearJackpotShows();cancelPending();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun(meta);ended=false;settledAt=0;autoTimer=0;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
+function startRun(){if(saveBlocked)return;generation++;choiceTimer.cancel();clearUpgradeFeedback();feedbackStats=newFeedbackStats();ranked.cancel();clearJackpotShows();cancelPending();mode='casual';rankedRun=null;challengeDone=false;machine.resetSimulation();run=newRun(meta);ended=false;settledAt=0;autoTimer=0;machine.setRun(run);closeModal();sync();toast('NEW RUN • ROUND 01');}
 function openModal(html,kind){choiceTimer.cancel();autoTimer=0;if(radio.auditionState&&kind!=='workshop'){radio.endAudition();syncRadioUI();}radio.setWorkshopMode(kind==='workshop');if(modalKind==='preview'){machine.clearPreview();$('#fxPreview').classList.add('hidden');}if(modalKind==='challenge'&&kind!=='challenge'){generation++;ranked.cancel();}modalKind=kind;$('#modal').innerHTML=html;$('#modalBackdrop').classList.remove('hidden');syncDropStatus();}
 function closeModal(){choiceTimer.cancel();if(modalKind==='workshop'&&radio.auditionState){radio.endAudition();syncRadioUI();}radio.setWorkshopMode(false);modalKind=null;$('#modalBackdrop').classList.add('hidden');syncDropStatus();}
-function openUpgrade(){if(saveBlocked||showPending)return;if(run.round===3&&!run.overdrive){openCheckpoint();return;}const cards=randomCards(run);openModal(`<div class="modal-eyebrow">ROUND ${String(run.round+1).padStart(2,'0')} CLEARED</div><h2>Choose your next mutation.</h2><p>Your machine is learning. Pick one upgrade for this run.</p><p class="choice-countdown" id="choiceCountdown" role="status"></p><div class="upgrade-grid">${cards.map(c=>`<button class="upgrade-card" data-upgrade="${c.id}" style="--accent:${c.color}"><span class="upgrade-icon">${c.icon}</span><small>${c.tier}</small><strong>${c.title}${c.id.startsWith('od-')||c.id.startsWith('sw-')?` · ${run.upgrades.filter(id=>id===c.id).length+1}`:''}</strong><span>${c.description}</span><em>ADD TO BUILD →</em></button>`).join('')}</div><div class="modal-foot">NEXT ROUND · TARGET ${targetFor({...run,round:run.round+1}).toLocaleString()} TICKETS</div>`,'upgrade');const token=choiceTimer.start('upgrade',cards.map(c=>c.id),id=>{if(saveBlocked||modalKind!=='upgrade')return;run=addUpgrade(run,id);machine.setRun(run);closeModal();sync();if(run.status==='won')endRun();else toast(`ROUND ${run.round+1} • ${[...UPGRADES,...OVERDRIVE_UPGRADES,...SWITCH_UPGRADES].find(u=>u.id===id).title} installed`);});document.querySelectorAll('[data-upgrade]').forEach(b=>b.onclick=()=>choiceTimer.choose(b.dataset.upgrade,token));updateChoiceCountdown();}
+function openUpgrade(){if(saveBlocked||showPending)return;if(run.round===3&&!run.overdrive){openCheckpoint();return;}const cards=randomCards(run);openModal(`<div class="modal-eyebrow">ROUND ${String(run.round+1).padStart(2,'0')} CLEARED</div><h2>Choose your next mutation.</h2><p>Your machine is learning. Pick one upgrade for this run.</p><p class="choice-countdown" id="choiceCountdown" role="status"></p><div class="upgrade-grid">${cards.map(c=>`<button class="upgrade-card" data-upgrade="${c.id}" style="--accent:${c.color}"><span class="upgrade-icon">${c.icon}</span><small>${c.tier}</small><strong>${c.title}${c.id.startsWith('od-')||c.id.startsWith('sw-')?` · ${run.upgrades.filter(id=>id===c.id).length+1}`:''}</strong><span class="upgrade-description">${c.description}</span><span class="upgrade-value">${upgradeValue(run,c.id)}</span><em>ADD TO BUILD →</em></button>`).join('')}</div><div class="modal-foot">NEXT ROUND · TARGET ${targetFor({...run,round:run.round+1}).toLocaleString()} TICKETS</div>`,'upgrade');const token=choiceTimer.start('upgrade',cards.map(c=>c.id),id=>{if(saveBlocked||modalKind!=='upgrade')return;const value=upgradeValue(run,id);run=addUpgrade(run,id);machine.setRun(run);closeModal();showUpgradeInstall(id,value);sync();if(run.status==='won')endRun();else toast(`ROUND ${run.round+1} • ${[...UPGRADES,...OVERDRIVE_UPGRADES,...SWITCH_UPGRADES].find(u=>u.id===id).title} installed`);});document.querySelectorAll('[data-upgrade]').forEach(b=>b.onclick=()=>choiceTimer.choose(b.dataset.upgrade,token));updateChoiceCountdown();}
 function updateChoiceCountdown(){const el=$('#choiceCountdown');if(el&&choiceTimer.kind)el.textContent=`${choiceTimer.kind==='checkpoint'?'Entering Overdrive':'Random mutation selected'} in ${Math.ceil(choiceTimer.remaining)}s`;}
 const SHOP_POWER=[
   {id:'rubber',icon:'●',name:'Rubber ball',desc:'Higher bounce, rewards rim hits.',cost:4},
@@ -247,6 +266,7 @@ function startPreview(category,id){
   if(saveBlocked)return;
   cancelPending();
   if(category==='jackpot'&&CINEMATIC_JACKPOTS.has(id)){
+    clearUpgradeFeedback();
     closeModal();modalKind='preview';showPending=true;document.body.classList.add('jackpot-playing');
     jackpotShow.start(DEMO_JACKPOT,id,{preview:true,onFinish:()=>{showPending=false;document.body.classList.remove('jackpot-playing');modalKind=null;openWorkshop('jackpot');}});return;
   }
@@ -276,7 +296,7 @@ function openSettings(){
       <div class="mobile-run-info"><b>CURRENT BUILD</b><span>${build}</span><b>PRIZE DECK</b><span>Tickets 10–100 · Free drop +2 · Jackpot ${run.jackpot}</span></div>
       <a class="mobile-guild" href="https://raidguild.org/" target="_blank" rel="noopener noreferrer"><img src="${import.meta.env.BASE_URL}assets/raidguild-stamp.svg" alt="RaidGuild brand stamp"><span>Built by RaidGuild ↗</span></a>
     </section>
-    <div class="modal-actions">${mode==='casual'?'<button id="cabinetShop" class="secondary">CABINETS & RECORDS</button>':''}${run.overdrive?'<button id="retireRun" class="secondary">CASH OUT RUN</button>':''}</div><div class="settings-list"><label><span>Visual bloom <small>Glowing cabinet lights</small></span><input type="checkbox" id="bloomToggle" ${machine.bloomOn?'checked':''}></label><label><span>Reduced effects <small>Fewer particles, no trails, flash, or shake</small></span><input type="checkbox" id="effectsToggle" ${machine.reducedEffects?'checked':''}></label><label><span>Jackpot cinematics <small>Show full-screen celebrations for super jackpot looks; bonuses always apply</small></span><input type="checkbox" id="jackpotCinematicsToggle" ${meta.jackpotCinematics?'checked':''}></label><label><span>Arcade tones <small>Effects volume, separate from music</small></span><input type="range" id="effectsVolume" min="0" max="100" value="${Math.round(radio.effectsVolume*100)}" aria-label="Arcade effects volume"></label><label><span>Mute sounds <small>Disable music and arcade tones</small></span><input type="checkbox" id="muteToggle" ${machine.muted?'checked':''}></label><label><span>Camera <small>Track a ball through the machine</small></span><select id="cameraSelect"><option value="cabinet">Cabinet</option><option value="follow" ${machine.view==='follow'?'selected':''}>Ball follow</option></select></label></div><div class="modal-actions"><button class="primary" id="settingsClose">DONE →</button></div>`,'settings');
+    <div class="modal-actions">${mode==='casual'?'<button id="cabinetShop" class="secondary">CABINETS & RECORDS</button>':''}${run.overdrive?'<button id="retireRun" class="secondary">CASH OUT RUN</button>':''}</div>${feedbackSummary()}<div class="settings-list"><label><span>Visual bloom <small>Glowing cabinet lights</small></span><input type="checkbox" id="bloomToggle" ${machine.bloomOn?'checked':''}></label><label><span>Reduced effects <small>Fewer particles, no trails, flash, or shake</small></span><input type="checkbox" id="effectsToggle" ${machine.reducedEffects?'checked':''}></label><label><span>Jackpot cinematics <small>Show full-screen celebrations for super jackpot looks; bonuses always apply</small></span><input type="checkbox" id="jackpotCinematicsToggle" ${meta.jackpotCinematics?'checked':''}></label><label><span>Arcade tones <small>Effects volume, separate from music</small></span><input type="range" id="effectsVolume" min="0" max="100" value="${Math.round(radio.effectsVolume*100)}" aria-label="Arcade effects volume"></label><label><span>Mute sounds <small>Disable music and arcade tones</small></span><input type="checkbox" id="muteToggle" ${machine.muted?'checked':''}></label><label><span>Camera <small>Track a ball through the machine</small></span><select id="cameraSelect"><option value="cabinet">Cabinet</option><option value="follow" ${machine.view==='follow'?'selected':''}>Ball follow</option></select></label></div><div class="modal-actions"><button class="primary" id="settingsClose">DONE →</button></div>`,'settings');
   if($('#cabinetShop'))$('#cabinetShop').onclick=()=>openWorkshop('machines');
   if($('#retireRun'))$('#retireRun').onclick=()=>{cancelPending();machine.resetSimulation();run.status='won';endRun();};
   $('#settingsClose').onclick=()=>ended?openEndAgain():closeModal();
@@ -329,7 +349,7 @@ async function beginChallenge(){
  if(saveBlocked)return;
  const current=++generation;$('#challengeStart').disabled=true;$('#rankedStatus').textContent='Preparing challenge…';
  const session=await ranked.session();if(current!==generation||modalKind!=='challenge')return;const remote=session?await ranked.start():null;if(current!==generation||modalKind!=='challenge')return;
- clearJackpotShows();cancelPending();rankedRun=remote;mode='challenge';challengeDone=false;ended=false;settledAt=0;machine.resetSimulation();run=newChallenge();machine.setRun(run);challengeStarted=performance.now();closeModal();sync();toast(remote?'PORTAL CHALLENGE · CASUAL SCOREBOARD':'LOCAL PRACTICE CHALLENGE');
+ clearJackpotShows();clearUpgradeFeedback();feedbackStats=newFeedbackStats();cancelPending();rankedRun=remote;mode='challenge';challengeDone=false;ended=false;settledAt=0;machine.resetSimulation();run=newChallenge();machine.setRun(run);challengeStarted=performance.now();closeModal();sync();toast(remote?'PORTAL CHALLENGE · CASUAL SCOREBOARD':'LOCAL PRACTICE CHALLENGE');
 }
 function challengeOutcome(id){if(saveBlocked||challengeDone||run.status!=='playing')return;run=resolveChallenge(run,id);machine.setRun(run);toast(id==='miss'?'BALL RECYCLED · ZERO POINTS':`${run.totalTickets} CHALLENGE POINTS`);sync();}
 async function completeChallenge(){
