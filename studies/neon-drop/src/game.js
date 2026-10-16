@@ -251,7 +251,33 @@ export class NeonMachine {
     cinematic.scene.traverse(object=>{if(object.isMesh){if(object.geometry!==cinematic.shardGeo)object.geometry.dispose();object.material.dispose();}});
     cinematic.shardGeo.dispose();this.jackpotCinematic=null;this.accumulator=0;this.clock.getDelta();
   }
-  setReducedEffects(on){this.reducedEffects=on;if(on){this.ascension.visible=false;this.haloGroup.visible=false;this.shake=0;this.sparks.forEach(s=>{s.life=0;s.mesh.visible=false;});this.bursts.forEach(b=>b.mesh.visible=false);for(const item of this.active)item.trail.forEach(t=>t.visible=false);this.previewTrails.forEach(t=>t.visible=false);document.body.classList.remove('jackpot-flash');}}
+  setReducedEffects(on){this.reducedEffects=on;document.body.classList.toggle('reduced-effects',on);if(on){this.ascension.visible=false;this.haloGroup.visible=false;this.shake=0;this.sparks.forEach(s=>{s.life=0;s.mesh.visible=false;});this.bursts.forEach(b=>b.mesh.visible=false);for(const item of this.active)item.trail.forEach(t=>t.visible=false);this.previewTrails.forEach(t=>t.visible=false);document.body.classList.remove('jackpot-flash');}}
+  playUpgradeInstall(id){
+    if(this.reducedEffects||globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+    const normal=new THREE.Vector3(0,1,0),pulse=(x,y,z,color,strength=.7)=>this.emitRipple(new THREE.Vector3(x,y,z),normal,'deck',strength,color);
+    if(id==='rim'||id==='brake'){
+      for(const side of [-1,1])pulse(RIM_POST.x*side,DECK_Y+.3,0,id==='rim'?C.cyan:C.mint,.75);
+      if(id==='brake')pulse(0,DECK_Y+.35,0,C.cyan,.5);
+    }else if(id==='capacitor'||id==='od-bank'){
+      const point=new THREE.Vector3(0,DECK_Y+.34,0);pulse(0,DECK_Y+.34,0,C.gold,.9);this.emitBurst('voltage',point,normal,.65,C.gold);
+    }else if(id==='double'){
+      for(const y of [DROP_Y,DROP_Y-.65])pulse(.7,y,-1.2,C.magenta,.65);
+      this.particles(new THREE.Vector3(.7,DROP_Y-.3,-1.2),C.magenta,9);
+    }else if(id==='speed'){
+      for(const y of [DECK_Y-.1,.4,2.8])pulse(3.35,y,-2.82,C.cyan,.52);
+    }else if(id==='reserve'||id==='od-reserve'){
+      for(const y of [DROP_Y-.45,DROP_Y-.08])pulse(.7,y,-1.2,C.mint,.55);
+      this.particles(new THREE.Vector3(.7,DROP_Y-.2,-1.2),C.mint,8);
+    }else if(id==='sw-fuse'||id==='sw-overload'){
+      this.switchBumpers?.forEach((bumper,i)=>{const p=bumper.mesh.position;pulse(p.x,p.y,p.z,SWITCH_COLORS[i],.6);if(id==='sw-overload')this.switchArc(i);});
+    }else if(id==='sw-coil'){
+      const p=this.reactorCore.position;pulse(p.x,p.y,p.z,C.gold,.9);this.emitBurst('voltage',p,normal,.5,C.cyan);
+    }else if(id==='spark'){
+      const point=new THREE.Vector3(0,DECK_Y+.8,0);this.emitBurst('supernova',point,normal,.65,C.gold);this.particles(point,C.gold,11);
+    }else{
+      const point=new THREE.Vector3(0,DECK_Y+.8,0);pulse(0,DECK_Y+.8,0,id==='lucky'?C.magenta:C.gold,.8);this.particles(point,id==='lucky'?C.magenta:C.gold,8);
+    }
+  }
 
   sound(kind) {if(!this.muted)this.audioEngine?.sfx(kind);}
   canDrop(){
@@ -530,5 +556,5 @@ export class NeonMachine {
     if(this.shake>.001){this.camera.position.x+=(Math.random()-.5)*this.shake;this.camera.position.y+=(Math.random()-.5)*this.shake;this.shake*=.86;}
     if(this.bloomOn)this.composer.render();else this.renderer.render(this.scene,this.camera);
   }
-  destroy(){this.stopJackpotCinematic();this.running=false;this.ro?.disconnect();this.impactEvents?.free();for(const ripple of this.ripples){ripple.mesh.geometry.dispose();ripple.mesh.material.dispose();}for(const burst of this.bursts){burst.mesh.geometry.dispose();burst.mesh.material.dispose();}for(const spark of this.sparks)spark.mesh.material.dispose();this.sparks[0]?.mesh.geometry.dispose();this.prismGeometry.dispose();this.accretionGeometry.dispose();for(const mesh of this.ascension.children){mesh.geometry.dispose();mesh.material.dispose();}for(const mesh of [this.previewBall,...this.previewTrails,...this.haloGroup.children]){if(mesh.userData.sphereGeometry)mesh.userData.sphereGeometry.dispose();else mesh.geometry.dispose();mesh.material.dispose();}this.renderer?.dispose();this.container?.replaceChildren();}
+  destroy(){this.stopJackpotCinematic();document.body.classList.remove('reduced-effects');this.running=false;this.ro?.disconnect();this.impactEvents?.free();for(const ripple of this.ripples){ripple.mesh.geometry.dispose();ripple.mesh.material.dispose();}for(const burst of this.bursts){burst.mesh.geometry.dispose();burst.mesh.material.dispose();}for(const spark of this.sparks)spark.mesh.material.dispose();this.sparks[0]?.mesh.geometry.dispose();this.prismGeometry.dispose();this.accretionGeometry.dispose();for(const mesh of this.ascension.children){mesh.geometry.dispose();mesh.material.dispose();}for(const mesh of [this.previewBall,...this.previewTrails,...this.haloGroup.children]){if(mesh.userData.sphereGeometry)mesh.userData.sphereGeometry.dispose();else mesh.geometry.dispose();mesh.material.dispose();}this.renderer?.dispose();this.container?.replaceChildren();}
 }

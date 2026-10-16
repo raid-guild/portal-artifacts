@@ -125,6 +125,19 @@ pause the simulation clock. Long Fuse, Sustained Overload, and Induction Coil
 extend the circuit with capped stacks during Overdrive. Arcade Challenge retains
 its fixed rules and never enables the bumpers.
 
+## Mutation feedback
+Mutation cards show the current value and the next-round value of every offered
+upgrade, including stacked Overdrive and Switchboard caps. Installing a card
+briefly lights the cabinet without pausing play or locking input. Ordinary
+ticket awards show the actual payout plus up to two mutation contributions;
+additional contributions are summarized. The figures are calculated through
+the production payout function, including ball, cabinet, permanent power, and
+Switchboard effects, so rounded contributions add back to the exact award.
+Jackpot charge is labelled as a future jackpot increase, and echo balls count
+only when the return chute actually releases them. Settings includes a collapsed
+per-run record of actual mutation bonus tickets, charge added, echo releases,
+and installed stacks. These counters reset for a new run or Arcade Challenge.
+
 ## Arcade Challenge and points
 12 Chrome drops; printed ticket pockets equal points; jackpot is fixed at 150.
 Free pockets grant two drops, capped at six bonus drops (18 maximum). One active ball;
