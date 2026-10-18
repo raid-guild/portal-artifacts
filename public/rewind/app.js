@@ -2,6 +2,7 @@ import { drawWall, structureAt, WALL_CONFIG } from './wall.mjs';
 import { activeCue, bundledCues, validateCues } from './lyrics.mjs?v=draft-lyrics-1';
 import { analyzeAudioBlob } from './onsets.mjs';
 import { createInkwash } from './vendor/inkwash.js';
+import { createSculpture } from './sculpture.mjs?v=continuous-flow-1';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -15,7 +16,11 @@ let audioContext, analyser, source, frequency;
 let animation = 0, fileURL = null, messageTimer = 0;
 let sourceReplaced = false;
 let onsetSchedule = Object.freeze([]), analysisPromise = null, analysisGeneration = 0;
-let inkwash = null, fieldPainted = false, fieldFailed = false, analysisReady = false, lastInkFrame = 0;
+let inkwash = null, sculpture = null, backgroundMode = 'sculpture';
+let fieldPainted = false, fieldFailed = false, analysisReady = false, lastInkFrame = 0;
+let sculpturePose = { time: 0, energy: { bass: 0, mid: 0, treble: 0, pulse: 0 } };
+const sculptureBands = { bass: 0, mid: 0, treble: 0 };
+let lastSculptureEnergyTime = 0;
 let breakHistory = Object.freeze([]), nextBreakId = 1, choreographyFrozen = false, deferredSchedule = null;
 let pointerEnabled = true;
 let verticalOrbit = { yaw: 0, pitch: 0, roll: 0 };
@@ -53,8 +58,10 @@ function analyzeSource(blob, generation) {
       if (generation === analysisGeneration) { analysisReady = true; revealWhenReady(); } });
 }
 
-function resetAnalysis() {
+function resetAnalysis(preserveSculpture = false) {
   energy.bass = energy.mid = energy.treble = 0;
+  if (!preserveSculpture) sculptureBands.bass = sculptureBands.mid = sculptureBands.treble = 0;
+  lastSculptureEnergyTime = 0;
   if (!audioContext || !source || !analyser) return;
   // A fresh analyser also clears its internal FFT smoothing history.
   source.disconnect();
@@ -69,6 +76,9 @@ function resetAnalysis() {
 
 const clipDuration = () => Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : WALL_CONFIG.phases.at(-1);
 const canonicalTime = () => Math.min(WALL_CONFIG.phases.at(-1), (audio.currentTime || 0) / clipDuration() * WALL_CONFIG.phases.at(-1));
+function sculptureDriveAt(seconds) {
+  return .48 * Math.max(0, seconds);
+}
 function clearBreaks() {
   breakHistory = Object.freeze([]);
   nextBreakId = 1;
@@ -104,15 +114,66 @@ function resize() {
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  try { inkwash?.resize(width,height); } catch(error) { useFallback(error); }
+  try { inkwash?.resize(width,height); } catch(error) {
+    if (backgroundMode === 'ink') useFallback(error);
+    else { try { inkwash?.dispose(); } catch {} inkwash = null; }
+  }
+  try { sculpture?.resize(width,height); } catch(error) {
+    if (backgroundMode === 'sculpture') useSculptureFallback(error);
+    else { try { sculpture?.dispose(); } catch {} sculpture = null; }
+  }
   render();
 }
 function useFallback(error) {
   if (inkwash) { try { inkwash.dispose(); } catch {} inkwash = null; }
   $('field').style.display = 'none';
+  $('sculpture').style.display = 'none';
+  backgroundMode = 'canvas';
+  $('backgroundSelect').value = 'ink';
   fieldFailed = true;
   revealWhenReady();
   if (error) { console.warn('Inkwash unavailable:', error); showStatus('Fluid ink unavailable; using the Canvas wash.'); }
+}
+function prepareInk() {
+  if (inkwash) return true;
+  loaderStage('Preparing ink');
+  try {
+    inkwash = createInkwash($('field'));
+    inkwash.resize(width,height);
+    inkwash.reset(reducedMotion.matches ? 0 : audio.currentTime || 0);
+    lastInkFrame = 0;
+    return true;
+  } catch(error) { useFallback(error); return false; }
+}
+function useSculptureFallback(error) {
+  if (sculpture) { try { sculpture.dispose(); } catch {} sculpture = null; }
+  $('sculpture').style.display = 'none';
+  console.warn('Sculpture unavailable:',error);
+  showStatus('Sculpture unavailable; using Ink.');
+  backgroundMode = 'ink';
+  $('backgroundSelect').value = 'ink';
+  if (prepareInk()) $('field').style.display = '';
+  else fieldFailed = true;
+  render();
+}
+function setBackground(mode) {
+  if (mode === 'sculpture') {
+    if (!sculpture) {
+      try { sculpture = createSculpture($('sculpture')); sculpture.resize(width,height); }
+      catch(error) { useSculptureFallback(error); return; }
+    }
+    backgroundMode = 'sculpture';
+    sculpturePose = {time: audio.currentTime || 0, energy: {...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}};
+  } else {
+    backgroundMode = 'ink';
+    if (!prepareInk()) return;
+    lastInkFrame = 0;
+  }
+  $('backgroundSelect').value = backgroundMode;
+  $('sculpture').style.display = backgroundMode === 'sculpture' ? '' : 'none';
+  $('field').style.display = backgroundMode === 'ink' ? '' : 'none';
+  fieldFailed = false;
+  render();
 }
 function readBand(fromHz, toHz) {
   if (!analyser || !frequency) return 0;
@@ -126,9 +187,20 @@ function readBand(fromHz, toHz) {
 function updateEnergy() {
   if (!analyser || audio.paused || reducedMotion.matches) return;
   analyser.getByteFrequencyData(frequency);
-  energy.bass += (Math.min(1, readBand(45, 240) * 1.95) - energy.bass) * .24;
-  energy.mid += (Math.min(1, readBand(250, 2400) * 2.1) - energy.mid) * .22;
-  energy.treble += (Math.min(1, readBand(2600, 9000) * 2.6) - energy.treble) * .2;
+  const bass = readBand(45, 240), mid = readBand(250, 2400), treble = readBand(2600, 9000);
+  energy.bass += (Math.min(1, bass * 1.95) - energy.bass) * .24;
+  energy.mid += (Math.min(1, mid * 2.1) - energy.mid) * .22;
+  energy.treble += (Math.min(1, treble * 2.6) - energy.treble) * .2;
+  // The bundled track holds the low band around 0.56–0.89; the shared wall
+  // mapping clips it near 1. Sculpture uses a separate contrast window.
+  const now = performance.now();
+  const dt = lastSculptureEnergyTime ? Math.min(.25, Math.max(0, (now-lastSculptureEnergyTime)/1000)) : .016;
+  lastSculptureEnergyTime = now;
+  for (const [key, value, low, span] of [['bass',bass,.48,.40],['mid',mid,.18,.44],['treble',treble,.02,.28]]) {
+    const target = Math.max(0, Math.min(1, (value-low)/span));
+    const tau = target > sculptureBands[key] ? .095 : .24;
+    sculptureBands[key] += (target-sculptureBands[key]) * (1-Math.exp(-dt/tau));
+  }
 }
 function updateLyrics() {
   const cue = $('lyricsEnabled').checked ? activeCue(cues, audio.currentTime) : null;
@@ -139,7 +211,14 @@ function updateLyrics() {
 }
 function render() {
   updateEnergy();
-  if (inkwash) {
+  if (backgroundMode === 'sculpture' && sculpture) {
+    try {
+      if (!audio.paused && !reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0, energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}};
+      sculpture.render(sculpturePose.time,sculpturePose.energy,reducedMotion.matches);
+      fieldPainted = true;
+      revealWhenReady();
+    } catch(error) { useSculptureFallback(error); }
+  } else if (backgroundMode === 'ink' && inkwash) {
     try {
       const now = performance.now();
       const dt = lastInkFrame ? Math.min(.05, Math.max(0, (now-lastInkFrame)/1000)) : 0;
@@ -150,7 +229,7 @@ function render() {
       revealWhenReady();
     } catch (error) { useFallback(error); }
   }
-  const state = drawWall(ctx, width, height, audio.currentTime || 0, clipDuration(), energy, pointerEnabled ? pointer : null, reducedMotion.matches, onsetSchedule, breakHistory, verticalOrbit, !inkwash);
+  const state = drawWall(ctx, width, height, audio.currentTime || 0, clipDuration(), energy, pointerEnabled ? pointer : null, reducedMotion.matches, onsetSchedule, breakHistory, verticalOrbit, backgroundMode === 'canvas');
   const phase = ['01 / ASSEMBLE', '02 / LAYER', '03 / ASCEND', '04 / RELEASE', '05 / REBUILD'][state.segment];
   if (phase !== shownPhase) { $('phaseLabel').textContent = phase; shownPhase = phase; }
   const progress = Math.min(1, Math.max(0, (audio.currentTime || 0) / clipDuration()));
@@ -213,6 +292,7 @@ async function togglePlayback() {
     clearBreaks();
     audio.currentTime = 0;
     inkwash?.reset(0);
+    sculpturePose = {time:0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:0}};
     render();
   }
   if (analysisPromise) await Promise.race([analysisPromise, new Promise(resolve => setTimeout(resolve, 1200))]);
@@ -223,11 +303,11 @@ async function togglePlayback() {
 playButton.addEventListener('click', togglePlayback);
 $('breakButton').addEventListener('click', triggerBreak);
 audio.addEventListener('play', syncPlayButton);
-audio.addEventListener('pause', () => { resetAnalysis(); syncPlayButton(); });
+audio.addEventListener('pause', () => { resetAnalysis(true); syncPlayButton(); });
 audio.addEventListener('ended', () => { resetAnalysis(); syncPlayButton(); });
 audio.addEventListener('timeupdate', () => { if (audio.paused || reducedMotion.matches) render(); });
-audio.addEventListener('seeking', resetAnalysis);
-audio.addEventListener('seeked', () => { resetAnalysis(); inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); lastInkFrame = 0; render(); });
+audio.addEventListener('seeking', () => resetAnalysis());
+audio.addEventListener('seeked', () => { resetAnalysis(); inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); sculpturePose = {time:audio.currentTime || 0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; lastInkFrame = 0; render(); });
 audio.addEventListener('loadedmetadata', () => { $('duration').textContent = formatTime(audio.duration); render(); });
 audio.addEventListener('error', () => showStatus('Audio could not be loaded. Choose a local audio file.'));
 timeline.addEventListener('input', () => { resetAnalysis(); audio.currentTime = Number(timeline.value) / 1000 * clipDuration(); render(); });
@@ -243,6 +323,7 @@ $('audioFile').addEventListener('change', event => {
   const generation = ++analysisGeneration;
   analysisReady = false; fieldPainted = false;
   inkwash?.reset(0); lastInkFrame = 0;
+  sculpturePose = {time:0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:0}};
   $('loader').classList.remove('hidden');
   clearBreaks();
   deferredSchedule = null;
@@ -285,6 +366,7 @@ $('pointerButton').addEventListener('click', () => {
   $('pointerButton').textContent = pointerEnabled ? 'Pointer on' : 'Pointer off';
   render();
 });
+$('backgroundSelect').addEventListener('change', event => setBackground(event.target.value));
 canvas.addEventListener('pointermove', event => { pointer.x = event.clientX; pointer.y = event.clientY; pointer.active = true; if (audio.paused) startFrames(); });
 canvas.addEventListener('pointerleave', () => { pointer.active = false; if (audio.paused) startFrames(); });
 const setRecordView = on => {
@@ -321,25 +403,29 @@ document.addEventListener('keydown', event => {
   if (event.key.toLowerCase() === 'r') setRecordView(!document.body.classList.contains('recording-view'));
   if (event.key.toLowerCase() === 'f') $('fullscreenButton').click();
 });
-reducedMotion.addEventListener('change', () => { if (reducedMotion.matches && orientationTween) { verticalOrbit = orientationTween.target; orientationTween = null; } inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); if (audio.paused || reducedMotion.matches) stopFrames(); else startFrames(); render(); });
+reducedMotion.addEventListener('change', () => { if (reducedMotion.matches && orientationTween) { verticalOrbit = orientationTween.target; orientationTween = null; } inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); if (!reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0,energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; if (audio.paused || reducedMotion.matches) stopFrames(); else startFrames(); render(); });
 addEventListener('resize', resize);
-addEventListener('beforeunload', () => { if (fileURL) URL.revokeObjectURL(fileURL); inkwash?.dispose(); });
+addEventListener('beforeunload', () => { if (fileURL) URL.revokeObjectURL(fileURL); inkwash?.dispose(); sculpture?.dispose(); });
 resize();
 requestAnimationFrame(() => setTimeout(() => {
-  loaderStage('Preparing ink');
+  loaderStage('Preparing sculpture');
   try {
-    inkwash = createInkwash($('field'));
-    inkwash.resize(width,height);
-    lastInkFrame = 0;
+    sculpture = createSculpture($('sculpture'));
+    sculpture.resize(width,height);
+    $('field').style.display = 'none';
     render();
-  } catch (error) {
-    useFallback(error);
-  }
+  } catch (error) { useSculptureFallback(error); }
 },0));
-$('field').addEventListener('webglcontextlost', event => { event.preventDefault(); useFallback(new Error('WebGL context lost')); render(); });
+$('field').addEventListener('webglcontextlost', event => { event.preventDefault(); if (backgroundMode === 'ink') { useFallback(new Error('WebGL context lost')); render(); } else { inkwash = null; } });
 $('field').addEventListener('webglcontextrestored', () => {
-  try { $('field').style.display = ''; inkwash = createInkwash($('field')); inkwash.resize(width,height); inkwash.reset(audio.currentTime||0); fieldFailed=false; render(); }
-  catch(error) { useFallback(error); }
+  if (backgroundMode !== 'ink') return;
+  inkwash = null;
+  if (prepareInk()) { $('field').style.display = ''; fieldFailed=false; render(); }
+});
+$('sculpture').addEventListener('webglcontextlost', event => { event.preventDefault(); if (backgroundMode === 'sculpture') useSculptureFallback(new Error('WebGL context lost')); });
+$('sculpture').addEventListener('webglcontextrestored', () => {
+  sculpture = null;
+  if (backgroundMode === 'sculpture') setBackground('sculpture');
 });
 
 // A local Blob URL makes the excerpt seekable even under simple development servers
