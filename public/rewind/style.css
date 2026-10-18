@@ -29,3 +29,14 @@ body.recording-view .break-button{padding:8px 11px;font-size:9px}
 /* Persistent provenance marker in both the full player and record view. */
 .concept-label{display:block;width:max-content;margin-bottom:8px;color:#725d4d;font:700 9px/1.2 var(--font-sans);letter-spacing:.2em;text-shadow:0 1px 12px #f8f4e8}
 body.recording-view .recording-identity .concept-label{margin:0 auto 10px;font-size:9px}
+
+/* The background switch remains usable in the minimal record view. */
+#sculpture{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;background:#eee9dc;pointer-events:none}
+.background-control{display:flex;align-items:center;gap:7px;min-height:35px;padding:0 9px;border:1px solid rgba(43,51,50,.33);background:rgba(240,237,229,.65);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);white-space:nowrap}
+.background-control select{max-width:110px;border:0;background:transparent;color:var(--ink);font-size:10px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+body.recording-view .top-actions>*:not(#recordButton):not(.background-control){display:none}
+body.recording-view .top-actions>.background-control:not(#recordButton){display:flex;position:fixed;top:12px;right:130px;opacity:.5}
+body.recording-view .background-control:hover,body.recording-view .background-control:focus-within{opacity:1}
+@media(max-width:620px){.background-control{min-height:30px;padding:0 7px;font-size:8px}.background-control select{max-width:88px;font-size:9px}body.recording-view .background-control{right:120px}}
+.identity{position:relative;isolation:isolate}
+.identity::before{content:"";position:absolute;z-index:-1;inset:-30px -65px -35px -45px;pointer-events:none;background:radial-gradient(ellipse at 30% 40%,rgba(247,243,232,.78),rgba(247,243,232,.34) 51%,transparent 76%);filter:blur(10px)}
