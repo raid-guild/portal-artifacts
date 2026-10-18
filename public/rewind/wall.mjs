@@ -147,7 +147,7 @@ export function collapseEvents(breakEvent) {
   return frozen;
 }
 
-export function drawWall(ctx, width, height, seconds, duration, energy = {}, pointer = null, reducedMotion = false, onsets = [], history = [], verticalOrbit = null, fallback = false) {
+export function drawWall(ctx, width, height, seconds, duration, energy = {}, pointer = null, reducedMotion = false, onsets = [], history = [], verticalOrbit = null, fallback = false, fractal = false) {
   const state = structureAt(seconds, duration, onsets, history);
   const camera = cameraAt(state.t, state.height, { width, height }, reducedMotion, verticalOrbit);
   const bass = reducedMotion ? 0 : clamp(energy.bass || 0, 0, 1);
@@ -312,22 +312,22 @@ export function drawWall(ctx, width, height, seconds, duration, energy = {}, poi
       const tailScale = Math.min(1, 12 / (length || 1));
       ctx.beginPath(); ctx.moveTo(point.x, point.y);
       ctx.lineTo(point.x + tailX * tailScale, point.y + tailY * tailScale);
-      ctx.strokeStyle = copper ? `rgba(147,94,57,${alpha})` : `rgba(45,49,45,${alpha * .78})`;
+      ctx.strokeStyle = copper ? `rgba(244,184,104,${alpha})` : fractal ? `rgba(211,240,251,${alpha * .78})` : `rgba(45,49,45,${alpha * .78})`;
       ctx.lineWidth = radius * .75; ctx.stroke();
       ctx.beginPath(); ctx.arc(point.x, point.y, radius * .48, 0, Math.PI * 2);
-      ctx.fillStyle = copper ? `rgba(147,94,57,${alpha})` : `rgba(45,49,45,${alpha})`;
+      ctx.fillStyle = copper ? `rgba(244,184,104,${alpha})` : fractal ? `rgba(211,240,251,${alpha})` : `rgba(45,49,45,${alpha})`;
       ctx.fill();
       continue;
     }
     const { coords, alpha, copper, crownFlash, kind, debris } = face;
     const shade = kind === 'front' ? .55 : kind === 'side' ? .42 : .40;
     const edgeOpacity = Math.min(.96, shade + mid * .15 + (crownFlash ? state.flash * .30 : 0)) * alpha;
-    const color = copper ? '147,94,57' : '40,45,43';
-    const fillOpacity = (kind === 'top' ? .20 : kind === 'side' ? .035 : .055) * alpha;
+    const color = copper ? (fractal ? '248,188,113' : '147,94,57') : (fractal ? '207,238,247' : '40,45,43');
+    const fillOpacity = (kind === 'top' ? (fractal ? .075 : .20) : kind === 'side' ? (fractal ? .12 : .035) : (fractal ? .15 : .055)) * alpha;
     ctx.beginPath(); ctx.moveTo(coords[0], coords[1]);
     for (let i = 2; i < coords.length; i += 2) ctx.lineTo(coords[i], coords[i+1]);
     ctx.closePath();
-    ctx.fillStyle = kind === 'top' ? `rgba(255,252,243,${fillOpacity})` : `rgba(251,248,237,${fillOpacity})`;
+    ctx.fillStyle = fractal ? `rgba(5,23,38,${fillOpacity})` : kind === 'top' ? `rgba(255,252,243,${fillOpacity})` : `rgba(251,248,237,${fillOpacity})`;
     ctx.fill();
     ctx.strokeStyle = `rgba(${color},${edgeOpacity})`;
     ctx.lineWidth = debris ? 1 : copper ? 1.15 : .8;
