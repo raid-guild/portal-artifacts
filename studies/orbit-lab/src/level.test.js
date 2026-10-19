@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as CANNON from 'cannon-es';
 import { STEP } from './physics.js';
-import { LEVEL, BLOB_RADIUS, canPlaceWell, circleHitsRect, sweptCircleRect, firstImpact, predictToImpact, capVelocity, emberAcceleration, mazeAcceleration } from './level.js';
+import { LEVEL, BLOB_RADIUS, canPlaceWell, circleHitsRect, sweptCircleRect, firstImpact, predictToImpact, capVelocity, emberAcceleration, mazeAcceleration, portalAcceleration } from './level.js';
 
 test('well placement allows open corridors but rejects walls, spikes, exit, and arena exterior', () => {
   assert.equal(canPlaceWell({ x: -10, y: 0 }), true);
@@ -85,4 +85,14 @@ test('embers attract gently within four units, with finite force at the center',
   assert.deepEqual(emberAcceleration({ x: 0, y: 0 }, level), { x: 0, y: 0 });
   const forecast = predictToImpact({ x: -6.5, y: -6.7, vx: 0, vy: 0 }, [], 0, .2);
   assert.ok(forecast.points.at(-1).x > -6.5, 'forecast includes the ember pull');
+});
+
+
+test('portal attracts with five percent of a default well strength', () => {
+  const level = { ...LEVEL, goal: { x: 0, y: 0, radius: 1 } };
+  const pull = portalAcceleration({ x: 2, y: 0 }, level);
+  const expected = -10 / Math.pow(4 + .75 * .75, 1.5);
+  assert.ok(Math.abs(pull.x - expected) < 1e-10);
+  assert.equal(pull.y, 0);
+  assert.deepEqual(portalAcceleration({ x: 0, y: 0 }, level), { x: 0, y: 0 });
 });

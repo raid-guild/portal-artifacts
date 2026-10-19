@@ -112,7 +112,16 @@ export function emberAcceleration(position, level = LEVEL) {
 export function mazeAcceleration(position, wells, time, mode = 'fade', level = LEVEL) {
   const a = acceleration(position, wells, time, mode);
   const ember = emberAcceleration(position, level);
-  return { x: a.x + ember.x, y: a.y + ember.y };
+  const portal = portalAcceleration(position, level);
+  return { x: a.x + ember.x + portal.x, y: a.y + ember.y + portal.y };
+}
+
+// Five percent of the default player well (100), always active at the exit.
+export function portalAcceleration(position, level = LEVEL) {
+  const dx = level.goal.x - position.x, dy = level.goal.y - position.y;
+  const squared = dx * dx + dy * dy + SOFTENING * SOFTENING;
+  const scale = 5 / (squared * Math.sqrt(squared));
+  return { x: dx * scale, y: dy * scale };
 }
 
 export function predictToImpact(state, wells, time, seconds = 3, mode = 'fade', level = LEVEL) {
