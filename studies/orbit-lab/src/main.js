@@ -233,20 +233,49 @@ for (const rect of LEVEL.walls) {
   wall.position.set(rect.x, rect.y, 0);
   world.addBody(wall);
   wallBodies.push(wall);
-  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 1.5, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-  // Preserve the top at z=.375; bury the rounded base below the z=-.9 floor.
-  mesh.position.set(rect.x, rect.y, -.375);
+  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 4, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  // Span below the floor and above the lights: no light can pass over a wall end.
+  mesh.position.set(rect.x, rect.y, 1);
   mesh.castShadow = true;
   mazeGroup.add(mesh);
 }
+const hazardSparks = [];
+const emberMap = new THREE.CanvasTexture(fireCanvas);
+// Warm texture separate from the cyan hero and portal.
+const emberCanvas = document.createElement('canvas'); emberCanvas.width = emberCanvas.height = 128;
+const emberContext = emberCanvas.getContext('2d');
+const emberGradient = emberContext.createRadialGradient(64, 64, 0, 64, 64, 64);
+emberGradient.addColorStop(0, 'rgba(255,170,85,1)'); emberGradient.addColorStop(.2, 'rgba(255,143,40,.65)'); emberGradient.addColorStop(1, 'rgba(255,70,10,0)');
+emberContext.fillStyle = emberGradient; emberContext.fillRect(0, 0, 128, 128);
+emberMap.image = emberCanvas; emberMap.needsUpdate = true;
 for (const spike of LEVEL.spikes) {
-  const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.75, 3), new THREE.MeshBasicMaterial({ color: 0xff7882 }));
-  mesh.rotation.z = Math.PI;
-  mesh.position.set(spike.x, spike.y, 0.62);
-  mazeGroup.add(mesh);
-  const warning = new THREE.Mesh(new THREE.PlaneGeometry(spike.w, spike.h), new THREE.MeshBasicMaterial({ color: 0xff6b80, transparent: true, opacity: 0.28 }));
-  warning.position.set(spike.x, spike.y, 0.6);
-  mazeGroup.add(warning);
+  const group = new THREE.Group(); group.position.set(spike.x, spike.y, 1.2); mazeGroup.add(group);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(.22, 20, 12), new THREE.MeshBasicMaterial({ color: 0xff7a24 })); group.add(dot);
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: emberMap, transparent: true, opacity: .7, depthWrite: false, blending: THREE.AdditiveBlending })); aura.scale.set(1.35, 1.35, 1); group.add(aura);
+  const light = new THREE.PointLight(0xff8a32, 4, 4, 2); light.position.z = -.1;
+  light.castShadow = true; light.shadow.mapSize.set(256, 256); light.shadow.camera.near = .1; light.shadow.camera.far = 4; light.shadow.bias = -.0003;
+  group.add(light);
+  const positions = new Float32Array(18 * 3), heat = new Float32Array(18);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('heat', new THREE.BufferAttribute(heat, 1).setUsage(THREE.DynamicDrawUsage));
+  const material = sparkMaterial.clone();
+  material.fragmentShader = 'varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(vec3(1.,.2,.02),vec3(1.,.72,.2),vHeat),pow(1.-r,2.)*vHeat*.65);}';
+  const points = new THREE.Points(geometry, material); points.frustumCulled = false; group.add(points);
+  hazardSparks.push({ positions, heat, geometry, material });
+}
+function updateHazardSparks() {
+  for (const emitter of hazardSparks) {
+    emitter.material.uniforms.pixelRatio.value = renderer.getPixelRatio();
+    for (let i = 0; i < 18; i++) {
+      const age = (simTime * .75 + i / 18) % 1;
+      const angle = i * 2.39996;
+      const distance = .15 + age * (.3 + (i % 4) * .08);
+      emitter.positions.set([Math.cos(angle) * distance, Math.sin(angle) * distance, .2], i * 3);
+      emitter.heat[i] = (1 - age) ** 2;
+    }
+    emitter.geometry.attributes.position.needsUpdate = true; emitter.geometry.attributes.heat.needsUpdate = true;
+  }
 }
 const portal = new THREE.Group(); portal.position.set(LEVEL.goal.x, LEVEL.goal.y, 1); mazeGroup.add(portal);
 const portalAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x91c8ff })); portalAura.scale.set(4.5, 4.5, 1); portal.add(portalAura);
@@ -593,6 +622,7 @@ function frame(now) {
   blob.scale.setScalar(pulse);
   heroGlow.scale.setScalar(2.4 + Math.sin(now * .011) * .12);
   if (!paused && !drifted && !won) updateSparks(elapsed);
+  if (gameMode === 'maze') updateHazardSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   updateWellVisuals();
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
