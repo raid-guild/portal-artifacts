@@ -9,10 +9,12 @@ precision highp float;
 out vec4 outColor;
 uniform vec2 r;
 uniform float t;
+uniform float uRoll;
 vec3 hsv(float h,float s,float v){vec3 rgb=clamp(abs(fract(h+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0)-1.0,0.0,1.0);return v*mix(vec3(1.0),rgb,s);}
 void main(){
   vec4 o=vec4(0.0);
   vec2 FC=gl_FragCoord.xy;
+  if(uRoll!=0.0){float cs=cos(uRoll),sn=sin(uRoll);FC=r*.5+mat2(cs,-sn,sn,cs)*(FC-r*.5);}
   float i=0.0,e=0.0,g=0.0,R=1.0,s=0.0;
   vec3 q=vec3(0.0),p=vec3(0.0),d=vec3((FC.xy*2.0-r)/r.y+vec2(0.0,1.0),1.0);
   q.zy--;
@@ -50,10 +52,10 @@ export function createFractal(canvas){
   let program;
   try{program=gl.createProgram();resources.push(['program',program]);gl.attachShader(program,shader(gl.VERTEX_SHADER,VERT));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));}
   catch(error){for(const [type,item] of resources)type==='shader'?gl.deleteShader(item):gl.deleteProgram(item);throw error;}
-  const resolution=gl.getUniformLocation(program,'r'),time=gl.getUniformLocation(program,'t');
+  const resolution=gl.getUniformLocation(program,'r'),time=gl.getUniformLocation(program,'t'),roll=gl.getUniformLocation(program,'uRoll');
   const vao=gl.createVertexArray();gl.bindVertexArray(vao);
   function resize(width,height){if(disposed)return;const maxPixels=matchMedia('(max-width:620px)').matches?200000:350000;const scale=Math.min(1,Math.sqrt(maxPixels/(width*height)));w=Math.max(1,Math.round(width*scale));h=Math.max(1,Math.round(height*scale));canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
-  function render(seconds,reduced=false){if(disposed||!w)return;gl.viewport(0,0,w,h);gl.disable(gl.BLEND);gl.useProgram(program);gl.uniform2f(resolution,w,h);gl.uniform1f(time,reduced?0:Math.max(0,seconds));gl.drawArrays(gl.TRIANGLES,0,3);}
+  function render(seconds,reduced=false,bank=0){if(disposed||!w)return;gl.viewport(0,0,w,h);gl.disable(gl.BLEND);gl.useProgram(program);gl.uniform2f(resolution,w,h);gl.uniform1f(time,reduced?0:Math.max(0,seconds));gl.uniform1f(roll,bank);gl.drawArrays(gl.TRIANGLES,0,3);}
   function dispose(){if(disposed)return;disposed=true;gl.deleteVertexArray(vao);for(const [type,item] of resources)type==='shader'?gl.deleteShader(item):gl.deleteProgram(item);}
   return {resize,render,dispose};
 }

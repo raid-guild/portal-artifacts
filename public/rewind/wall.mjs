@@ -147,7 +147,7 @@ export function collapseEvents(breakEvent) {
   return frozen;
 }
 
-export function drawWall(ctx, width, height, seconds, duration, energy = {}, pointer = null, reducedMotion = false, onsets = [], history = [], verticalOrbit = null, fallback = false, fractal = false) {
+export function drawWall(ctx, width, height, seconds, duration, energy = {}, pointer = null, reducedMotion = false, onsets = [], history = [], verticalOrbit = null, fallback = false, fractal = false, showWall = true) {
   const state = structureAt(seconds, duration, onsets, history);
   const camera = cameraAt(state.t, state.height, { width, height }, reducedMotion, verticalOrbit);
   const bass = reducedMotion ? 0 : clamp(energy.bass || 0, 0, 1);
@@ -163,6 +163,8 @@ export function drawWall(ctx, width, height, seconds, duration, energy = {}, poi
       ctx.fillStyle=wash; ctx.fillRect(0,0,width,height);
     }
   }
+
+  if (!showWall) return state;
 
   const renderedFaces = [];
   const projected = new Float64Array(24);
