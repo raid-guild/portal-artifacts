@@ -1,0 +1,33 @@
+Fold background shader source by Yohei Nishitsuji.
+Original post (18 January 2025): https://x.com/YoheiNishitsuji/status/1880561598982668452
+The author's profile states: "My code shared @x is MIT Licensed" (observed 2026-10-18).
+The complete published expression, with its social-media hashtag omitted, is:
+
+float i,e,R,s;vec3 q,p,d=vec3(-FC.yx/r.y*.8*(abs(cos(t*.3)*.3+.1+.8)),1);for(q--;i++<119.;i>89.?d/=-d:d){e+=i/5e3;o+=e*e/25.;s=1.;p=q+=d*e*R*.16;p=vec3(log2(R=length(p))-2.-t*.3,-p.z/R,atan(p.x,p.y));for(e=--p.y;s<1e5;s+=s)e+=cos(dot(cos(p.zyy*s),cos(p.xyx*s)))/s;}
+
+fold.mjs initializes shader variables and the output, guards only the singular
+radius, and grades the accumulated grayscale light in teal/copper/chrome.
+The 119 outer steps, 17 inner frequency doublings, uncentered FC direction,
+and post-iteration d/=-d rule are preserved.
+
+MIT License
+
+Copyright (c) Yohei Nishitsuji
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

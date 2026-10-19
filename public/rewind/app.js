@@ -3,6 +3,8 @@ import { activeCue, bundledCues, validateCues } from './lyrics.mjs?v=draft-lyric
 import { analyzeAudioBlob } from './onsets.mjs';
 import { createInkwash } from './vendor/inkwash.js';
 import { createSculpture } from './sculpture.mjs?v=continuous-flow-1';
+import { createFractal } from './fractal.mjs?v=teal-copper-1';
+import { createFold } from './fold.mjs?v=1';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -16,7 +18,8 @@ let audioContext, analyser, source, frequency;
 let animation = 0, fileURL = null, messageTimer = 0;
 let sourceReplaced = false;
 let onsetSchedule = Object.freeze([]), analysisPromise = null, analysisGeneration = 0;
-let inkwash = null, sculpture = null, backgroundMode = 'sculpture';
+let inkwash = null, sculpture = null, fractal = null, fractalKind = null, backgroundMode = 'fold';
+let pendingSharedRestore = null, sharedContextLost = false;
 let fieldPainted = false, fieldFailed = false, analysisReady = false, lastInkFrame = 0;
 let sculpturePose = { time: 0, energy: { bass: 0, mid: 0, treble: 0, pulse: 0 } };
 const sculptureBands = { bass: 0, mid: 0, treble: 0 };
@@ -118,6 +121,11 @@ function resize() {
     if (backgroundMode === 'ink') useFallback(error);
     else { try { inkwash?.dispose(); } catch {} inkwash = null; }
   }
+  try { fractal?.resize(width,height); } catch(error) {
+    if (backgroundMode === 'fold') useFoldFallback(error);
+    else if (backgroundMode === 'fractal') useFractalFallback(error);
+    else { try { fractal?.dispose(); } catch {} fractal = null; }
+  }
   try { sculpture?.resize(width,height); } catch(error) {
     if (backgroundMode === 'sculpture') useSculptureFallback(error);
     else { try { sculpture?.dispose(); } catch {} sculpture = null; }
@@ -128,6 +136,8 @@ function useFallback(error) {
   if (inkwash) { try { inkwash.dispose(); } catch {} inkwash = null; }
   $('field').style.display = 'none';
   $('sculpture').style.display = 'none';
+  $('fractal').style.display = 'none';
+  document.body.classList.remove('fractal-mode');
   backgroundMode = 'canvas';
   $('backgroundSelect').value = 'ink';
   fieldFailed = true;
@@ -145,19 +155,43 @@ function prepareInk() {
     return true;
   } catch(error) { useFallback(error); return false; }
 }
+function useFoldFallback(error) {
+  if (fractal) { try { fractal.dispose(); } catch {} fractal = null; fractalKind = null; }
+  console.warn('Fold unavailable:', error);
+  showStatus('Fold unavailable; using Fractal.');
+  backgroundMode = 'fractal';
+  setBackground('fractal');
+}
+function useFractalFallback(error) {
+  if (fractal) { try { fractal.dispose(); } catch {} fractal = null; fractalKind = null; }
+  $('fractal').style.display = 'none';
+  console.warn('Fractal unavailable:', error);
+  showStatus('Fractal unavailable; using Sculpture.');
+  backgroundMode = 'sculpture';
+  setBackground('sculpture');
+}
 function useSculptureFallback(error) {
   if (sculpture) { try { sculpture.dispose(); } catch {} sculpture = null; }
   $('sculpture').style.display = 'none';
   console.warn('Sculpture unavailable:',error);
   showStatus('Sculpture unavailable; using Ink.');
   backgroundMode = 'ink';
+  document.body.classList.remove('fractal-mode');
+  $('fractal').style.display = 'none';
   $('backgroundSelect').value = 'ink';
   if (prepareInk()) $('field').style.display = '';
   else fieldFailed = true;
   render();
 }
 function setBackground(mode) {
-  if (mode === 'sculpture') {
+  if (mode === 'fold' || mode === 'fractal') {
+    if (fractal && fractalKind !== mode) { fractal.dispose(); fractal = null; fractalKind = null; }
+    if (!fractal) {
+      try { fractal = mode === 'fold' ? createFold($('fractal')) : createFractal($('fractal')); fractal.resize(width,height); fractalKind = mode; }
+      catch(error) { if (mode === 'fold') useFoldFallback(error); else useFractalFallback(error); return; }
+    }
+    backgroundMode = mode;
+  } else if (mode === 'sculpture') {
     if (!sculpture) {
       try { sculpture = createSculpture($('sculpture')); sculpture.resize(width,height); }
       catch(error) { useSculptureFallback(error); return; }
@@ -171,6 +205,8 @@ function setBackground(mode) {
   }
   $('backgroundSelect').value = backgroundMode;
   $('sculpture').style.display = backgroundMode === 'sculpture' ? '' : 'none';
+  $('fractal').style.display = (backgroundMode === 'fractal' || backgroundMode === 'fold') ? '' : 'none';
+  document.body.classList.toggle('fractal-mode', backgroundMode === 'fractal' || backgroundMode === 'fold');
   $('field').style.display = backgroundMode === 'ink' ? '' : 'none';
   fieldFailed = false;
   render();
@@ -211,7 +247,10 @@ function updateLyrics() {
 }
 function render() {
   updateEnergy();
-  if (backgroundMode === 'sculpture' && sculpture) {
+  if ((backgroundMode === 'fractal' || backgroundMode === 'fold') && fractal) {
+    try { fractal.render(audio.currentTime || 0,reducedMotion.matches); fieldPainted = true; revealWhenReady(); }
+    catch(error) { if (backgroundMode === 'fold') useFoldFallback(error); else useFractalFallback(error); }
+  } else if (backgroundMode === 'sculpture' && sculpture) {
     try {
       if (!audio.paused && !reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0, energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}};
       sculpture.render(sculpturePose.time,sculpturePose.energy,reducedMotion.matches);
@@ -229,7 +268,7 @@ function render() {
       revealWhenReady();
     } catch (error) { useFallback(error); }
   }
-  const state = drawWall(ctx, width, height, audio.currentTime || 0, clipDuration(), energy, pointerEnabled ? pointer : null, reducedMotion.matches, onsetSchedule, breakHistory, verticalOrbit, backgroundMode === 'canvas');
+  const state = drawWall(ctx, width, height, audio.currentTime || 0, clipDuration(), energy, pointerEnabled ? pointer : null, reducedMotion.matches, onsetSchedule, breakHistory, verticalOrbit, backgroundMode === 'canvas', backgroundMode === 'fractal' || backgroundMode === 'fold');
   const phase = ['01 / ASSEMBLE', '02 / LAYER', '03 / ASCEND', '04 / RELEASE', '05 / REBUILD'][state.segment];
   if (phase !== shownPhase) { $('phaseLabel').textContent = phase; shownPhase = phase; }
   const progress = Math.min(1, Math.max(0, (audio.currentTime || 0) / clipDuration()));
@@ -366,7 +405,14 @@ $('pointerButton').addEventListener('click', () => {
   $('pointerButton').textContent = pointerEnabled ? 'Pointer on' : 'Pointer off';
   render();
 });
-$('backgroundSelect').addEventListener('change', event => setBackground(event.target.value));
+$('backgroundSelect').addEventListener('change', event => {
+  pendingSharedRestore = null;
+  const mode = event.target.value;
+  if (sharedContextLost && (mode === 'fold' || mode === 'fractal')) {
+    pendingSharedRestore = mode;
+    useFractalFallback(new Error('WebGL context lost'));
+  } else setBackground(mode);
+});
 canvas.addEventListener('pointermove', event => { pointer.x = event.clientX; pointer.y = event.clientY; pointer.active = true; if (audio.paused) startFrames(); });
 canvas.addEventListener('pointerleave', () => { pointer.active = false; if (audio.paused) startFrames(); });
 const setRecordView = on => {
@@ -405,22 +451,33 @@ document.addEventListener('keydown', event => {
 });
 reducedMotion.addEventListener('change', () => { if (reducedMotion.matches && orientationTween) { verticalOrbit = orientationTween.target; orientationTween = null; } inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); if (!reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0,energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; if (audio.paused || reducedMotion.matches) stopFrames(); else startFrames(); render(); });
 addEventListener('resize', resize);
-addEventListener('beforeunload', () => { if (fileURL) URL.revokeObjectURL(fileURL); inkwash?.dispose(); sculpture?.dispose(); });
+addEventListener('beforeunload', () => { if (fileURL) URL.revokeObjectURL(fileURL); inkwash?.dispose(); sculpture?.dispose(); fractal?.dispose(); });
 resize();
 requestAnimationFrame(() => setTimeout(() => {
-  loaderStage('Preparing sculpture');
-  try {
-    sculpture = createSculpture($('sculpture'));
-    sculpture.resize(width,height);
-    $('field').style.display = 'none';
-    render();
-  } catch (error) { useSculptureFallback(error); }
+  loaderStage('Preparing fold');
+  setBackground('fold');
 },0));
 $('field').addEventListener('webglcontextlost', event => { event.preventDefault(); if (backgroundMode === 'ink') { useFallback(new Error('WebGL context lost')); render(); } else { inkwash = null; } });
 $('field').addEventListener('webglcontextrestored', () => {
   if (backgroundMode !== 'ink') return;
   inkwash = null;
   if (prepareInk()) { $('field').style.display = ''; fieldFailed=false; render(); }
+});
+$('fractal').addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  sharedContextLost = true;
+  if (backgroundMode === 'fold' || backgroundMode === 'fractal') {
+    pendingSharedRestore = backgroundMode;
+    // Both shaders use this canvas. Creating Fractal before restoration would fail too.
+    useFractalFallback(new Error('WebGL context lost'));
+  } else { fractal = null; fractalKind = null; }
+});
+$('fractal').addEventListener('webglcontextrestored', () => {
+  sharedContextLost = false;
+  fractal = null; fractalKind = null;
+  const mode = pendingSharedRestore;
+  pendingSharedRestore = null;
+  if (mode) setBackground(mode);
 });
 $('sculpture').addEventListener('webglcontextlost', event => { event.preventDefault(); if (backgroundMode === 'sculpture') useSculptureFallback(new Error('WebGL context lost')); });
 $('sculpture').addEventListener('webglcontextrestored', () => {

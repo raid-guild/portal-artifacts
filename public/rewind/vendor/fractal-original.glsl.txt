@@ -1,0 +1,4 @@
+// Yohei Nishitsuji — original published expression
+// https://x.com/YoheiNishitsuji/status/2111673230113272074
+// MIT license: see fractal-LICENSE.txt
+float i,e,g,R,s;vec3 q,p,d=vec3((FC.xy*2.-r)/r.y+vec2(0,1),1);for(q.zy--;i++<99.;){e+=i/9e9;o.rgb+=hsv(.6,.8,min(e*i,.04));s=3.;p=q+=d*e*R*.35+1e-5;g+=p.y/s;p=vec3(log2(R=length(p))+t*.2,exp(mod(-p.z,s)/R-.4),p);for(e=--p.y;s<6e3;s+=s)e+=-abs(dot(sin(p.xz*s),cos(p.zy*s))/s*.3);}
