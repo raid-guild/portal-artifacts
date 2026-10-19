@@ -233,8 +233,9 @@ for (const rect of LEVEL.walls) {
   wall.position.set(rect.x, rect.y, 0);
   world.addBody(wall);
   wallBodies.push(wall);
-  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 0.75, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-  mesh.position.set(rect.x, rect.y, 0);
+  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 1.5, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  // Preserve the top at z=.375; bury the rounded base below the z=-.9 floor.
+  mesh.position.set(rect.x, rect.y, -.375);
   mesh.castShadow = true;
   mazeGroup.add(mesh);
 }
