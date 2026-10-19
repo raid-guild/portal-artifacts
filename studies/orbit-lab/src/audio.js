@@ -11,19 +11,23 @@ export class OrbitAudio {
       const limiter = c.createDynamicsCompressor();
       this.master.connect(limiter); limiter.connect(c.destination);
       // Quiet, continuous tail voice with a smoothly controlled envelope.
-      this.tail = c.createOscillator(); this.tail.type = 'sine';
+      this.tail = c.createOscillator(); this.tail.type = 'triangle';
       this.tailGain = c.createGain(); this.tailGain.gain.value = 0;
       this.tail.connect(this.tailGain); this.tailGain.connect(this.master); this.tail.start();
       // Orb voice: a low fundamental and a soft beating overtone, independent of flight.
       this.humGain = c.createGain(); this.humGain.gain.value = 0; this.humGain.connect(this.master);
-      this.hum = c.createOscillator(); this.hum.frequency.value = 98; this.hum.connect(this.humGain); this.hum.start();
-      this.humOvertone = c.createOscillator(); this.humOvertone.frequency.value = 196.35;
-      const overtoneGain = c.createGain(); overtoneGain.gain.value = .16;
+      this.hum = c.createOscillator(); this.hum.type = 'triangle'; this.hum.frequency.value = 196; this.hum.connect(this.humGain); this.hum.start();
+      this.humOvertone = c.createOscillator(); this.humOvertone.frequency.value = 392.35;
+      const overtoneGain = c.createGain(); overtoneGain.gain.value = .3;
       this.humOvertone.connect(overtoneGain); overtoneGain.connect(this.humGain); this.humOvertone.start();
       const noiseBuffer = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
       const data = noiseBuffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = noiseBuffer;
+      this.air = c.createBufferSource(); this.air.buffer = noiseBuffer; this.air.loop = true;
+      const airFilter = c.createBiquadFilter(); airFilter.type = 'bandpass'; airFilter.frequency.value = 1600; airFilter.Q.value = .8;
+      this.airGain = c.createGain(); this.airGain.gain.value = 0;
+      this.air.connect(airFilter); airFilter.connect(this.airGain); this.airGain.connect(this.master); this.air.start();
     }
     if (this.context.state === 'suspended') this.context.resume().catch(() => {});
   }
@@ -57,13 +61,15 @@ export class OrbitAudio {
   trail(running, speed, age) {
     if (!this.context) return;
     const time = this.context.currentTime;
-    const fade = Math.exp(-Math.max(0, age) / 6);
-    this.tailGain.gain.setTargetAtTime(running && this.enabled ? Math.min(.035, speed * .004) * fade : 0, time, .16);
-    this.tail.frequency.setTargetAtTime(110 + Math.min(speed, 15) * 9, time, .3);
+    const fade = Math.exp(-Math.max(0, age) / 10);
+    const active = running && this.enabled;
+    this.tailGain.gain.setTargetAtTime(active ? Math.min(.11, .035 + speed * .009) * fade : 0, time, .16);
+    this.airGain.gain.setTargetAtTime(active ? Math.min(.13, speed * .018) * fade : 0, time, .2);
+    this.tail.frequency.setTargetAtTime(260 + Math.min(speed, 15) * 16, time, .3);
   }
   orb(present, time) {
     const pulse = .5 + .5 * Math.sin(time * Math.PI * 2 * .65);
-    if (this.context) this.humGain.gain.setTargetAtTime(present && this.enabled ? .018 + pulse * .012 : 0, this.context.currentTime, .08);
+    if (this.context) this.humGain.gain.setTargetAtTime(present && this.enabled ? .04 + pulse * .085 : 0, this.context.currentTime, .08);
     return pulse;
   }
   noise(duration, frequency, volume) {
