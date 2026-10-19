@@ -5,6 +5,7 @@ import { STEP, acceleration, addWell, predict, remaining, wellPower } from './ph
 import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
 import { OrbitAudio } from './audio.js';
+import { drawFinishArt } from './finish-art.js';
 const audio = new OrbitAudio();
 let lastSoundWellTime = 0;
 
@@ -28,7 +29,7 @@ app.innerHTML = `
     <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts or pauses · R restarts · E releases wells.</p>
   </dialog>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><button id="driftRestart" class="primary-button">Try again ↗</button></div></div>
-  <div class="win-overlay hidden" id="winOverlay"><div class="result-card"><span class="eyebrow">COURSE COMPLETE</span><h2>Through the portal.</h2><p id="winStats"></p><button id="winRestart" class="primary-button">Try again ↗</button></div></div>
+  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow">COURSE COMPLETE</span><h2>Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your successful run"></canvas><p id="winStats"></p><button id="winRestart" class="primary-button">Fly again ↗</button></div></div>
 `;
 
 const $ = (selector) => document.querySelector(selector);
@@ -435,9 +436,12 @@ function failRun() {
 function winRun() {
   if (won) return;
   audio.portal();
+  const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : LEVEL.spawn;
+  archiveSegment(last, body.position);
+  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, LEVEL.bounds, LEVEL.spawn, body.position);
   won = true;
   paused = true; runState = 'won';
-  $('#winStats').textContent = `${simTime.toFixed(1)} seconds · ${attempts} attempt${attempts === 1 ? '' : 's'}`;
+  $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}`;
   winOverlay.classList.remove('hidden');
   updateStatus();
 }
