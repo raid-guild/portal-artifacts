@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { STEP, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
 import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact } from './level.js';
 import './style.css';
@@ -7,44 +8,23 @@ import './style.css';
 const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="scene" id="scene"></div>
-  <div class="grain"></div>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">✳</span><span>ORBIT<span class="brand-light">LAB</span></span><span class="brand-sub">/ GRAVITY PLAYGROUND</span></div>
-    <div class="top-actions"><span class="live-indicator"><i></i> <span id="modeLabel">MAZE RUN</span></span><button class="icon-button" id="pause" title="Pause or resume (Space)" aria-label="Pause or resume">Ⅱ</button><button class="icon-button restart" id="restart" title="Restart (R)" aria-label="Restart">↺</button></div>
-  </header>
-  <aside class="panel">
-    <div class="eyebrow"><span class="tiny-star">✦</span> EXPERIMENT 002 <span class="eyebrow-line"></span></div>
-    <div class="game-modes" role="group" aria-label="Game mode"><button class="selected" data-game="maze">Maze</button><button data-game="sandbox">Sandbox</button></div>
-    <h1>Bend the flight.<br><em>Find the exit.</em></h1>
-    <p class="lede">Guide the blob through the maze. Place wells to pull it around walls and toward the exit.</p>
-    <div class="run-stats"><span>ATTEMPTS <b id="attempts">1</b></span><span>TIME <b id="runTime">0.0s</b></span></div>
-    <div class="status-row"><span>THE BLOB</span><strong id="stateLabel"><span class="status-dot"></span> IN ORBIT</strong></div>
-    <div class="control-group">
-      <div class="control-heading"><label for="strength">GRAVITY STRENGTH</label><output id="strengthValue">100</output></div>
-      <input id="strength" type="range" min="35" max="180" step="1" value="100" />
-      <div class="scale-label"><span>GENTLE PULL</span><span>STRONG PULL</span></div>
-    </div>
-    <div class="control-group">
-      <div class="control-heading"><label for="lifetime">WELL LIFETIME</label><output id="lifetimeValue">8.0s</output></div>
-      <input id="lifetime" type="range" min="2" max="16" step="0.5" value="8" />
-      <div class="scale-label"><span>QUICK RELEASE</span><span>LONG ORBIT</span></div>
-      <p class="microcopy">Applies to new wells; restart to use now.</p>
-    </div>
-    <div class="control-group ending">
-      <div class="control-heading"><span>HOW WELLS END</span></div>
-      <div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">◒ &nbsp; Fade out</button><button data-mode="snap">✳ &nbsp; Snap off</button></div>
-      <p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p>
-    </div>
-    <div class="active-heading"><span>ACTIVE WELLS</span><small id="wellCount">1 / 2</small></div>
-    <div class="well-list" id="wellList"></div>
-    <button id="release" class="release-button">Release all wells <span>↗</span></button>
-  </aside>
-  <div class="hint" id="hint"><div class="hint-icon">＋</div><div><strong>Place a well, then press Space</strong><span>Steer around walls and spikes to reach the green exit.</span></div></div>
-  <div class="forecast-caption" id="forecastCaption">PATH TO NEXT IMPACT · NO WELL</div>
+  <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
+  <div class="play-control"><button id="pause" class="primary-button" type="button">Start <span aria-hidden="true">↗</span></button></div>
+  <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
   <div class="death-flash" id="deathFlash"></div>
-  <div class="bottom-bar"><span><span id="bottomMode">02 &nbsp; / &nbsp; GRAVITY MAZE</span></span><span class="desktop-instructions">CLICK <b>PLACE WELL</b> &nbsp;·&nbsp; RIGHT CLICK <b>REMOVE</b> &nbsp;·&nbsp; SPACE <b>PAUSE</b> &nbsp;·&nbsp; R <b>RESTART</b></span><span id="speed">0.00 u/s</span></div>
-  <div class="drift-overlay hidden" id="driftOverlay"><div class="drift-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The blob drifted beyond the visible arena. Try catching it sooner, or start again.</p><button id="driftRestart">Restart experiment ↗</button></div></div>
-  <div class="win-overlay hidden" id="winOverlay"><div class="drift-card"><span class="eyebrow">COURSE COMPLETE</span><h2>Made it through.</h2><p id="winStats"></p><button id="winRestart">Try again ↗</button></div></div>
+  <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
+    <p class="settings-intro">Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.</p>
+    <div class="game-modes" role="group" aria-label="Game mode"><button class="selected" data-game="maze">Maze</button><button data-game="sandbox">Orbit</button></div>
+    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">100</output></div><input id="strength" type="range" min="35" max="180" step="1" value="100"></div>
+    <div class="control-group"><div class="control-heading"><label for="lifetime">Well lifetime</label><output id="lifetimeValue">8.0s</output></div><input id="lifetime" type="range" min="2" max="16" step="0.5" value="8"><p class="microcopy">New wells use this lifetime.</p></div>
+    <div class="control-group"><div class="control-heading">How wells end</div><div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">Fade out</button><button data-mode="snap">Snap off</button></div><p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p></div>
+    <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label>
+    <div class="settings-stats"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
+    <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
+    <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts or pauses · R restarts · E releases wells.</p>
+  </dialog>
+  <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><button id="driftRestart" class="primary-button">Try again ↗</button></div></div>
+  <div class="win-overlay hidden" id="winOverlay"><div class="result-card"><span class="eyebrow">COURSE COMPLETE</span><h2>Through the portal.</h2><p id="winStats"></p><button id="winRestart" class="primary-button">Try again ↗</button></div></div>
 `;
 
 const $ = (selector) => document.querySelector(selector);
@@ -52,7 +32,9 @@ const sceneElement = $('#scene');
 const wellList = $('#wellList');
 const strengthInput = $('#strength');
 const lifetimeInput = $('#lifetime');
-const hint = $('#hint');
+const settings = $('#settings');
+const caption = $('#sceneCaption');
+const showForecast = $('#showForecast');
 const pauseButton = $('#pause');
 const driftOverlay = $('#driftOverlay');
 const winOverlay = $('#winOverlay');
@@ -73,7 +55,7 @@ camera.lookAt(0, 0, 0);
 const blue = 0x66e9f2;
 const purple = 0x9b90ff;
 const white = 0xe8faff;
-const baseLine = new THREE.LineBasicMaterial({ color: 0x263b55, transparent: true, opacity: 0.34 });
+const baseLine = new THREE.LineBasicMaterial({ color: 0x263b55, transparent: true, opacity: 0.10 });
 
 function line(points, material, closed = false) {
   const path = closed ? [...points, points[0]] : points;
@@ -89,10 +71,6 @@ function ring(radius, material, segments = 96) {
 const background = new THREE.Group();
 scene.add(background);
 scene.add(mazeGroup);
-for (let n = -40; n <= 40; n += 2) {
-  background.add(line([{ x: -60, y: n, z: -6 }, { x: 60, y: n, z: -6 }], baseLine));
-  background.add(line([{ x: n, y: -60, z: -6 }, { x: n, y: 60, z: -6 }], baseLine));
-}
 const stars = new THREE.Group();
 scene.add(stars);
 let seed = 387;
@@ -109,22 +87,79 @@ scene.add(new THREE.AmbientLight(0xaacaff, 1.8));
 const blobLight = new THREE.PointLight(0x76f7e9, 34, 16);
 scene.add(blobLight);
 const core = new THREE.Group();
-const blob = new THREE.Mesh(new THREE.SphereGeometry(0.31, 32, 24), new THREE.MeshPhysicalMaterial({ color: 0xa9fff1, emissive: 0x34babe, emissiveIntensity: 0.35, metalness: 0.02, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.15 }));
+const blob = new THREE.Mesh(new THREE.SphereGeometry(0.31, 32, 24), new THREE.MeshBasicMaterial({ color: 0xdffff8 }));
 blob.scale.set(1.12, 0.91, 0.87);
 core.add(blob);
 const blobHalo = ring(0.52, new THREE.LineBasicMaterial({ color: 0x78ffe9, transparent: true, opacity: 0.32 }));
 core.add(blobHalo);
+function glowTexture() {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const glow = context.createRadialGradient(64, 64, 2, 64, 64, 64);
+  glow.addColorStop(0, 'rgba(189,255,247,.95)'); glow.addColorStop(.13, 'rgba(109,250,231,.72)'); glow.addColorStop(.35, 'rgba(58,215,225,.24)'); glow.addColorStop(1, 'rgba(58,215,225,0)');
+  context.fillStyle = glow; context.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(canvas);
+}
+const glowMap = glowTexture();
+const heroGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+heroGlow.scale.set(3.2, 3.2, 1); heroGlow.position.z = -0.1; core.add(heroGlow);
 core.position.z = 2;
 scene.add(core);
 
-const trailMaterial = new THREE.LineBasicMaterial({ color: blue, transparent: true, opacity: 0.67 });
-const trail = new THREE.Line(new THREE.BufferGeometry(), trailMaterial);
-trail.position.z = 0.7;
-scene.add(trail);
-const forecastMaterial = new THREE.LineDashedMaterial({ color: 0x92faff, transparent: true, opacity: 0.45, dashSize: 0.11, gapSize: 0.14 });
+// The archive is painted in world coordinates and stays until a deliberate reset.
+const archiveCanvas = document.createElement('canvas');
+archiveCanvas.width = 1536; archiveCanvas.height = 1064;
+const archiveContext = archiveCanvas.getContext('2d');
+const archiveTexture = new THREE.CanvasTexture(archiveCanvas);
+archiveTexture.colorSpace = THREE.SRGBColorSpace;
+const archive = new THREE.Mesh(new THREE.PlaneGeometry(26, 18), new THREE.MeshBasicMaterial({ map: archiveTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+archive.position.z = 0.62; scene.add(archive);
+let archiveHalfWidth = 13, archiveHalfHeight = 9;
+function expandArchive(halfWidth, halfHeight) {
+  const nextX = Math.max(archiveHalfWidth, halfWidth);
+  const nextY = Math.max(archiveHalfHeight, halfHeight);
+  if (nextX === archiveHalfWidth && nextY === archiveHalfHeight) return;
+  const copy = document.createElement('canvas');
+  copy.width = archiveCanvas.width; copy.height = archiveCanvas.height;
+  copy.getContext('2d').drawImage(archiveCanvas, 0, 0);
+  archiveContext.clearRect(0, 0, archiveCanvas.width, archiveCanvas.height);
+  const w = archiveCanvas.width * archiveHalfWidth / nextX;
+  const h = archiveCanvas.height * archiveHalfHeight / nextY;
+  archiveContext.drawImage(copy, (archiveCanvas.width - w) / 2, (archiveCanvas.height - h) / 2, w, h);
+  archiveHalfWidth = nextX; archiveHalfHeight = nextY;
+  archive.scale.set(nextX / 13, nextY / 9, 1);
+  archiveTexture.needsUpdate = true;
+}
+// Fixed-size buffers: soft ribbon replaces unsupported wide WebGL lines.
+const TRAIL_CAPACITY = 640;
+const trailSamples = Array.from({ length: TRAIL_CAPACITY }, () => ({ x: 0, y: 0, time: 0 }));
+let trailStart = 0, trailCount = 0;
+const trailPositions = new Float32Array(TRAIL_CAPACITY * 18);
+const trailSides = new Float32Array(TRAIL_CAPACITY * 6);
+const trailIntensity = new Float32Array(TRAIL_CAPACITY * 6);
+const trailGeometry = new THREE.BufferGeometry();
+trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3).setUsage(THREE.DynamicDrawUsage));
+trailGeometry.setAttribute('side', new THREE.BufferAttribute(trailSides, 1));
+trailGeometry.setAttribute('intensity', new THREE.BufferAttribute(trailIntensity, 1).setUsage(THREE.DynamicDrawUsage));
+for (let i = 0; i < TRAIL_CAPACITY; i++) trailSides.set([-1, 1, -1, 1, 1, -1], i * 6);
+trailGeometry.setDrawRange(0, 0);
+const trail = new THREE.Mesh(trailGeometry, new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: 'attribute float side; attribute float intensity; varying float vSide; varying float vIntensity; void main(){vSide=side;vIntensity=intensity;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader: 'varying float vSide; varying float vIntensity; void main(){float glow=exp(-7.*vSide*vSide);float core=exp(-150.*vSide*vSide);gl_FragColor=vec4(mix(vec3(.25,.8,.85),vec3(.9,1.,.96),core),vIntensity*(glow*.48+core*.7));}',
+}));
+trail.frustumCulled = false;
+trail.position.z = 0.72; scene.add(trail);
+function clearTrail() { archiveContext.clearRect(0, 0, archiveCanvas.width, archiveCanvas.height); archiveTexture.needsUpdate = true; trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0); }
+function archiveSegment(a, b) {
+  const sx = archiveCanvas.width / (archiveHalfWidth * 2), sy = archiveCanvas.height / (archiveHalfHeight * 2);
+  archiveContext.beginPath(); archiveContext.moveTo((a.x + archiveHalfWidth) * sx, (archiveHalfHeight - a.y) * sy); archiveContext.lineTo((b.x + archiveHalfWidth) * sx, (archiveHalfHeight - b.y) * sy);
+  archiveContext.strokeStyle = 'rgba(80,226,222,.095)'; archiveContext.lineWidth = 2; archiveContext.lineCap = 'round'; archiveContext.stroke(); archiveTexture.needsUpdate = true;
+}
+const forecastMaterial = new THREE.LineDashedMaterial({ color: 0x92faff, transparent: true, opacity: 0.25, dashSize: 0.11, gapSize: 0.14 });
 const forecast = new THREE.Line(new THREE.BufferGeometry(), forecastMaterial);
 forecast.position.z = 0.15;
-scene.add(forecast);
+scene.add(forecast); forecast.visible = false;
 const startingOrbit = ring(4, new THREE.LineDashedMaterial({ color: 0x708ca9, transparent: true, opacity: 0.17, dashSize: 0.055, gapSize: 0.12 }));
 startingOrbit.computeLineDistances();
 startingOrbit.position.set(0, 0, -0.1);
@@ -142,9 +177,10 @@ for (const rect of LEVEL.walls) {
   wall.position.set(rect.x, rect.y, 0);
   world.addBody(wall);
   wallBodies.push(wall);
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(rect.w, rect.h, 0.75), new THREE.MeshStandardMaterial({ color: 0x365870, emissive: 0x173448, emissiveIntensity: 0.45, metalness: 0.2, roughness: 0.62 }));
+  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 0.75, 4, 0.18), new THREE.MeshStandardMaterial({ color: 0x505269, emissive: 0x22283e, emissiveIntensity: 0.35, metalness: 0.02, roughness: 0.94, transparent: true, opacity: 0.82 }));
   mesh.position.set(rect.x, rect.y, 0);
   mazeGroup.add(mesh);
+  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0xa5a5cf, transparent: true, opacity: 0.13 })); edge.position.copy(mesh.position); mazeGroup.add(edge);
 }
 for (const spike of LEVEL.spikes) {
   const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.75, 3), new THREE.MeshBasicMaterial({ color: 0xff7882 }));
@@ -155,42 +191,23 @@ for (const spike of LEVEL.spikes) {
   warning.position.set(spike.x, spike.y, 0.6);
   mazeGroup.add(warning);
 }
-const goalMesh = ring(LEVEL.goal.radius, new THREE.LineBasicMaterial({ color: 0x8cfab5, transparent: true, opacity: 0.95 }));
-goalMesh.position.set(LEVEL.goal.x, LEVEL.goal.y, 0.8);
-mazeGroup.add(goalMesh);
-const goalDisc = new THREE.Mesh(new THREE.CircleGeometry(LEVEL.goal.radius, 48), new THREE.MeshBasicMaterial({ color: 0x63eaa2, transparent: true, opacity: 0.12 }));
-goalDisc.position.set(LEVEL.goal.x, LEVEL.goal.y, 0.3);
-mazeGroup.add(goalDisc);
-function mapLabel(text, color, x, y) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 32px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = color;
-  ctx.fillText(text, 128, 42);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false }));
-  sprite.position.set(x, y, 2);
-  sprite.scale.set(2.6, 0.65, 1);
-  mazeGroup.add(sprite);
-}
-mapLabel('START', '#9be6f0', -10, -6.15);
-mapLabel('EXIT', '#a1ffbb', LEVEL.goal.x, LEVEL.goal.y + 1.65);
-
+const portal = new THREE.Group(); portal.position.set(LEVEL.goal.x, LEVEL.goal.y, 1); mazeGroup.add(portal);
+const portalAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x91c8ff })); portalAura.scale.set(4.5, 4.5, 1); portal.add(portalAura);
+const portalCore = new THREE.Mesh(new THREE.CircleGeometry(0.64, 64), new THREE.MeshBasicMaterial({ color: 0x081e39, transparent: true, opacity: 0.88, side: THREE.DoubleSide })); portal.add(portalCore);
+for (let i = 0; i < 3; i++) { const loop = ring(LEVEL.goal.radius * (0.65 + i * 0.16), new THREE.LineBasicMaterial({ color: i === 0 ? 0xb1fff0 : 0x78afff, transparent: true, opacity: 0.78 - i * 0.18 })); loop.position.z = 0.2 + i * .02; portal.add(loop); }
 let simTime = 0;
 let accumulator = 0;
 let lastFrame = performance.now();
 let wells = [];
 let nextWellId = 1;
 let mode = 'fade';
-let paused = false;
+let paused = true;
+let runState = 'ready';
+let resumeAfterSettings = false;
 let drifted = false;
-let trails = [];
 let frameCount = 0;
 let pointer = null;
 let pointerDownAt = 0;
-let firstPlace = true;
 let gameMode = 'maze';
 let attempts = 0;
 let won = false;
@@ -239,17 +256,15 @@ function removeWell(id) {
 
 function placeWell(x, y) {
   if (drifted || won) return;
-  if (gameMode === 'maze' && !canPlaceWell({ x, y })) {
-    $('#forecastCaption').textContent = 'PLACE WELLS IN OPEN SPACE';
-    return;
-  }
+  if (settings.open) return;
+  if (gameMode === 'maze' && !canPlaceWell({ x, y })) return;
   const well = makeWell(x, y, Number(strengthInput.value), Number(lifetimeInput.value), simTime);
   const old = wells[0];
   wells = addWell(wells, well);
   if (old && !wells.includes(old)) disposeWell(old);
   redrawWellList();
   updateForecast();
-  if (firstPlace) { hint.classList.add('hidden'); firstPlace = false; }
+  if (runState === 'ready') caption.textContent = 'TAP START TO RELEASE';
 }
 
 function releaseAll() {
@@ -264,14 +279,15 @@ function reset() {
   releaseAll();
   simTime = 0;
   accumulator = 0;
-  trails = [];
+  clearTrail();
   drifted = false;
   won = false;
-  paused = gameMode === 'maze';
+  paused = true; runState = 'ready';
   driftOverlay.classList.add('hidden');
   winOverlay.classList.add('hidden');
   $('#deathFlash').classList.remove('visible');
-  pauseButton.textContent = paused ? '▶' : 'Ⅱ';
+  pauseButton.innerHTML = 'Start <span aria-hidden="true">↗</span>';
+  caption.textContent = gameMode === 'maze' ? 'PLACE A WELL · THEN START' : 'TAP START TO RELEASE';
   body.force.setZero();
   body.angularVelocity.setZero();
   if (gameMode === 'maze') {
@@ -295,7 +311,7 @@ function reset() {
 function failRun() {
   if (drifted || won) return;
   drifted = true;
-  paused = true;
+  paused = true; runState = 'dead';
   $('#deathFlash').classList.add('visible');
   updateStatus();
   resetTimer = setTimeout(reset, 420);
@@ -304,7 +320,7 @@ function failRun() {
 function winRun() {
   if (won) return;
   won = true;
-  paused = true;
+  paused = true; runState = 'won';
   $('#winStats').textContent = `${simTime.toFixed(1)} seconds · ${attempts} attempt${attempts === 1 ? '' : 's'}`;
   winOverlay.classList.remove('hidden');
   updateStatus();
@@ -319,16 +335,6 @@ function switchGame(next) {
     if (next === 'sandbox' && world.bodies.includes(wall)) world.removeBody(wall);
   }
   startingOrbit.visible = next === 'sandbox';
-  $('.run-stats').style.display = next === 'maze' ? '' : 'none';
-  $('#forecastCaption').style.display = next === 'maze' ? '' : 'none';
-  $('.panel h1').innerHTML = next === 'maze' ? 'Bend the flight.<br><em>Find the exit.</em>' : 'Make gravity.<br><em>Make a path.</em>';
-  $('.lede').textContent = next === 'maze' ? 'Guide the blob through the maze. Place wells to pull it around walls and toward the exit.' : 'Drop temporary gravity wells to bend the blob’s flight. Catch an orbit, then let it go.';
-  $('#modeLabel').textContent = next === 'maze' ? 'MAZE RUN' : 'LIVE SIMULATION';
-  $('#bottomMode').innerHTML = next === 'maze' ? '02 &nbsp; / &nbsp; GRAVITY MAZE' : '01 &nbsp; / &nbsp; ORBITAL PLAYGROUND';
-  hint.querySelector('strong').textContent = next === 'maze' ? 'Place a well, then press Space' : 'Click anywhere to place a well';
-  hint.querySelector('span').textContent = next === 'maze' ? 'Steer around walls and spikes to reach the green exit.' : 'Only two can exist at once. New ones replace the oldest.';
-  firstPlace = true;
-  hint.classList.remove('hidden');
   $('.game-modes').querySelectorAll('button').forEach((button) => button.classList.toggle('selected', button.dataset.game === next));
   if (next === 'maze') attempts = 0;
   resize();
@@ -340,22 +346,36 @@ function currentState() {
 }
 
 function updateForecast() {
+  if (!showForecast.checked) return;
   const result = gameMode === 'maze' ? predictToImpact(currentState(), wells, simTime, 3, mode) : { points: predict(currentState(), wells, simTime, 5.5, mode, 7), impact: null };
   const points = result.points;
-  if (gameMode === 'maze') $('#forecastCaption').textContent = `PATH TO NEXT IMPACT · ${result.impact?.toUpperCase() || 'CLEAR'}`;
+
   forecast.geometry.dispose();
   forecast.geometry = new THREE.BufferGeometry().setFromPoints(points.map((p) => new THREE.Vector3(p.x, p.y, 0)));
   forecast.computeLineDistances();
 }
 
 function updateTrail() {
-  const last = trails[trails.length - 1];
-  if (!last || Math.hypot(last.x - body.position.x, last.y - body.position.y) > 0.045) {
-    trails.push({ x: body.position.x, y: body.position.y });
-    if (trails.length > 260) trails.shift();
-    trail.geometry.dispose();
-    trail.geometry = new THREE.BufferGeometry().setFromPoints(trails.map((p) => new THREE.Vector3(p.x, p.y, 0)));
+  const point = { x: body.position.x, y: body.position.y, time: simTime };
+  const sampleAt = (i) => trailSamples[(trailStart + i) % TRAIL_CAPACITY];
+  const last = trailCount ? sampleAt(trailCount - 1) : null;
+  if (!last || simTime - last.time >= 1 / 30) {
+    if (last) archiveSegment(last, point);
+    if (trailCount === TRAIL_CAPACITY) { trailStart = (trailStart + 1) % TRAIL_CAPACITY; trailCount--; }
+    Object.assign(sampleAt(trailCount++), point);
   }
+  while (trailCount > 1 && sampleAt(1).time < simTime - 20) { trailStart = (trailStart + 1) % TRAIL_CAPACITY; trailCount--; }
+  for (let i = 1; i < trailCount; i++) {
+    const a = sampleAt(i - 1), b = sampleAt(i);
+    const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / length * .14, ny = (b.x - a.x) / length * .14;
+    const offset = (i - 1) * 18;
+    trailPositions.set([a.x-nx,a.y-ny,0,a.x+nx,a.y+ny,0,b.x-nx,b.y-ny,0,a.x+nx,a.y+ny,0,b.x+nx,b.y+ny,0,b.x-nx,b.y-ny,0], offset);
+    trailIntensity.fill(Math.max(0, 1 - (simTime - b.time) / 20) ** 2, (i - 1) * 6, i * 6);
+  }
+  trailGeometry.attributes.position.needsUpdate = true;
+  trailGeometry.attributes.intensity.needsUpdate = true;
+  trailGeometry.setDrawRange(0, Math.max(0, trailCount - 1) * 6);
 }
 
 function updateWellVisuals() {
@@ -380,8 +400,8 @@ function updateWellVisuals() {
 }
 
 function updateStatus() {
-  const state = won ? 'FINISHED' : drifted ? 'HIT HAZARD' : paused ? 'READY' : wells.length ? 'IN FLIGHT' : 'COASTING';
-  $('#stateLabel').innerHTML = `<span class="status-dot${drifted ? ' warning' : ''}"></span> ${state}`;
+  const state = won ? 'FINISHED' : drifted ? 'LOST' : runState === 'ready' ? 'READY' : paused ? 'PAUSED' : 'IN FLIGHT';
+  $('#stateLabel').textContent = state;
   $('#speed').textContent = `${Math.hypot(body.velocity.x, body.velocity.y).toFixed(2)} u/s`;
 }
 
@@ -389,13 +409,14 @@ function resize() {
   const width = sceneElement.clientWidth;
   const height = sceneElement.clientHeight;
   const aspect = width / height;
-  const visibleWidth = gameMode === 'maze' ? Math.max(27.5, 19 * aspect) : Math.max(21, 16 * aspect);
+  const visibleWidth = gameMode === 'maze' ? Math.max(28, 19 * aspect) : Math.max(21, 16 * aspect);
   const visibleHeight = visibleWidth / aspect;
   camera.left = -visibleWidth / 2;
   camera.right = visibleWidth / 2;
   camera.top = visibleHeight / 2;
   camera.bottom = -visibleHeight / 2;
   camera.updateProjectionMatrix();
+  expandArchive(camera.right + 2, camera.top + 2);
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 }
@@ -412,19 +433,17 @@ function closestWell(point) {
 }
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || pointer) return;
   pointerDownAt = performance.now();
-  pointer = { ...eventWorld(event), clientX: event.clientX, clientY: event.clientY };
+  pointer = { id: event.pointerId, clientX: event.clientX, clientY: event.clientY };
 });
-renderer.domElement.addEventListener('pointermove', (event) => {
-  pointer = { ...eventWorld(event), clientX: event.clientX, clientY: event.clientY };
-});
-renderer.domElement.addEventListener('pointerleave', () => { pointer = null; });
+renderer.domElement.addEventListener('pointercancel', (event) => { if (pointer?.id === event.pointerId) pointer = null; });
 renderer.domElement.addEventListener('pointerup', (event) => {
-  if (event.button !== 0 || !pointer) return;
-  if (Math.hypot(event.clientX - pointer.clientX, event.clientY - pointer.clientY) > 15) return;
+  const down = pointer; pointer = null;
+  if (event.button !== 0 || !down || down.id !== event.pointerId) return;
+  if (Math.hypot(event.clientX - down.clientX, event.clientY - down.clientY) > 15) return;
   if (performance.now() - pointerDownAt > 600) return;
-  const point = eventWorld(event);
-  placeWell(point.x, point.y);
+  const point = eventWorld(event); placeWell(point.x, point.y);
 });
 renderer.domElement.addEventListener('contextmenu', (event) => {
   event.preventDefault();
@@ -451,22 +470,27 @@ $('.segmented').addEventListener('click', (event) => {
   updateForecast();
 });
 $('#release').addEventListener('click', releaseAll);
+showForecast.addEventListener('change', () => { forecast.visible = showForecast.checked; updateForecast(); });
+$('#settingsButton').addEventListener('click', () => { resumeAfterSettings = runState === 'running'; if (resumeAfterSettings) togglePause(); settings.showModal(); });
+$('#closeSettings').addEventListener('click', () => settings.close());
+settings.addEventListener('close', () => { if (resumeAfterSettings && runState === 'paused' && !drifted && !won) togglePause(); resumeAfterSettings = false; });
 $('#restart').addEventListener('click', reset);
 $('#driftRestart').addEventListener('click', reset);
 $('#winRestart').addEventListener('click', reset);
 $('.game-modes').addEventListener('click', (event) => { const button = event.target.closest('[data-game]'); if (button) switchGame(button.dataset.game); });
 pauseButton.addEventListener('click', togglePause);
 function togglePause() {
-  if (drifted || won) return;
+  if (drifted || won || settings.open) return;
   paused = !paused;
-  pauseButton.textContent = paused ? '▶' : 'Ⅱ';
-  lastFrame = performance.now();
-  updateStatus();
+  runState = paused ? 'paused' : 'running';
+  pauseButton.innerHTML = paused ? 'Resume <span aria-hidden="true">↗</span>' : 'Pause <span aria-hidden="true">Ⅱ</span>';
+  caption.textContent = paused ? 'PAUSED' : '';
+  lastFrame = performance.now(); updateStatus();
 }
 window.addEventListener('keydown', (event) => {
-  if (event.target instanceof HTMLInputElement) return;
+  if (settings.open || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
   const key = event.key.toLowerCase();
-  if (key === ' ') { event.preventDefault(); togglePause(); }
+  if (key === ' ' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); togglePause(); }
   if (key === 'r') reset();
   if (key === 'e') releaseAll();
 });
@@ -500,7 +524,7 @@ function frame(now) {
     frameCount++;
     if (frameCount % 8 === 0) updateForecast();
     if (gameMode === 'sandbox' && (Math.abs(body.position.x) > camera.right + 1.5 || Math.abs(body.position.y) > camera.top + 1.5)) {
-      drifted = true;
+      drifted = true; paused = true; runState = 'dead'; updateStatus();
       driftOverlay.classList.remove('hidden');
     }
   }
@@ -512,6 +536,7 @@ function frame(now) {
   blob.scale.x = 1.07 + Math.min(0.25, speed * 0.02);
   blob.scale.y = 0.93 - Math.min(0.12, speed * 0.009);
   blobHalo.rotation.z += elapsed * 0.15;
+  portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   updateWellVisuals();
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
   renderer.render(scene, camera);
