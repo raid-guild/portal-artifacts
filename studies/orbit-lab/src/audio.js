@@ -14,6 +14,12 @@ export class OrbitAudio {
       this.tail = c.createOscillator(); this.tail.type = 'sine';
       this.tailGain = c.createGain(); this.tailGain.gain.value = 0;
       this.tail.connect(this.tailGain); this.tailGain.connect(this.master); this.tail.start();
+      // Orb voice: a low fundamental and a soft beating overtone, independent of flight.
+      this.humGain = c.createGain(); this.humGain.gain.value = 0; this.humGain.connect(this.master);
+      this.hum = c.createOscillator(); this.hum.frequency.value = 98; this.hum.connect(this.humGain); this.hum.start();
+      this.humOvertone = c.createOscillator(); this.humOvertone.frequency.value = 196.35;
+      const overtoneGain = c.createGain(); overtoneGain.gain.value = .16;
+      this.humOvertone.connect(overtoneGain); overtoneGain.connect(this.humGain); this.humOvertone.start();
       const noiseBuffer = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
       const data = noiseBuffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -55,6 +61,11 @@ export class OrbitAudio {
     this.tailGain.gain.setTargetAtTime(running && this.enabled ? Math.min(.035, speed * .004) * fade : 0, time, .16);
     this.tail.frequency.setTargetAtTime(110 + Math.min(speed, 15) * 9, time, .3);
   }
+  orb(present, time) {
+    const pulse = .5 + .5 * Math.sin(time * Math.PI * 2 * .65);
+    if (this.context) this.humGain.gain.setTargetAtTime(present && this.enabled ? .018 + pulse * .012 : 0, this.context.currentTime, .08);
+    return pulse;
+  }
   noise(duration, frequency, volume) {
     if (!this.enabled || !this.context) return;
     const c = this.context, time = c.currentTime;
@@ -71,5 +82,5 @@ export class OrbitAudio {
     [261.626, 329.628, 391.995, 523.251].forEach((note, i) => this.tone(note, i * .11, 2.6, .1));
     this.noise(.8, 4200, .035);
   }
-  reset() { this.step = 0; this.trail(false, 0, 0); }
+  reset() { this.step = 0; this.trail(false, 0, 0); this.orb(false, 0); }
 }

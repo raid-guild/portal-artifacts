@@ -657,9 +657,10 @@ function frame(now) {
   }
   core.position.set(body.position.x, body.position.y, 2);
   blobLight.position.set(body.position.x, body.position.y, 1.1);
-  const pulse = 1 + Math.sin(now * .014) * .05;
-  blob.scale.setScalar(pulse);
-  heroGlow.scale.setScalar(2.4 + Math.sin(now * .011) * .12);
+  const orbPulse = audio.orb(!settings.open && !drifted && !won && !document.hidden, now / 1000);
+  blob.scale.setScalar(1 + orbPulse * .055);
+  heroGlow.scale.setScalar(2.3 + orbPulse * .25);
+  heroGlow.material.opacity = .83 + orbPulse * .17;
   if (!paused && !drifted && !won) updateSparks(elapsed);
   if (gameMode === 'maze') updateHazardSparks();
   if (gameMode === 'maze') updatePortalSparks();
