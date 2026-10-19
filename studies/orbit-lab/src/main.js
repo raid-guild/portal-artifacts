@@ -45,6 +45,8 @@ renderer.setSize(sceneElement.clientWidth, sceneElement.clientHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.6;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 sceneElement.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -83,11 +85,22 @@ for (let i = 0; i < 210; i++) {
   stars.add(star);
 }
 
-scene.add(new THREE.AmbientLight(0xaacaff, 1.8));
-const blobLight = new THREE.PointLight(0xff953d, 34, 16);
+scene.add(new THREE.AmbientLight(0x7b9cba, .22));
+// A real lit backdrop receives the moving walls' shadows.
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x172c37, roughness: 1, metalness: 0 }));
+floor.position.z = -.9;
+floor.receiveShadow = true;
+scene.add(floor);
+const blobLight = new THREE.PointLight(0x66e9f2, 85, 50, 1.5);
+blobLight.castShadow = true;
+blobLight.shadow.mapSize.set(window.innerWidth <= 700 ? 512 : 1024, window.innerWidth <= 700 ? 512 : 1024);
+blobLight.shadow.camera.near = .1;
+blobLight.shadow.camera.far = 50;
+blobLight.shadow.bias = -.0003;
+blobLight.shadow.normalBias = .015;
 scene.add(blobLight);
 const core = new THREE.Group();
-const blob = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 24), new THREE.MeshBasicMaterial({ color: 0xfff4cd }));
+const blob = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 24), new THREE.MeshBasicMaterial({ color: 0xdffff8 }));
 core.add(blob);
 function glowTexture() {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
@@ -101,10 +114,10 @@ const glowMap = glowTexture();
 const fireCanvas = document.createElement('canvas'); fireCanvas.width = fireCanvas.height = 128;
 const fireContext = fireCanvas.getContext('2d');
 const fireGradient = fireContext.createRadialGradient(64, 64, 0, 64, 64, 64);
-fireGradient.addColorStop(0, 'rgba(255,250,205,1)');
-fireGradient.addColorStop(.16, 'rgba(255,193,78,.95)');
-fireGradient.addColorStop(.38, 'rgba(255,83,20,.4)');
-fireGradient.addColorStop(1, 'rgba(255,40,5,0)');
+fireGradient.addColorStop(0, 'rgba(225,255,249,1)');
+fireGradient.addColorStop(.16, 'rgba(102,233,242,.95)');
+fireGradient.addColorStop(.38, 'rgba(64,204,217,.4)');
+fireGradient.addColorStop(1, 'rgba(64,204,217,0)');
 fireContext.fillStyle = fireGradient; fireContext.fillRect(0, 0, 128, 128);
 const heroGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(fireCanvas), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 heroGlow.scale.set(2.4, 2.4, 1); heroGlow.position.z = .1; core.add(heroGlow);
@@ -122,7 +135,7 @@ sparkGeometry.setAttribute('heat', new THREE.BufferAttribute(sparkHeat, 1).setUs
 const sparkMaterial = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   uniforms: { pixelRatio: { value: renderer.getPixelRatio() } },
   vertexShader: 'attribute float heat; varying float vHeat; uniform float pixelRatio; void main(){vHeat=heat;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=(3.+heat*6.)*pixelRatio;}',
-  fragmentShader: 'varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.||vHeat<=0.)discard;vec3 color=mix(vec3(1.,.12,.01),vec3(1.,.85,.35),vHeat);gl_FragColor=vec4(color,pow(1.-r,2.)*vHeat);}',
+  fragmentShader: 'varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.||vHeat<=0.)discard;vec3 color=mix(vec3(.25,.8,.85),vec3(.9,1.,.96),vHeat);gl_FragColor=vec4(color,pow(1.-r,2.)*vHeat);}',
 });
 const sparkPoints = new THREE.Points(sparkGeometry, sparkMaterial); sparkPoints.frustumCulled = false; scene.add(sparkPoints);
 let sparkIndex = 0, sparkAccumulator = 0;
@@ -222,6 +235,7 @@ for (const rect of LEVEL.walls) {
   wallBodies.push(wall);
   const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 0.75, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   mesh.position.set(rect.x, rect.y, 0);
+  mesh.castShadow = true;
   mazeGroup.add(mesh);
 }
 for (const spike of LEVEL.spikes) {
@@ -573,7 +587,7 @@ function frame(now) {
     }
   }
   core.position.set(body.position.x, body.position.y, 2);
-  blobLight.position.set(body.position.x, body.position.y, 3);
+  blobLight.position.set(body.position.x, body.position.y, 1.1);
   const pulse = 1 + Math.sin(now * .014) * .05;
   blob.scale.setScalar(pulse);
   heroGlow.scale.setScalar(2.4 + Math.sin(now * .011) * .12);
