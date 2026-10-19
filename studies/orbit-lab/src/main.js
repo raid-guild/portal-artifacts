@@ -84,14 +84,11 @@ for (let i = 0; i < 210; i++) {
 }
 
 scene.add(new THREE.AmbientLight(0xaacaff, 1.8));
-const blobLight = new THREE.PointLight(0x76f7e9, 34, 16);
+const blobLight = new THREE.PointLight(0xff953d, 34, 16);
 scene.add(blobLight);
 const core = new THREE.Group();
-const blob = new THREE.Mesh(new THREE.SphereGeometry(0.31, 32, 24), new THREE.MeshBasicMaterial({ color: 0xdffff8 }));
-blob.scale.set(1.12, 0.91, 0.87);
+const blob = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 24), new THREE.MeshBasicMaterial({ color: 0xfff4cd }));
 core.add(blob);
-const blobHalo = ring(0.52, new THREE.LineBasicMaterial({ color: 0x78ffe9, transparent: true, opacity: 0.32 }));
-core.add(blobHalo);
 function glowTexture() {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 128;
   const context = canvas.getContext('2d');
@@ -101,10 +98,56 @@ function glowTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 const glowMap = glowTexture();
-const heroGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-heroGlow.scale.set(3.2, 3.2, 1); heroGlow.position.z = -0.1; core.add(heroGlow);
+const fireCanvas = document.createElement('canvas'); fireCanvas.width = fireCanvas.height = 128;
+const fireContext = fireCanvas.getContext('2d');
+const fireGradient = fireContext.createRadialGradient(64, 64, 0, 64, 64, 64);
+fireGradient.addColorStop(0, 'rgba(255,250,205,1)');
+fireGradient.addColorStop(.16, 'rgba(255,193,78,.95)');
+fireGradient.addColorStop(.38, 'rgba(255,83,20,.4)');
+fireGradient.addColorStop(1, 'rgba(255,40,5,0)');
+fireContext.fillStyle = fireGradient; fireContext.fillRect(0, 0, 128, 128);
+const heroGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(fireCanvas), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+heroGlow.scale.set(2.4, 2.4, 1); heroGlow.position.z = .1; core.add(heroGlow);
 core.position.z = 2;
 scene.add(core);
+
+// A bounded ember pool; particles drift behind the fireball without affecting physics.
+const SPARK_COUNT = 128;
+const sparks = Array.from({ length: SPARK_COUNT }, () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, duration: 1 }));
+const sparkPositions = new Float32Array(SPARK_COUNT * 3);
+const sparkHeat = new Float32Array(SPARK_COUNT);
+const sparkGeometry = new THREE.BufferGeometry();
+sparkGeometry.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3).setUsage(THREE.DynamicDrawUsage));
+sparkGeometry.setAttribute('heat', new THREE.BufferAttribute(sparkHeat, 1).setUsage(THREE.DynamicDrawUsage));
+const sparkMaterial = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  uniforms: { pixelRatio: { value: renderer.getPixelRatio() } },
+  vertexShader: 'attribute float heat; varying float vHeat; uniform float pixelRatio; void main(){vHeat=heat;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=(3.+heat*6.)*pixelRatio;}',
+  fragmentShader: 'varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.||vHeat<=0.)discard;vec3 color=mix(vec3(1.,.12,.01),vec3(1.,.85,.35),vHeat);gl_FragColor=vec4(color,pow(1.-r,2.)*vHeat);}',
+});
+const sparkPoints = new THREE.Points(sparkGeometry, sparkMaterial); sparkPoints.frustumCulled = false; scene.add(sparkPoints);
+let sparkIndex = 0, sparkAccumulator = 0;
+function clearSparks() { for (const spark of sparks) spark.life = 0; sparkHeat.fill(0); sparkGeometry.attributes.heat.needsUpdate = true; sparkAccumulator = 0; }
+function updateSparks(dt) {
+  sparkAccumulator += dt * 36;
+  while (sparkAccumulator >= 1) {
+    sparkAccumulator--;
+    const spark = sparks[sparkIndex++ % SPARK_COUNT];
+    const angle = Math.random() * Math.PI * 2;
+    const scatter = .6 + Math.random() * 1.5;
+    spark.x = body.position.x; spark.y = body.position.y;
+    spark.vx = -body.velocity.x * .14 + Math.cos(angle) * scatter;
+    spark.vy = -body.velocity.y * .14 + Math.sin(angle) * scatter;
+    spark.duration = spark.life = .5 + Math.random() * 1.4;
+  }
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const spark = sparks[i]; spark.life = Math.max(0, spark.life - dt);
+    spark.x += spark.vx * dt; spark.y += spark.vy * dt;
+    spark.vx *= Math.exp(-dt * 1.3); spark.vy *= Math.exp(-dt * 1.3);
+    sparkPositions.set([spark.x, spark.y, 2.2], i * 3);
+    sparkHeat[i] = spark.life / spark.duration;
+  }
+  sparkGeometry.attributes.position.needsUpdate = true; sparkGeometry.attributes.heat.needsUpdate = true;
+}
 
 // The archive is painted in world coordinates and stays until a deliberate reset.
 const archiveCanvas = document.createElement('canvas');
@@ -177,10 +220,9 @@ for (const rect of LEVEL.walls) {
   wall.position.set(rect.x, rect.y, 0);
   world.addBody(wall);
   wallBodies.push(wall);
-  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 0.75, 4, 0.18), new THREE.MeshStandardMaterial({ color: 0x505269, emissive: 0x22283e, emissiveIntensity: 0.35, metalness: 0.02, roughness: 0.94, transparent: true, opacity: 0.82 }));
+  const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 0.75, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   mesh.position.set(rect.x, rect.y, 0);
   mazeGroup.add(mesh);
-  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0xa5a5cf, transparent: true, opacity: 0.13 })); edge.position.copy(mesh.position); mazeGroup.add(edge);
 }
 for (const spike of LEVEL.spikes) {
   const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.75, 3), new THREE.MeshBasicMaterial({ color: 0xff7882 }));
@@ -280,6 +322,7 @@ function reset() {
   simTime = 0;
   accumulator = 0;
   clearTrail();
+  clearSparks();
   drifted = false;
   won = false;
   paused = true; runState = 'ready';
@@ -419,6 +462,7 @@ function resize() {
   expandArchive(camera.right + 2, camera.top + 2);
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  sparkMaterial.uniforms.pixelRatio.value = renderer.getPixelRatio();
 }
 
 function eventWorld(event) {
@@ -530,12 +574,10 @@ function frame(now) {
   }
   core.position.set(body.position.x, body.position.y, 2);
   blobLight.position.set(body.position.x, body.position.y, 3);
-  const velocityAngle = Math.atan2(body.velocity.y, body.velocity.x);
-  blob.rotation.z = velocityAngle;
-  const speed = Math.hypot(body.velocity.x, body.velocity.y);
-  blob.scale.x = 1.07 + Math.min(0.25, speed * 0.02);
-  blob.scale.y = 0.93 - Math.min(0.12, speed * 0.009);
-  blobHalo.rotation.z += elapsed * 0.15;
+  const pulse = 1 + Math.sin(now * .014) * .05;
+  blob.scale.setScalar(pulse);
+  heroGlow.scale.setScalar(2.4 + Math.sin(now * .011) * .12);
+  if (!paused && !drifted && !won) updateSparks(elapsed);
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   updateWellVisuals();
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
