@@ -85,9 +85,9 @@ for (let i = 0; i < 210; i++) {
   stars.add(star);
 }
 
-scene.add(new THREE.AmbientLight(0x7b9cba, .22));
+scene.add(new THREE.AmbientLight(0xaacadd, 1.2));
 // A real lit backdrop receives the moving walls' shadows.
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x172c37, roughness: 1, metalness: 0 }));
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x2c4350, roughness: 1, metalness: 0 }));
 floor.position.z = -.9;
 floor.receiveShadow = true;
 scene.add(floor);
