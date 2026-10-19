@@ -281,6 +281,27 @@ const portal = new THREE.Group(); portal.position.set(LEVEL.goal.x, LEVEL.goal.y
 const portalAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x91c8ff })); portalAura.scale.set(4.5, 4.5, 1); portal.add(portalAura);
 const portalCore = new THREE.Mesh(new THREE.CircleGeometry(0.64, 64), new THREE.MeshBasicMaterial({ color: 0x081e39, transparent: true, opacity: 0.88, side: THREE.DoubleSide })); portal.add(portalCore);
 for (let i = 0; i < 3; i++) { const loop = ring(LEVEL.goal.radius * (0.65 + i * 0.16), new THREE.LineBasicMaterial({ color: i === 0 ? 0xb1fff0 : 0x78afff, transparent: true, opacity: 0.78 - i * 0.18 })); loop.position.z = 0.2 + i * .02; portal.add(loop); }
+const portalLight = new THREE.PointLight(0xa66bff, 8, 6, 2);
+portalLight.position.z = .1; portalLight.castShadow = true;
+portalLight.shadow.mapSize.set(256, 256); portalLight.shadow.camera.near = .1; portalLight.shadow.camera.far = 6; portalLight.shadow.bias = -.0003;
+portal.add(portalLight);
+const portalSparkPositions = new Float32Array(32 * 3), portalSparkHeat = new Float32Array(32);
+const portalSparkGeometry = new THREE.BufferGeometry();
+portalSparkGeometry.setAttribute('position', new THREE.BufferAttribute(portalSparkPositions, 3).setUsage(THREE.DynamicDrawUsage));
+portalSparkGeometry.setAttribute('heat', new THREE.BufferAttribute(portalSparkHeat, 1).setUsage(THREE.DynamicDrawUsage));
+const portalSparkMaterial = sparkMaterial.clone();
+portalSparkMaterial.fragmentShader = 'varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(vec3(.4,.12,1.),vec3(.85,.6,1.),vHeat),pow(1.-r,2.)*vHeat);}';
+const portalSparkPoints = new THREE.Points(portalSparkGeometry, portalSparkMaterial); portalSparkPoints.frustumCulled = false; portal.add(portalSparkPoints);
+function updatePortalSparks() {
+  portalSparkMaterial.uniforms.pixelRatio.value = renderer.getPixelRatio();
+  for (let i = 0; i < 32; i++) {
+    const age = (simTime * .5 + i / 32) % 1, angle = i * 2.39996 + age * .9;
+    const radius = .8 + age * .8;
+    portalSparkPositions.set([Math.cos(angle) * radius, Math.sin(angle) * radius, .4], i * 3);
+    portalSparkHeat[i] = Math.sin(age * Math.PI);
+  }
+  portalSparkGeometry.attributes.position.needsUpdate = true; portalSparkGeometry.attributes.heat.needsUpdate = true;
+}
 let simTime = 0;
 let accumulator = 0;
 let lastFrame = performance.now();
@@ -496,7 +517,7 @@ function resize() {
   const width = sceneElement.clientWidth;
   const height = sceneElement.clientHeight;
   const aspect = width / height;
-  const visibleWidth = gameMode === 'maze' ? Math.max(28, 19 * aspect) : Math.max(21, 16 * aspect);
+  const visibleWidth = gameMode === 'maze' ? Math.max(33.5, 19.5 * aspect) : Math.max(21, 16 * aspect);
   const visibleHeight = visibleWidth / aspect;
   camera.left = -visibleWidth / 2;
   camera.right = visibleWidth / 2;
@@ -511,8 +532,11 @@ function resize() {
 
 function eventWorld(event) {
   const rect = renderer.domElement.getBoundingClientRect();
-  const x = (event.clientX - rect.left) / rect.width * 2 - 1;
-  const y = 1 - (event.clientY - rect.top) / rect.height * 2;
+  const sideways = matchMedia('(max-width:700px) and (orientation:portrait)').matches;
+  const u = (event.clientX - rect.left) / rect.width;
+  const v = (event.clientY - rect.top) / rect.height;
+  const x = (sideways ? v : u) * 2 - 1;
+  const y = 1 - (sideways ? 1 - u : v) * 2;
   return { x: x * camera.right, y: y * camera.top };
 }
 
@@ -583,6 +607,8 @@ window.addEventListener('keydown', (event) => {
   if (key === 'e') releaseAll();
 });
 window.addEventListener('resize', resize);
+new ResizeObserver(resize).observe(sceneElement);
+window.visualViewport?.addEventListener('resize', resize);
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -623,6 +649,7 @@ function frame(now) {
   heroGlow.scale.setScalar(2.4 + Math.sin(now * .011) * .12);
   if (!paused && !drifted && !won) updateSparks(elapsed);
   if (gameMode === 'maze') updateHazardSparks();
+  if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   updateWellVisuals();
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();

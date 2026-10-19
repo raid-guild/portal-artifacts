@@ -35,7 +35,7 @@ injects its site-wide analytics and outbound-link scripts.
   all wells.
 
 Both maze and orbital sandbox begin ready, allowing placements before the
-initial release. A spike hit resets the maze run. The orbit mode has no maze
+initial release. The maze room uses a 16:9 interior; phone controls sit in a narrow side rail. Upright phones present the playfield sideways, and rotating updates the camera and touch mapping without restarting. The portal casts a faint purple light and sheds purple sparks. A spike hit resets the maze run. The orbit mode has no maze
 collisions. Luminous recent trails burn down into a faint, persistent archive
 that clears on restart. Recent glow uses fixed-size ribbon buffers; its faint raster archive expands with the visible world on resize without discarding earlier marks.
 
