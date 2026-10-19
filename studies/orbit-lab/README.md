@@ -39,6 +39,10 @@ initial release. The maze room uses a 16:9 interior; phone controls sit in a nar
 collisions. Luminous recent trails burn down into a faint, persistent archive
 that clears on restart. Recent glow uses fixed-size ribbon buffers; its faint raster archive expands with the visible world on resize without discarding earlier marks.
 
+## Sound
+
+Player wells default to strength 85. A procedural, original five-note synth call advances with each valid placement. The flight tone fades with time since placement; death and the portal have separate synthesized cues. Sound starts only after an interaction and can be muted in Settings. There are no external sound files or audio requests.
+
 ## Assets and attribution
 
 The app uses locally hosted Space Grotesk and DM Mono fonts. The license texts

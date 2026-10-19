@@ -4,6 +4,9 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { STEP, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
 import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
+import { OrbitAudio } from './audio.js';
+const audio = new OrbitAudio();
+let lastSoundWellTime = 0;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -15,7 +18,8 @@ app.innerHTML = `
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
     <p class="settings-intro">Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.</p>
     <div class="game-modes" role="group" aria-label="Game mode"><button class="selected" data-game="maze">Maze</button><button data-game="sandbox">Orbit</button></div>
-    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">100</output></div><input id="strength" type="range" min="35" max="180" step="1" value="100"></div>
+    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">85</output></div><input id="strength" type="range" min="35" max="180" step="1" value="85"></div>
+    <label class="toggle-row">Sound<input id="soundEnabled" type="checkbox" checked></label>
     <div class="control-group"><div class="control-heading"><label for="lifetime">Well lifetime</label><output id="lifetimeValue">8.0s</output></div><input id="lifetime" type="range" min="2" max="16" step="0.5" value="8"><p class="microcopy">New wells use this lifetime.</p></div>
     <div class="control-group"><div class="control-heading">How wells end</div><div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">Fade out</button><button data-mode="snap">Snap off</button></div><p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p></div>
     <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label>
@@ -366,6 +370,7 @@ function placeWell(x, y) {
   if (settings.open) return;
   if (gameMode === 'maze' && !canPlaceWell({ x, y })) return;
   const well = makeWell(x, y, Number(strengthInput.value), Number(lifetimeInput.value), simTime);
+  audio.placement(); lastSoundWellTime = simTime;
   const old = wells[0];
   wells = addWell(wells, well);
   if (old && !wells.includes(old)) disposeWell(old);
@@ -382,6 +387,7 @@ function releaseAll() {
 }
 
 function reset() {
+  audio.reset(); lastSoundWellTime = 0;
   if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
   releaseAll();
   simTime = 0;
@@ -418,6 +424,7 @@ function reset() {
 
 function failRun() {
   if (drifted || won) return;
+  audio.death();
   drifted = true;
   paused = true; runState = 'dead';
   $('#deathFlash').classList.add('visible');
@@ -427,6 +434,7 @@ function failRun() {
 
 function winRun() {
   if (won) return;
+  audio.portal();
   won = true;
   paused = true; runState = 'won';
   $('#winStats').textContent = `${simTime.toFixed(1)} seconds · ${attempts} attempt${attempts === 1 ? '' : 's'}`;
@@ -591,6 +599,10 @@ $('#driftRestart').addEventListener('click', reset);
 $('#winRestart').addEventListener('click', reset);
 $('.game-modes').addEventListener('click', (event) => { const button = event.target.closest('[data-game]'); if (button) switchGame(button.dataset.game); });
 pauseButton.addEventListener('click', togglePause);
+$('#soundEnabled').addEventListener('change', (event) => audio.setEnabled(event.target.checked));
+document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+document.addEventListener('keydown', () => audio.unlock(), { capture: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) audio.context?.suspend().catch(() => {}); });
 function togglePause() {
   if (drifted || won || settings.open) return;
   paused = !paused;
@@ -638,6 +650,7 @@ function frame(now) {
     frameCount++;
     if (frameCount % 8 === 0) updateForecast();
     if (gameMode === 'sandbox' && (Math.abs(body.position.x) > camera.right + 1.5 || Math.abs(body.position.y) > camera.top + 1.5)) {
+      audio.death();
       drifted = true; paused = true; runState = 'dead'; updateStatus();
       driftOverlay.classList.remove('hidden');
     }
@@ -652,6 +665,7 @@ function frame(now) {
   if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   updateWellVisuals();
+  audio.trail(!paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
   renderer.render(scene, camera);
 }
