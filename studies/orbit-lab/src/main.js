@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { STEP, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
-import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact } from './level.js';
+import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
 
 const app = document.querySelector('#app');
@@ -593,7 +593,7 @@ function frame(now) {
     while (accumulator >= STEP) {
       for (const expired of wells.filter((well) => remaining(well, simTime) <= 0)) removeWell(expired.id);
       const before = { x: body.position.x, y: body.position.y };
-      const a = acceleration(body.position, wells, simTime, mode);
+      const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode) : acceleration(body.position, wells, simTime, mode);
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
       world.step(STEP);
       body.position.z = 0;

@@ -1,4 +1,4 @@
-import { STEP, advance } from './physics.js';
+import { STEP, acceleration, SOFTENING } from './physics.js';
 
 export const BLOB_RADIUS = 0.31;
 export const SPEED_CAP = 10;
@@ -93,12 +93,36 @@ export function capVelocity(velocity, max = SPEED_CAP) {
   return velocity;
 }
 
+// Embers attract gently nearby, without using a player well slot or expiring.
+export function emberAcceleration(position, level = LEVEL) {
+  let x = 0, y = 0;
+  const range = 4, strength = 3;
+  for (const ember of level.spikes) {
+    const dx = ember.x - position.x, dy = ember.y - position.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= range) continue;
+    const squared = distance * distance + SOFTENING * SOFTENING;
+    const falloff = (1 - (distance / range) ** 2) ** 2;
+    const scale = strength * falloff / (squared * Math.sqrt(squared));
+    x += dx * scale; y += dy * scale;
+  }
+  return { x, y };
+}
+
+export function mazeAcceleration(position, wells, time, mode = 'fade', level = LEVEL) {
+  const a = acceleration(position, wells, time, mode);
+  const ember = emberAcceleration(position, level);
+  return { x: a.x + ember.x, y: a.y + ember.y };
+}
+
 export function predictToImpact(state, wells, time, seconds = 3, mode = 'fade', level = LEVEL) {
   const points = [{ x: state.x, y: state.y }];
   let current = { ...state };
   const steps = Math.ceil(seconds / STEP);
   for (let i = 0; i < steps; i++) {
-    const next = advance(current, wells, time + i * STEP, STEP, mode);
+    const a = mazeAcceleration(current, wells, time + i * STEP, mode, level);
+    const vx = current.vx + a.x * STEP, vy = current.vy + a.y * STEP;
+    const next = { x: current.x + vx * STEP, y: current.y + vy * STEP, vx, vy };
     const limited = capVelocity({ x: next.vx, y: next.vy });
     next.vx = limited.x;
     next.vy = limited.y;
