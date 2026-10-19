@@ -12,10 +12,12 @@ uniform vec2 r;
 uniform float t;
 uniform float uRoll;
 uniform int uStructure;
+uniform float uZoom;
 void main(){
   vec4 o=vec4(0.0);
   vec2 FC=gl_FragCoord.xy;
   if(uRoll!=0.0){float cs=cos(uRoll),sn=sin(uRoll);FC=r*.5+mat2(cs,-sn,sn,cs)*(FC-r*.5);}
+  if(uZoom!=1.0) FC=r*.5+(FC-r*.5)*uZoom;
   float i=0.0,e=0.0,R=1.0,s=0.0;
   vec3 q=vec3(0.0),p=vec3(0.0),d=vec3(-FC.yx/r.y*.8*(abs(cos(t*.3)*.3+.1+.8)),1.0);
   q--;
@@ -44,7 +46,7 @@ void main(){
       e+=cos(dot(cos(p.zyy*s),cos(p.xyx*s)))/s;
       s+=s;
     }
-    if(i>89.0)d/=-d;
+    if(i>89.0){if(uZoom==1.0)d/=-d;else d=vec3(-1.0);}
   }
   // Only the final scalar color grade differs from the published grayscale light.
   float light=max(o.r,0.0);
@@ -61,10 +63,10 @@ export function createFold(canvas){
   let program;
   try{program=gl.createProgram();resources.push(['program',program]);gl.attachShader(program,shader(gl.VERTEX_SHADER,VERT));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));}
   catch(error){for(const [type,item] of resources)type==='shader'?gl.deleteShader(item):gl.deleteProgram(item);throw error;}
-  const resolution=gl.getUniformLocation(program,'r'),time=gl.getUniformLocation(program,'t'),roll=gl.getUniformLocation(program,'uRoll'),structure=gl.getUniformLocation(program,'uStructure');
+  const resolution=gl.getUniformLocation(program,'r'),time=gl.getUniformLocation(program,'t'),roll=gl.getUniformLocation(program,'uRoll'),structure=gl.getUniformLocation(program,'uStructure'),zoom=gl.getUniformLocation(program,'uZoom');
   const vao=gl.createVertexArray();gl.bindVertexArray(vao);
   function resize(width,height){if(disposed)return;const maxPixels=matchMedia('(max-width:620px)').matches?140000:240000;const scale=Math.min(1,Math.sqrt(maxPixels/(width*height)));w=Math.max(1,Math.round(width*scale));h=Math.max(1,Math.round(height*scale));canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
-  function render(seconds,reduced=false,bank=0,selectedStructure=0){if(disposed||!w)return;gl.viewport(0,0,w,h);gl.disable(gl.BLEND);gl.useProgram(program);gl.uniform2f(resolution,w,h);gl.uniform1f(time,reduced?0:Math.max(0,seconds));gl.uniform1f(roll,bank);gl.uniform1i(structure,selectedStructure);gl.drawArrays(gl.TRIANGLES,0,3);}
+  function render(seconds,reduced=false,bank=0,selectedStructure=0,selectedZoom=1){if(disposed||!w)return;gl.viewport(0,0,w,h);gl.disable(gl.BLEND);gl.useProgram(program);gl.uniform2f(resolution,w,h);gl.uniform1f(time,reduced?0:Math.max(0,seconds));gl.uniform1f(roll,bank);gl.uniform1i(structure,selectedStructure);gl.uniform1f(zoom,selectedZoom);gl.drawArrays(gl.TRIANGLES,0,3);}
   function dispose(){if(disposed)return;disposed=true;gl.deleteVertexArray(vao);for(const [type,item] of resources)type==='shader'?gl.deleteShader(item):gl.deleteProgram(item);}
   return {resize,render,dispose};
 }

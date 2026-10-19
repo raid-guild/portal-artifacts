@@ -4,7 +4,8 @@ import { analyzeAudioBlob } from './onsets.mjs';
 import { createInkwash } from './vendor/inkwash.js';
 import { createSculpture } from './sculpture.mjs?v=continuous-flow-1';
 import { createFractal } from './fractal.mjs?v=bank-1';
-import { createFold } from './fold.mjs?v=structures-2';
+import { createFold } from './fold.mjs?v=zoom-1';
+import { drawSputnik } from './sputnik.mjs?v=sputnik-detail-1';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -21,7 +22,12 @@ let onsetSchedule = Object.freeze([]), analysisPromise = null, analysisGeneratio
 let inkwash = null, sculpture = null, fractal = null, fractalKind = null, backgroundMode = 'fold';
 const foldStructures = { clouds: 0, caverns: 1, ribbons: 2 };
 let foldStructure = 'clouds';
-function syncFoldStructureControl() { $('foldStructureControl').hidden = backgroundMode !== 'fold'; }
+let foldZoom = 10;
+function syncFoldStructureControl() {
+  const hidden = backgroundMode !== 'fold';
+  $('foldStructureControl').hidden = hidden;
+  $('foldZoomControl').hidden = hidden;
+}
 let pendingSharedRestore = null, sharedContextLost = false;
 let fieldPainted = false, fieldFailed = false, analysisReady = false, lastInkFrame = 0;
 let sculpturePose = { time: 0, energy: { bass: 0, mid: 0, treble: 0, pulse: 0 } };
@@ -30,6 +36,7 @@ let lastSculptureEnergyTime = 0;
 let breakHistory = Object.freeze([]), nextBreakId = 1, choreographyFrozen = false, deferredSchedule = null;
 let pointerEnabled = true;
 let wallVisible = false;
+let sputnikVisible = true;
 let verticalOrbit = { yaw: 0, pitch: 0, roll: 0 };
 let orientationTurn = 0, orientationTween = null;
 const BANK_LIMIT = Math.PI / 10;
@@ -285,7 +292,11 @@ function updateLyrics() {
 function render() {
   updateEnergy();
   if ((backgroundMode === 'fractal' || backgroundMode === 'fold') && fractal) {
-    try { fractal.render(audio.currentTime || 0,reducedMotion.matches,bankAngle,backgroundMode === 'fold' ? foldStructures[foldStructure] : 0); fieldPainted = true; revealWhenReady(); }
+    try {
+      if (backgroundMode === 'fold') fractal.render(audio.currentTime || 0,reducedMotion.matches,bankAngle,foldStructures[foldStructure],foldZoom);
+      else fractal.render(audio.currentTime || 0,reducedMotion.matches,bankAngle,0);
+      fieldPainted = true; revealWhenReady();
+    }
     catch(error) { if (backgroundMode === 'fold') useFoldFallback(error); else useFractalFallback(error); }
   } else if (backgroundMode === 'sculpture' && sculpture) {
     try {
@@ -306,6 +317,8 @@ function render() {
     } catch (error) { useFallback(error); }
   }
   const state = drawWall(ctx, width, height, audio.currentTime || 0, clipDuration(), energy, pointerEnabled ? pointer : null, reducedMotion.matches, onsetSchedule, breakHistory, verticalOrbit, backgroundMode === 'canvas', backgroundMode === 'fractal' || backgroundMode === 'fold', wallVisible);
+  if (sputnikVisible) drawSputnik(ctx, width, height, audio.currentTime || 0, reducedMotion.matches,
+    backgroundMode === 'fractal' || backgroundMode === 'fold');
   const phase = ['01 / ASSEMBLE', '02 / LAYER', '03 / ASCEND', '04 / RELEASE', '05 / REBUILD'][state.segment];
   if (phase !== shownPhase) { $('phaseLabel').textContent = phase; shownPhase = phase; }
   const progress = Math.min(1, Math.max(0, (audio.currentTime || 0) / clipDuration()));
@@ -385,6 +398,14 @@ async function togglePlayback() {
 }
 
 playButton.addEventListener('click', togglePlayback);
+$('sputnikVisibilityButton').addEventListener('click', () => {
+  sputnikVisible = !sputnikVisible;
+  const button = $('sputnikVisibilityButton');
+  button.setAttribute('aria-pressed', String(sputnikVisible));
+  button.setAttribute('aria-label', sputnikVisible ? 'Hide satellite' : 'Show satellite');
+  button.title = sputnikVisible ? 'Hide satellite (S)' : 'Show satellite (S)';
+  render();
+});
 $('wallVisibilityButton').addEventListener('click', () => {
   wallVisible = !wallVisible;
   document.body.classList.toggle('wall-hidden', !wallVisible);
@@ -475,6 +496,12 @@ $('foldStructureSelect').addEventListener('change', event => {
   foldStructure = choice;
   render();
 });
+$('foldZoomSelect').addEventListener('change', event => {
+  const zoom = Number(event.target.value);
+  if (![1, 4, 10].includes(zoom)) { event.target.value = String(foldZoom); return; }
+  foldZoom = zoom;
+  render();
+});
 canvas.addEventListener('pointermove', event => { pointer.x = event.clientX; pointer.y = event.clientY; pointer.active = true; if (audio.paused) startFrames(); });
 canvas.addEventListener('pointerleave', () => { pointer.active = false; if (audio.paused) startFrames(); });
 const setRecordView = on => {
@@ -513,6 +540,7 @@ document.addEventListener('keydown', event => {
   if (event.target.closest('button')) return;
   if (event.code === 'Space') { event.preventDefault(); togglePlayback(); }
   if (event.key.toLowerCase() === 'w') $('wallVisibilityButton').click();
+  if (event.key.toLowerCase() === 's') $('sputnikVisibilityButton').click();
   if (event.key.toLowerCase() === 'b') triggerBreak();
   if (event.key.toLowerCase() === 'y') $('verticalOrbitButton').click();
   if (event.key.toLowerCase() === 'r') setRecordView(!document.body.classList.contains('recording-view'));

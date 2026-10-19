@@ -34,10 +34,12 @@ body.recording-view .recording-identity .concept-label{margin:0 auto 10px;font-s
 #sculpture{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;background:#eee9dc;pointer-events:none}
 .background-control{display:flex;align-items:center;gap:7px;min-height:35px;padding:0 9px;border:1px solid rgba(43,51,50,.33);background:rgba(240,237,229,.65);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);white-space:nowrap}
 .background-control select{max-width:110px;border:0;background:transparent;color:var(--ink);font-size:10px;font-weight:700;letter-spacing:.04em;cursor:pointer}
-body.recording-view .top-actions>*:not(#recordButton):not(.background-control){display:none}
-body.recording-view .top-actions>.background-control:not(#recordButton){display:flex;position:fixed;top:12px;right:130px;opacity:.5}
-body.recording-view .background-control:hover,body.recording-view .background-control:focus-within{opacity:1}
-@media(max-width:620px){.background-control{min-height:30px;padding:0 7px;font-size:8px}.background-control select{max-width:88px;font-size:9px}body.recording-view .background-control{right:120px}}
+.top-actions{flex-wrap:wrap;justify-content:flex-end;max-width:min(100%,870px)}
+.background-controls{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+body.recording-view .top-actions>*:not(#recordButton):not(.background-controls){display:none}
+body.recording-view .top-actions>#backgroundControls{display:flex;position:fixed;top:12px;left:12px;right:135px;justify-content:flex-start;opacity:.55}
+body.recording-view .background-controls:hover,body.recording-view .background-controls:focus-within{opacity:1}
+@media(max-width:620px){.background-control{min-height:30px;padding:0 7px;font-size:8px}.background-control select{max-width:88px;font-size:9px}.top-actions{width:100%}.background-controls{width:100%;justify-content:flex-start;gap:6px}.background-controls .background-control{flex:1 1 130px;justify-content:space-between}body.recording-view .top-actions>#backgroundControls{top:48px;right:12px;width:auto;display:flex;flex-direction:column;align-items:flex-start;gap:4px}body.recording-view .background-controls .background-control{flex:none;min-height:27px;width:100%}}
 .identity{position:relative;isolation:isolate}
 .identity::before{content:"";position:absolute;z-index:-1;inset:-30px -65px -35px -45px;pointer-events:none;background:radial-gradient(ellipse at 30% 40%,rgba(247,243,232,.78),rgba(247,243,232,.34) 51%,transparent 76%);filter:blur(10px)}
 
@@ -58,21 +60,15 @@ body.fractal-mode .scene-action.break-button{color:#fff3e4;background:#7f583a;bo
 body.fractal-mode .lyric-overlay{color:#f3f7f2;text-shadow:0 2px 14px #001329,0 1px 4px #001329}
 body.fractal-mode .grain{opacity:.045}
 
-body.wall-hidden .phase-label,body.wall-hidden .margin-note,body.wall-hidden #breakButton,body.wall-hidden #verticalOrbitButton{display:none}#wallVisibilityButton[aria-pressed=false]{opacity:.65}
+body.wall-hidden .phase-label,body.wall-hidden .margin-note,body.wall-hidden #breakButton,body.wall-hidden #verticalOrbitButton{display:none}#wallVisibilityButton[aria-pressed=false],#sputnikVisibilityButton[aria-pressed=false]{opacity:.65}
 /* Roll controls stay available with the wall hidden and in record view. */
 .bank-button{display:none;touch-action:none;user-select:none;-webkit-user-select:none}
 body.bank-mode .bank-button{display:grid}
 body.fractal-mode .bank-button{background:rgba(3,17,32,.66);color:#e7f5f6;border-color:rgba(176,228,239,.52)}
 body.fractal-mode .bank-button:hover,body.fractal-mode .bank-button:active{background:rgba(24,63,83,.9)}
 @media(max-width:620px){.transport{flex-wrap:wrap}.transport .scene-actions{order:5;width:100%;justify-content:center}.transport #timeline{min-width:45px}body.recording-view .dock{width:min(360px,calc(100vw - 28px))}body.recording-view .transport{width:100%}}
+@media(min-width:621px) and (max-width:1050px){.transport{flex-wrap:wrap}.transport .scene-actions{order:5;width:100%;justify-content:center}}
 
 /* Fold's optional structure follows the active background, including fallbacks. */
 [hidden]{display:none!important}
-body.recording-view .top-actions>#backgroundControl.background-control{top:12px;right:270px}
-body.recording-view .top-actions>#foldStructureControl.structure-control{display:flex;position:fixed;top:12px;right:130px;opacity:.5}
-body.recording-view .structure-control:hover,body.recording-view .structure-control:focus-within{opacity:1}
-@media(max-width:620px){
-  body.recording-view .top-actions>#backgroundControl.background-control{left:12px;right:auto;top:12px}
-  body.recording-view .top-actions>#foldStructureControl.structure-control{left:12px;right:auto;top:48px}
-  body.recording-view:has(#foldStructureControl:not([hidden])) .recording-identity{top:94px}
-}
+@media(max-width:620px){body.recording-view .recording-identity{top:168px}}
