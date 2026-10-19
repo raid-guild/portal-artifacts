@@ -57,3 +57,22 @@ body.fractal-mode .scene-action{color:#eaf3f3;background:rgba(5,27,48,.82);borde
 body.fractal-mode .scene-action.break-button{color:#fff3e4;background:#7f583a;border-color:#c89460}
 body.fractal-mode .lyric-overlay{color:#f3f7f2;text-shadow:0 2px 14px #001329,0 1px 4px #001329}
 body.fractal-mode .grain{opacity:.045}
+
+body.wall-hidden .phase-label,body.wall-hidden .margin-note,body.wall-hidden #breakButton,body.wall-hidden #verticalOrbitButton{display:none}#wallVisibilityButton[aria-pressed=false]{opacity:.65}
+/* Roll controls stay available with the wall hidden and in record view. */
+.bank-button{display:none;touch-action:none;user-select:none;-webkit-user-select:none}
+body.bank-mode .bank-button{display:grid}
+body.fractal-mode .bank-button{background:rgba(3,17,32,.66);color:#e7f5f6;border-color:rgba(176,228,239,.52)}
+body.fractal-mode .bank-button:hover,body.fractal-mode .bank-button:active{background:rgba(24,63,83,.9)}
+@media(max-width:620px){.transport{flex-wrap:wrap}.transport .scene-actions{order:5;width:100%;justify-content:center}.transport #timeline{min-width:45px}body.recording-view .dock{width:min(360px,calc(100vw - 28px))}body.recording-view .transport{width:100%}}
+
+/* Fold's optional structure follows the active background, including fallbacks. */
+[hidden]{display:none!important}
+body.recording-view .top-actions>#backgroundControl.background-control{top:12px;right:270px}
+body.recording-view .top-actions>#foldStructureControl.structure-control{display:flex;position:fixed;top:12px;right:130px;opacity:.5}
+body.recording-view .structure-control:hover,body.recording-view .structure-control:focus-within{opacity:1}
+@media(max-width:620px){
+  body.recording-view .top-actions>#backgroundControl.background-control{left:12px;right:auto;top:12px}
+  body.recording-view .top-actions>#foldStructureControl.structure-control{left:12px;right:auto;top:48px}
+  body.recording-view:has(#foldStructureControl:not([hidden])) .recording-identity{top:94px}
+}
