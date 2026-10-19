@@ -36,6 +36,10 @@
 	header @housefly Access-Control-Allow-Origin "*"
 	header @housefly Cache-Control "no-cache"
 
+	@orbit path /orbit-lab /orbit-lab/*
+	header @orbit Access-Control-Allow-Origin "*"
+	header @orbit Cache-Control "no-cache"
+
 	@raid path /raid-survivor /raid-survivor/*
 	header @raid Access-Control-Allow-Origin "*"
 	header @raid Cache-Control "no-cache"

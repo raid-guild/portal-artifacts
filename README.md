@@ -152,6 +152,14 @@ are in [`studies/puddle-study/`](studies/puddle-study/README.md).
 dependency licenses, and rebuild instructions are in
 [`studies/housefly-study/`](studies/housefly-study/README.md).
 
+## Orbit Lab
+
+`public/orbit-lab/` is a Three.js and cannon-es gravity maze at `/orbit-lab/`.
+Place short-lived gravity wells to guide a blob around walls and spikes toward
+the exit, or switch to the open orbital sandbox. Editable source, physics tests,
+local fonts, dependency licenses, and rebuild instructions are in
+[`studies/orbit-lab/`](studies/orbit-lab/README.md).
+
 ## Portal motion study
 
 `public/portal-motion/` contains the built portal animation. Editable source is in
@@ -230,6 +238,9 @@ symlink points to the canonical published source; its README covers local
 preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
+
+- `orbit-lab/` — A gravity maze and orbital sandbox controlled by placing
+  temporary wells to curve a blob's flight.
 
 - `housefly-study/` — A procedural housefly flies through a 3D volume over a
   scrollable page, with adjustable depth, turns, speed, cursor response, and
