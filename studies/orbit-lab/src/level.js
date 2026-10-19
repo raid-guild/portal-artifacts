@@ -3,14 +3,14 @@ import { STEP, acceleration, SOFTENING } from './physics.js';
 export const BLOB_RADIUS = 0.31;
 export const SPEED_CAP = 10;
 export const LEVEL = {
-  bounds: { minX: -13, maxX: 13, minY: -9, maxY: 9 },
+  bounds: { minX: -16, maxX: 16, minY: -9, maxY: 9 },
   spawn: { x: -10, y: -5, vx: 0, vy: 2.5 },
   goal: { x: 10, y: -5, radius: 1 },
   walls: [
-    { x: -13.25, y: 0, w: 0.5, h: 18.5 },
-    { x: 13.25, y: 0, w: 0.5, h: 18.5 },
-    { x: 0, y: 9.25, w: 26.5, h: 0.5 },
-    { x: 0, y: -9.25, w: 26.5, h: 0.5 },
+    { x: -16.25, y: 0, w: 0.5, h: 18.5 },
+    { x: 16.25, y: 0, w: 0.5, h: 18.5 },
+    { x: 0, y: 9.25, w: 32.5, h: 0.5 },
+    { x: 0, y: -9.25, w: 32.5, h: 0.5 },
     { x: -4, y: -3.5, w: 0.55, h: 11 },
     { x: 4, y: 3.5, w: 0.55, h: 11 },
   ],
