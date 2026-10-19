@@ -64,7 +64,7 @@ export class OrbitAudio {
     const fade = Math.exp(-Math.max(0, age) / 10);
     const active = running && this.enabled;
     this.tailGain.gain.setTargetAtTime(active ? Math.min(.11, .035 + speed * .009) * fade * .55 : 0, time, .16);
-    this.airGain.gain.setTargetAtTime(active ? Math.min(.13, speed * .018) * fade * .55 : 0, time, .2);
+    this.airGain.gain.setTargetAtTime(active ? Math.min(.13, speed * .018) * fade * .12 : 0, time, .2);
     this.tail.frequency.setTargetAtTime(260 + Math.min(speed, 15) * 16, time, .3);
   }
   orb(present, time) {
