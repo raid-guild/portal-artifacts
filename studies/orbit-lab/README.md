@@ -2,7 +2,7 @@
 
 An experimental gravity maze built with Three.js and cannon-es. Place temporary
 gravity wells to bend a blob's flight around walls and spikes toward the exit.
-The Sandbox tab keeps the open-ended orbital playground. The deployed route is
+The Orbit mode in Settings keeps the open-ended orbital playground. The deployed route is
 `/orbit-lab/`.
 
 ## Develop, test, and publish
@@ -25,23 +25,27 @@ injects its site-wide analytics and outbound-link scripts.
 ## Controls
 
 - Click or tap open space to place a well. Two may exist at once; a third
-  replaces the oldest.
-- Right-click a well or use its list button to remove it.
-- Space starts or pauses; R restarts the current mode; E releases all wells.
-- The side panel adjusts gravity strength, lifetime, and fade or snap release.
+  replaces the oldest. Tap **Start** to release the particle; the same button
+  pauses and resumes.
+- Use the gear for gravity strength, lifetime, fade or snap release, mode,
+  forecast, active wells, run statistics, and help. Opening it pauses a running
+  simulation; closing it resumes that run.
+- Right-click a well or use its list button in Settings to remove it.
+- Keyboard: Space starts or pauses; R restarts the current mode; E releases
+  all wells.
 
-Maze runs begin paused to allow the first placement. The dotted forecast ends
-at the next predicted wall, spike, or exit contact and assumes no later wells
-are placed. A spike hit resets the run. Sandbox starts with its center well and
-has no maze collisions.
+Both maze and orbital sandbox begin ready, allowing placements before the
+initial release. A spike hit resets the maze run. The orbit mode has no maze
+collisions. Luminous recent trails burn down into a faint, persistent archive
+that clears on restart. Recent glow uses fixed-size ribbon buffers; its faint raster archive expands with the visible world on resize without discarding earlier marks.
 
 ## Assets and attribution
 
 The app uses locally hosted Space Grotesk and DM Mono fonts. The license texts
 for those fonts and the bundled Three.js and cannon-es dependencies are in
 `public/licenses/` and are copied to the published artifact. The social card
-`public/orbit-lab-social-v1.jpg` is a 1200 × 630 composition based on the
-original local maze screenshot at `outputs/orbit-maze-preview.jpg` in the
+`public/orbit-lab-social-v2.jpg` is a 1200 × 630 composition based on the
+minimal orbital screenshot at `outputs/orbit-minimal-preview.jpg` in the
 prototype workspace, with a title panel added for link previews. It depicts
-the actual playable maze, not concept art. Canonical and social metadata use
+the actual playable Orbit mode, not concept art. The original v1 image is retained for existing shared links. Canonical and social metadata use
 the production `/orbit-lab/` URL.
