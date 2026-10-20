@@ -67,10 +67,25 @@ export class OrbitAudio {
     this.airGain.gain.setTargetAtTime(active ? Math.min(.13, speed * .018) * fade * .12 : 0, time, .2);
     this.tail.frequency.setTargetAtTime(260 + Math.min(speed, 15) * 16, time, .3);
   }
-  orb(present, time) {
+  orb(present, time, brightness = 1) {
     const pulse = .5 + .5 * Math.sin(time * Math.PI * 2 * .65);
-    if (this.context) this.humGain.gain.setTargetAtTime(present && this.enabled ? .04 + pulse * .085 : 0, this.context.currentTime, .08);
+    if (this.context) {
+      const light = Math.max(.08, Math.min(1.5, brightness));
+      this.humGain.gain.setTargetAtTime(present && this.enabled ? (.04 + pulse * .085) * light : 0, this.context.currentTime, .08);
+      const pitch = 196 * Math.pow(2, (Math.max(.15,brightness)-1)*.22);
+      this.hum.frequency.setTargetAtTime(pitch,this.context.currentTime,.2);
+      this.humOvertone.frequency.setTargetAtTime(pitch*2+.35,this.context.currentTime,.2);
+    }
     return pulse;
+  }
+  gateAcquire(layer) {
+    const note=[130.81,392,783.99][layer];
+    this.tone(note,0,.3,.25);this.tone(note*1.5,.13,.4,.15);
+  }
+  gateBeat(layer,beat) {
+    if(layer===0 && beat%4===0) this.tone(130.81,0,.22,.28,65.405);
+    if(layer===1 && beat%4===2) this.tone(392,0,.18,.2);
+    if(layer===2 && beat%2===1) this.tone(beat%4===1?783.99:587.33,0,.12,.14);
   }
   noise(duration, frequency, volume) {
     if (!this.enabled || !this.context) return;

@@ -1,3 +1,5 @@
+import { guideShape } from './guide.js';
+import { Experiment } from './experiment.js';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -18,7 +20,7 @@ const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="scene" id="scene"></div>
   <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
-  <div class="play-control"><button id="pause" class="primary-button" type="button">Start <span aria-hidden="true">↗</span></button></div>
+  <div class="play-control"><button id="contextAction" class="quiet-button" type="button">Remove well</button><button id="pause" class="primary-button" type="button">Start <span aria-hidden="true">↗</span></button></div>
   <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
   <div class="death-flash" id="deathFlash"></div>
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
@@ -32,10 +34,10 @@ app.innerHTML = `
     <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label><p id="forecastHelp" class="microcopy"></p>
     <div class="settings-stats"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
     <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
-    <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts or pauses · R restarts · E releases wells.</p>
+    <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts or pauses · R restarts · E removes oldest / releases capture · 1 / 2 remove a specific well.</p>
   </dialog>
   <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span></div>
-  <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>Small experiments in gravity, matter, and the paths between them.</p></div><button id="closeGallery" class="quiet-button" aria-label="Close gallery">×</button></div><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
+  <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><button id="closeGallery" class="quiet-button" aria-label="Close gallery">×</button></div><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><button id="driftRestart" class="primary-button">Try again ↗</button></div></div>
   <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow">COURSE COMPLETE</span><h2>Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your successful run"></canvas><p id="winStats"></p><button id="winRestart" class="primary-button">Fly again ↗</button></div></div>
 `;
@@ -63,6 +65,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 sceneElement.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+const experiment = new Experiment(scene, audio);
 const camera = new THREE.OrthographicCamera(-12, 12, 8, -8, 0.1, 100);
 camera.position.set(0, 0, 30);
 camera.lookAt(0, 0, 0);
@@ -242,6 +245,13 @@ const body = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(BLOB_RADIUS), m
 world.addBody(body);
 const wallBodies = [], wallMeshes = [], hazardGroups = [];
 function createWalls(level) {
+ for (const profile of level.guides || []) {
+  const wall = new CANNON.Body({mass:0,material:wallMaterial,shape:guideShape(profile)});world.addBody(wall);wallBodies.push(wall);
+  const shape = new THREE.Shape(profile.map(p=>new THREE.Vector2(p.x,p.y)));
+  const geometry = new THREE.ExtrudeGeometry(shape,{depth:4,bevelEnabled:false,steps:1});geometry.translate(0,0,-1);
+  const mesh = new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0x000000}));mesh.castShadow=true;wallMeshes.push(mesh);mazeGroup.add(mesh);
+ }
+
 for (const rect of level.walls) {
   const wall = new CANNON.Body({ mass: 0, material: wallMaterial, shape: new CANNON.Box(new CANNON.Vec3(rect.w / 2, rect.h / 2, 0.7)) });
   wall.position.set(rect.x, rect.y, 0);
@@ -478,6 +488,7 @@ function disposeObject(object) {
 }
 function rebuildExperiment() {
   activeLevel = structuredClone(activeDemo.level); gateOpen = false;
+  experiment.reset(activeDemo);
   for (const wall of wallBodies) world.removeBody(wall);
   wallBodies.length = 0;
   for (const mesh of wallMeshes) disposeObject(mesh);
@@ -510,12 +521,12 @@ function rebuildExperiment() {
     plateRing.add(ring(activeDemo.plate.radius * .8, new THREE.LineDashedMaterial({ color: 0xffd88a, transparent: true, opacity: .3, dashSize: .1, gapSize: .12 })));
     plateRing.children[1].computeLineDistances(); mazeGroup.add(plateRing);
   }
-  const moving = moonEntries.length > 0;
-  $('#heroGravity').disabled = !moving;
+  const moving = moonEntries.length > 0 || !!activeDemo.mechanic;
+  $('#heroGravity').disabled = !moonEntries.length;
   $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
   $('#heroGravityHelp').textContent = moving ? 'Pulls loose moons; their small mass also tugs back. Set 0 to compare.' : 'Choose a moon study to explore the dot’s own gravity.';
   showForecast.disabled = moving; forecast.visible = showForecast.checked && !moving;
-  $('#forecastHelp').textContent = moving ? 'Prediction is off in studies with moving moons. Watch the interaction itself.' : 'Preview stops at the next wall, ember, or portal contact.';
+  $('#forecastHelp').textContent = moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
   $('#activeDemoLabel').textContent = activeDemo.title;
   $('#demoTitle').textContent = activeDemo.title;
   $('#demoObjective').textContent = activeDemo.objective;
@@ -559,7 +570,10 @@ function demoThumbnail(demo) {
   const walls = demo.sandbox ? '' : demo.level.walls.map(w => `<rect x="${(w.x - w.w / 2 + 17) * 5}" y="${(10 - w.y - w.h / 2) * 5}" width="${w.w * 5}" height="${w.h * 5}" rx="1" fill="#02070c"/>`).join('');
   const moons = demo.moons.map(m => `<circle cx="${(m.x + 17) * 5}" cy="${(10 - m.y) * 5}" r="2" fill="${demo.color}"/>`).join('');
   const embers = demo.level.spikes.map(m => `<circle cx="${(m.x + 17) * 5}" cy="${(10 - m.y) * 5}" r="2" fill="#ffa75b"/>`).join('');
-  return `<svg viewBox="0 0 170 100" aria-hidden="true"><rect width="170" height="100" rx="5" fill="#102b38"/>${walls}<path d="M25 70 C30 20 75 20 85 50 S120 80 140 30" fill="none" stroke="${demo.color}" opacity=".7" stroke-width=".7"/>${moons}${demo.sandbox ? '<ellipse cx="85" cy="50" rx="28" ry="25" fill="none" stroke="#9acfff" stroke-width=".6"/>' : embers}<circle cx="${(demo.level.spawn.x + 17) * 5}" cy="${(10 - demo.level.spawn.y) * 5}" r="2.4" fill="#dffff9"/><circle cx="${(demo.level.goal.x + 17) * 5}" cy="${(10 - demo.level.goal.y) * 5}" r="4" stroke="#bc9aff" stroke-width=".8" fill="none"/>${demo.plate ? '<circle cx="60" cy="35" r="6" stroke="#ffd88a" fill="none" stroke-width=".7"/>' : ''}</svg>`;
+  const mark = (x,y,r,color) => `<circle cx="${(x+17)*5}" cy="${(10-y)*5}" r="${r*5}" stroke="${color}" fill="none" stroke-width="1"/>`;
+  const guideMarks = (demo.level.guides || []).map(profile => `<polygon points="${profile.map(p=>`${(p.x+17)*5},${(10-p.y)*5}`).join(' ')}" fill="#02070c"/>`).join('');
+  const studyMarks = activeDemo && demo.mechanic ? (['power','dimmer','sound'].includes(demo.mechanic) ? [-5,0,5].map(x=>mark(x,0,.65,demo.color)).join('') : demo.mechanic==='portals' ? mark(-3,0,1,'#76e9e3')+mark(6,-3,1,'#76e9e3') : demo.mechanic==='clock' ? mark(0,0,3.5,'#ff8a32') : ['giant','chaser'].includes(demo.mechanic) ? mark(0,0,demo.mechanic==='giant'?1.6:.3,'#ff8a32') : ['sticky','eclipse','boost','hidden'].includes(demo.mechanic) ? mark(-3,0,.85,demo.color) : '') : '';
+  return `<svg viewBox="0 0 170 100" aria-hidden="true"><rect width="170" height="100" rx="5" fill="#102b38"/>${walls}${guideMarks}<path d="M25 70 C30 20 75 20 85 50 S120 80 140 30" fill="none" stroke="${demo.color}" opacity=".7" stroke-width=".7"/>${moons}${studyMarks}${demo.sandbox ? '<ellipse cx="85" cy="50" rx="28" ry="25" fill="none" stroke="#9acfff" stroke-width=".6"/>' : embers}<circle cx="${(demo.level.spawn.x + 17) * 5}" cy="${(10 - demo.level.spawn.y) * 5}" r="2.4" fill="#dffff9"/><circle cx="${(demo.level.goal.x + 17) * 5}" cy="${(10 - demo.level.goal.y) * 5}" r="4" stroke="#bc9aff" stroke-width=".8" fill="none"/>${demo.plate ? '<circle cx="60" cy="35" r="6" stroke="#ffd88a" fill="none" stroke-width=".7"/>' : ''}</svg>`;
 }
 const gallery = $('#gallery');
 $('#demoGrid').innerHTML = DEMOS.map(demo => `<button type="button" class="demo-card" data-demo="${demo.id}" style="--demo-color:${demo.color}" aria-pressed="false">${demoThumbnail(demo)}<span class="demo-rule">${demo.rule}</span><strong>${demo.title}</strong><span>${demo.description}</span><em>${demo.question}</em></button>`).join('');
@@ -721,6 +735,12 @@ $('#soundEnabled').addEventListener('change', (event) => audio.setEnabled(event.
 document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden) audio.context?.suspend().catch(() => {}); });
+function contextAction() {
+  if (settings.open || gallery.open || won || drifted) return;
+  if (experiment.held) experiment.release(body);
+  else if (wells.length) removeWell(wells[0].id);
+}
+$('#contextAction').addEventListener('click', contextAction);
 function togglePause() {
   if (drifted || won || settings.open || gallery.open) return;
   paused = !paused;
@@ -734,7 +754,9 @@ window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
   if (key === ' ' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); togglePause(); }
   if (key === 'r') reset();
-  if (key === 'e') releaseAll();
+  if (key === 'e') contextAction();
+  if (key === '1' && wells[0]) removeWell(wells[0].id);
+  if (key === '2' && wells[1]) removeWell(wells[1].id);
 });
 window.addEventListener('resize', resize);
 new ResizeObserver(resize).observe(sceneElement);
@@ -757,7 +779,14 @@ function frame(now) {
       body.position.z = 0;
       body.velocity.z = 0;
       if (gameMode === 'maze') {
-        capVelocity(body.velocity, SPEED_CAP);
+        capVelocity(body.velocity, activeDemo.mechanic === 'boost' ? 16 : SPEED_CAP);
+        const special = experiment.step(body, before, simTime, wells, mode, failRun);
+        if (drifted) break;
+        if (special === 'teleport') {
+          if (trailCount) archiveSegment(trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY], before);
+          trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0);
+          before.x = body.position.x; before.y = body.position.y;
+        }
         const impact = firstImpact(before, body.position, activeLevel);
         if (impact?.type === 'spike') { failRun(); break; }
         if (impact?.type === 'goal') { winRun(); break; }
@@ -777,14 +806,19 @@ function frame(now) {
   }
   core.position.set(body.position.x, body.position.y, 2);
   blobLight.position.set(body.position.x, body.position.y, 1.1);
-  const orbPulse = audio.orb(!gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000);
+  const orbPulse = audio.orb(!gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000, experiment.brightness);
+  $('#contextAction').textContent = experiment.held ? 'Release' : 'Remove well';
+  $('#contextAction').disabled = !experiment.held && !wells.length;
+  blobLight.intensity = 85 * experiment.brightness;
   blob.scale.setScalar(1 + orbPulse * .055);
   heroGlow.scale.setScalar(2.3 + orbPulse * .25);
-  heroGlow.material.opacity = .83 + orbPulse * .17;
+  heroGlow.material.opacity = (.83 + orbPulse * .17) * Math.min(1, experiment.brightness);
   if (!paused && !drifted && !won) updateSparks(elapsed);
   if (gameMode === 'maze') updateHazardSparks();
   if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
+  experiment.updateVisuals(body.position, simTime, experiment.brightness, renderer.getPixelRatio());
+  if (activeDemo.mechanic === 'sound') $('#demoObjective').textContent = `Cross rings to add rhythm · ${experiment.layers.size}/3 voices active${experiment.layers.size ? ' · ' + ['bass','offbeat','chime'].filter((_,i)=>experiment.layers.has(i)).join(' + ') : ' · cyan bass / violet offbeat / gold chime'}`;
   updateMoonVisuals();
   updateWellVisuals();
   audio.trail(!paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);

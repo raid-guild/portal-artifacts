@@ -1,3 +1,4 @@
+import { singleRuleStudies } from './studies.js';
 import { LEVEL } from './level.js';
 import { SOFTENING } from './physics.js';
 
@@ -32,6 +33,8 @@ export const DEMOS = [
     question: 'Where does an orbit become a drawing?', objective: 'Let the wells leave a pattern.',
     sandbox: true, level: LEVEL, heroGravity: 0, moons: [] },
 ];
+
+DEMOS.push(...singleRuleStudies(makeLevel));
 
 export function getDemo(id) { return DEMOS.find(demo => demo.id === id) || DEMOS[0]; }
 

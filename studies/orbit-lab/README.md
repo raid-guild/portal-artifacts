@@ -79,3 +79,21 @@ Preset definitions and the reciprocal-gravity/switch helpers live in
 moons and optional plate there. No new services or dependencies are needed.
 Tests cover preset validity, force balance, zero-gravity comparison, the moon
 switch, and a live Cannon traversal of the reference maze at strength 70.
+
+### Single-rule studies
+
+The gallery now includes thirteen isolated mechanic studies (`?demo=release`,
+`boost`, `sticky`, `eclipse`, `power`, `dimmer`, `guide`, `giant`, `chaser`,
+`clock`, `sound`, `hidden`, and `portals`). Existing six studies remain available.
+Each adds one mechanic to basic well steering; these are tuning experiments.
+
+The in-play action removes the oldest well, or releases a captured dot with its
+incoming velocity. E performs that action; 1 / 2 remove the corresponding active
+well. The settings still offer release-all. Portals preserve speed and rotate
+momentum by a quarter turn, with a cooldown. Teleports split the trail without
+clearing its permanent drawing. Hidden bodies reveal near the orb only with an
+unobstructed line of sight, fully invisible otherwise. Light pickups/drains
+change illumination without changing the collision radius. Sound gates add
+bounded voices on a shared quarter-second clock with bass, offbeat, and chime parts. Guiding walls use one continuous convex collider;
+chaser acceleration and speed are bounded. Forecast is disabled where it cannot
+represent the interactive rule accurately.

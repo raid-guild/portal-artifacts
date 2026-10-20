@@ -1,3 +1,4 @@
+import { profileContains, profileImpact } from './guide.js';
 import { STEP, acceleration, SOFTENING } from './physics.js';
 
 export const BLOB_RADIUS = 0.31;
@@ -74,6 +75,10 @@ export function firstImpact(from, to, level = LEVEL) {
       if (t !== null && (!first || t < first.t)) first = { type, t, x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
     }
   }
+  for (const profile of level.guides || []) {
+    const t = profileImpact(from, to, profile, BLOB_RADIUS);
+    if (t !== null && (!first || t < first.t)) first = {type:'wall',t,x:from.x+(to.x-from.x)*t,y:from.y+(to.y-from.y)*t};
+  }
   const t = sweptGoal(from, to, level.goal);
   if (t !== null && (!first || t < first.t)) first = { type: 'goal', t, x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
   return first;
@@ -82,6 +87,7 @@ export function firstImpact(from, to, level = LEVEL) {
 export function canPlaceWell(point, level = LEVEL) {
   if (point.x < level.bounds.minX + 0.75 || point.x > level.bounds.maxX - 0.75 ||
       point.y < level.bounds.minY + 0.75 || point.y > level.bounds.maxY - 0.75) return false;
+  if ((level.guides || []).some(profile => profileContains(point, profile, .47))) return false;
   if (level.walls.some((wall) => circleHitsRect(point, 0.47, wall))) return false;
   if (level.spikes.some((spike) => circleHitsRect(point, 0.47, spike))) return false;
   return Math.hypot(point.x - level.goal.x, point.y - level.goal.y) > level.goal.radius + 0.35;
