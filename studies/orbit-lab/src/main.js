@@ -46,11 +46,11 @@ app.innerHTML = `
     <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
     <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R restarts · E removes oldest / releases capture · 1 / 2 remove a specific well.</p>
   </dialog>
-  <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite">♪ <span id="campaignGateCount">0/3 gates</span></div></div>
+  <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
   <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><div class="gallery-actions"><button id="homeFromGallery" class="quiet-button" aria-label="Home" title="Home">⌂</button><button id="closeGallery" class="quiet-button" aria-label="Close gallery"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div></div><nav id="demoCategories" class="demo-categories" aria-label="Study categories"></nav><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
   <div id="home" class="home-overlay hidden"><div class="home-card"><span class="eyebrow">ORBIT LAB</span><h1>A little light in a large world.</h1><p>Draw a path with temporary gravity. Keep your light alive until you reach the portal.</p><button id="startCampaign" class="primary-button" type="button">Campaign ↗</button><button id="studyHome" class="home-secondary" type="button">Studies</button></div></div>
   <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN / LEVELS</span><h1>Choose a crossing.</h1><div class="level-cards"><button class="level-card" data-campaign-level="1" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C40 39 65 32 103 32 S130 30 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="65" cy="33" r="6" fill="none" stroke="#7de6df"/></svg><span>01 / LIGHT & DISTANCE</span><strong>The long crossing</strong><small>A clear chamber. Keep the fire alive to reach the far portal.</small><em data-complete="1"></em><span data-gate-best="1"></span></button><button class="level-card" data-campaign-level="2" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C39 39 50 58 80 58 S117 32 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="85" cy="28" r="16" fill="#ff8a32"/><circle cx="85" cy="28" r="24" fill="none" stroke="#ff8a32" opacity=".4"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/></svg><span>02 / GRAVITY & DANGER</span><strong>The heavy neighbor</strong><small>A giant ember bends your path. Keep outside its fire.</small><em data-complete="2"></em><span data-gate-best="2"></span></button></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
-  <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button">Try again ↗</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
+  <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button" type="button">Retry</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
   <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
 `;
 
@@ -557,7 +557,7 @@ function failRun(reason = 'darkness') {
 }
 
 function showRunArt(success, reason = 'darkness') {
-  if (campaignMode) saveBestGates(campaignLevelId, soundGates?.mask || 0);
+  if (campaignMode && success) saveBestGates(campaignLevelId, soundGates?.mask || 0);
   const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : activeLevel.spawn;
   archiveSegment(last, body.position);
   const bounds = campaignMode ? {
@@ -572,10 +572,10 @@ function showRunArt(success, reason = 'darkness') {
   $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${campaignMode ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
   $('#winGateStats').classList.toggle('hidden', !campaignMode);
   if (campaignMode) {
-    $('#winGateStats').textContent = `Gates ${gateCount(soundGates.mask)}/3 · ${gatePattern(soundGates.mask)}`;
+    $('#winGateStats').textContent = `${success ? "Gates" : "Collected (not scored)"} ${gateCount(soundGates.mask)}/3 · ${gatePattern(soundGates.mask)}`;
     appendGatePatternIcons($('#winGateStats'), soundGates.mask);
   }
-  $('#winRestart').textContent = campaignMode ? success ? 'Continue ↗' : 'Retry ↗' : 'Fly again ↗';
+  $('#winRestart').textContent = campaignMode ? success ? 'Continue ↗' : 'Retry' : 'Fly again ↗';
   winOverlay.classList.remove('hidden');
 }
 
@@ -650,12 +650,26 @@ function updateResourceHud() {
   const hud = $('#resourceHud'); hud.classList.toggle('hidden', !burnout && !campaign);
   hud.classList.toggle('campaign-resource', !!campaign);
   $('#campaignGateHud').classList.toggle('hidden', !campaign);
+  const lastEmbers = !!campaign && campaign.energy <= 0 && !drifted && !won;
+  hud.classList.toggle('last-embers', lastEmbers);
+  hud.classList.toggle('meter-paused', paused || homeOpen || document.hidden);
   if (!burnout && !campaign) return;
   const energy = campaign?.energy ?? burnout.energy;
   $('#resourceValue').textContent = `${Math.round(energy * 100)}%`;
-  $('#resourceFill').style.width = `${energy * 100}%`;
-  $('#gateStatus').textContent = campaign ? energy > 0 ? `${wellsUsed} WELL${wellsUsed === 1 ? '' : 'S'}` : `DARK ${Math.ceil(campaign.graceLeft)}s` : burnout.pendingClose ? 'GATE CLOSING' : burnout.gateOpen ? 'GATE OPEN' : 'GATE CLOSED';
-  if (campaign) $('#campaignGateCount').textContent = `${gateCount(soundGates?.mask || 0)}/3 gates`;
+  $('#resourceFill').style.width = `${lastEmbers ? campaign.graceLeft / CAMPAIGN.graceSeconds * 100 : energy * 100}%`;
+  if (lastEmbers) {
+    $('#resourceValue').textContent = `${Math.ceil(campaign.graceLeft)}s`;
+    hud.style.setProperty('--warning-period', `${.55 + campaign.graceLeft / CAMPAIGN.graceSeconds * .65}s`);
+  }
+  $('#gateStatus').textContent = campaign ? energy > 0 ? `${wellsUsed} WELL${wellsUsed === 1 ? '' : 'S'}` : 'LAST EMBERS' : burnout.pendingClose ? 'GATE CLOSING' : burnout.gateOpen ? 'GATE OPEN' : 'GATE CLOSED';
+  if (campaign) {
+    const mask = soundGates?.mask || 0;
+    $('#campaignGateCount').textContent = `${gateCount(mask)}/3 gates`;
+    const icons = $('#campaignGateIcons');
+    if (icons.dataset.mask !== String(mask)) {
+      icons.replaceChildren(); appendGatePatternIcons(icons, mask); icons.dataset.mask = String(mask);
+    }
+  }
 }
 function rebuildExperiment() {
   activeLevel = structuredClone(activeDemo.level); gateOpen = false;
@@ -818,7 +832,7 @@ function showLevelSelect() {
   for (const badge of $('#levelSelect').querySelectorAll('[data-complete]')) badge.textContent = completedLevels.has(Number(badge.dataset.complete)) ? 'COMPLETE ✓' : 'NOT YET COMPLETE';
   for (const badge of $('#levelSelect').querySelectorAll('[data-gate-best]')) {
     const mask = bestGates[Number(badge.dataset.gateBest)];
-    badge.textContent = mask === undefined ? 'Best attempt: — / 3 gates' : `Best attempt: ${gateCount(mask)}/3 gates · ${gatePattern(mask)}`;
+    badge.textContent = mask === undefined ? 'Best finish: — / 3 gates' : `Best finish: ${gateCount(mask)}/3 gates · ${gatePattern(mask)}`;
     appendGatePatternIcons(badge, mask ?? 0);
   }
   setHomeOpen(true, 'levels');
