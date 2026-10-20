@@ -81,3 +81,15 @@
 .gate-pattern-icons{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;white-space:nowrap}
 .gate-pattern-icons i{display:inline-block;width:11px;height:11px;border:1px solid var(--gate-color);border-radius:50%;background:transparent;opacity:.42;box-shadow:none}
 .gate-pattern-icons i.acquired{background:var(--gate-color);opacity:1;box-shadow:0 0 8px var(--gate-color)}
+
+.campaign-gate-hud{display:flex;align-items:center;justify-content:center;gap:9px}
+.campaign-gate-hud .gate-pattern-icons{gap:7px}
+.campaign-gate-hud .gate-pattern-icons i{width:14px;height:14px}
+.campaign-gate-hud .gate-pattern-icons i.acquired::after{content:'✓';display:block;color:#08232c;font:bold 10px/12px Arial;text-align:center}
+.resource-hud.last-embers .resource-top,.resource-hud.last-embers .resource-top span{color:#ffb1ad}
+.resource-hud.last-embers .resource-track{height:7px;background:#622b36;border:1px solid #e37a83;animation:ember-warning var(--warning-period,1s) ease-in-out infinite}
+.resource-hud.last-embers .resource-track i{background:#ff797d;box-shadow:0 0 12px #ff596e}
+.resource-hud.last-embers .resource-track b{display:none}
+.resource-hud.meter-paused .resource-track{animation-play-state:paused}
+@keyframes ember-warning{0%,100%{box-shadow:0 0 3px #ff596e44;filter:brightness(.85)}50%{box-shadow:0 0 15px #ff596eaa;filter:brightness(1.25)}}
+@media(prefers-reduced-motion:reduce){.resource-hud.last-embers .resource-track{animation:none;box-shadow:0 0 8px #ff596e88}}

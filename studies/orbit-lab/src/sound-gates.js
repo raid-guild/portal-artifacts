@@ -4,7 +4,7 @@ import { segmentDistance } from './studies.js';
 export const SOUND_GATE_COLORS = ['#76e9e3', '#bfa5ff', '#ffd98b'];
 export const SOUND_GATE_NAMES = ['bass', 'offbeat', 'chime'];
 export const SOUND_GATE_COUNT = 3;
-export const BEST_GATES_KEY = 'orbit-lab-campaign-gates-v1';
+export const BEST_GATES_KEY = 'orbit-lab-campaign-finished-gates-v2';
 
 export function createSoundGates() { return { mask: 0, beat: -1 }; }
 export function gateCount(mask) { return [0, 1, 2].reduce((count, id) => count + ((mask >> id) & 1), 0); }

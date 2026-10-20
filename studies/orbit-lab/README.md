@@ -52,7 +52,7 @@ Each campaign level also has three optional sound gates. Crossing cyan, violet,
 and gold rings adds bass, offbeat, and chime parts to a shared quarter-second
 rhythm without spending light; the exit stays available without them. The HUD,
 minimap, and end-of-attempt card show the gates collected in that attempt. The
-level selector keeps each level's best single-attempt pattern separately from
+level selector keeps each level's best successful-attempt pattern separately from
 its completion badge. Retry clears the active pattern. The gallery sound study
 (`?demo=sound`) is titled **Crossing the gates** and remains a separate study.
 
