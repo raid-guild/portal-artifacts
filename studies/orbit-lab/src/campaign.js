@@ -1,35 +1,24 @@
 import { BLOB_RADIUS, canPlaceWell } from './level.js';
 import { segmentDistance } from './studies.js';
+import levelOne from './levels/campaign-1.json' with { type: 'json' };
+import levelTwo from './levels/campaign-2.json' with { type: 'json' };
+import { compileLevelDocument } from './level-document.js';
 
 export const CAMPAIGN = {
   startLight: .6, burnRate: .018, pickupGain: .3, graceSeconds: 8,
   maxActiveWells: 2, maxTotalWells: null, pickupLife: 18, pickupRadius: .65,
 };
 
-const chamber = {
-  bounds: { minX: -20, maxX: 76, minY: -27, maxY: 27 },
-  spawn: { x: 0, y: 0, vx: 1.8, vy: 0 },
-  goal: { x: 50, y: 0, radius: 1.5 },
-  walls: [
-    { x: -20.25, y: 0, w: .5, h: 54.5 }, { x: 76.25, y: 0, w: .5, h: 54.5 },
-    { x: 28, y: 27.25, w: 96.5, h: .5 }, { x: 28, y: -27.25, w: 96.5, h: .5 },
-  ], spikes: [], dangers: [],
-};
-
-export const CAMPAIGN_LEVELS = [
-  { id: 1, title: 'The long crossing', color: '#b9fff0',
-  objective: 'Keep your light alive. Cross the open chamber to the far portal.',
+const compiled = [levelOne, levelTwo].map(compileLevelDocument);
+export const CAMPAIGN_LEVELS = compiled.map((item, index) => ({
+  id: index + 1, title: item.document.title, color: index ? '#ffb365' : '#b9fff0',
+  objective: index ? 'Curve around the giant ember. Its gravity reaches beyond its fire.' : 'Keep your light alive. Cross the open chamber to the far portal.',
   mechanic: 'campaign', heroGravity: 0, moons: [],
-  soundGates: [{ id: 0, x: 10, y: 0, radius: .9 }, { id: 1, x: 24, y: 6, radius: .9 }, { id: 2, x: 40, y: -5, radius: .9 }],
-  level: chamber },
-  { id: 2, title: 'The heavy neighbor', color: '#ffb365',
-    objective: 'Curve around the giant ember. Its gravity reaches beyond its fire.',
-    mechanic: 'giant', heroGravity: 0, moons: [],
-    giant: { x: 28, y: 0, radius: 4, strength: 70 },
-    soundGates: [{ id: 0, x: 10, y: 0, radius: .9 }, { id: 1, x: 28, y: 9, radius: .9 }, { id: 2, x: 43, y: -5, radius: .9 }],
-    level: { ...chamber, dangers: [{ x: 28, y: 0, radius: 4, strength: 70 }] },
-  },
-];
+  document: item.document, entities: item.entities, settings: item.settings,
+  soundGates: item.entities.filter(entity => entity.type === 'soundGate').map(entity => ({ id: entity.slot, x: entity.x, y: entity.y, radius: entity.radius })),
+  giant: index ? { x: 28, y: 0, radius: 4, strength: 70 } : undefined,
+  level: item.level,
+}));
 export const CAMPAIGN_DEMO = CAMPAIGN_LEVELS[0];
 export function getCampaignLevel(id) { return CAMPAIGN_LEVELS.find(level => level.id === Number(id)) || CAMPAIGN_DEMO; }
 export function nextCampaignLevel(id) { return CAMPAIGN_LEVELS.find(level => level.id === Number(id) + 1) || null; }
@@ -47,10 +36,10 @@ function random(seed) {
   return { seed: next, value: next / 4294967296 };
 }
 
-export function createCampaign(seed = 428) {
+export function createCampaign(seed = 428, config = CAMPAIGN) {
   return {
-    energy: CAMPAIGN.startLight, graceLeft: CAMPAIGN.graceSeconds,
-    pickups: [{ x: 6, y: 2.5, id: 1, createdAt: 0 }, { x: 15, y: -3, id: 2, createdAt: 0 }],
+    energy: config.startLight, graceLeft: config.graceSeconds,
+    pickups: config.randomRecharge === false ? [] : [{ x: 6, y: 2.5, id: 1, createdAt: 0 }, { x: 15, y: -3, id: 2, createdAt: 0 }],
     nextId: 3, nextSpawnAt: 7, seed, beatPhase: 0, failed: false,
   };
 }
@@ -72,18 +61,18 @@ export function spawnCampaignPickup(hero, state, level = CAMPAIGN_DEMO.level) {
 }
 
 // Only call this from the fixed simulation step. A pickup is swept before darkness expires.
-export function stepCampaign(state, { before, hero, dt, time, level = CAMPAIGN_DEMO.level }) {
+export function stepCampaign(state, { before, hero, dt, time, level = CAMPAIGN_DEMO.level, config = CAMPAIGN, extraEnergy = 0 }) {
   if (state.failed) return { state, collected: 0, heartbeat: [], failed: false };
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < CAMPAIGN.pickupLife) };
-  next.energy = Math.max(0, state.energy - CAMPAIGN.burnRate * dt);
+  next.energy = Math.max(0, state.energy - config.burnRate * dt);
   let collected = 0;
   next.pickups = next.pickups.filter(pickup => {
     if (segmentDistance(before, hero, pickup) > CAMPAIGN.pickupRadius + BLOB_RADIUS) return true;
     collected++;
     return false;
   });
-  next.energy = Math.min(1, next.energy + collected * CAMPAIGN.pickupGain);
-  if (time >= next.nextSpawnAt) {
+  next.energy = Math.max(0, Math.min(1, next.energy + collected * CAMPAIGN.pickupGain + extraEnergy));
+  if (config.randomRecharge !== false && time >= next.nextSpawnAt) {
     const spawned = spawnCampaignPickup(hero, next, level);
     next.seed = spawned.seed;
     if (spawned.point) next.pickups.push({ ...spawned.point, id: next.nextId++, createdAt: time });
@@ -91,13 +80,13 @@ export function stepCampaign(state, { before, hero, dt, time, level = CAMPAIGN_D
   }
   const heartbeat = [];
   if (next.energy > 0) {
-    next.graceLeft = CAMPAIGN.graceSeconds;
+    next.graceLeft = config.graceSeconds;
     next.beatPhase = 0;
   } else {
     next.graceLeft = Math.max(0, state.graceLeft - dt);
     next.failed = next.graceLeft <= 0;
     if (!next.failed) {
-      const urgency = 1 - next.graceLeft / CAMPAIGN.graceSeconds;
+      const urgency = config.graceSeconds > 0 ? 1 - next.graceLeft / config.graceSeconds : 1;
       const advance = dt * (60 + 80 * urgency) / 60;
       const from = state.energy > 0 ? 0 : state.beatPhase;
       if (state.energy > 0) heartbeat.push({ part: 'lub', urgency });

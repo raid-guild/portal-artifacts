@@ -54,6 +54,7 @@
 .home-card .primary-button{display:block;margin:0 auto 14px}
 .home-secondary{min-height:44px;padding:0 18px;border:1px solid #5d949b;border-radius:24px;background:#12303b;color:#d9f8f3;font-size:13px}
 .home-secondary:hover,.home-secondary:focus-visible{background:#1c4550}
+.infinite-select-card{max-width:520px}.infinite-select-card label{display:block;text-align:left;margin:0 auto 8px;max-width:340px;color:#bddbd8;font-size:12px;letter-spacing:.09em;text-transform:uppercase}.infinite-select-card input{display:block;width:min(340px,100%);min-height:48px;margin:0 auto 20px;padding:10px 14px;border:1px solid #77a7a8;border-radius:12px;background:#07151f;color:#e8fff9;font:16px ui-monospace,monospace}.infinite-select-actions{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}.infinite-select-actions .primary-button{margin:0}.infinite-result{font-size:12px;color:#9edbd7;overflow-wrap:anywhere}
 .campaign-resource .resource-track b{display:none}
 .campaign-resource .resource-top span:last-child{color:#ffdba4}
 #restart:disabled{opacity:.3;cursor:default}

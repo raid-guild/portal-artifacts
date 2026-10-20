@@ -48,6 +48,6 @@ export function predict(state, wells, time, seconds = 5, mode = 'fade', sampleEv
   return points;
 }
 
-export function addWell(wells, well) {
-  return [...wells, well].slice(-MAX_WELLS);
+export function addWell(wells, well, maxActive = MAX_WELLS) {
+  return [...wells, well].slice(-maxActive);
 }
