@@ -20,11 +20,13 @@ export const CAMPAIGN_LEVELS = [
   { id: 1, title: 'The long crossing', color: '#b9fff0',
   objective: 'Keep your light alive. Cross the open chamber to the far portal.',
   mechanic: 'campaign', heroGravity: 0, moons: [],
+  soundGates: [{ id: 0, x: 10, y: 0, radius: .9 }, { id: 1, x: 24, y: 6, radius: .9 }, { id: 2, x: 40, y: -5, radius: .9 }],
   level: chamber },
   { id: 2, title: 'The heavy neighbor', color: '#ffb365',
     objective: 'Curve around the giant ember. Its gravity reaches beyond its fire.',
     mechanic: 'giant', heroGravity: 0, moons: [],
     giant: { x: 28, y: 0, radius: 4, strength: 70 },
+    soundGates: [{ id: 0, x: 10, y: 0, radius: .9 }, { id: 1, x: 28, y: 9, radius: .9 }, { id: 2, x: 43, y: -5, radius: .9 }],
     level: { ...chamber, dangers: [{ x: 28, y: 0, radius: 4, strength: 70 }] },
   },
 ];

@@ -48,6 +48,14 @@ to the level selector. Completed levels are marked locally. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
 the full trail result.
 
+Each campaign level also has three optional sound gates. Crossing cyan, violet,
+and gold rings adds bass, offbeat, and chime parts to a shared quarter-second
+rhythm without spending light; the exit stays available without them. The HUD,
+minimap, and end-of-attempt card show the gates collected in that attempt. The
+level selector keeps each level's best single-attempt pattern separately from
+its completion badge. Retry clears the active pattern. The gallery sound study
+(`?demo=sound`) is titled **Crossing the gates** and remains a separate study.
+
 Both maze and orbital sandbox begin ready, allowing placements before the
 initial release. The maze room uses a 16:9 interior. On phones the playfield follows the device orientation, with a horizontal toolbar and floating primary action. Rotating updates the camera and touch mapping without restarting. The portal casts a faint purple light and sheds purple sparks. A spike hit resets the maze run. The orbit mode has no maze
 collisions. Luminous recent trails burn down into a faint, persistent archive

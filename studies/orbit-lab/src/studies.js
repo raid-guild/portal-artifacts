@@ -11,7 +11,7 @@ const definitions = [
  ['giant','A heavy neighbor','Large danger body','The orange body pulls gently. Its visible surface is fatal.','How close is a useful pass?'],
  ['chaser','Something follows','Pursuit','A small orange body follows slowly. Draw it away with your wells.','Can a detour become an escape?'],
  ['clock','Wait for an opening','Fixed danger orbit','Orange bodies follow a fixed orbit, unaffected by your wells.','When is the passage safe?'],
- ['sound','Crossing a phrase','Sound gates','Cross cyan for bass, violet for offbeat, and gold for chimes. Each adds a repeating part.','Can your route become an instrument?'],
+ ['sound','Crossing the gates','Sound gates','Cross cyan for bass, violet for offbeat, and gold for chimes. Each adds a repeating part.','Can your route become an instrument?'],
  ['hidden','Light reveals danger','Hidden body','A dark body behind the wall appears near your light. It vanishes completely outside direct light.','What can you discover before you touch it?'],
  ['portals','Elsewhere, still moving','Paired portals','The two teal rings connect. Speed is preserved; the exit turns your flight upward.','Can you steer through a change of space?'],
  ['shadow-posts','A forest of shadows','Moving light and posts','Thread the posts and watch their shadows sweep across one another.','What can a moving shadow reveal?'],
