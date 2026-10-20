@@ -96,14 +96,14 @@ export function capVelocity(velocity, max = SPEED_CAP) {
 // Embers attract gently nearby, without using a player well slot or expiring.
 export function emberAcceleration(position, level = LEVEL) {
   let x = 0, y = 0;
-  const range = 4, strength = 3;
+  const range = 4;
   for (const ember of level.spikes) {
     const dx = ember.x - position.x, dy = ember.y - position.y;
     const distance = Math.hypot(dx, dy);
     if (distance >= range) continue;
     const squared = distance * distance + SOFTENING * SOFTENING;
     const falloff = (1 - (distance / range) ** 2) ** 2;
-    const scale = strength * falloff / (squared * Math.sqrt(squared));
+    const scale = (ember.strength ?? 3) * falloff / (squared * Math.sqrt(squared));
     x += dx * scale; y += dy * scale;
   }
   return { x, y };

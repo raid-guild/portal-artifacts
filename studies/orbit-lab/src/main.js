@@ -2,32 +2,40 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { STEP, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
-import { LEVEL, BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
+import { BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
 import { OrbitAudio } from './audio.js';
 import { drawFinishArt } from './finish-art.js';
+import { DEMOS, getDemo, DEFAULT_WELL_STRENGTH, gravityExchange, plateActivated } from './demos.js';
+let activeDemo = getDemo(new URLSearchParams(location.search).get('demo'));
+let activeLevel = structuredClone(activeDemo.level);
+let heroGravity = activeDemo.heroGravity;
+let gateOpen = false;
 const audio = new OrbitAudio();
 let lastSoundWellTime = 0;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="scene" id="scene"></div>
-  <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
+  <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
   <div class="play-control"><button id="pause" class="primary-button" type="button">Start <span aria-hidden="true">↗</span></button></div>
   <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
   <div class="death-flash" id="deathFlash"></div>
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
     <p class="settings-intro">Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.</p>
-    <div class="game-modes" role="group" aria-label="Game mode"><button class="selected" data-game="maze">Maze</button><button data-game="sandbox">Orbit</button></div>
-    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">85</output></div><input id="strength" type="range" min="35" max="180" step="1" value="85"></div>
+    <div class="game-modes"><button id="browseDemos" type="button">Browse the demo gallery</button></div><p id="activeDemoLabel" class="microcopy"></p>
+    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">70</output></div><input id="strength" type="range" min="35" max="180" step="1" value="70"></div>
+    <div class="control-group"><div class="control-heading"><label for="heroGravity">Dot gravity</label><output id="heroGravityValue">0</output></div><input id="heroGravity" type="range" min="0" max="30" step="1" value="0"><p id="heroGravityHelp" class="microcopy">Attracts loose moons, with a small reaction on the dot.</p></div>
     <label class="toggle-row">Sound<input id="soundEnabled" type="checkbox" checked></label>
     <div class="control-group"><div class="control-heading"><label for="lifetime">Well lifetime</label><output id="lifetimeValue">8.0s</output></div><input id="lifetime" type="range" min="2" max="16" step="0.5" value="8"><p class="microcopy">New wells use this lifetime.</p></div>
     <div class="control-group"><div class="control-heading">How wells end</div><div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">Fade out</button><button data-mode="snap">Snap off</button></div><p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p></div>
-    <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label>
+    <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label><p id="forecastHelp" class="microcopy"></p>
     <div class="settings-stats"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
     <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
     <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts or pauses · R restarts · E releases wells.</p>
   </dialog>
+  <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span></div>
+  <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>Small experiments in gravity, matter, and the paths between them.</p></div><button id="closeGallery" class="quiet-button" aria-label="Close gallery">×</button></div><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><button id="driftRestart" class="primary-button">Try again ↗</button></div></div>
   <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow">COURSE COMPLETE</span><h2>Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your successful run"></canvas><p id="winStats"></p><button id="winRestart" class="primary-button">Fly again ↗</button></div></div>
 `;
@@ -232,17 +240,19 @@ const wallMaterial = new CANNON.Material('wall');
 world.addContactMaterial(new CANNON.ContactMaterial(blobMaterial, wallMaterial, { friction: 0, restitution: 0.1 }));
 const body = new CANNON.Body({ mass: 1, shape: new CANNON.Sphere(BLOB_RADIUS), material: blobMaterial, linearDamping: 0, angularDamping: 0, fixedRotation: true });
 world.addBody(body);
-const wallBodies = [];
-for (const rect of LEVEL.walls) {
+const wallBodies = [], wallMeshes = [], hazardGroups = [];
+function createWalls(level) {
+for (const rect of level.walls) {
   const wall = new CANNON.Body({ mass: 0, material: wallMaterial, shape: new CANNON.Box(new CANNON.Vec3(rect.w / 2, rect.h / 2, 0.7)) });
   wall.position.set(rect.x, rect.y, 0);
   world.addBody(wall);
-  wallBodies.push(wall);
+  wall.isGate = !!rect.gate; wallBodies.push(wall);
   const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 4, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   // Span below the floor and above the lights: no light can pass over a wall end.
   mesh.position.set(rect.x, rect.y, 1);
   mesh.castShadow = true;
-  mazeGroup.add(mesh);
+  mesh.userData.gate = !!rect.gate; wallMeshes.push(mesh); mazeGroup.add(mesh);
+}
 }
 const hazardSparks = [];
 const emberMap = new THREE.CanvasTexture(fireCanvas);
@@ -253,8 +263,9 @@ const emberGradient = emberContext.createRadialGradient(64, 64, 0, 64, 64, 64);
 emberGradient.addColorStop(0, 'rgba(255,170,85,1)'); emberGradient.addColorStop(.2, 'rgba(255,143,40,.65)'); emberGradient.addColorStop(1, 'rgba(255,70,10,0)');
 emberContext.fillStyle = emberGradient; emberContext.fillRect(0, 0, 128, 128);
 emberMap.image = emberCanvas; emberMap.needsUpdate = true;
-for (const spike of LEVEL.spikes) {
-  const group = new THREE.Group(); group.position.set(spike.x, spike.y, 1.2); mazeGroup.add(group);
+function createHazards(level) {
+for (const spike of level.spikes) {
+  const group = new THREE.Group(); group.position.set(spike.x, spike.y, 1.2); mazeGroup.add(group); hazardGroups.push(group);
   const dot = new THREE.Mesh(new THREE.SphereGeometry(.22, 20, 12), new THREE.MeshBasicMaterial({ color: 0xff7a24 })); group.add(dot);
   const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: emberMap, transparent: true, opacity: .7, depthWrite: false, blending: THREE.AdditiveBlending })); aura.scale.set(1.35, 1.35, 1); group.add(aura);
   const light = new THREE.PointLight(0xff8a32, 4, 4, 2); light.position.z = -.1;
@@ -269,6 +280,7 @@ for (const spike of LEVEL.spikes) {
   const points = new THREE.Points(geometry, material); points.frustumCulled = false; group.add(points);
   hazardSparks.push({ positions, heat, geometry, material });
 }
+}
 function updateHazardSparks() {
   for (const emitter of hazardSparks) {
     emitter.material.uniforms.pixelRatio.value = renderer.getPixelRatio();
@@ -282,10 +294,10 @@ function updateHazardSparks() {
     emitter.geometry.attributes.position.needsUpdate = true; emitter.geometry.attributes.heat.needsUpdate = true;
   }
 }
-const portal = new THREE.Group(); portal.position.set(LEVEL.goal.x, LEVEL.goal.y, 1); mazeGroup.add(portal);
+const portal = new THREE.Group(); portal.position.set(activeLevel.goal.x, activeLevel.goal.y, 1); mazeGroup.add(portal);
 const portalAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x91c8ff })); portalAura.scale.set(4.5, 4.5, 1); portal.add(portalAura);
 const portalCore = new THREE.Mesh(new THREE.CircleGeometry(0.64, 64), new THREE.MeshBasicMaterial({ color: 0x081e39, transparent: true, opacity: 0.88, side: THREE.DoubleSide })); portal.add(portalCore);
-for (let i = 0; i < 3; i++) { const loop = ring(LEVEL.goal.radius * (0.65 + i * 0.16), new THREE.LineBasicMaterial({ color: i === 0 ? 0xb1fff0 : 0x78afff, transparent: true, opacity: 0.78 - i * 0.18 })); loop.position.z = 0.2 + i * .02; portal.add(loop); }
+for (let i = 0; i < 3; i++) { const loop = ring(activeLevel.goal.radius * (0.65 + i * 0.16), new THREE.LineBasicMaterial({ color: i === 0 ? 0xb1fff0 : 0x78afff, transparent: true, opacity: 0.78 - i * 0.18 })); loop.position.z = 0.2 + i * .02; portal.add(loop); }
 const portalLight = new THREE.PointLight(0xa66bff, 8, 6, 2);
 portalLight.position.z = .1; portalLight.castShadow = true;
 portalLight.shadow.mapSize.set(256, 256); portalLight.shadow.camera.near = .1; portalLight.shadow.camera.far = 6; portalLight.shadow.bias = -.0003;
@@ -320,7 +332,7 @@ let drifted = false;
 let frameCount = 0;
 let pointer = null;
 let pointerDownAt = 0;
-let gameMode = 'maze';
+let gameMode = activeDemo.sandbox ? 'sandbox' : 'maze';
 let attempts = 0;
 let won = false;
 let resetTimer = null;
@@ -368,8 +380,8 @@ function removeWell(id) {
 
 function placeWell(x, y) {
   if (drifted || won) return;
-  if (settings.open) return;
-  if (gameMode === 'maze' && !canPlaceWell({ x, y })) return;
+  if (settings.open || gallery.open) return;
+  if (gameMode === 'maze' && !canPlaceWell({ x, y }, activeLevel)) return;
   const well = makeWell(x, y, Number(strengthInput.value), Number(lifetimeInput.value), simTime);
   audio.placement(); lastSoundWellTime = simTime;
   const old = wells[0];
@@ -391,6 +403,7 @@ function reset() {
   audio.reset(); lastSoundWellTime = 0;
   if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
   releaseAll();
+  rebuildExperiment();
   simTime = 0;
   accumulator = 0;
   clearTrail();
@@ -406,8 +419,8 @@ function reset() {
   body.force.setZero();
   body.angularVelocity.setZero();
   if (gameMode === 'maze') {
-    body.position.set(LEVEL.spawn.x, LEVEL.spawn.y, 0);
-    body.velocity.set(LEVEL.spawn.vx, LEVEL.spawn.vy, 0);
+    body.position.set(activeLevel.spawn.x, activeLevel.spawn.y, 0);
+    body.velocity.set(activeLevel.spawn.vx, activeLevel.spawn.vy, 0);
     attempts += 1;
     $('#attempts').textContent = attempts;
   } else {
@@ -436,9 +449,9 @@ function failRun() {
 function winRun() {
   if (won) return;
   audio.portal();
-  const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : LEVEL.spawn;
+  const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : activeLevel.spawn;
   archiveSegment(last, body.position);
-  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, LEVEL.bounds, LEVEL.spawn, body.position);
+  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, activeLevel.bounds, activeLevel.spawn, body.position);
   won = true;
   paused = true; runState = 'won';
   $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}`;
@@ -446,28 +459,130 @@ function winRun() {
   updateStatus();
 }
 
-function switchGame(next) {
-  if (next === gameMode) return;
-  gameMode = next;
-  mazeGroup.visible = next === 'maze';
-  for (const wall of wallBodies) {
-    if (next === 'maze' && !world.bodies.includes(wall)) world.addBody(wall);
-    if (next === 'sandbox' && world.bodies.includes(wall)) world.removeBody(wall);
-  }
-  startingOrbit.visible = next === 'sandbox';
-  $('.game-modes').querySelectorAll('button').forEach((button) => button.classList.toggle('selected', button.dataset.game === next));
-  if (next === 'maze') attempts = 0;
-  resize();
-  reset();
+function selectDemo(id) {
+  activeDemo = getDemo(id); gameMode = activeDemo.sandbox ? 'sandbox' : 'maze';
+  heroGravity = activeDemo.heroGravity;
+  strengthInput.value = DEFAULT_WELL_STRENGTH; $('#strengthValue').textContent = DEFAULT_WELL_STRENGTH;
+  $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
+  attempts = 0; resumeAfterSettings = false;
+  const url = new URL(location.href); url.searchParams.set('demo', activeDemo.id); history.replaceState(null, '', url);
+  resize(); reset();
 }
+
+const moonGroup = new THREE.Group(); scene.add(moonGroup);
+const moonEntries = [];
+let plateRing = null;
+function disposeObject(object) {
+  object.parent?.remove(object);
+  object.traverse(child => { child.geometry?.dispose(); child.material?.dispose(); child.shadow?.map?.dispose(); });
+}
+function rebuildExperiment() {
+  activeLevel = structuredClone(activeDemo.level); gateOpen = false;
+  for (const wall of wallBodies) world.removeBody(wall);
+  wallBodies.length = 0;
+  for (const mesh of wallMeshes) disposeObject(mesh);
+  wallMeshes.length = 0;
+  for (const group of hazardGroups) disposeObject(group);
+  hazardGroups.length = 0; hazardSparks.length = 0;
+  for (const entry of moonEntries) { world.removeBody(entry.body); disposeObject(entry.mesh); disposeObject(entry.trail); }
+  moonEntries.length = 0;
+  if (plateRing) disposeObject(plateRing);
+  plateRing = null;
+  mazeGroup.visible = !activeDemo.sandbox; startingOrbit.visible = !!activeDemo.sandbox;
+  if (!activeDemo.sandbox) { createWalls(activeLevel); createHazards(activeLevel); }
+  portal.position.set(activeLevel.goal.x, activeLevel.goal.y, 1);
+  for (const moon of activeDemo.moons) {
+    const satellite = new CANNON.Body({ mass: .08, shape: new CANNON.Sphere(.16), material: blobMaterial, linearDamping: 0, angularDamping: 0, fixedRotation: true });
+    satellite.position.set(moon.x, moon.y, 0); satellite.velocity.set(moon.vx, moon.vy, 0); world.addBody(satellite);
+    const mesh = new THREE.Group();
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(.16, 20, 12), new THREE.MeshBasicMaterial({ color: activeDemo.plate ? 0xffd88a : 0xd8cdff }));
+    const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: activeDemo.plate ? 0xffb853 : 0xbda3ff, transparent: true, opacity: .5, depthWrite: false, blending: THREE.AdditiveBlending }));
+    aura.scale.set(1.2, 1.2, 1); mesh.add(dot, aura); moonGroup.add(mesh);
+    const positions = new Float32Array(160 * 3);
+    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage)); geometry.setDrawRange(0, 0);
+    const trail = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: activeDemo.plate ? 0xf2c66a : 0xb9a5eb, transparent: true, opacity: .28, depthWrite: false }));
+    trail.frustumCulled = false; moonGroup.add(trail);
+    moonEntries.push({ body: satellite, mesh, trail, positions, count: 0, lastSample: -1 });
+  }
+  if (activeDemo.plate) {
+    plateRing = new THREE.Group(); plateRing.position.set(activeDemo.plate.x, activeDemo.plate.y, .7);
+    plateRing.add(ring(activeDemo.plate.radius, new THREE.LineBasicMaterial({ color: 0xffd88a, transparent: true, opacity: .9 })));
+    plateRing.add(ring(activeDemo.plate.radius * .8, new THREE.LineDashedMaterial({ color: 0xffd88a, transparent: true, opacity: .3, dashSize: .1, gapSize: .12 })));
+    plateRing.children[1].computeLineDistances(); mazeGroup.add(plateRing);
+  }
+  const moving = moonEntries.length > 0;
+  $('#heroGravity').disabled = !moving;
+  $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
+  $('#heroGravityHelp').textContent = moving ? 'Pulls loose moons; their small mass also tugs back. Set 0 to compare.' : 'Choose a moon study to explore the dot’s own gravity.';
+  showForecast.disabled = moving; forecast.visible = showForecast.checked && !moving;
+  $('#forecastHelp').textContent = moving ? 'Prediction is off in studies with moving moons. Watch the interaction itself.' : 'Preview stops at the next wall, ember, or portal contact.';
+  $('#activeDemoLabel').textContent = activeDemo.title;
+  $('#demoTitle').textContent = activeDemo.title;
+  $('#demoObjective').textContent = activeDemo.objective;
+  $('#demoNote').style.setProperty('--demo-color', activeDemo.color);
+  for (const card of document.querySelectorAll('[data-demo]')) card.setAttribute('aria-pressed', String(card.dataset.demo === activeDemo.id));
+}
+function applyMoonGravity() {
+  if (!moonEntries.length) return;
+  const moons = moonEntries.map(entry => ({ x: entry.body.position.x, y: entry.body.position.y, mass: entry.body.mass }));
+  const exchange = gravityExchange(body.position, moons, heroGravity);
+  body.applyForce(new CANNON.Vec3(exchange.hero.x * body.mass, exchange.hero.y * body.mass, 0));
+  for (let i = 0; i < moonEntries.length; i++) {
+    const satellite = moonEntries[i].body;
+    const a = mazeAcceleration(satellite.position, wells, simTime, mode, activeLevel);
+    satellite.applyForce(new CANNON.Vec3((a.x + exchange.moons[i].x) * satellite.mass, (a.y + exchange.moons[i].y) * satellite.mass, 0));
+  }
+}
+function updateGate() {
+  for (const entry of moonEntries) { entry.body.position.z = 0; entry.body.velocity.z = 0; capVelocity(entry.body.velocity); }
+  if (gateOpen || !plateActivated(activeDemo.plate, moonEntries.map(entry => entry.body.position))) return;
+  gateOpen = true;
+  for (const wall of wallBodies) if (wall.isGate) world.removeBody(wall);
+  for (const mesh of wallMeshes) if (mesh.userData.gate) mesh.visible = false;
+  activeLevel.walls = activeLevel.walls.filter(wall => !wall.gate);
+  for (const mark of plateRing.children) mark.material.color.setHex(0x87f9ce);
+  $('#demoObjective').textContent = 'Gate open. Take your trail through the portal.';
+  audio.tone(392, 0, 1.3, .1); audio.tone(523.25, .15, 1.3, .1);
+}
+function updateMoonVisuals() {
+  for (const entry of moonEntries) {
+    const p = entry.body.position; entry.mesh.position.set(p.x, p.y, 2);
+    if (simTime - entry.lastSample < .05 || paused) continue;
+    entry.lastSample = simTime;
+    if (entry.count === 160) { entry.positions.copyWithin(0, 3); entry.count--; }
+    entry.positions.set([p.x, p.y, .8], entry.count++ * 3);
+    entry.trail.geometry.attributes.position.needsUpdate = true; entry.trail.geometry.setDrawRange(0, entry.count);
+  }
+}
+
+function demoThumbnail(demo) {
+  const walls = demo.sandbox ? '' : demo.level.walls.map(w => `<rect x="${(w.x - w.w / 2 + 17) * 5}" y="${(10 - w.y - w.h / 2) * 5}" width="${w.w * 5}" height="${w.h * 5}" rx="1" fill="#02070c"/>`).join('');
+  const moons = demo.moons.map(m => `<circle cx="${(m.x + 17) * 5}" cy="${(10 - m.y) * 5}" r="2" fill="${demo.color}"/>`).join('');
+  const embers = demo.level.spikes.map(m => `<circle cx="${(m.x + 17) * 5}" cy="${(10 - m.y) * 5}" r="2" fill="#ffa75b"/>`).join('');
+  return `<svg viewBox="0 0 170 100" aria-hidden="true"><rect width="170" height="100" rx="5" fill="#102b38"/>${walls}<path d="M25 70 C30 20 75 20 85 50 S120 80 140 30" fill="none" stroke="${demo.color}" opacity=".7" stroke-width=".7"/>${moons}${demo.sandbox ? '<ellipse cx="85" cy="50" rx="28" ry="25" fill="none" stroke="#9acfff" stroke-width=".6"/>' : embers}<circle cx="${(demo.level.spawn.x + 17) * 5}" cy="${(10 - demo.level.spawn.y) * 5}" r="2.4" fill="#dffff9"/><circle cx="${(demo.level.goal.x + 17) * 5}" cy="${(10 - demo.level.goal.y) * 5}" r="4" stroke="#bc9aff" stroke-width=".8" fill="none"/>${demo.plate ? '<circle cx="60" cy="35" r="6" stroke="#ffd88a" fill="none" stroke-width=".7"/>' : ''}</svg>`;
+}
+const gallery = $('#gallery');
+$('#demoGrid').innerHTML = DEMOS.map(demo => `<button type="button" class="demo-card" data-demo="${demo.id}" style="--demo-color:${demo.color}" aria-pressed="false">${demoThumbnail(demo)}<span class="demo-rule">${demo.rule}</span><strong>${demo.title}</strong><span>${demo.description}</span><em>${demo.question}</em></button>`).join('');
+let resumeAfterGallery = false;
+function openGallery() {
+  resumeAfterGallery = runState === 'running';
+  if (resumeAfterGallery) togglePause();
+  settings.close(); gallery.showModal();
+}
+$('#galleryButton').addEventListener('click', openGallery);
+$('#browseDemos').addEventListener('click', () => { resumeAfterSettings = false; openGallery(); });
+$('#closeGallery').addEventListener('click', () => gallery.close());
+gallery.addEventListener('close', () => { if (resumeAfterGallery && runState === 'paused' && !won && !drifted) togglePause(); resumeAfterGallery = false; });
+$('#demoGrid').addEventListener('click', (event) => { const card = event.target.closest('[data-demo]'); if (!card) return; resumeAfterGallery = false; selectDemo(card.dataset.demo); gallery.close(); });
+$('#heroGravity').addEventListener('input', (event) => { heroGravity = Number(event.target.value); $('#heroGravityValue').textContent = heroGravity; });
 
 function currentState() {
   return { x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y };
 }
 
 function updateForecast() {
-  if (!showForecast.checked) return;
-  const result = gameMode === 'maze' ? predictToImpact(currentState(), wells, simTime, 3, mode) : { points: predict(currentState(), wells, simTime, 5.5, mode, 7), impact: null };
+  if (!showForecast.checked || activeDemo.moons.length) return;
+  const result = gameMode === 'maze' ? predictToImpact(currentState(), wells, simTime, 3, mode, activeLevel) : { points: predict(currentState(), wells, simTime, 5.5, mode, 7), impact: null };
   const points = result.points;
 
   forecast.geometry.dispose();
@@ -601,14 +716,13 @@ settings.addEventListener('close', () => { if (resumeAfterSettings && runState =
 $('#restart').addEventListener('click', reset);
 $('#driftRestart').addEventListener('click', reset);
 $('#winRestart').addEventListener('click', reset);
-$('.game-modes').addEventListener('click', (event) => { const button = event.target.closest('[data-game]'); if (button) switchGame(button.dataset.game); });
 pauseButton.addEventListener('click', togglePause);
 $('#soundEnabled').addEventListener('change', (event) => audio.setEnabled(event.target.checked));
 document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden) audio.context?.suspend().catch(() => {}); });
 function togglePause() {
-  if (drifted || won || settings.open) return;
+  if (drifted || won || settings.open || gallery.open) return;
   paused = !paused;
   runState = paused ? 'paused' : 'running';
   pauseButton.innerHTML = paused ? 'Resume <span aria-hidden="true">↗</span>' : 'Pause <span aria-hidden="true">Ⅱ</span>';
@@ -616,7 +730,7 @@ function togglePause() {
   lastFrame = performance.now(); updateStatus();
 }
 window.addEventListener('keydown', (event) => {
-  if (settings.open || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (settings.open || gallery.open || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
   const key = event.key.toLowerCase();
   if (key === ' ' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); togglePause(); }
   if (key === 'r') reset();
@@ -635,14 +749,16 @@ function frame(now) {
     while (accumulator >= STEP) {
       for (const expired of wells.filter((well) => remaining(well, simTime) <= 0)) removeWell(expired.id);
       const before = { x: body.position.x, y: body.position.y };
-      const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode) : acceleration(body.position, wells, simTime, mode);
+      const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode, activeLevel) : acceleration(body.position, wells, simTime, mode);
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
+      applyMoonGravity();
       world.step(STEP);
+      updateGate();
       body.position.z = 0;
       body.velocity.z = 0;
       if (gameMode === 'maze') {
         capVelocity(body.velocity, SPEED_CAP);
-        const impact = firstImpact(before, body.position);
+        const impact = firstImpact(before, body.position, activeLevel);
         if (impact?.type === 'spike') { failRun(); break; }
         if (impact?.type === 'goal') { winRun(); break; }
       }
@@ -661,7 +777,7 @@ function frame(now) {
   }
   core.position.set(body.position.x, body.position.y, 2);
   blobLight.position.set(body.position.x, body.position.y, 1.1);
-  const orbPulse = audio.orb(!settings.open && !drifted && !won && !document.hidden, now / 1000);
+  const orbPulse = audio.orb(!gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000);
   blob.scale.setScalar(1 + orbPulse * .055);
   heroGlow.scale.setScalar(2.3 + orbPulse * .25);
   heroGlow.material.opacity = .83 + orbPulse * .17;
@@ -669,14 +785,16 @@ function frame(now) {
   if (gameMode === 'maze') updateHazardSparks();
   if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
+  updateMoonVisuals();
   updateWellVisuals();
   audio.trail(!paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
   renderer.render(scene, camera);
 }
 
-mazeGroup.visible = true;
-startingOrbit.visible = false;
-resize();
-reset();
+mazeGroup.visible = !activeDemo.sandbox;
+startingOrbit.visible = !!activeDemo.sandbox;
+const openedDirectly = new URLSearchParams(location.search).has('demo');
+selectDemo(activeDemo.id);
+if (!openedDirectly) gallery.showModal();
 requestAnimationFrame(frame);
