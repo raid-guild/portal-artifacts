@@ -82,9 +82,10 @@ export class OrbitAudio {
   gateAcquire(layer) {
     const note=[130.81,392,783.99][layer];
     this.tone(note,0,.3,.25);this.tone(note*1.5,.13,.4,.15);
+    if(layer===0) { this.tone(261.63,0,.35,.18); this.tone(392,.08,.22,.06); }
   }
   gateBeat(layer,beat) {
-    if(layer===0 && beat%4===0) this.tone(130.81,0,.22,.28,65.405);
+    if(layer===0 && beat%4===0) { this.tone(130.81,0,.22,.28,65.405); this.tone(261.63,0,.18,.085); this.tone(392,0,.11,.035); }
     if(layer===1 && beat%4===2) this.tone(392,0,.18,.2);
     if(layer===2 && beat%2===1) this.tone(beat%4===1?783.99:587.33,0,.12,.14);
   }
