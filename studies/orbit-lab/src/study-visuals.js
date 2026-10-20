@@ -21,11 +21,16 @@ export function createStudyVisual(radius,color,portal=false) {
  const positions=new Float32Array(24*3),heat=new Float32Array(24),geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('heat',new THREE.BufferAttribute(heat,1));
  const sparkMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-  uniforms:{tint:{value:new THREE.Color(color)},pixelRatio:{value:1}},
+  uniforms:{tint:{value:new THREE.Color(color)},pixelRatio:{value:1},fade:{value:1}},
   vertexShader:'attribute float heat; varying float vHeat; uniform float pixelRatio; void main(){vHeat=heat;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=(3.+heat*6.)*pixelRatio;}',
-  fragmentShader:'uniform vec3 tint; varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(tint,vec3(1.),vHeat*.5),pow(1.-r,2.)*vHeat*.8);}'
+  fragmentShader:'uniform float fade; uniform vec3 tint; varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(tint,vec3(1.),vHeat*.5),pow(1.-r,2.)*vHeat*.8*fade);}'
  });
  const sparks=new THREE.Points(geometry,sparkMaterial);sparks.frustumCulled=false;group.add(sparks);
+ group.userData.setFade=fade=>{
+  core.material.transparent=true;core.material.opacity=fade;
+  aura.material.opacity*=fade;sparkMaterial.uniforms.fade.value=fade;
+  light.intensity=(portal?6:2)*fade;
+ };
  group.userData.coreRadius=radius;
  group.userData.animate=(time,pixelRatio=1)=>{
   sparkMaterial.uniforms.pixelRatio.value=pixelRatio;

@@ -10,6 +10,7 @@ export class OrbitAudio {
       this.master = c.createGain(); this.master.gain.value = .32;
       const limiter = c.createDynamicsCompressor();
       this.master.connect(limiter); limiter.connect(c.destination);
+      this.heartbeatBus = c.createGain(); this.heartbeatBus.gain.value = 1; this.heartbeatBus.connect(this.master);
       // Quiet, continuous tail voice with a smoothly controlled envelope.
       this.tail = c.createOscillator(); this.tail.type = 'triangle';
       this.tailGain = c.createGain(); this.tailGain.gain.value = 0;
@@ -87,6 +88,30 @@ export class OrbitAudio {
     if(layer===1 && beat%4===2) this.tone(392,0,.18,.2);
     if(layer===2 && beat%2===1) this.tone(beat%4===1?783.99:587.33,0,.12,.14);
   }
+  heartbeat(part, urgency = 0) {
+    if (!this.enabled || !this.context) return;
+    const c = this.context, time = c.currentTime;
+    const high = part === 'lub' ? 90 : 115;
+    const low = part === 'lub' ? 55 : 70;
+    const duration = part === 'lub' ? .17 : .13;
+    const gain = c.createGain(), oscillator = c.createOscillator(), overtone = c.createOscillator(), overtoneGain = c.createGain();
+    this.heartbeatBus.gain.setTargetAtTime(1, time, .005);
+    oscillator.type = 'triangle'; oscillator.frequency.setValueAtTime(high, time);
+    oscillator.frequency.exponentialRampToValueAtTime(low, time + duration);
+    overtone.type = 'sine'; overtone.frequency.setValueAtTime(high * 2, time);
+    overtone.frequency.exponentialRampToValueAtTime(low * 2, time + duration);
+    overtoneGain.gain.value = .22;
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(.22 + Math.max(0, Math.min(1, urgency)) * .09, time + .018);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    oscillator.connect(gain); overtone.connect(overtoneGain); overtoneGain.connect(gain); gain.connect(this.heartbeatBus);
+    oscillator.start(time); overtone.start(time);
+    oscillator.stop(time + duration + .01); overtone.stop(time + duration + .01);
+    oscillator.onended = () => { oscillator.disconnect(); overtone.disconnect(); overtoneGain.disconnect(); gain.disconnect(); };
+  }
+  stopHeartbeat() {
+    if (this.context && this.heartbeatBus) this.heartbeatBus.gain.setTargetAtTime(0, this.context.currentTime, .015);
+  }
   noise(duration, frequency, volume) {
     if (!this.enabled || !this.context) return;
     const c = this.context, time = c.currentTime;
@@ -103,5 +128,5 @@ export class OrbitAudio {
     [261.626, 329.628, 391.995, 523.251].forEach((note, i) => this.tone(note, i * .11, 2.6, .1));
     this.noise(.8, 4200, .035);
   }
-  reset() { this.step = 0; this.trail(false, 0, 0); this.orb(false, 0); }
+  reset() { this.step = 0; this.stopHeartbeat(); this.trail(false, 0, 0); this.orb(false, 0); }
 }

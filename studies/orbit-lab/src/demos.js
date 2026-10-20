@@ -4,7 +4,17 @@ import { SOFTENING } from './physics.js';
 
 export const DEFAULT_WELL_STRENGTH = 70;
 const room = LEVEL.walls.slice(0, 4);
-const makeLevel = (spawn, goal, walls = [], spikes = []) => ({ bounds: { ...LEVEL.bounds }, spawn, goal: { ...goal, radius: 1 }, walls: [...room.map(w => ({ ...w })), ...walls], spikes });
+const perimeter = (bounds) => {
+  const width = bounds.maxX - bounds.minX, height = bounds.maxY - bounds.minY;
+  const cx = (bounds.minX + bounds.maxX) / 2, cy = (bounds.minY + bounds.maxY) / 2;
+  return [
+    { x: bounds.minX - .25, y: cy, w: .5, h: height + .5 },
+    { x: bounds.maxX + .25, y: cy, w: .5, h: height + .5 },
+    { x: cx, y: bounds.maxY + .25, w: width + .5, h: .5 },
+    { x: cx, y: bounds.minY - .25, w: width + .5, h: .5 },
+  ];
+};
+const makeLevel = (spawn, goal, walls = [], spikes = [], bounds = LEVEL.bounds) => ({ bounds: { ...bounds }, spawn, goal: { radius: 1, ...goal }, walls: [...(bounds === LEVEL.bounds ? room : perimeter(bounds)).map(w => ({ ...w })), ...walls], spikes });
 export const DEMOS = [
   { id: 'drift', title: '01 / A gentle curve', rule: 'Temporary gravity', color: '#76e9e3',
     description: 'An open room. Place a well beside your path, then let its pull fade.',
@@ -35,6 +45,21 @@ export const DEMOS = [
 ];
 
 DEMOS.push(...singleRuleStudies(makeLevel));
+DEMOS.push(
+  { id: 'burnout', title: `${String(DEMOS.length + 1).padStart(2, '0')} / The burning light`, rule: 'Light as fuel', color: '#ffd98b',
+    description: 'Your glow slowly burns away. Gather wandering embers to refill it and keep the gate open.',
+    question: 'Can light become a resource you route around?', objective: 'Gather pale embers to keep the gate open, then reach the portal.',
+    mechanic: 'burnout', heroGravity: 0, moons: [],
+    level: makeLevel({ x: -11, y: -3, vx: .9, vy: .2 }, { x: 11, y: 3 }, [{ x: 5, y: 0, w: .55, h: 18, gate: true }]) },
+  { id: 'wideworld', title: `${String(DEMOS.length + 2).padStart(2, '0')} / A wider world`, rule: 'Scale and space', color: '#a8c9ff',
+    description: 'A broad chamber with long open stretches and a larger portal. The same gravity rules feel different across distance.',
+    question: 'How does room to roam change your aim?', objective: 'Cross the great chamber and enter the far portal.',
+    heroGravity: 0, moons: [],
+    level: makeLevel({ x: -42, y: -18, vx: 2.5, vy: .8 }, { x: 42, y: 18, radius: 2 }, [
+      { x: -23, y: -12, w: .8, h: 16 }, { x: -2, y: 13, w: .8, h: 18 },
+      { x: 20, y: -11, w: .8, h: 19 },
+    ], [], { minX: -48, maxX: 48, minY: -27, maxY: 27 }) },
+);
 
 export function getDemo(id) { return DEMOS.find(demo => demo.id === id) || DEMOS[0]; }
 

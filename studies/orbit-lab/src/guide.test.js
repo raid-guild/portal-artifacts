@@ -1,16 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import * as CANNON from 'cannon-es';
-import {guideShape,guideProfile,profileContains,profileImpact} from './guide.js';
-import {canPlaceWell,firstImpact} from './level.js';
-import {getDemo} from './demos.js';
-test('continuous guide matches placement and swept collision geometry',()=>{
- const level=getDemo('guide').level,profile=guideProfile();assert.equal(level.guides.length,1);assert.ok(profileContains({x:0,y:-2},profile));assert.ok(!canPlaceWell({x:0,y:-2},level));assert.ok(canPlaceWell({x:0,y:1},level));assert.ok(profileImpact({x:0,y:0},{x:0,y:-4},profile)!==null);assert.equal(firstImpact({x:0,y:0},{x:0,y:-4},level).type,'wall');
-});
-test('a sphere moves across the arch without catching between bodies',()=>{
- const world=new CANNON.World({gravity:new CANNON.Vec3(0,-3,0)}),mat=new CANNON.Material();world.addContactMaterial(new CANNON.ContactMaterial(mat,mat,{friction:0,restitution:0}));
- const wall=new CANNON.Body({mass:0,material:mat,shape:guideShape(guideProfile())});world.addBody(wall);
- const hero=new CANNON.Body({mass:1,material:mat,shape:new CANNON.Sphere(.31),linearDamping:0,fixedRotation:true});hero.position.set(-4.5,-1.8,0);hero.velocity.set(4,0,0);world.addBody(hero);
- for(let i=0;i<360;i++){hero.applyForce(new CANNON.Vec3(2,0,0));world.step(1/120);hero.position.z=0;hero.velocity.z=0;}
- assert.ok(hero.position.x>4,`progress: ${hero.position.x}`);assert.ok(Number.isFinite(hero.position.y));
-});
+import test from 'node:test';import assert from 'node:assert/strict';
+import {CHANNEL,channelY,channelFrame,constrainChannel,channelWalls} from './guide.js';
+import {canPlaceWell} from './level.js';import {getDemo} from './demos.js';
+test('channel allows remote wells beyond its walls while keeping room bounds',()=>{const level=getDemo('guide').level;assert.ok(canPlaceWell({x:0,y:0},level));assert.ok(canPlaceWell({x:0,y:5},level));assert.ok(canPlaceWell({x:0,y:-5},level));assert.ok(!canPlaceWell({x:17,y:0},level));assert.equal(channelWalls().length,2);assert.ok(canPlaceWell(level.spawn,level));assert.ok(Math.abs(channelFrame(level.goal).distance)<.01);});
+test('channel contact preserves tangential speed and removes outward speed on both walls',()=>{for(const side of [-1,1]){const f=channelFrame({x:2,y:channelY(2)}),p={x:f.x+f.nx*side*3,y:f.y+f.ny*side*3},v={x:f.tx*3+f.nx*side*2,y:f.ty*3+f.ny*side*2};constrainChannel(p,v);const contact=channelFrame(p);assert.ok(Math.abs(contact.distance)<=CHANNEL.halfWidth-.31+.01);assert.ok(v.x*f.tx+v.y*f.ty>2.9);}});
+test('a moving dot traverses both turns without gaps or corner traps',()=>{const p={x:-13,y:channelY(-13)},v={x:2.5,y:0};for(let i=0;i<1800&&p.x<13;i++){v.x+=2/120;p.x+=v.x/120;p.y+=v.y/120;constrainChannel(p,v);assert.ok(Math.abs(channelFrame(p).distance)<=CHANNEL.halfWidth-.31+.015);}assert.ok(p.x>=13,`reached ${p.x}`);});

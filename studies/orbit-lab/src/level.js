@@ -1,4 +1,4 @@
-import { profileContains, profileImpact } from './guide.js';
+import { profileContains, profileImpact, channelFrame } from './guide.js';
 import { STEP, acceleration, SOFTENING } from './physics.js';
 
 export const BLOB_RADIUS = 0.31;
@@ -79,6 +79,7 @@ export function firstImpact(from, to, level = LEVEL) {
     const t = profileImpact(from, to, profile, BLOB_RADIUS);
     if (t !== null && (!first || t < first.t)) first = {type:'wall',t,x:from.x+(to.x-from.x)*t,y:from.y+(to.y-from.y)*t};
   }
+  if (level.channel && Math.abs(channelFrame(to,level.channel).distance)>level.channel.halfWidth-BLOB_RADIUS) first = first || {type:'wall',t:1,x:to.x,y:to.y};
   const t = sweptGoal(from, to, level.goal);
   if (t !== null && (!first || t < first.t)) first = { type: 'goal', t, x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
   return first;
