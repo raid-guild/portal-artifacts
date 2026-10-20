@@ -341,3 +341,10 @@ The game works as a guest with local scores; Portal launch enables ranked runs.
 built by RaidGuild. Editable source, tests, licenses and rebuild instructions are
 in `studies/neon-drop/`. Includes ball/cabinet cosmetics and optional standalone
 Portal ranking for the fixed-rules Arcade Challenge. Guest play works offline.
+
+## Orbit Lab — World Studies
+
+`public/orbit-lab/` is a six-study gallery of orbital steering, loose moons,
+reciprocal gravity, hazard slingshots, a moon-operated gate, and the original
+maze and sandbox. Editable source, physics tests and rebuild instructions are
+in [`studies/orbit-lab/`](studies/orbit-lab/README.md).

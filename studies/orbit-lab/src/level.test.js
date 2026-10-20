@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as CANNON from 'cannon-es';
+import { DEFAULT_WELL_STRENGTH } from './demos.js';
 import { STEP } from './physics.js';
 import { LEVEL, BLOB_RADIUS, canPlaceWell, circleHitsRect, sweptCircleRect, firstImpact, predictToImpact, capVelocity, emberAcceleration, mazeAcceleration, portalAcceleration } from './level.js';
 
@@ -58,7 +59,7 @@ test('a scripted series of valid wells can reach the maze exit under live Cannon
       const error = { x: desired.x - body.velocity.x, y: desired.y - body.velocity.y };
       const magnitude = Math.hypot(error.x, error.y);
       const point = { x: body.position.x + error.x / magnitude * 3 + body.velocity.x * 0.2, y: body.position.y + error.y / magnitude * 3 + body.velocity.y * 0.2 };
-      well = canPlaceWell(point) ? { ...point, strength: 100, lifetime: 8, createdAt: time } : null;
+      well = canPlaceWell(point) ? { ...point, strength: DEFAULT_WELL_STRENGTH, lifetime: 8, createdAt: time } : null;
     }
     const before = { x: body.position.x, y: body.position.y };
     const a = mazeAcceleration(body.position, well ? [well] : [], time, 'fade');
