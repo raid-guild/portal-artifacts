@@ -1,5 +1,5 @@
 import { primaryControl } from './controls.js';
-import { createStudyVisual } from './study-visuals.js';
+import { createDimmerVisual, createEclipseVisual, createStudyVisual } from './study-visuals.js';
 import { OpticsStudy, OPTICAL_STUDIES } from './optics.js';
 import { guideShape, channelWalls, constrainChannel } from './guide.js';
 import { Experiment } from './experiment.js';
@@ -16,10 +16,26 @@ import { createBurnout, stepBurnout, cameraFrame, PICKUP_LIFE } from './burnout.
 import { followFrame, followPosition } from './follow-camera.js';
 import { CAMPAIGN, campaignPointAllowed, canPlaceCampaignWell, createCampaign, getCampaignLevel, nextCampaignLevel, stepCampaign } from './campaign.js';
 import { BEST_GATES_KEY, SOUND_GATE_COLORS, betterGateMask, createSoundGates, gateCount, gatePattern, stepSoundGates, validateBestGates } from './sound-gates.js';
+import { createEntityRuntime, entityAcceleration, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
+import { compileLevelDocument } from './level-document.js';
+import { createEditor } from './editor.js';
+import { generateInfiniteLevel, infiniteRunSeed, normalizeInfiniteSeed, normalizeInfiniteStage, randomInfiniteSeed } from './infinite.js';
+import { wallCorners } from './wall-geometry.js';
 const route = new URLSearchParams(location.search);
 let campaignMode = ['1', '2'].includes(route.get('campaign')) && !route.has('demo');
 let campaignLevelId = campaignMode ? Number(route.get('campaign')) : 1;
-let activeDemo = campaignMode ? getCampaignLevel(campaignLevelId) : getDemo(route.get('demo'));
+let infiniteMode = !route.has('demo') && !campaignMode && !!normalizeInfiniteSeed(route.get('infinite'));
+let infiniteSeed = infiniteMode ? normalizeInfiniteSeed(route.get('infinite')) : '';
+let infiniteStage = infiniteMode ? normalizeInfiniteStage(route.get('stage')) : 1;
+function infiniteDemo(seed, stage) {
+  const compiled = compileLevelDocument(generateInfiniteLevel(seed, stage));
+  return { id: 'infinite', title: `Infinite Play · Stage ${stage}`, color: '#a2efe7',
+    objective: `Seed ${seed} · Stage ${stage} · Follow the gates and carry your light to the portal.`,
+    mechanic: 'campaign', heroGravity: 0, moons: [], level: compiled.level, document: compiled.document,
+    entities: compiled.entities, settings: compiled.settings,
+    soundGates: compiled.entities.filter(e => e.type === 'soundGate').map(e => ({ id: e.slot, x: e.x, y: e.y, radius: e.radius })) };
+}
+let activeDemo = infiniteMode ? infiniteDemo(infiniteSeed, infiniteStage) : campaignMode ? getCampaignLevel(campaignLevelId) : getDemo(route.get('demo'));
 let activeLevel = structuredClone(activeDemo.level);
 let heroGravity = activeDemo.heroGravity;
 let gateOpen = false;
@@ -48,10 +64,11 @@ app.innerHTML = `
   </dialog>
   <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
   <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><div class="gallery-actions"><button id="homeFromGallery" class="quiet-button" aria-label="Home" title="Home">⌂</button><button id="closeGallery" class="quiet-button" aria-label="Close gallery"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div></div><nav id="demoCategories" class="demo-categories" aria-label="Study categories"></nav><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
-  <div id="home" class="home-overlay hidden"><div class="home-card"><span class="eyebrow">ORBIT LAB</span><h1>A little light in a large world.</h1><p>Draw a path with temporary gravity. Keep your light alive until you reach the portal.</p><button id="startCampaign" class="primary-button" type="button">Campaign ↗</button><button id="studyHome" class="home-secondary" type="button">Studies</button></div></div>
+  <div id="home" class="home-overlay hidden"><div class="home-card"><span class="eyebrow">ORBIT LAB</span><h1>A little light in a large world.</h1><p>Draw a path with temporary gravity. Keep your light alive until you reach the portal.</p><button id="startCampaign" class="primary-button" type="button">Campaign ↗</button><button id="startInfinite" class="home-secondary" type="button">Infinite Play</button><button id="studyHome" class="home-secondary" type="button">Studies</button><button id="openEditor" class="home-secondary" type="button">Level editor</button></div></div>
+  <div id="infiniteSelect" class="home-overlay hidden"><div class="home-card infinite-select-card"><span class="eyebrow">INFINITE PLAY</span><h1>Every seed makes a world.</h1><p>Cross a new chamber each stage. The same seed and stage always return to the same level.</p><label for="infiniteSeed">World seed</label><input id="infiniteSeed" type="text" maxlength="128" autocomplete="off" spellcheck="false"><div class="infinite-select-actions"><button id="beginInfinite" class="primary-button" type="button">Start crossing ↗</button><button id="infiniteBack" class="home-secondary" type="button">Back home</button></div></div></div>
   <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN / LEVELS</span><h1>Choose a crossing.</h1><div class="level-cards"><button class="level-card" data-campaign-level="1" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C40 39 65 32 103 32 S130 30 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="65" cy="33" r="6" fill="none" stroke="#7de6df"/></svg><span>01 / LIGHT & DISTANCE</span><strong>The long crossing</strong><small>A clear chamber. Keep the fire alive to reach the far portal.</small><em data-complete="1"></em><span data-gate-best="1"></span></button><button class="level-card" data-campaign-level="2" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C39 39 50 58 80 58 S117 32 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="85" cy="28" r="16" fill="#ff8a32"/><circle cx="85" cy="28" r="24" fill="none" stroke="#ff8a32" opacity=".4"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/></svg><span>02 / GRAVITY & DANGER</span><strong>The heavy neighbor</strong><small>A giant ember bends your path. Keep outside its fire.</small><em data-complete="2"></em><span data-gate-best="2"></span></button></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button" type="button">Retry</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
-  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
+  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
 `;
 
 const $ = (selector) => document.querySelector(selector);
@@ -276,11 +293,13 @@ function createWalls(level) {
 for (const rect of level.walls) {
   const wall = new CANNON.Body({ mass: 0, material: wallMaterial, shape: new CANNON.Box(new CANNON.Vec3(rect.w / 2, rect.h / 2, 0.7)) });
   wall.position.set(rect.x, rect.y, 0);
+  if (rect.angle) wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), rect.angle);
   world.addBody(wall);
   wall.isGate = !!rect.gate; wallBodies.push(wall);
   const mesh = new THREE.Mesh(new RoundedBoxGeometry(rect.w, rect.h, 4, 4, 0.18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   // Span below the floor and above the lights: no light can pass over a wall end.
   mesh.position.set(rect.x, rect.y, 1);
+  mesh.rotation.z = rect.angle || 0;
   mesh.castShadow = true;
   mesh.userData.gate = !!rect.gate; wallMeshes.push(mesh); mazeGroup.add(mesh);
 }
@@ -369,10 +388,14 @@ let won = false;
 let resetTimer = null;
 let burnout = null;
 let campaign = null;
+let editorPlaytest = false;
+let editor;
 let soundGates = null;
+let entityRuntime = null;
 let wellsUsed = 0;
 let homeOpen = false;
 let visitedBounds = null;
+const challengeMode = () => campaignMode || infiniteMode;
 const completionKey = 'orbit-lab-campaign-complete-v1';
 let completedLevels = (() => { try { return new Set(JSON.parse(localStorage.getItem(completionKey) || '[]').filter(id => [1, 2].includes(id))); } catch { return new Set(); } })();
 function markLevelComplete(id) { completedLevels.add(id); try { localStorage.setItem(completionKey, JSON.stringify([...completedLevels])); } catch {} }
@@ -401,19 +424,56 @@ function setHomeOpen(open, screen = 'home') {
   homeOpen = open;
   $('#home').classList.toggle('hidden', !open || screen !== 'home');
   $('#levelSelect').classList.toggle('hidden', !open || screen !== 'levels');
+  $('#infiniteSelect').classList.toggle('hidden', !open || screen !== 'infinite');
   for (const selector of ['.chrome', '.scene', '.play-control']) $(selector).inert = open;
-  if (open) (screen === 'levels' ? $('[data-campaign-level="1"]') : $('#startCampaign')).focus();
+  if (open) (screen === 'levels' ? $('[data-campaign-level="1"]') : screen === 'infinite' ? $('#infiniteSeed') : $('#startCampaign')).focus();
 }
 const pickupGroup = new THREE.Group(); scene.add(pickupGroup);
 const pickupMeshes = new Map();
 const campaignGateGroup = new THREE.Group(); scene.add(campaignGateGroup);
 const campaignGateMeshes = [];
+const entityGroup = new THREE.Group(); scene.add(entityGroup);
+const entityMeshes = new Map();
 let gateFrame = null;
+
+function rebuildEntityVisuals() {
+  for (const mesh of entityMeshes.values()) disposeObject(mesh);
+  entityMeshes.clear();
+  for (const entity of activeDemo.entities || []) {
+    if (entity.type === 'soundGate') continue;
+    let mesh;
+    if (entity.type === 'eclipse') {
+      mesh = createEclipseVisual(entity.radius);
+    } else if (entity.type === 'dimmer') {
+      mesh = createDimmerVisual(.22);
+    } else if (entity.type === 'ember' || entity.type === 'lightPickup' || entity.type === 'portal') {
+      const color = entity.type === 'ember' ? 0xff8a32 : entity.type === 'lightPickup' ? 0xffdf9b : entity.type === 'portal' ? 0x76e9e3 : 0xbfa5ff;
+      mesh = createStudyVisual(entity.type === 'ember' || entity.type === 'portal' ? entity.radius : .22, color, entity.type === 'portal');
+    } else {
+      const color = entity.type === 'portal' ? 0x79e1d6 : entity.type === 'impulse' ? 0x76e9e3 : entity.type === 'eclipse' ? 0x675d84 : 0xffd98b;
+      mesh = new THREE.Group();
+      mesh.add(ring(entity.radius, new THREE.LineBasicMaterial({ color, transparent: true, opacity: .86 })));
+      mesh.add(ring(entity.radius * .72, new THREE.LineBasicMaterial({ color, transparent: true, opacity: .32 })));
+    }
+    mesh.position.set(entity.x, entity.y, 1.45); entityGroup.add(mesh); entityMeshes.set(entity.id, mesh);
+  }
+}
+function updateEntityVisuals() {
+  if (!entityRuntime) return;
+  for (const entity of activeDemo.entities || []) {
+    const mesh = entityMeshes.get(entity.id), item = entityRuntime.items[entity.id];
+    if (!mesh || !item) continue;
+    mesh.position.set(item.x, item.y, 1.45);
+    mesh.visible = !item.used;
+    mesh.userData.animate?.(simTime, renderer.getPixelRatio());
+    if (mesh.userData.setFade) mesh.userData.setFade(item.used ? 0 : 1);
+  }
+}
 
 function rebuildCampaignGates() {
   for (const mesh of campaignGateMeshes) disposeObject(mesh);
   campaignGateMeshes.length = 0;
-  if (!campaignMode) return;
+  if (!challengeMode()) return;
   for (const gate of activeDemo.soundGates) {
     const group = new THREE.Group(); group.position.set(gate.x, gate.y, 1.5);
     const color = new THREE.Color(SOUND_GATE_COLORS[gate.id]);
@@ -460,7 +520,7 @@ function disposeWell(well) {
 }
 
 function redrawWellList() {
-  $('#wellCount').textContent = `${wells.length} / 2`;
+  $('#wellCount').textContent = `${wells.length} / ${challengeMode() ? activeDemo.settings.maxActiveWells : 2}`;
   wellList.innerHTML = wells.length ? wells.map((well) => `
     <div class="well-item" style="--well-color:${well.id % 2 ? '#66e9f2' : '#9b90ff'}">
       <span class="well-glyph">✳</span><span class="well-name">WELL ${String(well.id).padStart(2, '0')}</span>
@@ -480,14 +540,17 @@ function removeWell(id) {
 
 function placeWell(x, y) {
   if (drifted || won) return;
-  if (settings.open || gallery.open || homeOpen) return;
-  if (campaignMode && !canPlaceCampaignWell(wellsUsed)) return;
-  if (gameMode === 'maze' && !(campaignMode ? campaignPointAllowed({ x, y }, activeLevel) : canPlaceWell({ x, y }, activeLevel))) return;
+  if (settings.open || gallery.open || homeOpen || editor?.open) return;
+  if (challengeMode() && !canPlaceCampaignWell(wellsUsed, activeDemo.settings.maxTotalWells)) return;
+  if (gameMode === 'maze' && !(challengeMode() ? campaignPointAllowed({ x, y }, activeLevel) : canPlaceWell({ x, y }, activeLevel))) return;
   const well = makeWell(x, y, Number(strengthInput.value), Number(lifetimeInput.value), simTime);
-  if (campaignMode) wellsUsed++;
+  if (challengeMode()) wellsUsed++;
   audio.placement(); lastSoundWellTime = simTime;
-  const old = wells[0];
-  wells = addWell(wells, well);
+  const maxActive = challengeMode() ? activeDemo.settings.maxActiveWells : 2;
+  const old = wells.length >= maxActive ? wells[0] : null;
+  wells = addWell(wells, well, maxActive);
+  if (old) disposeWell(old);
+  redrawWellList(); updateForecast();
   if (old && !wells.includes(old)) disposeWell(old);
   redrawWellList();
   updateForecast();
@@ -525,7 +588,7 @@ function reset() {
     body.velocity.set(activeLevel.spawn.vx, activeLevel.spawn.vy, 0);
     attempts += 1;
     $('#attempts').textContent = attempts;
-    if (campaignMode) visitedBounds = { minX: body.position.x, maxX: body.position.x, minY: body.position.y, maxY: body.position.y };
+    if (challengeMode()) visitedBounds = { minX: body.position.x, maxX: body.position.x, minY: body.position.y, maxY: body.position.y };
   } else {
     body.position.set(4, 0, 0);
     const selectedStrength = Number(strengthInput.value);
@@ -549,7 +612,7 @@ function failRun(reason = 'darkness') {
   paused = true; runState = 'dead';
   $('#deathFlash').classList.add('visible');
   updateStatus();
-  if (campaignMode) {
+  if (challengeMode()) {
     showRunArt(false, reason);
     return;
   }
@@ -557,10 +620,10 @@ function failRun(reason = 'darkness') {
 }
 
 function showRunArt(success, reason = 'darkness') {
-  if (campaignMode && success) saveBestGates(campaignLevelId, soundGates?.mask || 0);
+  if (campaignMode && success && !editorPlaytest) saveBestGates(campaignLevelId, soundGates?.mask || 0);
   const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : activeLevel.spawn;
   archiveSegment(last, body.position);
-  const bounds = campaignMode ? {
+  const bounds = challengeMode() ? {
     minX: Math.min(visitedBounds.minX, activeLevel.spawn.x, body.position.x) - 6,
     maxX: Math.max(visitedBounds.maxX, activeLevel.spawn.x, body.position.x) + 6,
     minY: Math.min(visitedBounds.minY, activeLevel.spawn.y, body.position.y) - 6,
@@ -568,14 +631,19 @@ function showRunArt(success, reason = 'darkness') {
   } : activeLevel.bounds;
   drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, bounds, activeLevel.spawn, body.position);
   $('#resultEyebrow').textContent = success ? 'COURSE COMPLETE' : 'SIGNAL LOST';
-  $('#resultTitle').textContent = campaignMode ? success ? 'Light carried home.' : reason === 'manual' ? 'Journey ended.' : reason === 'hazard' ? 'Taken by the ember.' : 'The light went out.' : 'Your orbit.';
-  $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${campaignMode ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
-  $('#winGateStats').classList.toggle('hidden', !campaignMode);
-  if (campaignMode) {
+  $('#resultTitle').textContent = challengeMode() ? success ? 'Light carried home.' : reason === 'manual' ? 'Journey ended.' : reason === 'hazard' ? 'Taken by the ember.' : 'The light went out.' : 'Your orbit.';
+  $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${challengeMode() ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
+  $('#winGateStats').classList.toggle('hidden', !challengeMode());
+  if (challengeMode()) {
     $('#winGateStats').textContent = `${success ? "Gates" : "Collected (not scored)"} ${gateCount(soundGates.mask)}/3 · ${gatePattern(soundGates.mask)}`;
     appendGatePatternIcons($('#winGateStats'), soundGates.mask);
   }
-  $('#winRestart').textContent = campaignMode ? success ? 'Continue ↗' : 'Retry' : 'Fly again ↗';
+  $('#infiniteResult').classList.toggle('hidden', !infiniteMode);
+  $('#editInfinite').classList.toggle('hidden', !infiniteMode);
+  $('#copyInfinite').classList.toggle('hidden', !infiniteMode);
+  if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage}`;
+  $('#winRestart').textContent = challengeMode() ? success && !editorPlaytest ? 'Continue ↗' : 'Retry' : 'Fly again ↗';
+  $('#winEditor').classList.toggle('hidden', !editorPlaytest);
   winOverlay.classList.remove('hidden');
 }
 
@@ -585,28 +653,66 @@ function winRun() {
   audio.stopHeartbeat();
   won = true;
   paused = true; runState = 'won';
-  if (campaignMode) markLevelComplete(campaignLevelId);
+  if (campaignMode && !editorPlaytest) markLevelComplete(campaignLevelId);
   showRunArt(true);
   updateStatus();
 }
 
 function selectDemo(id) {
-  campaignMode = false; setHomeOpen(false);
+  campaignMode = false; infiniteMode = false; editorPlaytest = false; setHomeOpen(false);
   activeDemo = getDemo(id); gameMode = activeDemo.sandbox ? 'sandbox' : 'maze';
   heroGravity = activeDemo.heroGravity;
+  strengthInput.min = 35; strengthInput.max = 180; lifetimeInput.min = 2; lifetimeInput.max = 16;
   strengthInput.value = DEFAULT_WELL_STRENGTH; $('#strengthValue').textContent = DEFAULT_WELL_STRENGTH;
   $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
   attempts = 0; resumeAfterSettings = false;
-  const url = new URL(location.href); url.searchParams.delete('campaign'); url.searchParams.set('demo', activeDemo.id); history.replaceState(null, '', url);
+  const url = new URL(location.href); url.searchParams.delete('campaign'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); url.searchParams.set('demo', activeDemo.id); history.replaceState(null, '', url);
   resize(); reset();
 }
 
 function selectCampaign(levelId = 1) {
-  campaignMode = true; setHomeOpen(false);
+  campaignMode = true; infiniteMode = false; editorPlaytest = false; setHomeOpen(false);
   activeDemo = getCampaignLevel(levelId); campaignLevelId = activeDemo.id; gameMode = 'maze'; heroGravity = 0;
-  strengthInput.value = DEFAULT_WELL_STRENGTH; $('#strengthValue').textContent = DEFAULT_WELL_STRENGTH;
+  strengthInput.min = Math.min(35, activeDemo.settings.wellStrength); strengthInput.max = Math.max(180, activeDemo.settings.wellStrength);
+  lifetimeInput.min = Math.min(2, activeDemo.settings.wellLifetime); lifetimeInput.max = Math.max(16, activeDemo.settings.wellLifetime);
+  strengthInput.value = activeDemo.settings.wellStrength; $('#strengthValue').textContent = activeDemo.settings.wellStrength;
+  lifetimeInput.value = activeDemo.settings.wellLifetime; $('#lifetimeValue').textContent = `${activeDemo.settings.wellLifetime.toFixed(1)}s`;
   attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
-  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.set('campaign', String(campaignLevelId)); history.replaceState(null, '', url);
+  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); url.searchParams.set('campaign', String(campaignLevelId)); history.replaceState(null, '', url);
+  resize(); reset();
+}
+
+function selectInfinite(seed, stage = 1) {
+  infiniteSeed = normalizeInfiniteSeed(seed) || randomInfiniteSeed();
+  infiniteStage = normalizeInfiniteStage(stage);
+  infiniteMode = true; campaignMode = false; editorPlaytest = false; setHomeOpen(false);
+  activeDemo = infiniteDemo(infiniteSeed, infiniteStage); gameMode = 'maze'; heroGravity = 0;
+  strengthInput.min = Math.min(35, activeDemo.settings.wellStrength); strengthInput.max = Math.max(180, activeDemo.settings.wellStrength);
+  lifetimeInput.min = Math.min(2, activeDemo.settings.wellLifetime); lifetimeInput.max = Math.max(16, activeDemo.settings.wellLifetime);
+  strengthInput.value = activeDemo.settings.wellStrength; $('#strengthValue').textContent = activeDemo.settings.wellStrength;
+  lifetimeInput.value = activeDemo.settings.wellLifetime; $('#lifetimeValue').textContent = `${activeDemo.settings.wellLifetime.toFixed(1)}s`;
+  attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
+  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.set('infinite', infiniteSeed); url.searchParams.set('stage', String(infiniteStage)); history.replaceState(null, '', url);
+  resize(); reset();
+}
+
+function selectEditorPlaytest(document) {
+  const compiled = compileLevelDocument(structuredClone(document));
+  editorPlaytest = true; campaignMode = true; infiniteMode = false; setHomeOpen(false);
+  for (const selector of ['.chrome', '.scene', '.play-control']) $(selector).inert = false;
+  activeDemo = {
+    id: 'editor-playtest', title: compiled.document.title, color: '#9ee6df',
+    objective: 'Playtest your level. Return to the editor to revise it.',
+    mechanic: 'campaign', heroGravity: 0, moons: [], level: compiled.level,
+    document: compiled.document, entities: compiled.entities, settings: compiled.settings,
+    soundGates: compiled.entities.filter(e => e.type === 'soundGate').map(e => ({ id: e.slot, x: e.x, y: e.y, radius: e.radius })),
+  };
+  gameMode = 'maze'; heroGravity = 0; attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
+  strengthInput.min = Math.min(35, compiled.settings.wellStrength); strengthInput.max = Math.max(180, compiled.settings.wellStrength);
+  lifetimeInput.min = Math.min(2, compiled.settings.wellLifetime); lifetimeInput.max = Math.max(16, compiled.settings.wellLifetime);
+  strengthInput.value = compiled.settings.wellStrength; $('#strengthValue').textContent = compiled.settings.wellStrength;
+  lifetimeInput.value = compiled.settings.wellLifetime; $('#lifetimeValue').textContent = `${compiled.settings.wellLifetime.toFixed(1)}s`;
+  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); history.replaceState(null, '', url);
   resize(); reset();
 }
 
@@ -674,9 +780,11 @@ function updateResourceHud() {
 function rebuildExperiment() {
   activeLevel = structuredClone(activeDemo.level); gateOpen = false;
   burnout = activeDemo.mechanic === 'burnout' ? createBurnout() : null;
-  campaign = campaignMode ? createCampaign() : null;
-  soundGates = campaignMode ? createSoundGates() : null;
+  campaign = challengeMode() ? createCampaign(infiniteMode ? infiniteRunSeed(infiniteSeed, infiniteStage) : 428, activeDemo.settings) : null;
+  soundGates = challengeMode() ? createSoundGates() : null;
   rebuildCampaignGates();
+  entityRuntime = challengeMode() ? createEntityRuntime(activeDemo.entities || []) : null;
+  rebuildEntityVisuals();
   for (const mesh of pickupMeshes.values()) disposeObject(mesh);
   pickupMeshes.clear();
   if (gateFrame) disposeObject(gateFrame);
@@ -696,7 +804,7 @@ function rebuildExperiment() {
   if (plateRing) disposeObject(plateRing);
   plateRing = null;
   mazeGroup.visible = !activeDemo.sandbox; startingOrbit.visible = !!activeDemo.sandbox;
-  if (!activeDemo.sandbox) { createWalls(activeLevel); createHazards(activeLevel); }
+  if (!activeDemo.sandbox) { createWalls(activeLevel); if (!challengeMode()) createHazards(activeLevel); }
   portal.position.set(activeLevel.goal.x, activeLevel.goal.y, 1);
   portal.scale.setScalar(activeLevel.goal.radius);
   if (burnout) {
@@ -736,7 +844,7 @@ function rebuildExperiment() {
   showForecast.disabled = moving; forecast.visible = showForecast.checked && !moving;
   $('#forecastHelp').textContent = moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
   $('#activeDemoLabel').textContent = activeDemo.title;
-  $('.settings-help').textContent = `Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R ${campaignMode ? 'ends the attempt' : 'restarts'} · E removes oldest / releases capture · 1 / 2 remove a specific well.`;
+  $('.settings-help').textContent = `Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R ${challengeMode() ? 'ends the attempt' : 'restarts'} · E removes oldest / releases capture · 1 / 2 remove a specific well.`;
   $('#demoTitle').textContent = activeDemo.title;
   $('#demoObjective').textContent = activeDemo.objective;
   $('#demoNote').style.setProperty('--demo-color', activeDemo.color);
@@ -815,6 +923,7 @@ function openGallery() {
 }
 function showHome() {
   resumeAfterGallery = false; resumeAfterSettings = false; galleryReturnHome = false;
+  editor?.hide();
   if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
   if (settings.open) settings.close();
   if (gallery.open) gallery.close();
@@ -824,9 +933,24 @@ function showHome() {
   setHomeOpen(true);
   winOverlay.classList.add('hidden'); driftOverlay.classList.add('hidden');
   $('#deathFlash').classList.remove('visible');
-  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); history.replaceState(null, '', url);
+  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); history.replaceState(null, '', url);
   updateControls();
 }
+function showEditor() {
+  resumeAfterGallery = false; resumeAfterSettings = false;
+  if (settings.open) settings.close(); if (gallery.open) gallery.close();
+  paused = true; audio.stopHeartbeat();
+  if (runState === 'running') runState = 'paused';
+  setHomeOpen(false);
+  for (const selector of ['.chrome', '.scene', '.play-control']) $(selector).inert = true;
+  winOverlay.classList.add('hidden'); driftOverlay.classList.add('hidden');
+  $('#deathFlash').classList.remove('visible');
+  const url = new URL(location.href);
+  for (const key of ['demo', 'campaign', 'infinite', 'stage']) url.searchParams.delete(key);
+  history.replaceState(null, '', url);
+  editor.show(); updateControls();
+}
+editor = createEditor({ mount: app, defaultDocument: getCampaignLevel(1).document, onHome: showHome, onPlay: selectEditorPlaytest });
 function showLevelSelect() {
   showHome();
   for (const badge of $('#levelSelect').querySelectorAll('[data-complete]')) badge.textContent = completedLevels.has(Number(badge.dataset.complete)) ? 'COMPLETE ✓' : 'NOT YET COMPLETE';
@@ -837,11 +961,19 @@ function showLevelSelect() {
   }
   setHomeOpen(true, 'levels');
 }
-$('#galleryButton').addEventListener('click', () => campaignMode ? showHome() : openGallery());
+$('#galleryButton').addEventListener('click', () => editorPlaytest ? showEditor() : challengeMode() ? showHome() : openGallery());
 $('#browseDemos').addEventListener('click', () => { resumeAfterSettings = false; openGallery(); });
 $('#homeFromSettings').addEventListener('click', showHome);
 $('#homeFromGallery').addEventListener('click', showHome);
 $('#startCampaign').addEventListener('click', showLevelSelect);
+$('#startInfinite').addEventListener('click', () => {
+  $('#infiniteSeed').value = randomInfiniteSeed();
+  setHomeOpen(true, 'infinite');
+});
+$('#infiniteBack').addEventListener('click', showHome);
+$('#beginInfinite').addEventListener('click', () => selectInfinite($('#infiniteSeed').value, 1));
+$('#infiniteSeed').addEventListener('keydown', event => { if (event.key === 'Enter') selectInfinite(event.currentTarget.value, 1); });
+$('#openEditor').addEventListener('click', showEditor);
 $('#levelsBack').addEventListener('click', showHome);
 $('#levelSelect').addEventListener('click', event => { const card = event.target.closest('[data-campaign-level]'); if (card) selectCampaign(Number(card.dataset.campaignLevel)); });
 $('#studyHome').addEventListener('click', openGallery);
@@ -919,7 +1051,7 @@ function resize() {
   const width = sceneElement.clientWidth;
   const height = sceneElement.clientHeight;
   const aspect = width / height;
-  const frame = campaignMode || activeDemo.id === 'wideworld' ? followFrame(aspect) : gameMode === 'maze' ? cameraFrame(activeDemo.level.bounds, aspect) : { width: Math.max(21, 16 * aspect), height: Math.max(21, 16 * aspect) / aspect };
+  const frame = challengeMode() || activeDemo.id === 'wideworld' ? followFrame(aspect) : gameMode === 'maze' ? cameraFrame(activeDemo.level.bounds, aspect) : { width: Math.max(21, 16 * aspect), height: Math.max(21, 16 * aspect) / aspect };
   const visibleWidth = frame.width;
   const visibleHeight = frame.height;
   camera.left = -visibleWidth / 2;
@@ -937,19 +1069,19 @@ function resize() {
 
 function updateCamera(dt, snap = false) {
   floor.position.x = 0; floor.position.y = 0;
-  if (!campaignMode && activeDemo.id !== 'wideworld') {
+  if (!challengeMode() && activeDemo.id !== 'wideworld') {
     camera.position.x = 0; camera.position.y = 0;
     return;
   }
   const next = followPosition(camera.position, body.position, body.velocity, activeLevel.bounds,
     { width: camera.right - camera.left, height: camera.top - camera.bottom }, dt, snap);
   camera.position.x = next.x; camera.position.y = next.y;
-  if (campaignMode) expandArchive(Math.abs(camera.position.x) + camera.right + 3, Math.abs(camera.position.y) + camera.top + 3);
+  if (challengeMode()) expandArchive(Math.abs(camera.position.x) + camera.right + 3, Math.abs(camera.position.y) + camera.top + 3);
 }
 
 function drawMinimap() {
-  minimap.classList.toggle('visible', campaignMode || activeDemo.id === 'wideworld');
-  if (!campaignMode && activeDemo.id !== 'wideworld') return;
+  minimap.classList.toggle('visible', challengeMode() || activeDemo.id === 'wideworld');
+  if (!challengeMode() && activeDemo.id !== 'wideworld') return;
   const ctx = minimapContext, w = minimap.width, h = minimap.height;
   const bounds = activeLevel.bounds;
   const sx = w / (bounds.maxX - bounds.minX), sy = h / (bounds.maxY - bounds.minY);
@@ -959,14 +1091,23 @@ function drawMinimap() {
   ctx.fillStyle = '#07151f'; ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = '#476877'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, w - 2, h - 2);
   ctx.fillStyle = '#324b56';
-  for (const wall of activeLevel.walls) ctx.fillRect(x(wall.x - wall.w / 2), y(wall.y + wall.h / 2), wall.w * sx, wall.h * sy);
+  for (const wall of activeLevel.walls) {
+    const corners = wallCorners(wall); ctx.beginPath(); ctx.moveTo(x(corners[0].x), y(corners[0].y));
+    for (const corner of corners.slice(1)) ctx.lineTo(x(corner.x), y(corner.y));
+    ctx.closePath(); ctx.fill();
+  }
   const marker = (px, py, radius, color) => {
     ctx.beginPath(); ctx.arc(x(px), y(py), radius, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
   };
   marker(activeLevel.goal.x, activeLevel.goal.y, 6, '#a994ff');
-  if (campaignMode) for (const gate of activeDemo.soundGates) marker(gate.x, gate.y, 4, soundGates?.mask & (1 << gate.id) ? '#6d8993' : SOUND_GATE_COLORS[gate.id]);
+  if (challengeMode()) for (const gate of activeDemo.soundGates) marker(gate.x, gate.y, 4, soundGates?.mask & (1 << gate.id) ? '#6d8993' : SOUND_GATE_COLORS[gate.id]);
   for (const pickup of campaign?.pickups || []) marker(pickup.x, pickup.y, 3, '#ffd58e');
-  for (const danger of activeLevel.dangers || []) { ctx.beginPath(); ctx.arc(x(danger.x), y(danger.y), danger.radius * Math.min(sx, sy), 0, Math.PI * 2); ctx.fillStyle = '#e36d31'; ctx.fill(); }
+  if (entityRuntime) for (const entity of activeDemo.entities) if (entity.type !== 'soundGate') {
+    const item = entityRuntime.items[entity.id]; if (item.used) continue;
+    marker(item.x, item.y, entity.type === 'ember' ? Math.max(3, entity.radius * Math.min(sx, sy)) : 3,
+      entity.type === 'ember' ? '#e36d31' : entity.type === 'portal' ? '#76e9e3' : entity.type === 'dimmer' ? '#bfa5ff' : '#ffd58e');
+  }
+  if (!entityRuntime) for (const danger of activeLevel.dangers || []) { ctx.beginPath(); ctx.arc(x(danger.x), y(danger.y), danger.radius * Math.min(sx, sy), 0, Math.PI * 2); ctx.fillStyle = '#e36d31'; ctx.fill(); }
   for (const well of wells) marker(well.x, well.y, 3.5, '#79d6ef');
   ctx.strokeStyle = '#d6f9f0'; ctx.lineWidth = 1.5;
   const viewLeft = Math.max(bounds.minX, camera.position.x + camera.left);
@@ -1032,10 +1173,18 @@ showForecast.addEventListener('change', () => { forecast.visible = showForecast.
 $('#settingsButton').addEventListener('click', () => { resumeAfterSettings = runState === 'running'; if (resumeAfterSettings) togglePause(); settings.showModal(); });
 $('#closeSettings').addEventListener('click', () => settings.close());
 settings.addEventListener('close', () => { if (resumeAfterSettings && runState === 'paused' && !drifted && !won) togglePause(); resumeAfterSettings = false; });
-$('#restart').addEventListener('click', () => { if (campaignMode) failRun('manual'); else reset(); });
+$('#restart').addEventListener('click', () => { if (challengeMode()) failRun('manual'); else reset(); });
 $('#driftRestart').addEventListener('click', reset);
 $('#driftHome').addEventListener('click', showHome);
-$('#winRestart').addEventListener('click', () => { if (campaignMode && won) { const next = nextCampaignLevel(campaignLevelId); if (next) selectCampaign(next.id); else showLevelSelect(); } else reset(); });
+$('#winRestart').addEventListener('click', () => { if (infiniteMode && won) selectInfinite(infiniteSeed, infiniteStage + 1); else if (campaignMode && won && !editorPlaytest) { const next = nextCampaignLevel(campaignLevelId); if (next) selectCampaign(next.id); else showLevelSelect(); } else reset(); });
+$('#winEditor').addEventListener('click', showEditor);
+$('#editInfinite').addEventListener('click', () => { if (infiniteMode && editor.loadDocument(activeDemo.document)) showEditor(); });
+$('#copyInfinite').addEventListener('click', async () => {
+  if (!infiniteMode) return;
+  const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.set('infinite', infiniteSeed); url.searchParams.set('stage', String(infiniteStage));
+  try { await navigator.clipboard.writeText(url.href); $('#copyInfinite').textContent = 'Copied ✓'; }
+  catch { $('#infiniteResult').textContent = url.href; $('#infiniteResult').tabIndex = 0; $('#infiniteResult').focus(); $('#copyInfinite').textContent = 'Select link above'; }
+});
 $('#winHome').addEventListener('click', showHome);
 pauseButton.addEventListener('click', () => { if (runState !== 'ready') togglePause(); });
 $('#soundEnabled').addEventListener('change', (event) => audio.setEnabled(event.target.checked));
@@ -1043,39 +1192,40 @@ document.addEventListener('pointerdown', () => audio.unlock(), { capture: true }
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { audio.stopHeartbeat(); audio.context?.suspend().catch(() => {}); } lastFrame = performance.now(); accumulator = 0; });
 function contextAction() {
-  if (settings.open || gallery.open || homeOpen || won || drifted) return;
-  if (experiment.held) experiment.release(body);
+  if (settings.open || gallery.open || homeOpen || editor?.open || won || drifted) return;
+  if (entityRuntime?.held) releaseEntityHold(entityRuntime, body, simTime);
+  else if (experiment.held) experiment.release(body);
   else if (wells.length) removeWell(wells[0].id);
 }
 function updateControls() {
-  const control = primaryControl({state:runState,held:!!experiment.held,wellCount:wells.length});
+  const control = primaryControl({state:runState,held:!!(experiment.held || entityRuntime?.held),wellCount:wells.length});
   const button = $('#primaryAction');
   button.textContent = control.label;
-  button.disabled = control.disabled || settings.open || gallery.open || homeOpen;
+  button.disabled = control.disabled || settings.open || gallery.open || homeOpen || editor?.open;
   pauseButton.disabled = homeOpen || !['running','paused'].includes(runState);
-  $('#restart').disabled = homeOpen || (campaignMode && (runState === 'ready' || won || drifted));
-  $('#restart').textContent = campaignMode ? '✕' : '↺';
-  $('#restart').setAttribute('aria-label', campaignMode ? 'Die' : 'Restart');
-  $('#restart').title = campaignMode ? 'Die (R)' : 'Restart (R)';
-  $('#galleryButton').textContent = campaignMode ? '⌂' : '⊞';
-  $('#galleryButton').setAttribute('aria-label', campaignMode ? 'Home' : 'Demo gallery');
-  $('#galleryButton').title = campaignMode ? 'Home' : 'Demo gallery';
+  $('#restart').disabled = homeOpen || (challengeMode() && (runState === 'ready' || won || drifted));
+  $('#restart').textContent = challengeMode() ? '✕' : '↺';
+  $('#restart').setAttribute('aria-label', challengeMode() ? 'Die' : 'Restart');
+  $('#restart').title = challengeMode() ? 'Die (R)' : 'Restart (R)';
+  $('#galleryButton').textContent = editorPlaytest ? '▤' : challengeMode() ? '⌂' : '⊞';
+  $('#galleryButton').setAttribute('aria-label', editorPlaytest ? 'Back to editor' : challengeMode() ? 'Home' : 'Demo gallery');
+  $('#galleryButton').title = editorPlaytest ? 'Back to editor' : challengeMode() ? 'Home' : 'Demo gallery';
   const canResume = runState === 'paused';
   pauseButton.textContent = canResume ? '▷' : 'Ⅱ';
   pauseButton.setAttribute('aria-label', canResume ? 'Resume' : 'Pause');
   pauseButton.title = canResume ? 'Resume (P)' : 'Pause (P)';
 }
 function primaryAction() {
-  if (settings.open || gallery.open || homeOpen || won || drifted) return;
-  const control = primaryControl({state:runState,held:!!experiment.held,wellCount:wells.length});
+  if (settings.open || gallery.open || homeOpen || editor?.open || won || drifted) return;
+  const control = primaryControl({state:runState,held:!!(experiment.held || entityRuntime?.held),wellCount:wells.length});
   if (control.action === 'start' || control.action === 'resume') togglePause();
-  else if (control.action === 'release') experiment.release(body);
+  else if (control.action === 'release') { if (!releaseEntityHold(entityRuntime, body, simTime)) experiment.release(body); }
   else if (control.action === 'remove') removeWell(wells[0].id);
   updateControls();
 }
 $('#primaryAction').addEventListener('click', primaryAction);
 function togglePause() {
-  if (drifted || won || homeOpen || settings.open || gallery.open) return;
+  if (drifted || won || homeOpen || editor?.open || settings.open || gallery.open) return;
   paused = !paused;
   if (paused) audio.stopHeartbeat();
   runState = paused ? 'paused' : 'running';
@@ -1084,12 +1234,12 @@ function togglePause() {
   lastFrame = performance.now(); updateStatus();
 }
 window.addEventListener('keydown', (event) => {
-  if (settings.open || gallery.open || homeOpen || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (settings.open || gallery.open || homeOpen || editor?.open || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
   const key = event.key.toLowerCase();
   if (key === ' ' && !won && !drifted) { event.preventDefault(); if (!event.repeat) primaryAction(); return; }
   if (event.repeat) return;
   if (key === 'p' && runState !== 'ready') { event.preventDefault(); togglePause(); }
-  if (key === 'r') { if (campaignMode) { if (runState === 'running' || runState === 'paused') failRun('manual'); } else reset(); }
+  if (key === 'r') { if (challengeMode()) { if (runState === 'running' || runState === 'paused') failRun('manual'); } else reset(); }
   if (key === 'e') contextAction();
   if (key === '1' && wells[0]) removeWell(wells[0].id);
   if (key === '2' && wells[1]) removeWell(wells[1].id);
@@ -1110,6 +1260,7 @@ function frame(now) {
       const before = { x: body.position.x, y: body.position.y };
       const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode, activeLevel) : acceleration(body.position, wells, simTime, mode);
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
+      if (entityRuntime) { const pull = entityAcceleration(body.position, activeDemo.entities, entityRuntime); body.applyForce(new CANNON.Vec3(pull.x * body.mass, pull.y * body.mass, 0)); }
       applyMoonGravity();
       world.step(STEP);
       if(activeLevel.channel) constrainChannel(body.position,body.velocity,activeLevel.channel,BLOB_RADIUS);
@@ -1117,24 +1268,31 @@ function frame(now) {
       body.position.z = 0;
       body.velocity.z = 0;
       if (gameMode === 'maze') {
-        capVelocity(body.velocity, activeDemo.mechanic === 'boost' ? 16 : SPEED_CAP);
+        capVelocity(body.velocity, Math.max(activeDemo.mechanic === 'boost' ? 16 : SPEED_CAP,
+          ...(activeDemo.entities || []).filter(entity => entity.type === 'impulse').map(entity => entity.speed)));
         const special = experiment.step(body, before, simTime, wells, mode, failRun);
         if (drifted) break;
+        let entityStep = null;
+        if (entityRuntime) {
+          entityStep = stepEntityRuntime(entityRuntime, activeDemo.entities, before, body, simTime, STEP, activeLevel.bounds);
+          if (entityStep.died) { failRun('hazard'); break; }
+          for (const tone of entityStep.tones) audio.tone(tone === 'lightPickup' ? 587.33 : tone === 'dimmer' ? 196 : tone === 'portal' ? 330 : 440, 0, .35, .08);
+        }
         if (soundGates) {
           const result = stepSoundGates(soundGates, activeDemo.soundGates, before, body.position, simTime);
           soundGates = result.state;
           for (const id of result.acquired) audio.gateAcquire(id);
           for (const { id, beat } of result.beats) audio.gateBeat(id, beat);
         }
-        if (special === 'teleport') {
+        if (special === 'teleport' || entityStep?.teleported) {
           if (trailCount) archiveSegment(trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY], before);
           trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0);
           before.x = body.position.x; before.y = body.position.y;
         }
         if (campaign) {
-          const result = stepCampaign(campaign, { before, hero: body.position, dt: STEP, time: simTime, level: activeLevel });
+          const result = stepCampaign(campaign, { before, hero: body.position, dt: STEP, time: simTime, level: activeLevel, config: activeDemo.settings || CAMPAIGN, extraEnergy: entityStep?.energyDelta || 0 });
           campaign = result.state;
-          experiment.brightness = campaign.energy;
+          experiment.brightness = campaign.energy * (entityRuntime?.eclipseMultiplier ?? 1);
           visitedBounds.minX = Math.min(visitedBounds.minX, body.position.x);
           visitedBounds.maxX = Math.max(visitedBounds.maxX, body.position.x);
           visitedBounds.minY = Math.min(visitedBounds.minY, body.position.y);
@@ -1172,7 +1330,7 @@ function frame(now) {
   }
   core.position.set(body.position.x, body.position.y, 2);
   blobLight.position.set(body.position.x, body.position.y, 1.1);
-  const orbPulse = audio.orb(!homeOpen && !gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000, experiment.brightness);
+  const orbPulse = audio.orb(!homeOpen && !editor?.open && !gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000, experiment.brightness);
   updateControls();
   blobLight.intensity = 85 * experiment.brightness;
   blob.material.transparent = !!campaign;
@@ -1185,6 +1343,7 @@ function frame(now) {
   if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   experiment.updateVisuals(body.position, simTime, experiment.brightness, renderer.getPixelRatio());
+  updateEntityVisuals();
   if (soundGates) updateCampaignGates();
   if (activeDemo.mechanic === 'sound') $('#demoObjective').textContent = `Cross rings to add rhythm · ${experiment.layers.size}/3 voices active${experiment.layers.size ? ' · ' + ['bass','offbeat','chime'].filter((_,i)=>experiment.layers.has(i)).join(' + ') : ' · cyan bass / violet offbeat / gold chime'}`;
   optics.update(body.position,experiment.brightness);
@@ -1193,7 +1352,7 @@ function frame(now) {
   updateWellVisuals();
   updateCamera(elapsed);
   drawMinimap();
-  audio.trail(!homeOpen && !paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
+  audio.trail(!homeOpen && !editor?.open && !paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
   renderer.render(scene, camera);
 }
@@ -1202,5 +1361,6 @@ mazeGroup.visible = !activeDemo.sandbox;
 startingOrbit.visible = !!activeDemo.sandbox;
 if (route.has('demo')) selectDemo(activeDemo.id);
 else if (campaignMode) selectCampaign(campaignLevelId);
+else if (infiniteMode) selectInfinite(infiniteSeed, infiniteStage);
 else { selectDemo(activeDemo.id); showHome(); }
 requestAnimationFrame(frame);

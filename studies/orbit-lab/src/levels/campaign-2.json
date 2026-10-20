@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "id": "campaign-2",
+  "title": "The heavy neighbor",
+  "bounds": {
+    "minX": -20,
+    "maxX": 76,
+    "minY": -27,
+    "maxY": 27
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": 0,
+    "y": 0,
+    "direction": 0,
+    "speed": 1.8
+  },
+  "exit": {
+    "x": 50,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [],
+  "entities": [
+    {
+      "id": "giant",
+      "type": "ember",
+      "x": 28,
+      "y": 0,
+      "radius": 4,
+      "gravity": 70,
+      "lethal": true,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0
+    },
+    {
+      "id": "bass",
+      "type": "soundGate",
+      "x": 10,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "offbeat",
+      "type": "soundGate",
+      "x": 28,
+      "y": 9,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "chime",
+      "type": "soundGate",
+      "x": 43,
+      "y": -5,
+      "radius": 0.9,
+      "slot": 2
+    }
+  ]
+}

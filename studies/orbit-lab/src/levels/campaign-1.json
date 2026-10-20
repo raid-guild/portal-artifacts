@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "id": "campaign-1",
+  "title": "The long crossing",
+  "bounds": {
+    "minX": -20,
+    "maxX": 76,
+    "minY": -27,
+    "maxY": 27
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": 0,
+    "y": 0,
+    "direction": 0,
+    "speed": 1.8
+  },
+  "exit": {
+    "x": 50,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [],
+  "entities": [
+    {
+      "id": "bass",
+      "type": "soundGate",
+      "x": 10,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "offbeat",
+      "type": "soundGate",
+      "x": 24,
+      "y": 6,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "chime",
+      "type": "soundGate",
+      "x": 40,
+      "y": -5,
+      "radius": 0.9,
+      "slot": 2
+    }
+  ]
+}

@@ -31,7 +31,8 @@ injects its site-wide analytics and outbound-link scripts.
 - Right-click a well or use its list button in Settings to remove it.
 - Keyboard: Space performs the primary action (Start, Resume, Release, or remove oldest well); P pauses/resumes; R restarts the current mode; E removes the oldest well or releases a capture.
 
-The root route opens Home, with Campaign and World Studies choices. Campaign
+The root route opens Home, with Campaign, Infinite Play, World Studies, and the
+Level editor. Campaign
 opens a two-level selector; `?campaign=1` and `?campaign=2` open either level
 directly, while `?demo=<id>` keeps a study deep link. Campaign
 starts with 60% light, burns 1.8 percentage points per simulation second,
@@ -47,6 +48,69 @@ placed; Retry starts a new attempt. Continue advances to Level 2, then returns
 to the level selector. Completed levels are marked locally. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
 the full trail result.
+
+## Level editor
+
+Home also opens the Level editor. It starts from Level 1 as an editable draft.
+Choose **Select** to move an element and inspect its properties; **Wall** and
+**Erase** paint continuously with a 1, 2, or 3-unit grid brush. Adjacent paint
+merges into exact wall regions without filling bends or holes; Erase cuts only
+the brushed area and can split a wall. **Line** lays a polyline through tapped
+vertices; Finish line, double-click, or Enter commits it as one undoable wall,
+while Cancel line or Escape discards the preview. Select a line to drag the
+whole shape or its point handles and edit thickness and point coordinates in
+Selected properties. The shared compiler turns each segment into a rotated
+wall with overlapping joints, collision, shadows, and a minimap outline. The
+inspector reports the 300-piece compiled wall budget. Start and Exit
+are unique movable markers. The element menu includes embers (fixed, chasing,
+or orbiting), sound gates, directional impulses, timed stillness and eclipse,
+light pickups and dimmers, and paired transport portals. The inspector edits
+level bounds, light and well rules, and every selected element's values. Pan,
+zoom, fit, undo, and redo support larger rooms. On narrow screens, **Properties**
+opens the inspector drawer.
+
+For an orbiting ember, the editor draws its orbit, center, starting body, and
+direction. Select the moving body or the center; clicking a shared center
+cycles through bodies. The inspector uses **Seconds per revolution** while the
+version 1 JSON keeps linear speed, and changing the orbit radius preserves a
+finite period. Direction can be clockwise or counterclockwise; older JSON
+defaults to counterclockwise. The **Orbit ring · 3 embers** palette option places
+three separately editable embers with 120-degree phase spacing in one undoable
+action. An out-of-bounds ring or a body initially on Start/Exit is rejected.
+
+The draft saves in this browser's local storage after edits; **Save draft**
+also shows save status. **Export JSON** downloads a normalized version 1 level
+document. **Import JSON** validates a file before replacing the draft, leaving
+the current work in place if the file is invalid. Invalid drafts remain
+editable, with errors shown and Playtest/Export disabled until fixed.
+**Playtest** compiles a snapshot into the same bounded campaign physics. Its
+header and result card return to the editor with draft, selection, view, and
+undo history intact. Playtests do not update campaign completion or best-gate
+records. The document keeps the required exit separate from transport pairs;
+interior walls are editable while the four perimeter walls derive from bounds.
+The two shipped campaign levels are version 1 JSON files in `src/levels/` and
+use this same compiler and mixed-entity runtime. Gallery studies keep their
+own experimental rules.
+
+## Infinite Play
+
+Home's **Infinite Play** accepts a seed (up to 64 Unicode characters) or offers
+a random one. A seed and stage reproduce the same 96 × 54 room, including its
+three optional sound gates, three authored recharge embers, short interior
+walls, and modest fixed ember hazards. Its generated room uses the same version
+1 document compiler, physics, follow camera, minimap, light meter, and result
+art as Campaign. The generator reserves a wide, gently bending route and
+verifies a margin-clear path to the exit; it uses a deterministic open-room
+fallback if attempts fail. Difficulty rises gradually through the first ten
+stages. Stage numbers are capped at 1,000,000.
+
+**Retry** regenerates the same seed and stage and resets the attempt's light,
+wells, and gate pattern. A successful **Continue** advances one stage. The
+result shows the seed and stage, offers a shareable `?infinite=<seed>&stage=<n>`
+link, and can load that generated document into the editor for changes. This
+explicitly replaces the current editor draft as one undoable step; it does not
+write campaign completion or gate records. Generated levels use only authored
+recharge embers rather than periodic random spawns.
 
 Each campaign level also has three optional sound gates. Crossing cyan, violet,
 and gold rings adds bass, offbeat, and chime parts to a shared quarter-second

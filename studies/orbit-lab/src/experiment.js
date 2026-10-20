@@ -1,4 +1,4 @@
-import { createStudyVisual } from './study-visuals.js';
+import { createDimmerVisual, createEclipseVisual, createStudyVisual } from './study-visuals.js';
 import * as THREE from 'three';
 import { BLOB_RADIUS, sweptCircleRect } from './level.js';
 import { acceleration } from './physics.js';
@@ -16,8 +16,8 @@ export class Experiment {
   this.clear();this.kind=demo.mechanic;this.walls=demo.level.walls;
   const add=(x,y,r,color,solid=false)=>{
    const glowing=['power','dimmer','giant','chaser','clock','portals'].includes(this.kind);
-   const mesh=glowing?createStudyVisual(['power','dimmer'].includes(this.kind)?.22:r,color,this.kind==='portals'):this.marker(x,y,r,color,solid);
-   if(glowing){mesh.position.set(x,y,1.4);this.group.add(mesh);}
+   const mesh=this.kind==='dimmer'?createDimmerVisual(.22):this.kind==='eclipse'?createEclipseVisual(r):glowing?createStudyVisual(['power','dimmer'].includes(this.kind)?.22:r,color,this.kind==='portals'):this.marker(x,y,r,color,solid);
+   if(glowing||this.kind==='eclipse'){mesh.position.set(x,y,1.4);this.group.add(mesh);}
    const item={x,y,r,mesh};this.items.push(item);return item;
   };
   if(['boost','sticky','eclipse'].includes(this.kind)) add(-3,0,this.kind==='eclipse'?.45:.85,this.kind==='eclipse'?0x131423:this.kind==='boost'?0x76e9e3:0xffd98b,this.kind==='eclipse');

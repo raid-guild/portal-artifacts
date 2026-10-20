@@ -1,5 +1,6 @@
 import { profileContains, profileImpact, channelFrame } from './guide.js';
 import { STEP, acceleration, SOFTENING } from './physics.js';
+import { localWallPoint } from './wall-geometry.js';
 
 export const BLOB_RADIUS = 0.31;
 export const SPEED_CAP = 10;
@@ -22,22 +23,24 @@ export const LEVEL = {
 };
 
 export function circleHitsRect(point, radius, rect) {
-  const dx = Math.max(Math.abs(point.x - rect.x) - rect.w / 2, 0);
-  const dy = Math.max(Math.abs(point.y - rect.y) - rect.h / 2, 0);
+  const local = localWallPoint(point, rect);
+  const dx = Math.max(Math.abs(local.x) - rect.w / 2, 0);
+  const dy = Math.max(Math.abs(local.y) - rect.h / 2, 0);
   return dx * dx + dy * dy <= radius * radius;
 }
 
 // Ray against expanded AABB catches a fast blob before it tunnels through a thin hazard.
 export function sweptCircleRect(from, to, radius, rect) {
-  const minX = rect.x - rect.w / 2 - radius;
-  const maxX = rect.x + rect.w / 2 + radius;
-  const minY = rect.y - rect.h / 2 - radius;
-  const maxY = rect.y + rect.h / 2 + radius;
+  const localFrom = localWallPoint(from, rect), localTo = localWallPoint(to, rect);
+  const minX = -rect.w / 2 - radius;
+  const maxX = rect.w / 2 + radius;
+  const minY = -rect.h / 2 - radius;
+  const maxY = rect.h / 2 + radius;
   let enter = 0;
   let exit = 1;
   for (const [start, delta, min, max] of [
-    [from.x, to.x - from.x, minX, maxX],
-    [from.y, to.y - from.y, minY, maxY],
+    [localFrom.x, localTo.x - localFrom.x, minX, maxX],
+    [localFrom.y, localTo.y - localFrom.y, minY, maxY],
   ]) {
     if (Math.abs(delta) < 1e-9) {
       if (start < min || start > max) return null;
@@ -127,7 +130,7 @@ export function mazeAcceleration(position, wells, time, mode = 'fade', level = L
 export function portalAcceleration(position, level = LEVEL) {
   const dx = level.goal.x - position.x, dy = level.goal.y - position.y;
   const squared = dx * dx + dy * dy + SOFTENING * SOFTENING;
-  const scale = 5 / (squared * Math.sqrt(squared));
+  const scale = (level.goal.gravity ?? 5) / (squared * Math.sqrt(squared));
   return { x: dx * scale, y: dy * scale };
 }
 
