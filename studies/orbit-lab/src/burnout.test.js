@@ -18,6 +18,16 @@ test('light drains in simulation time, clamps, and a swept pickup restores it on
   assert.equal(stepBurnout(result.state, { before: { x: -6, y: 0 }, hero: { x: -6, y: 0 }, level: demo.level, dt: 100, time: 102, rng: constant }).state.energy, 0.06);
 });
 
+test('the burnout study uses the same moon collector rule when a companion exists', () => {
+  const pickup = { id: 7, x: -8, y: 0, createdAt: 0 };
+  const state = { ...createBurnout(0, constant), energy: .1, pickups: [pickup], nextSpawnAt: 100 };
+  const moon = { from: { x: -10, y: 0 }, to: { x: -6, y: 0 }, radius: .16 };
+  const result = stepBurnout(state, { before: { x: 4, y: 0 }, hero: { x: 4, y: 0 }, collectors: [moon, moon], level: demo.level, dt: 0, time: 1, rng: constant });
+  assert.equal(result.collected, 1);
+  assert.equal(result.state.energy, .4);
+  assert.equal(result.state.pickups.length, 0);
+});
+
 test('gate uses hysteresis and waits until hero leaves its rectangle', () => {
   let state = { ...createBurnout(0, constant), energy: 0.34, nextSpawnAt: 100 };
   let result = stepBurnout(state, { before: { x: 5, y: 0 }, hero: { x: 5, y: 0 }, level: demo.level, dt: 0, time: 0, rng: constant });

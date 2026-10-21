@@ -16,11 +16,14 @@ import { createBurnout, stepBurnout, cameraFrame, PICKUP_LIFE } from './burnout.
 import { followFrame, followPosition } from './follow-camera.js';
 import { CAMPAIGN, campaignPointAllowed, canPlaceCampaignWell, createCampaign, getCampaignLevel, nextCampaignLevel, stepCampaign } from './campaign.js';
 import { BEST_GATES_KEY, SOUND_GATE_COLORS, betterGateMask, createSoundGates, gateCount, gatePattern, stepSoundGates, validateBestGates } from './sound-gates.js';
-import { createEntityRuntime, entityAcceleration, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
+import { collectCompanionLight, commitCompanionCaptures, createEntityRuntime, entityAcceleration, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
 import { compileLevelDocument } from './level-document.js';
 import { createEditor } from './editor.js';
-import { generateInfiniteLevel, infiniteRunSeed, normalizeInfiniteSeed, normalizeInfiniteStage, randomInfiniteSeed } from './infinite.js';
+import { INFINITE_VERSION, generateInfiniteLevel, infiniteRunSeed, normalizeInfiniteSeed, normalizeInfiniteStage, randomInfiniteSeed } from './infinite.js';
 import { wallCorners } from './wall-geometry.js';
+import { createCompanionState, stepCompanion } from './companion.js';
+import { createMoonHeat, moonEmberContact, stepMoonHeat } from './moon-heat.js';
+import { EMBER_IMMUNITY, oldestOwnedMoon, rescuePosition, rescueVelocity, safeHeroPoint } from './moon-benefits.js';
 const route = new URLSearchParams(location.search);
 let campaignMode = ['1', '2'].includes(route.get('campaign')) && !route.has('demo');
 let campaignLevelId = campaignMode ? Number(route.get('campaign')) : 1;
@@ -62,11 +65,11 @@ app.innerHTML = `
     <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
     <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R restarts · E removes oldest / releases capture · 1 / 2 remove a specific well.</p>
   </dialog>
-  <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
+  <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="companionHud" class="companion-hud hidden" aria-live="polite"></div><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
   <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><div class="gallery-actions"><button id="homeFromGallery" class="quiet-button" aria-label="Home" title="Home">⌂</button><button id="closeGallery" class="quiet-button" aria-label="Close gallery"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div></div><nav id="demoCategories" class="demo-categories" aria-label="Study categories"></nav><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
   <div id="home" class="home-overlay hidden"><div class="home-card"><span class="eyebrow">ORBIT LAB</span><h1>A little light in a large world.</h1><p>Draw a path with temporary gravity. Keep your light alive until you reach the portal.</p><button id="startCampaign" class="primary-button" type="button">Campaign ↗</button><button id="startInfinite" class="home-secondary" type="button">Infinite Play</button><button id="studyHome" class="home-secondary" type="button">Studies</button><button id="openEditor" class="home-secondary" type="button">Level editor</button></div></div>
-  <div id="infiniteSelect" class="home-overlay hidden"><div class="home-card infinite-select-card"><span class="eyebrow">INFINITE PLAY</span><h1>Every seed makes a world.</h1><p>Cross a new chamber each stage. The same seed and stage always return to the same level.</p><label for="infiniteSeed">World seed</label><input id="infiniteSeed" type="text" maxlength="128" autocomplete="off" spellcheck="false"><div class="infinite-select-actions"><button id="beginInfinite" class="primary-button" type="button">Start crossing ↗</button><button id="infiniteBack" class="home-secondary" type="button">Back home</button></div></div></div>
-  <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN / LEVELS</span><h1>Choose a crossing.</h1><div class="level-cards"><button class="level-card" data-campaign-level="1" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C40 39 65 32 103 32 S130 30 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="65" cy="33" r="6" fill="none" stroke="#7de6df"/></svg><span>01 / LIGHT & DISTANCE</span><strong>The long crossing</strong><small>A clear chamber. Keep the fire alive to reach the far portal.</small><em data-complete="1"></em><span data-gate-best="1"></span></button><button class="level-card" data-campaign-level="2" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C39 39 50 58 80 58 S117 32 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="85" cy="28" r="16" fill="#ff8a32"/><circle cx="85" cy="28" r="24" fill="none" stroke="#ff8a32" opacity=".4"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/></svg><span>02 / GRAVITY & DANGER</span><strong>The heavy neighbor</strong><small>A giant ember bends your path. Keep outside its fire.</small><em data-complete="2"></em><span data-gate-best="2"></span></button></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
+  <div id="infiniteSelect" class="home-overlay hidden"><div class="home-card infinite-select-card"><span class="eyebrow">INFINITE PLAY</span><h1>Every seed makes a world.</h1><p>Cross a new chamber each stage. Generation ${INFINITE_VERSION} adds companion moons, heavy neighbors, and orbiting embers. A seed and stage repeat within this generation.</p><label for="infiniteSeed">World seed</label><input id="infiniteSeed" type="text" maxlength="128" autocomplete="off" spellcheck="false"><div class="infinite-select-actions"><button id="beginInfinite" class="primary-button" type="button">Start crossing ↗</button><button id="infiniteBack" class="home-secondary" type="button">Back home</button></div></div></div>
+  <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN / LEVELS</span><h1>Choose a crossing.</h1><div class="level-cards"><button class="level-card" data-campaign-level="1" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C40 39 65 32 103 32 S130 30 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="65" cy="33" r="6" fill="none" stroke="#7de6df"/></svg><span>01 / LIGHT & DISTANCE</span><strong>The long crossing</strong><small>A clear chamber. Keep the fire alive to reach the far portal.</small><em data-complete="1"></em><span data-gate-best="1"></span></button><button class="level-card" data-campaign-level="2" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C39 39 50 58 80 58 S117 32 147 30" fill="none" stroke="#7de6df" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="85" cy="28" r="16" fill="#ff8a32"/><circle cx="85" cy="28" r="24" fill="none" stroke="#ff8a32" opacity=".4"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/></svg><span>02 / GRAVITY & DANGER</span><strong>The heavy neighbor</strong><small>Gather two pale moons before facing the giant ember.</small><em data-complete="2"></em><span data-gate-best="2"></span></button></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button" type="button">Retry</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
   <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
 `;
@@ -214,6 +217,9 @@ function updateSparks(dt) {
 const archiveCanvas = document.createElement('canvas');
 archiveCanvas.width = 1536; archiveCanvas.height = 1064;
 const archiveContext = archiveCanvas.getContext('2d');
+const moonArchiveCanvas = document.createElement('canvas');
+moonArchiveCanvas.width = archiveCanvas.width; moonArchiveCanvas.height = archiveCanvas.height;
+const moonArchiveContext = moonArchiveCanvas.getContext('2d');
 const archiveTexture = new THREE.CanvasTexture(archiveCanvas);
 archiveTexture.colorSpace = THREE.SRGBColorSpace;
 const archive = new THREE.Mesh(new THREE.PlaneGeometry(26, 18), new THREE.MeshBasicMaterial({ map: archiveTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -226,10 +232,15 @@ function expandArchive(halfWidth, halfHeight) {
   const copy = document.createElement('canvas');
   copy.width = archiveCanvas.width; copy.height = archiveCanvas.height;
   copy.getContext('2d').drawImage(archiveCanvas, 0, 0);
+  const moonCopy = document.createElement('canvas');
+  moonCopy.width = moonArchiveCanvas.width; moonCopy.height = moonArchiveCanvas.height;
+  moonCopy.getContext('2d').drawImage(moonArchiveCanvas, 0, 0);
   archiveContext.clearRect(0, 0, archiveCanvas.width, archiveCanvas.height);
+  moonArchiveContext.clearRect(0, 0, moonArchiveCanvas.width, moonArchiveCanvas.height);
   const w = archiveCanvas.width * archiveHalfWidth / nextX;
   const h = archiveCanvas.height * archiveHalfHeight / nextY;
   archiveContext.drawImage(copy, (archiveCanvas.width - w) / 2, (archiveCanvas.height - h) / 2, w, h);
+  moonArchiveContext.drawImage(moonCopy, (moonArchiveCanvas.width - w) / 2, (moonArchiveCanvas.height - h) / 2, w, h);
   archiveHalfWidth = nextX; archiveHalfHeight = nextY;
   archive.scale.set(nextX / 13, nextY / 9, 1);
   archiveTexture.needsUpdate = true;
@@ -254,11 +265,22 @@ const trail = new THREE.Mesh(trailGeometry, new THREE.ShaderMaterial({
 }));
 trail.frustumCulled = false;
 trail.position.z = 0.72; scene.add(trail);
-function clearTrail() { archiveContext.clearRect(0, 0, archiveCanvas.width, archiveCanvas.height); archiveHalfWidth = 13; archiveHalfHeight = 9; archive.scale.set(1, 1, 1); archiveTexture.needsUpdate = true; trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0); }
+function clearTrail() { archiveContext.clearRect(0, 0, archiveCanvas.width, archiveCanvas.height); moonArchiveContext.clearRect(0, 0, moonArchiveCanvas.width, moonArchiveCanvas.height); archiveHalfWidth = 13; archiveHalfHeight = 9; archive.scale.set(1, 1, 1); archiveTexture.needsUpdate = true; trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0); }
 function archiveSegment(a, b) {
   const sx = archiveCanvas.width / (archiveHalfWidth * 2), sy = archiveCanvas.height / (archiveHalfHeight * 2);
   archiveContext.beginPath(); archiveContext.moveTo((a.x + archiveHalfWidth) * sx, (archiveHalfHeight - a.y) * sy); archiveContext.lineTo((b.x + archiveHalfWidth) * sx, (archiveHalfHeight - b.y) * sy);
   archiveContext.strokeStyle = 'rgba(80,226,222,.095)'; archiveContext.lineWidth = 2; archiveContext.lineCap = 'round'; archiveContext.stroke(); archiveTexture.needsUpdate = true;
+}
+function archiveCompanionSegment(a, b) {
+  expandArchive(Math.max(Math.abs(a.x), Math.abs(b.x)) + 2, Math.max(Math.abs(a.y), Math.abs(b.y)) + 2);
+  const sx = moonArchiveCanvas.width / (archiveHalfWidth * 2), sy = moonArchiveCanvas.height / (archiveHalfHeight * 2);
+  moonArchiveContext.beginPath();
+  moonArchiveContext.moveTo((a.x + archiveHalfWidth) * sx, (archiveHalfHeight - a.y) * sy);
+  moonArchiveContext.lineTo((b.x + archiveHalfWidth) * sx, (archiveHalfHeight - b.y) * sy);
+  moonArchiveContext.strokeStyle = 'rgba(195,174,255,.22)';
+  moonArchiveContext.lineWidth = 1.25;
+  moonArchiveContext.lineCap = 'round';
+  moonArchiveContext.stroke();
 }
 const forecastMaterial = new THREE.LineDashedMaterial({ color: 0x92faff, transparent: true, opacity: 0.25, dashSize: 0.11, gapSize: 0.14 });
 const forecast = new THREE.Line(new THREE.BufferGeometry(), forecastMaterial);
@@ -392,6 +414,10 @@ let editorPlaytest = false;
 let editor;
 let soundGates = null;
 let entityRuntime = null;
+let emberImmuneUntil = -1;
+let lastSafeHero = null;
+let moonCueUntil = -1;
+const hasCompanionRule = () => activeDemo.mechanic === 'companion' || (activeDemo.entities || []).some(entity => entity.type === 'companion');
 let wellsUsed = 0;
 let homeOpen = false;
 let visitedBounds = null;
@@ -446,9 +472,13 @@ function rebuildEntityVisuals() {
       mesh = createEclipseVisual(entity.radius);
     } else if (entity.type === 'dimmer') {
       mesh = createDimmerVisual(.22);
-    } else if (entity.type === 'ember' || entity.type === 'lightPickup' || entity.type === 'portal') {
-      const color = entity.type === 'ember' ? 0xff8a32 : entity.type === 'lightPickup' ? 0xffdf9b : entity.type === 'portal' ? 0x76e9e3 : 0xbfa5ff;
-      mesh = createStudyVisual(entity.type === 'ember' || entity.type === 'portal' ? entity.radius : .22, color, entity.type === 'portal');
+    } else if (entity.type === 'ember' || entity.type === 'lightPickup' || entity.type === 'portal' || entity.type === 'companion') {
+      const color = entity.type === 'ember' ? 0xff8a32 : entity.type === 'lightPickup' ? 0xffdf9b : entity.type === 'portal' ? 0x76e9e3 : 0xcdb7ff;
+      mesh = createStudyVisual(entity.type === 'ember' || entity.type === 'portal' || entity.type === 'companion' ? entity.radius : .22, color, entity.type === 'portal');
+      if (entity.type === 'companion') {
+        const influence = ring(entity.captureRadius, new THREE.LineDashedMaterial({ color: 0xcdb7ff, transparent: true, opacity: .24, dashSize: .14, gapSize: .17, depthWrite: false }));
+        influence.computeLineDistances(); mesh.add(influence);
+      }
     } else {
       const color = entity.type === 'portal' ? 0x79e1d6 : entity.type === 'impulse' ? 0x76e9e3 : entity.type === 'eclipse' ? 0x675d84 : 0xffd98b;
       mesh = new THREE.Group();
@@ -576,16 +606,21 @@ function reset() {
   clearSparks();
   drifted = false;
   won = false;
+  emberImmuneUntil = -1;
+  moonCueUntil = -1;
+  lastSafeHero = null;
   paused = true; runState = 'ready';
   driftOverlay.classList.add('hidden');
   winOverlay.classList.add('hidden');
   $('#deathFlash').classList.remove('visible');
   caption.textContent = gameMode === 'maze' ? 'PLACE A WELL · THEN START' : 'TAP START TO RELEASE';
+  caption.classList.remove('moon-cue');
   body.force.setZero();
   body.angularVelocity.setZero();
   if (gameMode === 'maze') {
     body.position.set(activeLevel.spawn.x, activeLevel.spawn.y, 0);
     body.velocity.set(activeLevel.spawn.vx, activeLevel.spawn.vy, 0);
+    lastSafeHero = { x: body.position.x, y: body.position.y };
     attempts += 1;
     $('#attempts').textContent = attempts;
     if (challengeMode()) visitedBounds = { minX: body.position.x, maxX: body.position.x, minY: body.position.y, maxY: body.position.y };
@@ -629,7 +664,7 @@ function showRunArt(success, reason = 'darkness') {
     minY: Math.min(visitedBounds.minY, activeLevel.spawn.y, body.position.y) - 6,
     maxY: Math.max(visitedBounds.maxY, activeLevel.spawn.y, body.position.y) + 6,
   } : activeLevel.bounds;
-  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, bounds, activeLevel.spawn, body.position);
+  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, bounds, activeLevel.spawn, body.position, moonArchiveCanvas);
   $('#resultEyebrow').textContent = success ? 'COURSE COMPLETE' : 'SIGNAL LOST';
   $('#resultTitle').textContent = challengeMode() ? success ? 'Light carried home.' : reason === 'manual' ? 'Journey ended.' : reason === 'hazard' ? 'Taken by the ember.' : 'The light went out.' : 'Your orbit.';
   $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${challengeMode() ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
@@ -641,7 +676,7 @@ function showRunArt(success, reason = 'darkness') {
   $('#infiniteResult').classList.toggle('hidden', !infiniteMode);
   $('#editInfinite').classList.toggle('hidden', !infiniteMode);
   $('#copyInfinite').classList.toggle('hidden', !infiniteMode);
-  if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage}`;
+  if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage} · Generation ${INFINITE_VERSION}`;
   $('#winRestart').textContent = challengeMode() ? success && !editorPlaytest ? 'Continue ↗' : 'Retry' : 'Fly again ↗';
   $('#winEditor').classList.toggle('hidden', !editorPlaytest);
   winOverlay.classList.remove('hidden');
@@ -762,10 +797,10 @@ function updateResourceHud() {
   if (!burnout && !campaign) return;
   const energy = campaign?.energy ?? burnout.energy;
   $('#resourceValue').textContent = `${Math.round(energy * 100)}%`;
-  $('#resourceFill').style.width = `${lastEmbers ? campaign.graceLeft / CAMPAIGN.graceSeconds * 100 : energy * 100}%`;
+  $('#resourceFill').style.width = `${lastEmbers ? campaign.graceLeft / (campaign.graceDuration || CAMPAIGN.graceSeconds) * 100 : energy * 100}%`;
   if (lastEmbers) {
     $('#resourceValue').textContent = `${Math.ceil(campaign.graceLeft)}s`;
-    hud.style.setProperty('--warning-period', `${.55 + campaign.graceLeft / CAMPAIGN.graceSeconds * .65}s`);
+    hud.style.setProperty('--warning-period', `${.55 + campaign.graceLeft / (campaign.graceDuration || CAMPAIGN.graceSeconds) * .65}s`);
   }
   $('#gateStatus').textContent = campaign ? energy > 0 ? `${wellsUsed} WELL${wellsUsed === 1 ? '' : 'S'}` : 'LAST EMBERS' : burnout.pendingClose ? 'GATE CLOSING' : burnout.gateOpen ? 'GATE OPEN' : 'GATE CLOSED';
   if (campaign) {
@@ -818,19 +853,7 @@ function rebuildExperiment() {
     setGateOpen(true);
   }
   updateResourceHud();
-  for (const moon of activeDemo.moons) {
-    const satellite = new CANNON.Body({ mass: .08, shape: new CANNON.Sphere(.16), material: blobMaterial, linearDamping: 0, angularDamping: 0, fixedRotation: true });
-    satellite.position.set(moon.x, moon.y, 0); satellite.velocity.set(moon.vx, moon.vy, 0); world.addBody(satellite);
-    const mesh = new THREE.Group();
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(.16, 20, 12), new THREE.MeshBasicMaterial({ color: activeDemo.plate ? 0xffd88a : 0xd8cdff }));
-    const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: activeDemo.plate ? 0xffb853 : 0xbda3ff, transparent: true, opacity: .5, depthWrite: false, blending: THREE.AdditiveBlending }));
-    aura.scale.set(1.2, 1.2, 1); mesh.add(dot, aura); moonGroup.add(mesh);
-    const positions = new Float32Array(160 * 3);
-    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage)); geometry.setDrawRange(0, 0);
-    const trail = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: activeDemo.plate ? 0xf2c66a : 0xb9a5eb, transparent: true, opacity: .28, depthWrite: false }));
-    trail.frustumCulled = false; moonGroup.add(trail);
-    moonEntries.push({ body: satellite, mesh, trail, positions, count: 0, lastSample: -1 });
-  }
+  for (const moon of activeDemo.moons) addMoon(moon, activeDemo.mechanic === 'companion');
   if (activeDemo.plate) {
     plateRing = new THREE.Group(); plateRing.position.set(activeDemo.plate.x, activeDemo.plate.y, .7);
     plateRing.add(ring(activeDemo.plate.radius, new THREE.LineBasicMaterial({ color: 0xffd88a, transparent: true, opacity: .9 })));
@@ -838,9 +861,9 @@ function rebuildExperiment() {
     plateRing.children[1].computeLineDistances(); mazeGroup.add(plateRing);
   }
   const moving = moonEntries.length > 0 || !!activeDemo.mechanic;
-  $('#heroGravity').disabled = !moonEntries.length;
+  $('#heroGravity').disabled = hasCompanionRule() || !moonEntries.length;
   $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
-  $('#heroGravityHelp').textContent = moving ? 'Pulls loose moons; their small mass also tugs back. Set 0 to compare.' : 'Choose a moon study to explore the dot’s own gravity.';
+  $('#heroGravityHelp').textContent = hasCompanionRule() ? 'Companions follow the dot without pulling back. Try the loose moon studies for reciprocal gravity.' : moving ? 'Pulls loose moons; their small mass also tugs back. Set 0 to compare.' : 'Choose a moon study to explore the dot’s own gravity.';
   showForecast.disabled = moving; forecast.visible = showForecast.checked && !moving;
   $('#forecastHelp').textContent = moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
   $('#activeDemoLabel').textContent = activeDemo.title;
@@ -848,21 +871,120 @@ function rebuildExperiment() {
   $('#demoTitle').textContent = activeDemo.title;
   $('#demoObjective').textContent = activeDemo.objective;
   $('#demoNote').style.setProperty('--demo-color', activeDemo.color);
+  $('#companionHud').classList.toggle('hidden', !hasCompanionRule());
+  updateCompanionHud();
   for (const card of document.querySelectorAll('[data-demo]')) card.setAttribute('aria-pressed', String(card.dataset.demo === activeDemo.id));
 }
-function applyMoonGravity() {
+function addMoon(moon, companion = false) {
+    const satellite = new CANNON.Body({ mass: .08, shape: new CANNON.Sphere(.16), material: blobMaterial, linearDamping: 0, angularDamping: 0, fixedRotation: true });
+    satellite.position.set(moon.x, moon.y, 0); satellite.velocity.set(moon.vx, moon.vy, 0); world.addBody(satellite);
+    const mesh = new THREE.Group();
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(.16, 20, 12), new THREE.MeshBasicMaterial({ color: activeDemo.plate ? 0xffd88a : 0xd8cdff }));
+    const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: activeDemo.plate ? 0xffb853 : 0xbda3ff, transparent: true, opacity: .5, depthWrite: false, blending: THREE.AdditiveBlending }));
+    aura.scale.set(1.2, 1.2, 1); mesh.add(dot, aura); moonGroup.add(mesh);
+    const heatAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: emberMap, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    heatAura.scale.set(1.1, 1.1, 1); mesh.add(heatAura);
+    const heatSparks = [];
+    if (companion) for (let i = 0; i < 5; i++) {
+      const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: emberMap, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+      spark.scale.set(.15, .15, 1); mesh.add(spark); heatSparks.push(spark);
+    }
+    const positions = new Float32Array(160 * 3);
+    const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage)); geometry.setDrawRange(0, 0);
+    const trail = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: activeDemo.plate ? 0xf2c66a : 0xb9a5eb, transparent: true, opacity: .28, depthWrite: false }));
+    trail.frustumCulled = false; moonGroup.add(trail);
+    moonEntries.push({ body: satellite, mesh, trail, positions, count: 0, lastSample: -1, lastArchive: { x: moon.x, y: moon.y }, companionState: companion ? createCompanionState() : null, heat: companion ? createMoonHeat() : null, heatAura, heatSparks });
+}
+function removeMoon(entry) {
+  world.removeBody(entry.body);
+  disposeObject(entry.mesh);
+  disposeObject(entry.trail);
+  moonEntries.splice(moonEntries.indexOf(entry), 1);
+  updateCompanionHud();
+}
+function moonCue(message) {
+  caption.textContent = message;
+  caption.classList.add('moon-cue');
+  moonCueUntil = simTime + 1.6;
+}
+function rescueHero(before, ember) {
+  const moon = oldestOwnedMoon(moonEntries);
+  if (!moon || !ember || simTime < emberImmuneUntil) return false;
+  const point = rescuePosition({ before, lastSafe: lastSafeHero, ember, level: activeLevel, entities: activeDemo.entities, runtime: entityRuntime });
+  if (!point) return false;
+  removeMoon(moon);
+  const velocity = rescueVelocity(point, ember);
+  body.position.set(point.x, point.y, 0);
+  body.previousPosition.copy(body.position);
+  body.interpolatedPosition.copy(body.position);
+  body.velocity.set(velocity.x, velocity.y, 0);
+  body.force.setZero();
+  body.aabbNeedsUpdate = true;
+  body.wakeUp();
+  lastSafeHero = point;
+  emberImmuneUntil = simTime + EMBER_IMMUNITY;
+  trailStart = 0; trailCount = 0; trailGeometry.setDrawRange(0, 0);
+  audio.tone(783.99, 0, .22, .09);
+  audio.tone(523.25, .12, .4, .06);
+  moonCue('MOON SAVED YOU');
+  return true;
+}
+function acquireCompanions(ids) {
+  for (const item of commitCompanionCaptures(entityRuntime, ids)) {
+    const dx = item.x - body.position.x, dy = item.y - body.position.y;
+    const distance = Math.hypot(dx, dy) || 1;
+    addMoon({ x: item.x, y: item.y, vx: body.velocity.x - dy / distance * 1.35, vy: body.velocity.y + dx / distance * 1.35 }, true);
+    audio.tone(659.25, 0, .26, .055);
+  }
+  updateCompanionHud();
+}
+function updateCompanionHud() {
+  if (!hasCompanionRule()) return;
+  const entries = moonEntries.filter(entry => entry.companionState);
+  const count = entries.length;
+  const hud = $('#companionHud');
+  const phases = [...new Set(entries.map(entry => entry.heat?.smoldering ? 'smoldering' : entry.companionState.phase))];
+  const moonSources = (activeDemo.entities || []).filter(entity => entity.type === 'companion');
+  const allSpent = moonSources.length > 0 && moonSources.every(entity => entityRuntime?.items[entity.id]?.used);
+  const label = `${count} companion${count === 1 ? '' : 's'}${phases.length ? ` · ${phases.join(' / ')}` : allSpent ? ' · none remaining' : ' · find the pale moons'}`;
+  if (hud.textContent !== label) hud.textContent = label;
+  hud.dataset.phase = phases.length === 1 ? phases[0] : '';
+}
+function applyMoonGravity(heroActualAcceleration) {
   if (!moonEntries.length) return;
-  const moons = moonEntries.map(entry => ({ x: entry.body.position.x, y: entry.body.position.y, mass: entry.body.mass }));
-  const exchange = gravityExchange(body.position, moons, heroGravity);
-  body.applyForce(new CANNON.Vec3(exchange.hero.x * body.mass, exchange.hero.y * body.mass, 0));
-  for (let i = 0; i < moonEntries.length; i++) {
-    const satellite = moonEntries[i].body;
-    const a = mazeAcceleration(satellite.position, wells, simTime, mode, activeLevel);
-    satellite.applyForce(new CANNON.Vec3((a.x + exchange.moons[i].x) * satellite.mass, (a.y + exchange.moons[i].y) * satellite.mass, 0));
+  const looseEntries = moonEntries.filter(entry => !entry.companionState);
+  if (looseEntries.length) {
+    const moons = looseEntries.map(entry => ({ x: entry.body.position.x, y: entry.body.position.y, mass: entry.body.mass }));
+    const exchange = gravityExchange(body.position, moons, heroGravity);
+    body.applyForce(new CANNON.Vec3(exchange.hero.x * body.mass, exchange.hero.y * body.mass, 0));
+    for (let i = 0; i < looseEntries.length; i++) {
+      const satellite = looseEntries[i].body;
+      const a = mazeAcceleration(satellite.position, wells, simTime, mode, activeLevel);
+      satellite.applyForce(new CANNON.Vec3((a.x + exchange.moons[i].x) * satellite.mass, (a.y + exchange.moons[i].y) * satellite.mass, 0));
+    }
+  }
+  const companions = moonEntries.filter(entry => entry.companionState);
+  if (!companions.length) return;
+  const heroWellAcceleration = acceleration(body.position, wells, simTime, mode);
+  for (const entry of companions) {
+    const satellite = entry.body;
+    const moonWellAcceleration = acceleration(satellite.position, wells, simTime, mode);
+    const result = stepCompanion(entry.companionState, {
+      hero: { x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y },
+      moon: { x: satellite.position.x, y: satellite.position.y, vx: satellite.velocity.x, vy: satellite.velocity.y },
+      heroAcceleration: heroActualAcceleration, heroWellAcceleration, moonWellAcceleration,
+      wells, time: simTime, dt: STEP,
+    });
+    entry.companionState = result.state;
+    satellite.applyForce(new CANNON.Vec3(result.acceleration.x * satellite.mass, result.acceleration.y * satellite.mass, 0));
+    if (result.returned && simTime >= entry.companionState.returnToneAt) {
+      audio.tone(523.25, 0, .18, .025);
+      entry.companionState.returnToneAt = simTime + 4;
+    }
   }
 }
 function updateGate() {
-  for (const entry of moonEntries) { entry.body.position.z = 0; entry.body.velocity.z = 0; capVelocity(entry.body.velocity); }
+  for (const entry of moonEntries) { entry.body.position.z = 0; entry.body.velocity.z = 0; capVelocity(entry.body.velocity, entry.companionState ? Math.max(18, Math.hypot(body.velocity.x, body.velocity.y) + 8) : 10); }
   if (gateOpen || !plateActivated(activeDemo.plate, moonEntries.map(entry => entry.body.position))) return;
   setGateOpen(true);
   for (const mark of plateRing.children) mark.material.color.setHex(0x87f9ce);
@@ -872,12 +994,56 @@ function updateGate() {
 function updateMoonVisuals() {
   for (const entry of moonEntries) {
     const p = entry.body.position; entry.mesh.position.set(p.x, p.y, 2);
+    if (entry.companionState) {
+      entry.trail.material.opacity = entry.companionState.phase === 'returning' ? .5 : entry.companionState.phase === 'borrowed' ? .25 : .32;
+      entry.mesh.children[1].material.opacity = entry.companionState.phase === 'returning' ? .68 : .52;
+      const heat = entry.heat?.heat || 0;
+      entry.heatAura.material.opacity = heat ? .35 + .3 * Math.sin(simTime * 18) ** 2 : 0;
+      entry.heatAura.scale.setScalar(1.1 + heat * .4);
+      entry.mesh.children[0].material.color.setHex(heat ? 0xffba7c : 0xd8cdff);
+      for (let i = 0; i < entry.heatSparks.length; i++) {
+        const spark = entry.heatSparks[i];
+        const age = (simTime * (2.3 + i * .17) + i * .23) % 1;
+        const angle = i * 2.4 + simTime * .9;
+        spark.position.set(Math.cos(angle) * (.12 + age * .3), Math.sin(angle) * (.12 + age * .3), .04);
+        spark.material.opacity = heat ? Math.min(.6, heat / .7) * (1 - age) : 0;
+      }
+    }
     if (simTime - entry.lastSample < .05 || paused) continue;
     entry.lastSample = simTime;
     if (entry.count === 160) { entry.positions.copyWithin(0, 3); entry.count--; }
     entry.positions.set([p.x, p.y, .8], entry.count++ * 3);
     entry.trail.geometry.attributes.position.needsUpdate = true; entry.trail.geometry.setDrawRange(0, entry.count);
   }
+}
+function recordCompanionMotion() {
+  const collectors = [];
+  for (const entry of [...moonEntries]) {
+    if (!entry.companionState) continue;
+    const to = { x: entry.body.position.x, y: entry.body.position.y };
+    const from = entry.lastArchive;
+    archiveCompanionSegment(from, to);
+    entry.lastArchive = to;
+    if (challengeMode() && visitedBounds) {
+      visitedBounds.minX = Math.min(visitedBounds.minX, from.x, to.x);
+      visitedBounds.maxX = Math.max(visitedBounds.maxX, from.x, to.x);
+      visitedBounds.minY = Math.min(visitedBounds.minY, from.y, to.y);
+      visitedBounds.maxY = Math.max(visitedBounds.maxY, from.y, to.y);
+    }
+    const contact = moonEmberContact(from, to, .16, activeDemo.entities, entityRuntime);
+    const wasSmoldering = entry.heat.smoldering;
+    const thermal = stepMoonHeat(entry.heat, contact, STEP);
+    entry.heat = thermal.state;
+    if (thermal.ignited) audio.tone(261.63, 0, .13, .032, 174.61);
+    if (thermal.burned) {
+      audio.noise(.18, 1700, .07);
+      removeMoon(entry);
+      continue;
+    }
+    // A crossing that starts or ends hot cannot gather light in this step.
+    if (!wasSmoldering && !thermal.state.smoldering && !contact) collectors.push({ from, to, radius: .16 });
+  }
+  return collectors;
 }
 
 function demoThumbnail(demo) {
@@ -899,7 +1065,7 @@ const gallery = $('#gallery');
 $('#demoGrid').innerHTML = DEMOS.map(demo => `<button type="button" class="demo-card" data-demo="${demo.id}" style="--demo-color:${demo.color}" aria-pressed="false">${demoThumbnail(demo)}<span class="demo-rule">${demo.rule}</span><strong>${demo.title}</strong><span>${demo.description}</span><em>${demo.question}</em></button>`).join('');
 const demoCategories = [
   ['All', DEMOS.map(demo => demo.id)],
-  ['Gravity', ['drift','satellites','slingshot','gate','orbit','release','boost','sticky','giant','chaser','clock']],
+  ['Gravity', ['drift','satellites','companion','slingshot','gate','orbit','release','boost','sticky','giant','chaser','clock']],
   ['Light', ['eclipse','power','dimmer','hidden','shadow-posts','filters','lens','prism','burnout']],
   ['Sound', ['sound']],
   ['Space & paths', ['maze','guide','portals','wideworld']],
@@ -1105,8 +1271,9 @@ function drawMinimap() {
   if (entityRuntime) for (const entity of activeDemo.entities) if (entity.type !== 'soundGate') {
     const item = entityRuntime.items[entity.id]; if (item.used) continue;
     marker(item.x, item.y, entity.type === 'ember' ? Math.max(3, entity.radius * Math.min(sx, sy)) : 3,
-      entity.type === 'ember' ? '#e36d31' : entity.type === 'portal' ? '#76e9e3' : entity.type === 'dimmer' ? '#bfa5ff' : '#ffd58e');
+      entity.type === 'ember' ? '#e36d31' : entity.type === 'portal' ? '#76e9e3' : entity.type === 'companion' ? '#cdb7ff' : entity.type === 'dimmer' ? '#bfa5ff' : '#ffd58e');
   }
+  for (const entry of moonEntries) if (entry.companionState) marker(entry.body.position.x, entry.body.position.y, 2.5, '#cdb7ff');
   if (!entityRuntime) for (const danger of activeLevel.dangers || []) { ctx.beginPath(); ctx.arc(x(danger.x), y(danger.y), danger.radius * Math.min(sx, sy), 0, Math.PI * 2); ctx.fillStyle = '#e36d31'; ctx.fill(); }
   for (const well of wells) marker(well.x, well.y, 3.5, '#79d6ef');
   ctx.strokeStyle = '#d6f9f0'; ctx.lineWidth = 1.5;
@@ -1260,11 +1427,13 @@ function frame(now) {
       const before = { x: body.position.x, y: body.position.y };
       const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode, activeLevel) : acceleration(body.position, wells, simTime, mode);
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
-      if (entityRuntime) { const pull = entityAcceleration(body.position, activeDemo.entities, entityRuntime); body.applyForce(new CANNON.Vec3(pull.x * body.mass, pull.y * body.mass, 0)); }
-      applyMoonGravity();
+      const heroActualAcceleration = { ...a };
+      if (entityRuntime) { const pull = entityAcceleration(body.position, activeDemo.entities, entityRuntime); body.applyForce(new CANNON.Vec3(pull.x * body.mass, pull.y * body.mass, 0)); heroActualAcceleration.x += pull.x; heroActualAcceleration.y += pull.y; }
+      applyMoonGravity(heroActualAcceleration);
       world.step(STEP);
       if(activeLevel.channel) constrainChannel(body.position,body.velocity,activeLevel.channel,BLOB_RADIUS);
       updateGate();
+      const moonCollectors = recordCompanionMotion();
       body.position.z = 0;
       body.velocity.z = 0;
       if (gameMode === 'maze') {
@@ -1274,8 +1443,24 @@ function frame(now) {
         if (drifted) break;
         let entityStep = null;
         if (entityRuntime) {
-          entityStep = stepEntityRuntime(entityRuntime, activeDemo.entities, before, body, simTime, STEP, activeLevel.bounds);
-          if (entityStep.died) { failRun('hazard'); break; }
+          // A rescued sweep is rolled back before any pending pickup or capture
+          // can be committed on the next tick.
+          const entitySnapshot = challengeMode() && simTime >= emberImmuneUntil && oldestOwnedMoon(moonEntries) ? structuredClone(entityRuntime) : null;
+          entityStep = stepEntityRuntime(entityRuntime, activeDemo.entities, before, body, simTime, STEP, activeLevel.bounds, { emberImmune: simTime < emberImmuneUntil });
+          if (entityStep.died) {
+            if (challengeMode() && rescueHero(before, entityStep.fatalEmber)) {
+              if (entitySnapshot) entityRuntime = entitySnapshot;
+              simTime += STEP;
+              accumulator -= STEP;
+              continue;
+            }
+            failRun('hazard'); break;
+          }
+          if (moonCollectors.length) {
+            const light = collectCompanionLight(entityRuntime, activeDemo.entities, moonCollectors, simTime, body.position);
+            entityStep.energyDelta += light.energyDelta;
+            if (light.collected) entityStep.tones.push('lightPickup');
+          }
           for (const tone of entityStep.tones) audio.tone(tone === 'lightPickup' ? 587.33 : tone === 'dimmer' ? 196 : tone === 'portal' ? 330 : 440, 0, .35, .08);
         }
         if (soundGates) {
@@ -1290,8 +1475,16 @@ function frame(now) {
           before.x = body.position.x; before.y = body.position.y;
         }
         if (campaign) {
-          const result = stepCampaign(campaign, { before, hero: body.position, dt: STEP, time: simTime, level: activeLevel, config: activeDemo.settings || CAMPAIGN, extraEnergy: entityStep?.energyDelta || 0 });
+          const result = stepCampaign(campaign, { before, hero: body.position, collectors: moonCollectors, dt: STEP, time: simTime, level: activeLevel, config: activeDemo.settings || CAMPAIGN, extraEnergy: entityStep?.energyDelta || 0, availableCompanions: moonEntries.filter(entry => entry.companionState?.owned && !entry.heat?.burned).length });
           campaign = result.state;
+          if (result.consumedCompanion) {
+            const moon = oldestOwnedMoon(moonEntries);
+            if (moon) removeMoon(moon);
+            audio.stopHeartbeat();
+            audio.tone(392, 0, .22, .08);
+            audio.tone(587.33, .16, .38, .06);
+            moonCue('MOON BOUGHT 4 SECONDS');
+          }
           experiment.brightness = campaign.energy * (entityRuntime?.eclipseMultiplier ?? 1);
           visitedBounds.minX = Math.min(visitedBounds.minX, body.position.x);
           visitedBounds.maxX = Math.max(visitedBounds.maxX, body.position.x);
@@ -1302,7 +1495,7 @@ function frame(now) {
           if (result.failed) { failRun(); break; }
         }
         if (burnout) {
-          const result = stepBurnout(burnout, { before, hero: body.position, level: activeDemo.level, dt: STEP, time: simTime });
+          const result = stepBurnout(burnout, { before, hero: body.position, collectors: moonCollectors, level: activeDemo.level, dt: STEP, time: simTime });
           burnout = result.state;
           experiment.brightness = burnout.energy;
           if (result.collected) audio.tone(587.33, 0, .35, .08);
@@ -1313,7 +1506,9 @@ function frame(now) {
         }
         const impact = firstImpact(before, body.position, activeLevel);
         if (impact?.type === 'spike') { failRun(); break; }
+        if (entityStep?.companions?.length) acquireCompanions(entityStep.companions);
         if (impact?.type === 'goal') { winRun(); break; }
+        if (challengeMode() && safeHeroPoint(body.position, activeLevel, activeDemo.entities || [], entityRuntime)) lastSafeHero = { x: body.position.x, y: body.position.y };
       }
       simTime += STEP;
       accumulator -= STEP;
@@ -1329,6 +1524,11 @@ function frame(now) {
     }
   }
   core.position.set(body.position.x, body.position.y, 2);
+  if (moonCueUntil >= 0 && simTime >= moonCueUntil) {
+    moonCueUntil = -1;
+    caption.classList.remove('moon-cue');
+    if (runState === 'running') caption.textContent = '';
+  }
   blobLight.position.set(body.position.x, body.position.y, 1.1);
   const orbPulse = audio.orb(!homeOpen && !editor?.open && !gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000, experiment.brightness);
   updateControls();
@@ -1337,6 +1537,10 @@ function frame(now) {
   blob.material.opacity = campaign ? .08 + campaign.energy * .92 : 1;
   blob.scale.setScalar(1 + orbPulse * .055);
   heroGlow.scale.setScalar(2.3 + orbPulse * .25);
+  if (simTime < emberImmuneUntil) {
+    heroGlow.scale.setScalar(3.1 + orbPulse * .3);
+    heroGlow.material.color.setHex(0xcdb7ff);
+  } else heroGlow.material.color.setHex(0xffffff);
   heroGlow.material.opacity = (.83 + orbPulse * .17) * Math.min(1, experiment.brightness);
   if (!paused && !drifted && !won) updateSparks(elapsed);
   if (gameMode === 'maze') updateHazardSparks();
@@ -1348,6 +1552,7 @@ function frame(now) {
   if (activeDemo.mechanic === 'sound') $('#demoObjective').textContent = `Cross rings to add rhythm · ${experiment.layers.size}/3 voices active${experiment.layers.size ? ' · ' + ['bass','offbeat','chime'].filter((_,i)=>experiment.layers.has(i)).join(' + ') : ' · cyan bass / violet offbeat / gold chime'}`;
   optics.update(body.position,experiment.brightness);
   if (burnout || campaign) { syncPickups(); updateResourceHud(); }
+  updateCompanionHud();
   updateMoonVisuals();
   updateWellVisuals();
   updateCamera(elapsed);

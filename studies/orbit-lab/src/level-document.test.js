@@ -95,3 +95,12 @@ test('orbit direction is optional for older JSON and round-trips when clockwise'
   assert.equal(parseLevelDocument(JSON.stringify(checked.document)).document.entities.at(-1).orbitDirection,'clockwise');
   d.entities.at(-1).orbitDirection='sideways';assert.equal(validateLevelDocument(d).ok,false);
 });
+
+test('campaign companion pickups survive schema round-trip and require a valid influence radius', () => {
+  const checked=validateLevelDocument(two);
+  assert.equal(checked.ok,true,checked.errors.join('\n'));
+  assert.equal(checked.document.entities.filter(e=>e.type==='companion').length,2);
+  assert.deepEqual(compileLevelDocument(checked.document).entities.filter(e=>e.type==='companion'),two.entities.filter(e=>e.type==='companion'));
+  const invalid=copy(two);invalid.entities.find(e=>e.type==='companion').captureRadius=NaN;
+  assert.equal(validateLevelDocument(invalid).ok,false);
+});

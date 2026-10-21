@@ -3,7 +3,7 @@ import { compiledWallGeometry, wallCorners } from './wall-geometry.js';
 import { DEFAULT_ORBIT_DIRECTION, ORBIT_DIRECTIONS, orbitPosition } from './orbit.js';
 
 export const LEVEL_DOCUMENT_VERSION = 1;
-export const ENTITY_TYPES = ['ember', 'soundGate', 'impulse', 'stillness', 'eclipse', 'lightPickup', 'dimmer', 'portal'];
+export const ENTITY_TYPES = ['ember', 'soundGate', 'impulse', 'stillness', 'eclipse', 'lightPickup', 'dimmer', 'portal', 'companion'];
 const MAX_BYTES = 262144;
 const clone = value => JSON.parse(JSON.stringify(value));
 const plain = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -91,12 +91,15 @@ export function validateLevelDocument(input) {
     if (e.type === 'ember') {
       base.gravity = number(e.gravity, `${name}.gravity`, errors, 0, 500);
       base.lethal = e.lethal; if (typeof e.lethal !== 'boolean') errors.push(`${name}.lethal must be boolean`);
+      if (e.burnsCompanions !== undefined && typeof e.burnsCompanions !== 'boolean') errors.push(`${name}.burnsCompanions must be boolean`);
+      base.burnsCompanions = e.burnsCompanions ?? false;
       base.motion = e.motion; if (!['fixed', 'chaser', 'orbit'].includes(e.motion)) errors.push(`${name}.motion is invalid`);
       base.speed = number(e.speed, `${name}.speed`, errors, 0, 20);
       base.orbitRadius = number(e.orbitRadius, `${name}.orbitRadius`, errors, 0, 40);
       base.phase = number(e.phase, `${name}.phase`, errors, -360, 360);
       if (e.orbitDirection !== undefined && !ORBIT_DIRECTIONS.includes(e.orbitDirection)) errors.push(`${name}.orbitDirection must be clockwise or counterclockwise`);
       base.orbitDirection = e.orbitDirection ?? DEFAULT_ORBIT_DIRECTION;
+      if (base.burnsCompanions && (!base.lethal || base.motion !== 'fixed')) errors.push(`${name}.burnsCompanions requires a fixed lethal ember`);
     } else if (e.type === 'soundGate') {
       base.slot = number(e.slot, `${name}.slot`, errors, 0, 2);
       if (!Number.isInteger(e.slot) || slots.has(e.slot)) errors.push(`${name}.slot must be unique (0, 1, or 2)`);
@@ -115,6 +118,8 @@ export function validateLevelDocument(input) {
       base.pairId = id(e.pairId, `${name}.pairId`, errors);
       base.exitDirection = number(e.exitDirection, `${name}.exitDirection`, errors, -360, 360);
       pairs.set(e.pairId, (pairs.get(e.pairId) || 0) + 1);
+    } else if (e.type === 'companion') {
+      base.captureRadius = number(e.captureRadius, `${name}.captureRadius`, errors, .5, 10);
     }
     return base;
   }).filter(Boolean);
@@ -147,7 +152,7 @@ export function validateLevelDocument(input) {
   }
   for (const entity of entities) {
     const sweep = entity.type === 'ember' && entity.motion === 'orbit' ? entity.orbitRadius : 0;
-    if (!within(entity, bounds, entity.radius + sweep)) errors.push(`entity ${entity.id} must fit inside bounds`);
+    if (!within(entity, bounds, entity.type === 'companion' ? entity.captureRadius : entity.radius + sweep)) errors.push(`entity ${entity.id} must fit inside bounds`);
   }
   for (const ember of entities.filter(e => e.type === 'ember' && e.lethal)) {
     const initial = ember.motion === 'orbit' ? orbitPosition(ember, 0) : ember;

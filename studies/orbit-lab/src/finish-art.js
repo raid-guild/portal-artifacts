@@ -1,5 +1,5 @@
 // Frame the complete run in map coordinates, independent of phone orientation.
-export function drawFinishArt(canvas, archive, halfWidth, halfHeight, bounds, start, end) {
+export function drawFinishArt(canvas, archive, halfWidth, halfHeight, bounds, start, end, moonArchive = null) {
   const context = canvas.getContext('2d');
   const width = canvas.width, height = canvas.height;
   context.fillStyle = '#050e18'; context.fillRect(0, 0, width, height);
@@ -12,6 +12,12 @@ export function drawFinishArt(canvas, archive, halfWidth, halfHeight, bounds, st
   const sw = (bounds.maxX - bounds.minX) / (halfWidth * 2) * archive.width;
   const sh = (bounds.maxY - bounds.minY) / (halfHeight * 2) * archive.height;
   context.save(); context.globalCompositeOperation = 'lighter';
+  if (moonArchive) {
+    // The lavender paths are a quieter second layer beneath the hero's light.
+    context.globalAlpha = .68;
+    context.drawImage(moonArchive, sx, sy, sw, sh, left, top, mapWidth, mapHeight);
+    context.globalAlpha = 1;
+  }
   // Lift the faint permanent marks so the whole journey is visible in the print.
   context.filter = 'blur(3px)';
   for (let i = 0; i < 4; i++) context.drawImage(archive, sx, sy, sw, sh, left, top, mapWidth, mapHeight);
