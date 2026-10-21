@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>if(!/\/$|\.html$/.test(location.pathname))location.replace(location.pathname+'/'+location.search+location.hash)</script>
+    <!-- The home page (F-904, F-907): the site's root, about the game, which is at play/. Plain HTML: the words, the pictures and the Play links are all here, so the page is whole without its script.
+         The folder's trailing slash is guarded above for the same reason as on the game's page: every address here is relative. -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="theme-color" content="#16161e" />
     <title>Mini RC Racers</title>
-    <!-- The link preview card (F-310). The address token in these tags is the deployed site address, VITE_SITE_URL at build time:
-         vite.config.ts fills it in (with a trailing slash) or, when it is not set, makes the image address relative and drops og:url. -->
+    <!-- The link preview card (F-310, F-901): this page's address is the site root, VITE_SITE_URL at build time (vite.config.ts fills it in, or drops og:url when it is not set). -->
     <meta name="description" content="1/10 scale electric RC racing. Pick your favorite RC class, race at your club track against AI drivers, and beat the leaderboard. Mini RC Racers is a top-down pixel-art game that runs in your browser." />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Mini RC Racers" />
@@ -20,13 +23,154 @@
     <meta name="twitter:title" content="Mini RC Racers" />
     <meta name="twitter:description" content="1/10 scale electric RC racing. Pick your favorite RC class, race at your club track against AI drivers, and beat the leaderboard. Mini RC Racers is a top-down pixel-art game that runs in your browser." />
     <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/rc-racers/og-image.png" />
-    <style>html,body{background:#000;height:100%;margin:0;overflow:hidden}#game{position:fixed;inset:0}#game canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}</style>
-    <script type="module" crossorigin src="./assets/index-DsT1NCZ_.js"></script>
-    <link rel="modulepreload" crossorigin href="./assets/phaser-CTbIuaw5.js">
-    <link rel="modulepreload" crossorigin href="./assets/depth-RKrR4cf5.js">
-    <link rel="modulepreload" crossorigin href="./assets/RaceScene-Ds7KO684.js">
+    <!-- The game's letters as a web font (F-902), asked for before the stylesheet names it. The poster is what every visitor sees first. -->
+    <link rel="preload" href="landing/mrr-pixel.woff2" as="font" type="font/woff2" crossorigin />
+    <script type="module" crossorigin src="./assets/main-DLsaAdgO.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/main-ZKMuziDJ.css">
   </head>
   <body>
-    <div id="game"></div>
+    <!-- The race behind everything (fixed), and the veil of ink over it. The script adds the loop's sources after the page's load event, and only when the visitor's settings allow it. -->
+    <video class="race" muted loop playsinline preload="none" poster="landing/poster.jpg" aria-hidden="true" tabindex="-1"></video>
+    <div class="veil"></div>
+    <!-- The first screen's height at the top of the page: while any of it is in view, the hero is not wholly covered (main.ts watches it). -->
+    <div class="first-screen" aria-hidden="true"></div>
+
+    <!-- No element is called "top": "#top" is then the top of the document, which the back-to-top links go to without a script. -->
+    <header class="hero" tabindex="-1">
+      <div class="hero-main">
+        <h1 class="logo"><img src="landing/logo.png" width="277" height="103" alt="Mini RC Racers" /></h1>
+        <p class="tagline">1/10 Electric RC Racing</p>
+        <p class="soon">Mobile is coming soon!</p>
+        <a class="play play-desktop" href="play/">PLAY</a>
+        <button class="play-touch" type="button" disabled>Play on a Desktop Browser</button>
+      </div>
+      <button class="video-toggle" type="button" aria-label="Pause video" aria-pressed="false" hidden></button>
+      <p class="more" aria-hidden="true">▼</p>
+    </header>
+
+    <div class="bar">
+      <a class="bar-logo" href="#top"><img src="landing/logo.png" width="277" height="103" alt="Mini RC Racers" /></a>
+      <a class="play play-desktop" href="play/">PLAY</a>
+      <button class="play-touch" type="button" disabled>Play on a Desktop Browser</button>
+    </div>
+
+    <main>
+      <section class="panel" id="modes" aria-labelledby="modes-title">
+        <h2 id="modes-title">A CLUB RACE DAY</h2>
+        <figure class="shot"><img src="landing/stills/modes.png" width="328" height="246" alt="The game's menu: PRACTICE, QUICK RACE picked out in yellow, and RACE DAY." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>PRACTICE: your car alone. The official calls every lap.</li>
+          <li>QUICK RACE: one race against one, three or six AI cars.</li>
+          <li>RACE DAY: qualifying with a staggered start, then a final from the grid. Points and a podium.</li>
+          <li>Either way round the track.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="classes" aria-labelledby="classes-title">
+        <h2 id="classes-title">FOUR CLASSES, SEVEN COLOURS</h2>
+        <!-- The four cars sweep through one frame, each coming in over the last (landing.css, "the classes sweep"); with reduced motion they stand together. -->
+        <figure class="shot sweep">
+          <div class="slide"><img src="landing/stills/class-tc-stock-175.png" width="328" height="246" alt="The garage's Touring Car 17.5T Stock from above, in yellow." loading="lazy" decoding="async" /><span class="plate" aria-hidden="true">Touring Car 17.5T Stock</span></div>
+          <div class="slide"><img src="landing/stills/class-tc-mod-45.png" width="328" height="246" alt="The garage's Touring Car Modified 4.5T from above, in blue." loading="lazy" decoding="async" /><span class="plate" aria-hidden="true">Touring Car Modified 4.5T</span></div>
+          <div class="slide"><img src="landing/stills/class-fwd-105.png" width="328" height="246" alt="The garage's FWD Touring Car 10.5T from above, in green." loading="lazy" decoding="async" /><span class="plate" aria-hidden="true">FWD Touring Car 10.5T</span></div>
+          <div class="slide"><img src="landing/stills/class-f1-215.png" width="328" height="246" alt="The garage's F1 21.5T from above, in red." loading="lazy" decoding="async" /><span class="plate" aria-hidden="true">F1 21.5T</span></div>
+        </figure>
+        <ul class="lines">
+          <li class="tags"><span>Touring Car 17.5T Stock</span> <span>Touring Car Modified 4.5T</span> <span>FWD Touring Car 10.5T</span> <span>F1 21.5T</span></li>
+          <li>Three bodies. The same physics; a different drive, motor and mass.</li>
+          <li>Seven colours. Pick yours.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="pitstop" aria-labelledby="pitstop-title">
+        <h2 id="pitstop-title">THE F1 PIT STOP</h2>
+        <figure class="shot"><img src="landing/stills/pitstop.png" width="328" height="326" alt="An F1 final: a blue F1 car stands in its pit box, PITS and an empty box in the top band, and the official counts down PIT STOP 4." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Every F1 final owes one pit stop.</li>
+          <li>Into the pit lane: the car is held for five seconds, and the PITS box at the top is ticked.</li>
+          <li>Skip it and you finish behind every car that stopped.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="track" aria-labelledby="track-title">
+        <h2 id="track-title">A REAL CLUB TRACK</h2>
+        <figure class="shot"><img src="landing/stills/track.png" width="328" height="246" alt="A marshal in an orange vest at a red and white kerb, as a yellow and a blue car go by." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Traced from a drone photo of a real club track. Kerbs, islands, tyres.</li>
+          <li>Marshals at their posts.</li>
+          <li>The drivers on the stand. Yours is there too.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="ai" aria-labelledby="ai-title">
+        <h2 id="ai-title">THIRTEEN RIVALS</h2>
+        <figure class="shot"><img src="landing/stills/ai.png" width="328" height="246" alt="Six cars bunched round a hairpin kerb, the player's white car ringed among them." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Thirteen AI drivers, up to six on track at once.</li>
+          <li>Each has a skill, a temper and a home colour.</li>
+          <li>They race, defend, mistime a brake and roll, like you do.</li>
+          <li>No rubber-banding. The difficulty setting is yours.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="incidents" aria-labelledby="incidents-title">
+        <h2 id="incidents-title">PENALTIES AND CRASHES</h2>
+        <figure class="shot"><img src="landing/stills/incidents.png" width="328" height="246" alt="A marshal reaches an orange car on its roof on the start straight, as the player's ringed white car goes by." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Cut the track or stay on the grass: a five-second stop and hold.</li>
+          <li>Contact: a warning, then a penalty.</li>
+          <li>Too hard over a kerb, or a hard hit, and the car is on its roof.</li>
+          <li>A marshal walks out and sets it back. Usually.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="weather" aria-labelledby="weather-title">
+        <h2 id="weather-title">SUN, CLOUD, RAIN AND WIND</h2>
+        <figure class="shot"><img src="landing/stills/weather.png" width="328" height="246" alt="Heavy rain on a bend: a puddle on the asphalt, streaks of rain, an orange and a red car on the kerb." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Dry, cloudy, light rain, heavy rain, changing through an event.</li>
+          <li>Puddles at the low spots, and spray.</li>
+          <li>Less grip in the wet, least of all on the kerbs.</li>
+          <li>Gusts lean on a 1.5 kg car. Read the windsock.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="voices" aria-labelledby="voices-title">
+        <h2 id="voices-title">THE OFFICIAL AND THE COMMENTATOR</h2>
+        <figure class="shot"><img src="landing/stills/voices.png" width="328" height="300" alt="The official's window calling RAIN, and under it the commentator: Brandl and car 4 swap places, nose to tail." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>The official runs the day: the starts, the penalties, the pit stops, the last minute.</li>
+          <li>The commentator never stops. Passes, spins, rolls and rain.</li>
+          <li>Natural voices: Daniel and Eddy on a Mac, the system's own elsewhere.</li>
+          <li>V turns their voices on and off.</li>
+        </ul>
+      </section>
+
+      <section class="panel" id="leaderboards" aria-labelledby="leaderboards-title">
+        <h2 id="leaderboards-title">TOP-TEN BOARDS</h2>
+        <figure class="shot"><img src="landing/stills/leaderboards.png" width="328" height="396" alt="A fastest-lap board: ten initials and lap times, the best at 0:22.418." loading="lazy" decoding="async" /></figure>
+        <ul class="lines">
+          <li>Fastest lap and best race, per track, direction and class, kept in your browser.</li>
+          <li>Your initials on the board.</li>
+          <li>Each record keeps the weather it was set in. Filter: ALL, DRY, CHANGEABLE, WET.</li>
+        </ul>
+      </section>
+    </main>
+
+    <section class="last-call" id="last-call" aria-labelledby="last-call-title">
+      <h2 id="last-call-title">PLAY IT IN YOUR BROWSER</h2>
+      <p class="strap">BEAT THE SCORES - MASTER THE TRACK</p>
+      <p class="soon">Mobile is coming soon!</p>
+      <a class="play play-desktop" href="play/">PLAY</a>
+      <button class="play-touch" type="button" disabled>Play on a Desktop Browser</button>
+    </section>
+
+    <footer class="footer">
+      <a class="to-top" href="#top">BACK TO TOP</a>
+      <p>A game by Santiago Gonzalez - RaidGuild</p>
+      <p class="version"></p>
+      <p><a href="third-party-licences.txt">Third-party licences</a></p>
+    </footer>
+
   </body>
 </html>
