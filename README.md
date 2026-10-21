@@ -126,7 +126,7 @@ Open <http://localhost:8080>.
 
 ## Rewind — Wall / Rise concept
 
-`public/rewind/` is a standalone interactive music concept at `/rewind/`: an optional wireframe wall climbs through selectable Fold, Fractal, reflective Sculpture, and Ink backgrounds, breaks on command, and rebuilds to Tanner Royster’s “Rewind.” The wall and lyrics start hidden with volume at zero. A detailed Sputnik-style wireframe satellite is independently toggleable. Fold offers Clouds, Caverns, and Ribbons structures plus Near, Wide, and default Far zoom views; Fold and Fractal allow a slow ±18° view bank. The canonical editable source is the published directory; [`studies/rewind/`](studies/rewind/README.md) documents the controls, attribution, and versioned share cover.
+`public/rewind/` is a standalone interactive music concept at `/rewind/`: an optional wireframe wall climbs through selectable Fold, Fractal, reflective Sculpture, and Ink backgrounds, breaks on command, and rebuilds to Tanner Royster’s “Rewind.” The supplied full song streams natively, with optional precomputed wall timing that never blocks playback. Supplied lyrics have editable approximate cues. The wall and lyrics start hidden with volume at zero. A detailed Sputnik-style wireframe satellite is independently toggleable. Fold offers Clouds, Caverns, and Ribbons structures plus Near, Wide, and default Far zoom views; Fold and Fractal allow a slow ±18° view bank. The canonical editable source is the published directory; [`studies/rewind/`](studies/rewind/README.md) documents the controls, attribution, and versioned share cover.
 
 ## Puddle — Seven Tower Gardens
 

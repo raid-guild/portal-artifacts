@@ -1,5 +1,5 @@
 import { drawWall, structureAt, WALL_CONFIG } from './wall.mjs?v=visibility-1';
-import { activeCue, bundledCues, validateCues } from './lyrics.mjs?v=draft-lyrics-1';
+import { activeCue, bundledCues, validateCues } from './lyrics.mjs?v=full-song-1';
 import { analyzeAudioBlob } from './onsets.mjs';
 import { createInkwash } from './vendor/inkwash.js';
 import { createSculpture } from './sculpture.mjs?v=continuous-flow-1';
@@ -18,18 +18,33 @@ let width = 0, height = 0, dpr = 1;
 let audioContext, analyser, source, frequency;
 let animation = 0, fileURL = null, messageTimer = 0;
 let sourceReplaced = false;
-let onsetSchedule = Object.freeze([]), analysisPromise = null, analysisGeneration = 0;
+let onsetSchedule = Object.freeze([]), analysisGeneration = 0;
 let inkwash = null, sculpture = null, fractal = null, fractalKind = null, backgroundMode = 'fold';
 const foldStructures = { clouds: 0, caverns: 1, ribbons: 2 };
 let foldStructure = 'clouds';
 let foldZoom = 10;
-function syncFoldStructureControl() {
+function syncBackgroundControls() {
   const hidden = backgroundMode !== 'fold';
   $('foldStructureControl').hidden = hidden;
   $('foldZoomControl').hidden = hidden;
+  $('dockZoomChoices').hidden = hidden;
+  $('dockStructureChoices').hidden = hidden;
+  const visibleMode = backgroundMode === 'canvas' ? 'ink' : backgroundMode;
+  $('backgroundSelect').value = visibleMode;
+  $('foldZoomSelect').value = String(foldZoom);
+  $('foldStructureSelect').value = foldStructure;
+  document.querySelectorAll('[data-structure]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.structure === foldStructure));
+  });
+  document.querySelectorAll('[data-background]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.background === visibleMode));
+  });
+  document.querySelectorAll('[data-zoom]').forEach(button => {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.zoom) === foldZoom));
+  });
 }
 let pendingSharedRestore = null, sharedContextLost = false;
-let fieldPainted = false, fieldFailed = false, analysisReady = false, lastInkFrame = 0;
+let fieldPainted = false, fieldFailed = false, lastInkFrame = 0;
 let sculpturePose = { time: 0, energy: { bass: 0, mid: 0, treble: 0, pulse: 0 } };
 const sculptureBands = { bass: 0, mid: 0, treble: 0 };
 let lastSculptureEnergyTime = 0;
@@ -44,7 +59,45 @@ const BANK_RESPONSE = .6; // Slow approach and return: about five seconds to 95%
 const ORIENTATION_DURATION = 8000;
 const heldBankKeys = new Set(), heldBankPointers = new Map();
 let bankAngle = 0, lastBankFrame = 0;
+let backgroundTime = 0, backgroundAudioTime = 0, backgroundFrameTime = 0;
+let rewindHeld = false, rewindPointer = null, rewindKeyboard = false;
 const bankMode = () => backgroundMode === 'fold' || backgroundMode === 'fractal';
+const rewindMode = () => bankMode() || backgroundMode === 'sculpture';
+function syncRewindControl() {
+  const button = $('backgroundRewindButton');
+  button.hidden = !rewindMode();
+  button.disabled = reducedMotion.matches;
+  button.setAttribute('aria-pressed', String(rewindHeld));
+  button.title = rewindHeld ? 'Rewinding background (3×)' : 'Hold to rewind background (3×)';
+}
+function resetBackgroundClock() {
+  backgroundTime = backgroundAudioTime = audio.currentTime || 0;
+  backgroundFrameTime = performance.now();
+}
+function advanceBackgroundClock(now = performance.now()) {
+  const audioTime = audio.currentTime || 0;
+  if (rewindHeld) backgroundTime = Math.max(0, backgroundTime - 3 * Math.max(0, (now - backgroundFrameTime) / 1000));
+  else backgroundTime = Math.max(0, backgroundTime + audioTime - backgroundAudioTime);
+  backgroundAudioTime = audioTime;
+  backgroundFrameTime = now;
+}
+function cancelBackgroundRewind() {
+  if (rewindHeld) advanceBackgroundClock();
+  rewindPointer = null;
+  rewindKeyboard = false;
+  rewindHeld = false;
+  syncRewindControl();
+}
+function setBackgroundRewindHeld() {
+  const held = rewindMode() && !reducedMotion.matches && (rewindPointer !== null || rewindKeyboard);
+  if (held === rewindHeld) return;
+  advanceBackgroundClock();
+  rewindHeld = held;
+  syncRewindControl();
+  if (held) startFrames();
+  else if (audio.paused) stopFrames();
+  else render();
+}
 function bankDirection() {
   const left = heldBankKeys.has('KeyA') || [...heldBankPointers.values()].includes(-1);
   const right = heldBankKeys.has('KeyD') || [...heldBankPointers.values()].includes(1);
@@ -69,15 +122,13 @@ const energy = { bass: 0, mid: 0, treble: 0 };
 
 function loaderStage(message) { if ($('loaderStage').textContent !== message) $('loaderStage').textContent = message; }
 function revealWhenReady() {
-  if (analysisReady && (fieldPainted || fieldFailed) && !$('loader').classList.contains('hidden')) {
+  if ((fieldPainted || fieldFailed) && !$('loader').classList.contains('hidden')) {
     loaderStage('Ready');
     $('loader').classList.add('hidden');
   }
 }
 function installAnalysis({ duration, events }, generation) {
   if (generation !== analysisGeneration) return;
-  analysisReady = true;
-  revealWhenReady();
   const schedule = Object.freeze(events.map(event => Object.freeze({
     time: event.time / duration * WALL_CONFIG.phases.at(-1),
     strength: event.strength,
@@ -87,10 +138,21 @@ function installAnalysis({ duration, events }, generation) {
   render();
 }
 function analyzeSource(blob, generation) {
-  loaderStage('Analyzing sound');
   return analyzeAudioBlob(blob).then(result => installAnalysis(result, generation))
-    .catch(error => { console.warn('Using timed rise without attack analysis:', error);
-      if (generation === analysisGeneration) { analysisReady = true; revealWhenReady(); } });
+    .catch(error => { if (generation === analysisGeneration) console.warn('Using timed rise without attack analysis:', error); });
+}
+
+function validateBundledAnalysis(data) {
+  if (!data || !Number.isFinite(data.duration) || data.duration <= 0 || !Array.isArray(data.events)) throw new Error('Invalid bundled onset data.');
+  let previousTime = -1;
+  for (const event of data.events) {
+    if (!event || !Number.isFinite(event.time) || event.time < 0 || event.time > data.duration ||
+        !Number.isFinite(event.strength) || event.strength < 0 || event.strength > 1 || event.time < previousTime) {
+      throw new Error('Invalid bundled onset event.');
+    }
+    previousTime = event.time;
+  }
+  return data;
 }
 
 function resetAnalysis(preserveSculpture = false) {
@@ -166,6 +228,9 @@ function resize() {
   render();
 }
 function useFallback(error) {
+  setSceneOverlays(false, false);
+  cancelBackgroundRewind();
+  resetBackgroundClock();
   clearBank(true, false);
   if (inkwash) { try { inkwash.dispose(); } catch {} inkwash = null; }
   $('field').style.display = 'none';
@@ -173,8 +238,8 @@ function useFallback(error) {
   $('fractal').style.display = 'none';
   document.body.classList.remove('fractal-mode');
   backgroundMode = 'canvas';
-  syncFoldStructureControl();
-  $('backgroundSelect').value = 'ink';
+  syncBackgroundControls();
+  syncRewindControl();
   fieldFailed = true;
   revealWhenReady();
   if (error) { console.warn('Inkwash unavailable:', error); showStatus('Fluid ink unavailable; using the Canvas wash.'); }
@@ -191,41 +256,65 @@ function prepareInk() {
   } catch(error) { useFallback(error); return false; }
 }
 function useFoldFallback(error) {
+  setSceneOverlays(false, false);
+  cancelBackgroundRewind();
+  resetBackgroundClock();
   clearBank(true, false);
   if (fractal) { try { fractal.dispose(); } catch {} fractal = null; fractalKind = null; }
   console.warn('Fold unavailable:', error);
   showStatus('Fold unavailable; using Fractal.');
   backgroundMode = 'fractal';
-  syncFoldStructureControl();
+  syncBackgroundControls();
   setBackground('fractal');
 }
 function useFractalFallback(error) {
+  setSceneOverlays(false, false);
+  cancelBackgroundRewind();
+  resetBackgroundClock();
   clearBank(true, false);
   if (fractal) { try { fractal.dispose(); } catch {} fractal = null; fractalKind = null; }
   $('fractal').style.display = 'none';
   console.warn('Fractal unavailable:', error);
   showStatus('Fractal unavailable; using Sculpture.');
   backgroundMode = 'sculpture';
-  syncFoldStructureControl();
+  syncBackgroundControls();
   setBackground('sculpture');
 }
 function useSculptureFallback(error) {
+  setSceneOverlays(false, false);
+  cancelBackgroundRewind();
+  resetBackgroundClock();
   clearBank(true, false);
   if (sculpture) { try { sculpture.dispose(); } catch {} sculpture = null; }
   $('sculpture').style.display = 'none';
   console.warn('Sculpture unavailable:',error);
   showStatus('Sculpture unavailable; using Ink.');
   backgroundMode = 'ink';
-  syncFoldStructureControl();
+  syncBackgroundControls();
+  syncRewindControl();
   document.body.classList.remove('fractal-mode');
   $('fractal').style.display = 'none';
-  $('backgroundSelect').value = 'ink';
   if (prepareInk()) $('field').style.display = '';
   else fieldFailed = true;
   render();
 }
+function setSceneOverlays(wall, craft) {
+  wallVisible = wall;
+  sputnikVisible = craft;
+  document.body.classList.toggle('wall-hidden', !wallVisible);
+  const wallButton = $('wallVisibilityButton');
+  wallButton.setAttribute('aria-pressed', String(wallVisible));
+  wallButton.setAttribute('aria-label', wallVisible ? 'Hide wall' : 'Show wall');
+  wallButton.title = wallVisible ? 'Hide wall (W)' : 'Show wall (W)';
+  $('breakButton').disabled = !wallVisible;
+  $('verticalOrbitButton').disabled = !wallVisible;
+  const craftButton = $('sputnikVisibilityButton');
+  craftButton.setAttribute('aria-pressed', String(sputnikVisible));
+  craftButton.setAttribute('aria-label', sputnikVisible ? 'Hide satellite' : 'Show satellite');
+  craftButton.title = sputnikVisible ? 'Hide satellite (S)' : 'Show satellite (S)';
+}
 function setBackground(mode) {
-  if (mode !== backgroundMode) clearBank(true, false);
+  if (mode !== backgroundMode) { setSceneOverlays(false, false); clearBank(true, false); cancelBackgroundRewind(); resetBackgroundClock(); }
   if (mode === 'fold' || mode === 'fractal') {
     if (fractal && fractalKind !== mode) { fractal.dispose(); fractal = null; fractalKind = null; }
     if (!fractal) {
@@ -245,8 +334,8 @@ function setBackground(mode) {
     if (!prepareInk()) return;
     lastInkFrame = 0;
   }
-  $('backgroundSelect').value = backgroundMode;
-  syncFoldStructureControl();
+  syncBackgroundControls();
+  syncRewindControl();
   $('sculpture').style.display = backgroundMode === 'sculpture' ? '' : 'none';
   $('fractal').style.display = (backgroundMode === 'fractal' || backgroundMode === 'fold') ? '' : 'none';
   document.body.classList.toggle('fractal-mode', backgroundMode === 'fractal' || backgroundMode === 'fold');
@@ -289,18 +378,20 @@ function updateLyrics() {
   $('lyricOverlay').textContent = cue?.text || '';
   $('lyricOverlay').classList.toggle('has-cue', !!cue);
 }
-function render() {
+function render(now = performance.now()) {
+  advanceBackgroundClock(now);
   updateEnergy();
   if ((backgroundMode === 'fractal' || backgroundMode === 'fold') && fractal) {
     try {
-      if (backgroundMode === 'fold') fractal.render(audio.currentTime || 0,reducedMotion.matches,bankAngle,foldStructures[foldStructure],foldZoom);
-      else fractal.render(audio.currentTime || 0,reducedMotion.matches,bankAngle,0);
+      if (backgroundMode === 'fold') fractal.render(backgroundTime,reducedMotion.matches,bankAngle,foldStructures[foldStructure],foldZoom);
+      else fractal.render(backgroundTime,reducedMotion.matches,bankAngle,0);
       fieldPainted = true; revealWhenReady();
     }
     catch(error) { if (backgroundMode === 'fold') useFoldFallback(error); else useFractalFallback(error); }
   } else if (backgroundMode === 'sculpture' && sculpture) {
     try {
-      if (!audio.paused && !reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0, energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}};
+      if (rewindHeld && !reducedMotion.matches) sculpturePose = {time:backgroundTime, energy:{...sculpturePose.energy,drive:sculptureDriveAt(backgroundTime)}};
+      else if (!audio.paused && !reducedMotion.matches) sculpturePose = {time:backgroundTime, energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(backgroundTime)}};
       sculpture.render(sculpturePose.time,sculpturePose.energy,reducedMotion.matches);
       fieldPainted = true;
       revealWhenReady();
@@ -348,13 +439,13 @@ function frame(now) {
     verticalOrbit = Object.fromEntries(Object.keys(target).map(axis => [axis, from[axis] + (target[axis] - from[axis]) * eased]));
     if (progress >= 1) orientationTween = null;
   }
-  render();
-  if ((!audio.paused && !audio.ended && !reducedMotion.matches) || orientationTween || bankMoving()) startFrames();
+  render(now);
+  if ((!audio.paused && !audio.ended && !reducedMotion.matches) || orientationTween || bankMoving() || (rewindHeld && backgroundTime > 0)) startFrames();
   else lastBankFrame = 0;
 }
 function startFrames() { if (!animation) { if (!lastBankFrame) lastBankFrame = performance.now(); animation = requestAnimationFrame(frame); } }
 function stopFrames() {
-  if (orientationTween || bankMoving()) { startFrames(); return; }
+  if (orientationTween || bankMoving() || (rewindHeld && backgroundTime > 0)) { startFrames(); return; }
   if (animation) cancelAnimationFrame(animation);
   animation = 0; lastBankFrame = 0; render();
 }
@@ -388,32 +479,23 @@ async function togglePlayback() {
   if (audio.ended || audio.currentTime >= clipDuration() - .05) {
     clearBreaks();
     audio.currentTime = 0;
+    cancelBackgroundRewind();
+    resetBackgroundClock();
     inkwash?.reset(0);
     sculpturePose = {time:0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:0}};
     render();
   }
-  if (analysisPromise) await Promise.race([analysisPromise, new Promise(resolve => setTimeout(resolve, 1200))]);
   await prepareAudio();
   try { await audio.play(); } catch (error) { showStatus('Could not play this audio file.'); }
 }
 
 playButton.addEventListener('click', togglePlayback);
 $('sputnikVisibilityButton').addEventListener('click', () => {
-  sputnikVisible = !sputnikVisible;
-  const button = $('sputnikVisibilityButton');
-  button.setAttribute('aria-pressed', String(sputnikVisible));
-  button.setAttribute('aria-label', sputnikVisible ? 'Hide satellite' : 'Show satellite');
-  button.title = sputnikVisible ? 'Hide satellite (S)' : 'Show satellite (S)';
+  setSceneOverlays(wallVisible, !sputnikVisible);
   render();
 });
 $('wallVisibilityButton').addEventListener('click', () => {
-  wallVisible = !wallVisible;
-  document.body.classList.toggle('wall-hidden', !wallVisible);
-  $('wallVisibilityButton').setAttribute('aria-pressed', String(wallVisible));
-  $('wallVisibilityButton').setAttribute('aria-label', wallVisible ? 'Hide wall' : 'Show wall');
-  $('wallVisibilityButton').title = wallVisible ? 'Hide wall (W)' : 'Show wall (W)';
-  $('breakButton').disabled = !wallVisible;
-  $('verticalOrbitButton').disabled = !wallVisible;
+  setSceneOverlays(!wallVisible, sputnikVisible);
   render();
 });
 $('breakButton').addEventListener('click', triggerBreak);
@@ -421,11 +503,11 @@ audio.addEventListener('play', syncPlayButton);
 audio.addEventListener('pause', () => { resetAnalysis(true); syncPlayButton(); });
 audio.addEventListener('ended', () => { resetAnalysis(); syncPlayButton(); });
 audio.addEventListener('timeupdate', () => { if (audio.paused || reducedMotion.matches) render(); });
-audio.addEventListener('seeking', () => resetAnalysis());
-audio.addEventListener('seeked', () => { resetAnalysis(); inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); sculpturePose = {time:audio.currentTime || 0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; lastInkFrame = 0; render(); });
+audio.addEventListener('seeking', () => { cancelBackgroundRewind(); resetBackgroundClock(); resetAnalysis(); });
+audio.addEventListener('seeked', () => { cancelBackgroundRewind(); resetBackgroundClock(); resetAnalysis(); inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); sculpturePose = {time:audio.currentTime || 0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; lastInkFrame = 0; render(); });
 audio.addEventListener('loadedmetadata', () => { $('duration').textContent = formatTime(audio.duration); render(); });
 audio.addEventListener('error', () => showStatus('Audio could not be loaded. Choose a local audio file.'));
-timeline.addEventListener('input', () => { resetAnalysis(); audio.currentTime = Number(timeline.value) / 1000 * clipDuration(); render(); });
+timeline.addEventListener('input', () => { cancelBackgroundRewind(); resetAnalysis(); audio.currentTime = Number(timeline.value) / 1000 * clipDuration(); resetBackgroundClock(); render(); });
 audio.volume = Number($('volume').value) / 100;
 $('volume').addEventListener('input', event => { audio.volume = Number(event.target.value) / 100; });
 $('replaceButton').addEventListener('click', () => $('audioFile').click());
@@ -435,20 +517,23 @@ $('audioFile').addEventListener('change', event => {
   if (!file.type.startsWith('audio/')) { showStatus('Choose an audio file.'); return; }
   sourceReplaced = true;
   clearBank(true);
+  cancelBackgroundRewind();
+  resetBackgroundClock();
   audio.pause();
   const generation = ++analysisGeneration;
-  analysisReady = false; fieldPainted = false;
+  fieldPainted = false;
   inkwash?.reset(0); lastInkFrame = 0;
   sculpturePose = {time:0,energy:{bass:0,mid:0,treble:0,pulse:0,drive:0}};
   $('loader').classList.remove('hidden');
   clearBreaks();
   deferredSchedule = null;
   onsetSchedule = Object.freeze([]);
-  analysisPromise = analyzeSource(file, generation);
+  void analyzeSource(file, generation);
   if (fileURL) URL.revokeObjectURL(fileURL);
   fileURL = URL.createObjectURL(file);
   audio.src = fileURL;
   audio.load();
+  resetBackgroundClock();
   $('trackName').textContent = file.name;
   $('recordingTitle').textContent = file.name.replace(/\.[^.]+$/, '');
   $('recordingArtist').textContent = 'Local audio';
@@ -482,25 +567,40 @@ $('pointerButton').addEventListener('click', () => {
   $('pointerButton').textContent = pointerEnabled ? 'Pointer on' : 'Pointer off';
   render();
 });
-$('backgroundSelect').addEventListener('change', event => {
-  pendingSharedRestore = null;
+function changeBackground(event) {
   const mode = event.target.value;
+  if (!['fold', 'fractal', 'sculpture', 'ink'].includes(mode)) { syncBackgroundControls(); return; }
+  pendingSharedRestore = null;
   if (sharedContextLost && (mode === 'fold' || mode === 'fractal')) {
     pendingSharedRestore = mode;
     useFractalFallback(new Error('WebGL context lost'));
   } else setBackground(mode);
+}
+$('backgroundSelect').addEventListener('change', changeBackground);
+document.querySelectorAll('[data-background]').forEach(button => {
+  button.addEventListener('click', () => changeBackground({ target: { value: button.dataset.background } }));
 });
-$('foldStructureSelect').addEventListener('change', event => {
-  const choice = event.target.value;
-  if (!Object.hasOwn(foldStructures, choice)) { event.target.value = foldStructure; return; }
+function changeFoldStructure(choice) {
+  if (!Object.hasOwn(foldStructures, choice)) { syncBackgroundControls(); return; }
   foldStructure = choice;
+  syncBackgroundControls();
   render();
+}
+$('foldStructureSelect').addEventListener('change', event => changeFoldStructure(event.target.value));
+document.querySelectorAll('[data-structure]').forEach(button => {
+  button.addEventListener('click', () => changeFoldStructure(button.dataset.structure));
 });
-$('foldZoomSelect').addEventListener('change', event => {
+
+function changeFoldZoom(event) {
   const zoom = Number(event.target.value);
-  if (![1, 4, 10].includes(zoom)) { event.target.value = String(foldZoom); return; }
+  if (![1, 4, 10].includes(zoom)) { syncBackgroundControls(); return; }
   foldZoom = zoom;
+  syncBackgroundControls();
   render();
+}
+$('foldZoomSelect').addEventListener('change', changeFoldZoom);
+document.querySelectorAll('[data-zoom]').forEach(button => {
+  button.addEventListener('click', () => changeFoldZoom({ target: { value: button.dataset.zoom } }));
 });
 canvas.addEventListener('pointermove', event => { pointer.x = event.clientX; pointer.y = event.clientY; pointer.active = true; if (audio.paused) startFrames(); });
 canvas.addEventListener('pointerleave', () => { pointer.active = false; if (audio.paused) startFrames(); });
@@ -559,14 +659,42 @@ for (const [id, direction] of [['bankLeftButton', -1], ['bankRightButton', 1]]) 
     syncBankInput();
   });
 }
+const backgroundRewindButton = $('backgroundRewindButton');
+backgroundRewindButton.addEventListener('pointerdown', event => {
+  if (!rewindMode() || reducedMotion.matches) return;
+  event.preventDefault();
+  rewindPointer = event.pointerId;
+  try { backgroundRewindButton.setPointerCapture(event.pointerId); } catch { /* Synthetic pointers have no capture target. */ }
+  setBackgroundRewindHeld();
+});
+function releaseRewindPointer(event) {
+  if (rewindPointer !== event.pointerId) return;
+  rewindPointer = null;
+  setBackgroundRewindHeld();
+}
+addEventListener('pointerup', releaseRewindPointer);
+addEventListener('pointercancel', releaseRewindPointer);
+backgroundRewindButton.addEventListener('lostpointercapture', releaseRewindPointer);
+backgroundRewindButton.addEventListener('keydown', event => {
+  if (event.code !== 'Space' && event.code !== 'Enter') return;
+  event.preventDefault();
+  if (!event.repeat) { rewindKeyboard = true; setBackgroundRewindHeld(); }
+});
+document.addEventListener('keyup', event => {
+  if (!rewindKeyboard || (event.code !== 'Space' && event.code !== 'Enter')) return;
+  event.preventDefault();
+  rewindKeyboard = false;
+  setBackgroundRewindHeld();
+});
+backgroundRewindButton.addEventListener('click', event => event.preventDefault());
 function releaseBankPointer(event) {
   if (heldBankPointers.delete(event.pointerId)) syncBankInput();
 }
 addEventListener('pointerup', releaseBankPointer);
 addEventListener('pointercancel', releaseBankPointer);
-addEventListener('blur', () => clearBank());
-document.addEventListener('visibilitychange', () => { if (document.hidden) clearBank(); });
-reducedMotion.addEventListener('change', () => { if (reducedMotion.matches && orientationTween) { verticalOrbit = orientationTween.target; orientationTween = null; } if (reducedMotion.matches) bankAngle = bankDirection() * BANK_LIMIT; inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); if (!reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0,energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; if (audio.paused || reducedMotion.matches) stopFrames(); else startFrames(); render(); });
+addEventListener('blur', () => { clearBank(); cancelBackgroundRewind(); if (audio.paused) stopFrames(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { clearBank(); cancelBackgroundRewind(); if (audio.paused) stopFrames(); } });
+reducedMotion.addEventListener('change', () => { if (reducedMotion.matches && orientationTween) { verticalOrbit = orientationTween.target; orientationTween = null; } if (reducedMotion.matches) bankAngle = bankDirection() * BANK_LIMIT; cancelBackgroundRewind(); resetBackgroundClock(); syncRewindControl(); inkwash?.reset(reducedMotion.matches ? 0 : audio.currentTime || 0); if (!reducedMotion.matches) sculpturePose = {time:audio.currentTime || 0,energy:{...sculptureBands,pulse:0,drive:sculptureDriveAt(audio.currentTime || 0)}}; if (audio.paused || reducedMotion.matches) stopFrames(); else startFrames(); render(); });
 addEventListener('resize', resize);
 addEventListener('beforeunload', () => { if (fileURL) URL.revokeObjectURL(fileURL); inkwash?.dispose(); sculpture?.dispose(); fractal?.dispose(); });
 resize();
@@ -602,18 +730,14 @@ $('sculpture').addEventListener('webglcontextrestored', () => {
   if (backgroundMode === 'sculpture') setBackground('sculpture');
 });
 
-// A local Blob URL makes the excerpt seekable even under simple development servers
-// that serve MP4 without byte-range responses (the bundled M4A has its index at the end).
+// The bundled song remains on its native URL so the browser can use byte ranges.
+// Precomputed attacks are optional; timed wall rise remains usable without them.
 const startupGeneration = ++analysisGeneration;
-analysisPromise = fetch('assets/song-excerpt.m4a').then(response => {
-  if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
-  return response.blob();
-}).then(blob => {
-  if (startupGeneration !== analysisGeneration) return;
-  if (audio.paused && audio.currentTime === 0) {
-    fileURL = URL.createObjectURL(blob);
-    audio.src = fileURL;
-    audio.load();
-  }
-  return analyzeSource(blob, startupGeneration);
-}).catch(error => { console.warn('Using direct audio URL:', error); analysisReady = true; revealWhenReady(); });
+fetch('assets/rewind-full.onsets.json').then(response => {
+  if (!response.ok) throw new Error(`Onset data fetch failed: ${response.status}`);
+  return response.json();
+}).then(data => {
+  if (startupGeneration === analysisGeneration) installAnalysis(validateBundledAnalysis(data), startupGeneration);
+}).catch(error => {
+  if (startupGeneration === analysisGeneration) console.warn('Using timed rise without bundled onset data:', error);
+});

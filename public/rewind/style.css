@@ -71,4 +71,26 @@ body.fractal-mode .bank-button:hover,body.fractal-mode .bank-button:active{backg
 
 /* Fold's optional structure follows the active background, including fallbacks. */
 [hidden]{display:none!important}
-@media(max-width:620px){body.recording-view .recording-identity{top:168px}}
+@media(max-width:620px){body.recording-view .recording-identity{top:clamp(50px,7vh,90px)}}
+
+/* Player-dock shortcuts mirror the header controls and wrap on narrow screens. */
+.scene-actions{flex-wrap:wrap}
+body.recording-view .dock{flex-wrap:wrap}
+
+.dock-visual-choices{grid-column:1/-1;display:flex;justify-content:flex-end;gap:14px;flex-wrap:wrap}
+.visual-choice-group{display:flex;gap:5px}
+.visual-choice-group .scene-action[aria-pressed=true]{border-color:var(--copper);background:rgba(154,116,83,.35);box-shadow:inset 0 0 0 1px var(--copper)}
+.zoom-choice{position:relative}.zoom-choice svg{opacity:.55}.zoom-choice span{position:absolute;right:3px;bottom:2px;font-size:9px;font-weight:700;line-height:1;background:var(--paper);color:#263735;border-radius:2px;padding:1px}
+body.fractal-mode .zoom-choice span{background:#071c31;color:#e7f5f6}
+body.recording-view .dock-visual-choices{flex:1 0 100%;justify-content:center}
+@media(max-width:620px){.dock-visual-choices{grid-row:4;justify-content:center;gap:10px}.visual-choice-group .scene-action{width:31px;height:31px;padding:5px}}
+
+.rewind-button{touch-action:none;user-select:none;-webkit-user-select:none}
+.rewind-button svg{fill:currentColor;stroke:none}
+.rewind-button[aria-pressed=true]{background:var(--copper);border-color:var(--copper);color:#fff9ef}
+.rewind-button:disabled{cursor:not-allowed;opacity:.45}
+body.fractal-mode .rewind-button[aria-pressed=true]{background:#9a7453;color:#fff9ef}
+
+body.recording-view #recordingArtist{text-align:center;width:100%}
+
+body.recording-view .top-actions>#backgroundControls{display:none!important}

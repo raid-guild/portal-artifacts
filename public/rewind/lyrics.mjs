@@ -1,69 +1,154 @@
-// Provisional transcription of the supplied excerpt; bracketed words need review.
+// User-supplied full-song lyrics. Line timings are approximate and editable.
 export const bundledCues = [
   {
-    "start": 0,
-    "end": 2.3,
-    "text": "Can't be [mad?], it's just the way"
+    "start": 3.72,
+    "end": 6.2,
+    "text": "You and I"
   },
   {
-    "start": 2.4,
-    "end": 5.05,
-    "text": "Just the way it is now"
+    "start": 8.6,
+    "end": 11.85,
+    "text": "Can only kick it as far as we try"
   },
   {
-    "start": 5.35,
-    "end": 9.8,
-    "text": "I will sink [my teeth?] to the wall"
+    "start": 14.05,
+    "end": 17.4,
+    "text": "Everywhere they go"
   },
   {
-    "start": 10.99,
-    "end": 13.0,
+    "start": 20.02,
+    "end": 23.65,
+    "text": "Everything that you stand for"
+  },
+  {
+    "start": 25.1,
+    "end": 29.55,
+    "text": "Falls apart in your throat"
+  },
+  {
+    "start": 30.45,
+    "end": 35.5,
+    "text": "Falls apart when you just don’t know"
+  },
+  {
+    "start": 35.5,
+    "end": 37.7,
+    "text": "Where you are going"
+  },
+  {
+    "start": 37.7,
+    "end": 40.45,
+    "text": "So let’s go far"
+  },
+  {
+    "start": 41,
+    "end": 43.28,
+    "text": "Where you are going"
+  },
+  {
+    "start": 43.28,
+    "end": 46,
+    "text": "so let’s go far"
+  },
+  {
+    "start": 47,
+    "end": 50.4,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 51.36,
+    "end": 55.7,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 59.78,
+    "end": 63,
+    "text": "My hero’s crying in this house"
+  },
+  {
+    "start": 63.36,
+    "end": 67.15,
+    "text": "Can’t be mad it’s just the way"
+  },
+  {
+    "start": 67.34,
+    "end": 69.75,
+    "text": "just the way it is now"
+  },
+  {
+    "start": 70.56,
+    "end": 74.3,
+    "text": "I will sink my teeth into the wall"
+  },
+  {
+    "start": 75.35,
+    "end": 77.7,
     "text": "Trying to figure out"
   },
   {
-    "start": 13.0,
-    "end": 16.6,
-    "text": "Where we all end up"
+    "start": 77.7,
+    "end": 81.2,
+    "text": "where we all end up"
   },
   {
-    "start": 16.76,
-    "end": 20.9,
-    "text": "I'm a walking [sign?], [unclear] to see"
+    "start": 81.2,
+    "end": 85.55,
+    "text": "I’m a walking sight to see"
   },
   {
-    "start": 22.17,
-    "end": 25.2,
-    "text": "Maybe [a lost soldier?] that"
+    "start": 86.87,
+    "end": 89.9,
+    "text": "maybe a lost soldier"
   },
   {
-    "start": 25.2,
-    "end": 27.4,
-    "text": "Never came home to breathe"
+    "start": 89.9,
+    "end": 92.22,
+    "text": "That never came home to breath"
   },
   {
-    "start": 27.4,
-    "end": 32.1,
-    "text": "I will run [my head?] to the wall"
+    "start": 92.22,
+    "end": 96.85,
+    "text": "I will run my head into the wall"
   },
   {
-    "start": 32.68,
-    "end": 35.25,
+    "start": 98.05,
+    "end": 100.1,
     "text": "Trying to figure out"
   },
   {
-    "start": 35.25,
-    "end": 38.65,
-    "text": "Where we all went wrong"
+    "start": 100.1,
+    "end": 103.36,
+    "text": "where we all went wrong"
   },
   {
-    "start": 38.65,
-    "end": 41.5,
-    "text": "Are you already on the road?"
+    "start": 103.36,
+    "end": 107.7,
+    "text": "Are you already on rewind"
   },
   {
-    "start": 41.7,
-    "end": 47.5,
-    "text": "Are you already on the road?"
+    "start": 109.12,
+    "end": 113.4,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 114.8,
+    "end": 119,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 120.4,
+    "end": 124.8,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 126,
+    "end": 130.4,
+    "text": "Are you already on rewind"
+  },
+  {
+    "start": 131.6,
+    "end": 137.3,
+    "text": "Are you already on rewind"
   }
 ];
 
