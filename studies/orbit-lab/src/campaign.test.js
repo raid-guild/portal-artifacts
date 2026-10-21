@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CAMPAIGN, CAMPAIGN_DEMO, CAMPAIGN_LEVELS, campaignPointAllowed, canPlaceCampaignWell, createCampaign, getCampaignLevel, nextCampaignLevel, spawnCampaignPickup, stepCampaign } from './campaign.js';
 import { canPlaceWell } from './level.js';
+import levelThree from './levels/campaign-3.json' with { type: 'json' };
+import { compileLevelDocument } from './level-document.js';
 
 test('campaign placement budget supports unlimited total replacements and a finite later rule', () => {
   assert.equal(CAMPAIGN.maxActiveWells, 2);
@@ -93,14 +95,22 @@ test('bounded chamber has an empty interior and pickup retries stay inside at co
   }
 });
 
-test('two levels share the chamber, and progression stops after the giant', () => {
-  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2]);
+test('three levels share the chamber, and progression stops after the opening', () => {
+  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2, 3]);
   assert.equal(getCampaignLevel(2).level.goal.x, 50);
   assert.equal(getCampaignLevel(2).level.bounds.maxX - getCampaignLevel(2).level.bounds.minX, 96);
   assert.equal(getCampaignLevel(2).giant.radius, 4);
   assert.equal(getCampaignLevel(2).giant.strength, 70);
   assert.equal(nextCampaignLevel(1).id, 2);
-  assert.equal(nextCampaignLevel(2), null);
+  assert.equal(nextCampaignLevel(2).id, 3);
+  assert.equal(nextCampaignLevel(3), null);
+  const third = getCampaignLevel(3);
+  assert.equal(third.title, 'An opening in the dark');
+  assert.equal(third.level.bounds.maxX - third.level.bounds.minX, 96);
+  assert.equal(third.level.walls.length, 6);
+  assert.equal(third.giant, undefined);
+  assert.equal(third.entities.filter(entity => entity.type === 'companion').length, 3);
+  assert.equal(third.entities.filter(entity => entity.type === 'ember' && entity.motion === 'orbit').length, 2);
 });
 
 test('giant excludes wells and deterministic recharge embers from its lethal circle', () => {
@@ -112,4 +122,25 @@ test('giant excludes wells and deterministic recharge embers from its lethal cir
     assert.ok(result.point);
     assert.ok(Math.hypot(result.point.x - 28, result.point.y) >= 4 + CAMPAIGN.pickupRadius + .31);
   }
+});
+
+test('third authored level compiles with a clear broad S and bounded orbit envelopes', () => {
+  const { level, entities } = compileLevelDocument(levelThree);
+  assert.equal(level.bounds.maxX - level.bounds.minX, 96);
+  assert.equal(level.bounds.maxY - level.bounds.minY, 54);
+  assert.deepEqual(entities.filter(entity => entity.type === 'soundGate').map(entity => entity.slot), [0, 1, 2]);
+  const orbits = entities.filter(entity => entity.type === 'ember' && entity.motion === 'orbit');
+  assert.equal(orbits.length, 2);
+  for (const orbit of orbits) {
+    assert.equal(orbit.gravity, 0);
+    assert.equal(orbit.orbitRadius, 3.5);
+    assert.ok(orbit.x - orbit.orbitRadius - orbit.radius > level.bounds.minX);
+    assert.ok(orbit.x + orbit.orbitRadius + orbit.radius < level.bounds.maxX);
+    assert.ok(orbit.y - orbit.orbitRadius - orbit.radius > level.bounds.minY);
+    assert.ok(orbit.y + orbit.orbitRadius + orbit.radius < level.bounds.maxY);
+    for (const gate of entities.filter(entity => entity.type === 'soundGate'))
+      assert.ok(Math.hypot(orbit.x - gate.x, orbit.y - gate.y) > orbit.orbitRadius + orbit.radius + gate.radius);
+  }
+  assert.ok(level.walls.some(wall => wall.x < 20 && wall.y < 0));
+  assert.ok(level.walls.some(wall => wall.x > 30 && wall.y > 0));
 });

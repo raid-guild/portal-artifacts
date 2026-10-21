@@ -11,3 +11,17 @@ test('heartbeat makes immediate distinct low thumps and can be silenced',()=>{
  assert.ok(frequencies.includes(90)&&frequencies.includes(55)&&frequencies.includes(115)&&frequencies.includes(70));
  assert.equal(volumes.at(-1),0);
 });
+test('chapter gate profile changes only campaign rhythm, and scene stop cancels voices', () => {
+ const audio = new OrbitAudio(), notes = [];
+ audio.tone = (...args) => notes.push(args);
+ audio.setProfile('chapter'); audio.gateBeat(0, 0); audio.gateBeat(1, 2); audio.gateBeat(2, 1);
+ assert.deepEqual(notes.map(note => note[0]), [130.81, 329.628, 783.99]);
+ notes.length = 0; audio.sceneCall(0);
+ assert.equal(notes[0][5], true);
+ let stopped = 0;
+ audio.sceneVoices.add({ stop() { stopped++; } });
+ audio.stopScene(); audio.stopScene();
+ assert.equal(stopped, 1);
+ audio.setProfile('default'); notes.length = 0; audio.gateBeat(0, 0);
+ assert.ok(notes.some(note => note[0] === 261.63));
+});

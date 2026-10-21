@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createSoundGates, stepSoundGates, gateCount, gatePattern, validateBestGates, betterGateMask } from './sound-gates.js';
 import { CAMPAIGN_LEVELS } from './campaign.js';
 
-test('both levels offer three sound gates clear of the giant and portal', () => {
+test('all levels offer three sound gates clear of hazards and portal', () => {
   for (const level of CAMPAIGN_LEVELS) {
     assert.deepEqual(level.soundGates.map(g => g.id), [0, 1, 2]);
     for (const gate of level.soundGates) {
@@ -40,5 +40,5 @@ test('best pattern is a single-attempt mask, not a union, with stable ties', () 
   assert.equal(betterGateMask(undefined, 1), 1);
   assert.equal(betterGateMask(1, 4), 1);
   assert.equal(betterGateMask(1, 6), 6);
-  assert.deepEqual(validateBestGates({ 1: 5, 2: 9, 3: 7, fake: 2 }), { 1: 5 });
+  assert.deepEqual(validateBestGates({ 1: 5, 2: 9, 3: 7, fake: 2 }), { 1: 5, 3: 7 });
 });

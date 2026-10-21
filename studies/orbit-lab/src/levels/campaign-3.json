@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "id": "campaign-3",
+  "title": "An opening in the dark",
+  "bounds": { "minX": -20, "maxX": 76, "minY": -27, "maxY": 27 },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": { "x": 0, "y": 0, "direction": 0, "speed": 1.8 },
+  "exit": { "x": 50, "y": 0, "radius": 1.5, "gravity": 5 },
+  "walls": [
+    { "id": "lower-shoulder", "x": 18, "y": -11, "width": 1, "height": 32 },
+    { "id": "upper-shoulder", "x": 34, "y": 11, "width": 1, "height": 32 }
+  ],
+  "entities": [
+    { "id": "companion-a", "type": "companion", "x": 6, "y": 1, "radius": 0.16, "captureRadius": 2.8 },
+    { "id": "companion-b", "type": "companion", "x": 25, "y": 9, "radius": 0.16, "captureRadius": 2.8 },
+    { "id": "companion-c", "type": "companion", "x": 41, "y": -9, "radius": 0.16, "captureRadius": 2.8 },
+    { "id": "upper-orbit", "type": "ember", "x": 19, "y": 13, "radius": 0.55, "gravity": 0, "lethal": true, "burnsCompanions": false, "motion": "orbit", "speed": 1.999195, "orbitRadius": 3.5, "phase": 0, "orbitDirection": "counterclockwise" },
+    { "id": "lower-orbit", "type": "ember", "x": 35, "y": -13, "radius": 0.55, "gravity": 0, "lethal": true, "burnsCompanions": false, "motion": "orbit", "speed": 1.999195, "orbitRadius": 3.5, "phase": 180, "orbitDirection": "clockwise" },
+    { "id": "light-a", "type": "lightPickup", "x": 12, "y": 8, "radius": 0.65, "amount": 0.3, "reusable": false, "cooldown": 0 },
+    { "id": "light-b", "type": "lightPickup", "x": 27, "y": 0, "radius": 0.65, "amount": 0.3, "reusable": false, "cooldown": 0 },
+    { "id": "light-c", "type": "lightPickup", "x": 41, "y": -8, "radius": 0.65, "amount": 0.3, "reusable": false, "cooldown": 0 },
+    { "id": "bass", "type": "soundGate", "x": 9, "y": 2, "radius": 0.9, "slot": 0 },
+    { "id": "offbeat", "type": "soundGate", "x": 26, "y": 8, "radius": 0.9, "slot": 1 },
+    { "id": "chime", "type": "soundGate", "x": 43, "y": -7, "radius": 0.9, "slot": 2 }
+  ]
+}

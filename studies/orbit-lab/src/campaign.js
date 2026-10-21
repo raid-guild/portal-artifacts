@@ -2,6 +2,7 @@ import { BLOB_RADIUS, canPlaceWell } from './level.js';
 import { segmentDistance } from './studies.js';
 import levelOne from './levels/campaign-1.json' with { type: 'json' };
 import levelTwo from './levels/campaign-2.json' with { type: 'json' };
+import levelThree from './levels/campaign-3.json' with { type: 'json' };
 import { compileLevelDocument } from './level-document.js';
 
 export const CAMPAIGN = {
@@ -9,14 +10,16 @@ export const CAMPAIGN = {
   maxActiveWells: 2, maxTotalWells: null, pickupLife: 18, pickupRadius: .65,
 };
 
-const compiled = [levelOne, levelTwo].map(compileLevelDocument);
+const compiled = [levelOne, levelTwo, levelThree].map(compileLevelDocument);
 export const CAMPAIGN_LEVELS = compiled.map((item, index) => ({
-  id: index + 1, title: item.document.title, color: index ? '#ffb365' : '#b9fff0',
-  objective: index ? 'Gather pale moons. Their orbits catch light as you curve around the giant ember.' : 'Keep your light alive. Cross the open chamber to the far portal.',
+  id: index + 1, title: item.document.title, color: ['#b9fff0', '#ffb365', '#bdb3ff'][index],
+  kicker: ['LIGHT & DISTANCE', 'GRAVITY & DANGER', 'WALLS & ORBITS'][index],
+  summary: ['A clear chamber. Keep the fire alive to reach the far portal.', 'Gather two pale moons before facing the giant ember.', 'Weave between offset walls and two orbiting embers.'][index],
+  objective: ['Keep your light alive. Cross the open chamber to the far portal.', 'Gather pale moons. Their orbits catch light as you curve around the giant ember.', 'Carry light through the broad S and time the orbiting embers.'][index],
   mechanic: 'campaign', heroGravity: 0, moons: [],
   document: item.document, entities: item.entities, settings: item.settings,
   soundGates: item.entities.filter(entity => entity.type === 'soundGate').map(entity => ({ id: entity.slot, x: entity.x, y: entity.y, radius: entity.radius })),
-  giant: index ? { x: 28, y: 0, radius: 4, strength: 70 } : undefined,
+  giant: index === 1 ? { x: 28, y: 0, radius: 4, strength: 70 } : undefined,
   level: item.level,
 }));
 export const CAMPAIGN_DEMO = CAMPAIGN_LEVELS[0];
