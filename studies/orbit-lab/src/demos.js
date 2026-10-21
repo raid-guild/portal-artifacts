@@ -46,12 +46,18 @@ export const DEMOS = [
 
 DEMOS.push(...singleRuleStudies(makeLevel));
 DEMOS.push(
-  { id: 'burnout', title: `${String(DEMOS.length + 1).padStart(2, '0')} / The burning light`, rule: 'Light as fuel', color: '#ffd98b',
+  { id: 'companion', title: `${String(DEMOS.length + 1).padStart(2, '0')} / A companion returns`, rule: 'A borrowed orbit', color: '#d4beff',
+    description: 'One little moon orbits your light. A nearby well can borrow it; when the pull fades, it finds its way back.',
+    question: 'Can a small orbit feel like a companion?', objective: 'Guide the dot across the open room. Watch the companion wander and return.',
+    mechanic: 'companion', heroGravity: 0,
+    level: makeLevel({ x: -11, y: -3, vx: 5, vy: .2 }, { x: 11, y: 4 }),
+    moons: [{ x: -9, y: -3, vx: 5, vy: 1.55 }] },
+  { id: 'burnout', title: `${String(DEMOS.length + 2).padStart(2, '0')} / The burning light`, rule: 'Light as fuel', color: '#ffd98b',
     description: 'Your glow slowly burns away. Gather wandering embers to refill it and keep the gate open.',
     question: 'Can light become a resource you route around?', objective: 'Gather pale embers to keep the gate open, then reach the portal.',
     mechanic: 'burnout', heroGravity: 0, moons: [],
     level: makeLevel({ x: -11, y: -3, vx: .9, vy: .2 }, { x: 11, y: 3 }, [{ x: 5, y: 0, w: .55, h: 18, gate: true }]) },
-  { id: 'wideworld', title: `${String(DEMOS.length + 2).padStart(2, '0')} / A wider world`, rule: 'Scale and space', color: '#a8c9ff',
+  { id: 'wideworld', title: `${String(DEMOS.length + 3).padStart(2, '0')} / A wider world`, rule: 'Scale and space', color: '#a8c9ff',
     description: 'A broad chamber with long open stretches and a larger portal. The same gravity rules feel different across distance.',
     question: 'How does room to roam change your aim?', objective: 'Cross the great chamber and enter the far portal.',
     heroGravity: 0, moons: [],

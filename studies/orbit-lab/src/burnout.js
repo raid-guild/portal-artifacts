@@ -24,12 +24,13 @@ export function spawnPickup(hero, level, pickups, gateOpen, rng = Math.random) {
   return null;
 }
 
-export function stepBurnout(state, { before, hero, level, dt, time, rng = Math.random }) {
+export function stepBurnout(state, { before, hero, collectors = [], level, dt, time, rng = Math.random }) {
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < PICKUP_LIFE) };
   next.energy = Math.max(0.06, Math.min(1, state.energy - BURN_RATE * dt));
   let collected = 0;
   next.pickups = next.pickups.filter(pickup => {
-    if (segmentDistance(before, hero, pickup) <= PICKUP_RADIUS + BLOB_RADIUS) { collected++; return false; }
+    if (segmentDistance(before, hero, pickup) <= PICKUP_RADIUS + BLOB_RADIUS ||
+      collectors.some(({ from, to, radius = .16 }) => segmentDistance(from, to, pickup) <= PICKUP_RADIUS + radius)) { collected++; return false; }
     return true;
   });
   next.energy = Math.min(1, next.energy + collected * PICKUP_GAIN);

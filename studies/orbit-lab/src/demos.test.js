@@ -6,6 +6,7 @@ import { STEP } from './physics.js';
 
 test('gallery presets have valid spawns, exits, unique deep links and gentler wells', () => {
   assert.equal(new Set(DEMOS.map(demo => demo.id)).size, DEMOS.length);
+  assert.equal(new Set(DEMOS.map(demo => demo.title)).size, DEMOS.length);
   assert.ok(DEFAULT_WELL_STRENGTH < 85);
   for (const demo of DEMOS) {
     assert.equal(getDemo(demo.id), demo);
@@ -15,6 +16,18 @@ test('gallery presets have valid spawns, exits, unique deep links and gentler we
     assert.ok(demo.moons.every(moon => canPlaceWell(moon, demo.level)));
   }
   assert.equal(getDemo('unknown').id, 'drift');
+});
+
+test('companion study starts with one moon in an open room and leaves old moon rules intact', () => {
+  const demo = getDemo('companion');
+  assert.equal(demo.mechanic, 'companion');
+  assert.equal(demo.heroGravity, 0);
+  assert.equal(demo.moons.length, 1);
+  assert.equal(demo.level.walls.length, 4);
+  assert.equal(demo.level.spikes.length, 0);
+  assert.equal(demo.moons[0].vx, demo.level.spawn.vx);
+  assert.equal(getDemo('satellites').heroGravity, 12);
+  assert.ok(getDemo('gate').plate);
 });
 
 test('dot gravity attracts moons with equal and opposite total force', () => {

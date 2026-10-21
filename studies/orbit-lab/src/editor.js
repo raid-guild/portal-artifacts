@@ -2,22 +2,25 @@ import { EditorModel, EDITOR_DRAFT_KEY } from './editor-model.js';
 import { ENTITY_TYPES, parseLevelDocument, validateLevelDocument } from './level-document.js';
 import { compiledWallGeometry, pointSegmentDistance } from './wall-geometry.js';
 import { orbitPeriod, orbitPosition, orbitRadiusKeepingPeriod, orbitRingPreset, orbitSpeed, pickOrbitEntity, startOrbitMotion, validateOrbitPresetPlacement } from './orbit.js';
+import { clearIneligibleCompanionBurn, defaultCompanionEntity } from './editor-entities.js';
 import './editor.css';
 
 const clone = value => structuredClone(value);
-const entityColors = { ember:'#ff873c', soundGate:'#80e8e2', impulse:'#7be4f0', stillness:'#ffd58e', eclipse:'#756b9c', lightPickup:'#ffe3a3', dimmer:'#bfa5ff', portal:'#79e1d6' };
+const entityColors = { ember:'#ff873c', soundGate:'#80e8e2', impulse:'#7be4f0', stillness:'#ffd58e', eclipse:'#756b9c', lightPickup:'#ffe3a3', dimmer:'#bfa5ff', portal:'#79e1d6', companion:'#d8cdff' };
 const title = value => value.replace(/([A-Z])/g,' $1').replace(/^./,letter=>letter.toUpperCase());
 const fieldSpecs = {
   start: ['x','y','direction','speed'], exit: ['x','y','radius','gravity'], wall: ['x','y','width','height'], wallPath: ['thickness'],
-  ember: ['x','y','radius','gravity','lethal','motion'],
+  ember: ['x','y','radius','gravity','lethal','motion','burnsCompanions'],
   soundGate: ['x','y','radius','slot'], impulse: ['x','y','radius','direction','speed'],
   stillness: ['x','y','radius','captureTime'], eclipse: ['x','y','radius','captureTime','fadeTime'],
   lightPickup: ['x','y','radius','amount','reusable','cooldown'], dimmer: ['x','y','radius','amount','reusable','cooldown'],
   portal: ['x','y','radius','pairId','exitDirection'],
+  companion: ['x','y','captureRadius'],
 };
 function defaultEntity(type, x, y, model) {
   const base = { id:model.nextId(type), type, x, y, radius:.9 };
-  if (type === 'ember') return {...base, radius:1.6, gravity:22, lethal:true, motion:'fixed', speed:0, orbitRadius:0, phase:0, orbitDirection:'counterclockwise'};
+  if (type === 'ember') return {...base, radius:1.6, gravity:22, lethal:true, burnsCompanions:false, motion:'fixed', speed:0, orbitRadius:0, phase:0, orbitDirection:'counterclockwise'};
+  if (type === 'companion') return defaultCompanionEntity(base.id, x, y);
   if (type === 'soundGate') return {...base, slot:[0,1,2].find(slot=>!model.document.entities.some(e=>e.type==='soundGate'&&e.slot===slot)) ?? 0};
   if (type === 'impulse') return {...base, direction:0, speed:12};
   if (type === 'stillness') return {...base, captureTime:1};
@@ -44,7 +47,7 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
   mount.append(root);
   const $ = selector => root.querySelector(selector), canvas = $('#editorCanvas'), ctx = canvas.getContext('2d');
   const fileInput = $('#editorFile'), fields = $('#editorFields');
-  for (const type of ENTITY_TYPES) { const option=document.createElement('option'); option.value=type; option.textContent=title(type); $('#editorEntityTool').append(option); }
+  for (const type of ENTITY_TYPES) { const option=document.createElement('option'); option.value=type; option.textContent=type==='companion'?'Companion moon':title(type); $('#editorEntityTool').append(option); }
   {const option=document.createElement('option');option.value='orbitRing';option.textContent='Orbit ring · 3 embers';$('#editorEntityTool').append(option);}
   let tool='select', scale=12, offset={x:0,y:0}, pointer=null, grid=1, open=false, hasFit=false, inspectorTab='level', lineDraft=null, lineCursor=null, editorNotice='', presetCursor=null;
   let fittedSize={width:0,height:0};
@@ -99,6 +102,9 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
         ctx.beginPath();for(let i=0;i<=24;i++){const angle=i/24*Math.PI*2,irregular=1+.07*Math.sin(angle*7),r=.38*scale*irregular;i?ctx.lineTo(p.x+Math.cos(angle)*r,p.y+Math.sin(angle)*r):ctx.moveTo(p.x+Math.cos(angle)*r,p.y+Math.sin(angle)*r);}ctx.strokeStyle='#9a71bd';ctx.stroke();
         ctx.beginPath();ctx.arc(p.x,p.y,Math.max(3,.22*scale),0,Math.PI*2);ctx.fillStyle='#5a3a79';ctx.fill();
         for(let i=0;i<5;i++){const a=i*2.39996,r=.5*scale;ctx.beginPath();ctx.arc(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r,1.4,0,Math.PI*2);ctx.fillStyle='#af83cc';ctx.fill();}
+      }else if(entity.type==='companion'){
+        ctx.beginPath();ctx.arc(p.x,p.y,entity.captureRadius*scale,0,Math.PI*2);ctx.strokeStyle='#b9a5eb77';ctx.lineWidth=selected?2:1;ctx.setLineDash([3,5]);ctx.stroke();ctx.setLineDash([]);
+        ctx.beginPath();ctx.arc(p.x,p.y,Math.max(3,entity.radius*scale),0,Math.PI*2);ctx.fillStyle='#d8cdff';ctx.fill();
       }else{
         ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fillStyle=entityColors[entity.type]+'55';ctx.fill();ctx.strokeStyle=entityColors[entity.type];ctx.lineWidth=selected?3:1.5;ctx.stroke();
       }
@@ -140,15 +146,15 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     renderFields(); refresh(false);
   }
   function addField(parent,object,key,labelPrefix='') {
-    const value=object?.[key],label=document.createElement('label');label.textContent=key==='orbitDirection'?'Direction':key==='phase'&&labelPrefix==='Starting '?'Starting angle':`${labelPrefix}${title(key)}`;
+    const value=object?.[key],label=document.createElement('label');label.textContent=key==='orbitDirection'?'Direction':key==='phase'&&labelPrefix==='Starting '?'Starting angle':key==='captureRadius'&&object?.type==='companion'?'Collection radius':key==='burnsCompanions'?'Burns companion moons':`${labelPrefix}${title(key)}`;
     let input;
-    if(typeof value==='boolean'){input=document.createElement('input');input.type='checkbox';input.checked=value;}
+    if(typeof value==='boolean'||key==='burnsCompanions'){input=document.createElement('input');input.type='checkbox';input.checked=value===true;if(key==='burnsCompanions')input.disabled=object?.motion!=='fixed'||!object?.lethal;}
     else if(key==='motion'||key==='orbitDirection'){input=document.createElement('select');for(const mode of key==='motion'?['fixed','chaser','orbit']:['counterclockwise','clockwise']){const option=document.createElement('option');option.value=mode;option.textContent=title(mode);input.append(option);}input.value=value||'counterclockwise';}
     else{input=document.createElement('input');input.type=typeof value==='number'?'number':'text';if(input.type==='number'){input.step='any';input.inputMode='decimal';}input.value=value===null?'':value;}
-    const commitInput=()=>{const newValue=input.type==='checkbox'?input.checked:input.type==='number'?(input.value===''?NaN:Number(input.value)):key==='maxTotalWells'&&input.value===''?null:input.value;const findTarget=doc=>key==='title'?doc:labelPrefix==='Settings / '?doc.settings:labelPrefix==='Bounds / '?doc.bounds:model.selected==='start'||model.selected==='exit'?doc[model.selected]:[...doc.walls,...(doc.wallPaths||[]),...doc.entities].find(item=>item.id===model.selected);const current=findTarget(model.document);if(!current||Object.is(current[key],newValue))return;model.paint(doc=>{const target=findTarget(doc);if(key==='motion'&&newValue==='orbit')Object.assign(target,startOrbitMotion(target));else if(key==='orbitRadius'&&target.type==='ember'&&target.motion==='orbit')Object.assign(target,orbitRadiusKeepingPeriod(target,newValue));else target[key]=newValue;});editorNotice='';if(key==='motion'){model.endStroke();refresh();}else refresh(false);};
+    const commitInput=()=>{const newValue=input.type==='checkbox'?input.checked:input.type==='number'?(input.value===''?NaN:Number(input.value)):key==='maxTotalWells'&&input.value===''?null:input.value;const findTarget=doc=>key==='title'?doc:labelPrefix==='Settings / '?doc.settings:labelPrefix==='Bounds / '?doc.bounds:model.selected==='start'||model.selected==='exit'?doc[model.selected]:[...doc.walls,...(doc.wallPaths||[]),...doc.entities].find(item=>item.id===model.selected);const current=findTarget(model.document);if(!current||Object.is(current[key],newValue))return;model.paint(doc=>{const target=findTarget(doc);if(key==='motion'&&newValue==='orbit')Object.assign(target,startOrbitMotion(target));else if(key==='orbitRadius'&&target.type==='ember'&&target.motion==='orbit')Object.assign(target,orbitRadiusKeepingPeriod(target,newValue));else target[key]=newValue;if(target.type==='ember'&&(key==='motion'||key==='lethal'))clearIneligibleCompanionBurn(target);});editorNotice='';if(key==='motion'||key==='lethal'){model.endStroke();refresh();}else refresh(false);};
     input.addEventListener('input',commitInput);
     input.addEventListener('change',commitInput);
-    input.addEventListener('blur',()=>{commitInput();model.endStroke();refresh(false);});
+    input.addEventListener('blur',()=>{model.endStroke();refresh(false);});
     label.append(input);parent.append(label);
   }
   function addOrbitPeriodField(ember){
@@ -178,11 +184,13 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     const type=model.selected==='start'||model.selected==='exit'?model.selected:model.document.walls.includes(selected)?'wall':(model.document.wallPaths||[]).includes(selected)?'wallPath':selected.type;
     if(type==='ember'){
       for(const key of fieldSpecs.ember)addField(fields,selected,key,(key==='x'||key==='y')&&selected.motion==='orbit'?'Center ':key==='radius'?'Body ':'');
+      const hint=document.createElement('p');hint.className='editor-tab-help';hint.textContent='Only a fixed, lethal ember can burn companion moons.';fields.append(hint);
       if(selected.motion==='orbit'){
         addField(fields,selected,'orbitRadius');addOrbitPeriodField(selected);
         addField(fields,selected,'orbitDirection','');addField(fields,selected,'phase','Starting ');
       }else if(selected.motion==='chaser')addField(fields,selected,'speed','Movement ');
     }else for(const key of fieldSpecs[type]||[])addField(fields,selected,key);
+    if(type==='companion'){const hint=document.createElement('p');hint.className='editor-tab-help';hint.textContent='The moon joins when you enter its collection ring. It can gather light, save you from an ember, or buy 4 seconds in the last embers.';fields.append(hint);}
     if(type==='wallPath') selected.points.forEach((point,index)=>{
       const row=document.createElement('div');row.className='editor-path-point';const heading=document.createElement('span');heading.textContent=`Point ${index+1}`;row.append(heading);
       for(const axis of ['x','y']){const label=document.createElement('label');label.textContent=axis.toUpperCase();const input=document.createElement('input');input.type='number';input.step='any';input.value=point[axis];input.addEventListener('input',()=>{const value=input.value===''?NaN:Number(input.value);const current=model.selectedObject?.points?.[index]?.[axis];if(Object.is(current,value))return;model.paint(doc=>{doc.wallPaths.find(path=>path.id===model.selected).points[index][axis]=value;});refresh(false);});input.addEventListener('blur',()=>{model.endStroke();refresh(false);});label.append(input);row.append(label);}

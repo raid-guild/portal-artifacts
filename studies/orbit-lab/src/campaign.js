@@ -12,7 +12,7 @@ export const CAMPAIGN = {
 const compiled = [levelOne, levelTwo].map(compileLevelDocument);
 export const CAMPAIGN_LEVELS = compiled.map((item, index) => ({
   id: index + 1, title: item.document.title, color: index ? '#ffb365' : '#b9fff0',
-  objective: index ? 'Curve around the giant ember. Its gravity reaches beyond its fire.' : 'Keep your light alive. Cross the open chamber to the far portal.',
+  objective: index ? 'Gather pale moons. Their orbits catch light as you curve around the giant ember.' : 'Keep your light alive. Cross the open chamber to the far portal.',
   mechanic: 'campaign', heroGravity: 0, moons: [],
   document: item.document, entities: item.entities, settings: item.settings,
   soundGates: item.entities.filter(entity => entity.type === 'soundGate').map(entity => ({ id: entity.slot, x: entity.x, y: entity.y, radius: entity.radius })),
@@ -38,7 +38,7 @@ function random(seed) {
 
 export function createCampaign(seed = 428, config = CAMPAIGN) {
   return {
-    energy: config.startLight, graceLeft: config.graceSeconds,
+    energy: config.startLight, graceLeft: config.graceSeconds, graceDuration: config.graceSeconds,
     pickups: config.randomRecharge === false ? [] : [{ x: 6, y: 2.5, id: 1, createdAt: 0 }, { x: 15, y: -3, id: 2, createdAt: 0 }],
     nextId: 3, nextSpawnAt: 7, seed, beatPhase: 0, failed: false,
   };
@@ -61,13 +61,15 @@ export function spawnCampaignPickup(hero, state, level = CAMPAIGN_DEMO.level) {
 }
 
 // Only call this from the fixed simulation step. A pickup is swept before darkness expires.
-export function stepCampaign(state, { before, hero, dt, time, level = CAMPAIGN_DEMO.level, config = CAMPAIGN, extraEnergy = 0 }) {
+export function stepCampaign(state, { before, hero, collectors = [], dt, time, level = CAMPAIGN_DEMO.level, config = CAMPAIGN, extraEnergy = 0, availableCompanions = 0 }) {
   if (state.failed) return { state, collected: 0, heartbeat: [], failed: false };
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < CAMPAIGN.pickupLife) };
   next.energy = Math.max(0, state.energy - config.burnRate * dt);
   let collected = 0;
   next.pickups = next.pickups.filter(pickup => {
-    if (segmentDistance(before, hero, pickup) > CAMPAIGN.pickupRadius + BLOB_RADIUS) return true;
+    const heroHit = segmentDistance(before, hero, pickup) <= CAMPAIGN.pickupRadius + BLOB_RADIUS;
+    const moonHit = collectors.some(({ from, to, radius = .16 }) => segmentDistance(from, to, pickup) <= CAMPAIGN.pickupRadius + radius);
+    if (!heroHit && !moonHit) return true;
     collected++;
     return false;
   });
@@ -79,24 +81,35 @@ export function stepCampaign(state, { before, hero, dt, time, level = CAMPAIGN_D
     next.nextSpawnAt = time + (spawned.point ? 7 : 2);
   }
   const heartbeat = [];
+  let consumedCompanion = false;
   if (next.energy > 0) {
     next.graceLeft = config.graceSeconds;
+    next.graceDuration = config.graceSeconds;
     next.beatPhase = 0;
   } else {
     next.graceLeft = Math.max(0, state.graceLeft - dt);
-    next.failed = next.graceLeft <= 0;
+    if (next.graceLeft <= 0 && availableCompanions > 0) {
+      consumedCompanion = true;
+      next.graceLeft = 4;
+      next.graceDuration = 4;
+      next.beatPhase = 0;
+      next.failed = false;
+    } else next.failed = next.graceLeft <= 0;
     if (!next.failed) {
-      const urgency = config.graceSeconds > 0 ? 1 - next.graceLeft / config.graceSeconds : 1;
+      const duration = next.graceDuration || config.graceSeconds;
+      const urgency = duration > 0 ? 1 - next.graceLeft / duration : 1;
       const advance = dt * (60 + 80 * urgency) / 60;
       const from = state.energy > 0 ? 0 : state.beatPhase;
-      if (state.energy > 0) heartbeat.push({ part: 'lub', urgency });
+      if (state.energy > 0 && !consumedCompanion) heartbeat.push({ part: 'lub', urgency });
       const to = from + advance;
-      for (let cycle = Math.floor(from); cycle <= Math.floor(to); cycle++) {
-        if (from < cycle + .22 && to >= cycle + .22) heartbeat.push({ part: 'dub', urgency });
-        if (cycle > 0 && from < cycle && to >= cycle) heartbeat.push({ part: 'lub', urgency });
+      if (!consumedCompanion) {
+        for (let cycle = Math.floor(from); cycle <= Math.floor(to); cycle++) {
+          if (from < cycle + .22 && to >= cycle + .22) heartbeat.push({ part: 'dub', urgency });
+          if (cycle > 0 && from < cycle && to >= cycle) heartbeat.push({ part: 'lub', urgency });
+        }
+        next.beatPhase = to % 1;
       }
-      next.beatPhase = to % 1;
     }
   }
-  return { state: next, collected, heartbeat, failed: next.failed && !state.failed };
+  return { state: next, collected, heartbeat, consumedCompanion, failed: next.failed && !state.failed };
 }

@@ -12,6 +12,41 @@ export function createEntityRuntime(entities) {
     return [entity.id, { x: initial.x, y: initial.y, vx: 0, vy: 0, used: false, until: -1, inside: false }];
   })), held: null, teleportUntil: -1, eclipseMultiplier: 1 };
 }
+// Resolve proposed captures only after the caller has checked lethal contact
+// and the exit. This also makes every pickup idempotent within an attempt.
+export function commitCompanionCaptures(runtime, ids) {
+  const committed = [];
+  for (const id of ids) {
+    const item = runtime?.items[id];
+    if (!item || item.used) continue;
+    item.used = true;
+    committed.push({ id, x: item.x, y: item.y });
+  }
+  return committed;
+}
+// Companion light is resolved after lethal contacts. A pickup shares its used,
+// cooldown and occupancy state with the hero, while moons have their own
+// collective occupancy so a reusable pickup cannot be farmed by hovering.
+export function collectCompanionLight(runtime, entities, collectors, time, hero = null) {
+  let energyDelta = 0, collected = 0;
+  for (const entity of entities) {
+    if (entity.type !== 'lightPickup') continue;
+    const item = runtime?.items[entity.id];
+    if (!item) continue;
+    if (hero) item.inside = distance(hero, item) <= entity.radius + BLOB_RADIUS;
+    const insideNow = collectors.some(({ to, radius = .16 }) => distance(to, item) <= entity.radius + radius);
+    const entering = !item.moonInside && !item.inside && collectors.some(({ from, to, radius = .16 }) =>
+      segmentDistance(from, to, item) <= entity.radius + radius);
+    item.moonInside = insideNow;
+    if (!entering || item.used || time < item.until || item.lastCollectedAt === time) continue;
+    energyDelta += entity.amount;
+    collected++;
+    if (!entity.reusable) item.used = true;
+    item.until = time + entity.cooldown;
+    item.lastCollectedAt = time;
+  }
+  return { energyDelta, collected };
+}
 export function releaseEntityHold(runtime, body, time) {
   if (!runtime?.held) return false;
   const held = runtime.held;
@@ -33,8 +68,8 @@ export function entityAcceleration(position, entities, runtime) {
 }
 
 // Fixed-step state. The caller applies energyDelta before resource expiry and splits the trail on teleport.
-export function stepEntityRuntime(runtime, entities, before, body, time, dt, bounds = null) {
-  const result = { died: false, teleported: false, energyDelta: 0, tones: [] };
+export function stepEntityRuntime(runtime, entities, before, body, time, dt, bounds = null, options = {}) {
+  const result = { died: false, fatalEmber: null, teleported: false, energyDelta: 0, tones: [], companions: [] };
   let captured = false;
   if (runtime.held) {
     const held = runtime.held;
@@ -65,20 +100,30 @@ export function stepEntityRuntime(runtime, entities, before, body, time, dt, bou
           item.y = Math.max(bounds.minY + entity.radius, Math.min(bounds.maxY - entity.radius, item.y));
         }
       }
-      if (entity.lethal) {
+      if (entity.lethal && !options.emberImmune) {
         const relativeFrom = { x: before.x - prior.x, y: before.y - prior.y };
         const relativeTo = { x: body.position.x - item.x, y: body.position.y - item.y };
-        if (segmentDistance(relativeFrom, relativeTo, { x: 0, y: 0 }) <= entity.radius + BLOB_RADIUS) { result.died = true; return result; }
+        if (segmentDistance(relativeFrom, relativeTo, { x: 0, y: 0 }) <= entity.radius + BLOB_RADIUS) {
+          result.died = true;
+          result.fatalEmber = { id: entity.id, x: item.x, y: item.y, radius: entity.radius };
+          return result;
+        }
       }
       continue;
     }
-    if (captured) continue;
-    const hit = segmentDistance(before, body.position, item) <= entity.radius + BLOB_RADIUS;
-    const insideNow = distance(body.position, item) <= entity.radius + BLOB_RADIUS;
-    const entering = hit && !item.inside;
+    if (captured) {
+      if (entity.type === 'lightPickup') item.inside = distance(body.position, item) <= entity.radius + BLOB_RADIUS;
+      continue;
+    }
+    const hitRadius = entity.type === 'companion' ? entity.captureRadius : entity.radius;
+    const hit = segmentDistance(before, body.position, item) <= hitRadius + BLOB_RADIUS;
+    const insideNow = distance(body.position, item) <= hitRadius + BLOB_RADIUS;
+    const entering = hit && !item.inside && (entity.type !== 'lightPickup' || !item.moonInside);
     item.inside = insideNow;
-    if (!entering || item.used || time < item.until) continue;
-    if (entity.type === 'impulse') {
+    if (!entering || item.used || time < item.until || item.lastCollectedAt === time) continue;
+    if (entity.type === 'companion') {
+      result.companions.push(entity.id);
+    } else if (entity.type === 'impulse') {
       body.velocity.x = Math.cos(radians(entity.direction)) * entity.speed;
       body.velocity.y = Math.sin(radians(entity.direction)) * entity.speed;
       item.until = time + .5; result.tones.push('impulse');
@@ -91,6 +136,7 @@ export function stepEntityRuntime(runtime, entities, before, body, time, dt, bou
       result.energyDelta += (entity.type === 'lightPickup' ? 1 : -1) * entity.amount;
       if (!entity.reusable) item.used = true;
       item.until = time + entity.cooldown; result.tones.push(entity.type);
+      item.lastCollectedAt = time;
     } else if (entity.type === 'portal' && time >= runtime.teleportUntil) {
       const target = entities.find(other => other.type === 'portal' && other.pairId === entity.pairId && other.id !== entity.id);
       if (!target) continue;

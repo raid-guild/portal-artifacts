@@ -49,9 +49,24 @@ to the level selector. Completed levels are marked locally. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
 the full trail result.
 
+In Level 2, a living owned moon can sacrifice itself when the dot touches a
+lethal ember. The dot returns to a safe point, flies outward, and has 1.25
+seconds of ember-only protection. A moon burns out after one cumulative second
+of direct contact with the giant; cooling takes two seconds. When the last
+embers timer reaches zero, a living moon instead buys four more seconds.
+Pickups resolve first, so a collected ember saves the moon. Either benefit
+consumes the oldest living owned moon; hot moons are still eligible.
+
 ## Level editor
 
 Home also opens the Level editor. It starts from Level 1 as an editable draft.
+The Add element menu includes **Companion moon**. Its selected properties show
+position and collection radius; the core radius stays fixed at 0.16. A moon
+collects light and can be spent to save the dot from an ember or buy four
+seconds when the last-embers timer expires. Embers have a **Burns companion
+moons** checkbox, available only when they are fixed and lethal. Switching
+motion or turning off lethal clears that flag in the same undoable edit.
+Imported JSON with an invalid combination is rejected by validation.
 Choose **Select** to move an element and inspect its properties; **Wall** and
 **Erase** paint continuously with a 1, 2, or 3-unit grid brush. Adjacent paint
 merges into exact wall regions without filling bends or holes; Erase cuts only
@@ -95,18 +110,26 @@ own experimental rules.
 ## Infinite Play
 
 Home's **Infinite Play** accepts a seed (up to 64 Unicode characters) or offers
-a random one. A seed and stage reproduce the same 96 × 54 room, including its
-three optional sound gates, three authored recharge embers, short interior
-walls, and modest fixed ember hazards. Its generated room uses the same version
+a random one. Generation 2 adds two collectible companion moons, larger heavy
+neighbors, and pairs of orbiting embers in several seeded encounter arrangements.
+The moons gather light, can be sacrificed for an ember rescue or four more
+seconds in last embers, and can burn out against the fixed heavy neighbors.
+A seed and stage reproduce the same 96 × 54 room within this generator version,
+including three optional sound gates, three authored recharge embers, and short
+interior walls. Existing seed links now produce generation 2 layouts; exported
+JSON freezes an exact level independently of future generator updates.
+Its generated room uses the same version
 1 document compiler, physics, follow camera, minimap, light meter, and result
 art as Campaign. The generator reserves a wide, gently bending route and
-verifies a margin-clear path to the exit; it uses a deterministic open-room
-fallback if attempts fail. Difficulty rises gradually through the first ten
+verifies a margin-clear path to the exit using each orbit's full swept envelope;
+this geometric check does not prove a gravity-driven route is physically easy.
+A deterministic fallback retains companions and a simple encounter if attempts
+fail. Difficulty rises gradually through the first ten
 stages. Stage numbers are capped at 1,000,000.
 
 **Retry** regenerates the same seed and stage and resets the attempt's light,
 wells, and gate pattern. A successful **Continue** advances one stage. The
-result shows the seed and stage, offers a shareable `?infinite=<seed>&stage=<n>`
+result shows the seed, stage and generator version, offers a shareable `?infinite=<seed>&stage=<n>`
 link, and can load that generated document into the editor for changes. This
 explicitly replaces the current editor draft as one undoable step; it does not
 write campaign completion or gate records. Generated levels use only authored
@@ -143,7 +166,8 @@ Canonical and social metadata use the production `/orbit-lab/` URL.
 
 The gallery opens on a fresh visit; the grid button returns to it at any time.
 Every study resets to its own paused starting state. Share a study using
-`/orbit-lab/?demo=drift`, `satellites`, `slingshot`, `gate`, `maze`, or `orbit`.
+`/orbit-lab/?demo=drift`, `satellites`, `slingshot`, `gate`, `maze`, `orbit`,
+or `companion`.
 
 - **A gentle curve:** an open room for temporary-well steering.
 - **A little gravity:** the hero attracts three loose moons. Set Dot gravity
@@ -153,12 +177,17 @@ Every study resets to its own paused starting state. Share a study using
 - **Bring a moon:** move the gold moon onto the gold ring to latch a gate open.
 - **The winding room:** the original maze remains as a reference.
 - **An orbital sketch:** the original wall-free orbit experiment.
+- **A companion returns:** one owned moon follows the dot in an open room. A
+  nearby well can borrow its orbit; it returns smoothly as the well fades.
 
 The hero has mass 1 and each moon mass 0.08. Dot gravity defaults to 12 in the
 moon studies and is adjustable from 0 to 30. Attraction is softened; moon and
 hero forces are equal and opposite, so the hero never accelerates itself.
 The portal and hazards remain fixed. Trajectory prediction is disabled in
-moving-moon studies rather than pretending their trajectories are static.
+moving-moon studies rather than pretending their trajectories are static. The
+companion study uses its own soft orbital steering and does not apply the
+reciprocal Dot gravity used by the older moon studies. Collection, extra life,
+and resource effects remain outside this first companion experiment.
 
 Preset definitions and the reciprocal-gravity/switch helpers live in
 `src/demos.js`. To add a study, define its room, spawn, portal, hazards,
