@@ -1,6 +1,6 @@
 // Original procedural tones: no samples or external audio requests.
 export class OrbitAudio {
-  constructor() { this.enabled = true; this.step = 0; }
+  constructor() { this.enabled = true; this.step = 0; this.profile = 'default'; this.sceneVoices = new Set(); }
   unlock() {
     if (!this.enabled) return;
     const Audio = window.AudioContext || window.webkitAudioContext;
@@ -11,6 +11,7 @@ export class OrbitAudio {
       const limiter = c.createDynamicsCompressor();
       this.master.connect(limiter); limiter.connect(c.destination);
       this.heartbeatBus = c.createGain(); this.heartbeatBus.gain.value = 1; this.heartbeatBus.connect(this.master);
+      this.sceneBus = c.createGain(); this.sceneBus.gain.value = 1; this.sceneBus.connect(this.master);
       // Quiet, continuous tail voice with a smoothly controlled envelope.
       this.tail = c.createOscillator(); this.tail.type = 'triangle';
       this.tailGain = c.createGain(); this.tailGain.gain.value = 0;
@@ -37,7 +38,7 @@ export class OrbitAudio {
     if (enabled) this.unlock();
     if (this.context) this.master.gain.setTargetAtTime(enabled ? .32 : 0, this.context.currentTime, .04);
   }
-  tone(frequency, delay = 0, duration = 1.4, volume = .16, endFrequency = frequency) {
+  tone(frequency, delay = 0, duration = 1.4, volume = .16, endFrequency = frequency, sceneVoice = false) {
     if (!this.enabled || !this.context) return;
     const c = this.context, time = c.currentTime + delay;
     const oscillator = c.createOscillator(), gain = c.createGain();
@@ -46,14 +47,24 @@ export class OrbitAudio {
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(volume, time + .025);
     gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    oscillator.connect(gain); gain.connect(this.master);
+    oscillator.connect(gain); gain.connect(sceneVoice ? this.sceneBus : this.master);
+    if (sceneVoice) this.sceneVoices.add(oscillator);
     oscillator.start(time); oscillator.stop(time + duration + .05);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+    oscillator.onended = () => { this.sceneVoices.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
   }
+  setProfile(profile) { this.profile = profile; this.step = 0; }
+  startScene() { this.unlock(); this.stopScene(); }
+  stopScene() {
+    for (const voice of this.sceneVoices) { try { voice.stop(); } catch {} }
+    this.sceneVoices.clear();
+  }
+  sceneCall(note) { const pitch = [293.665, 440, 329.628, 523.251, 391.995][note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
+  sceneEarned(note) { const pitch = [369.994, 493.883, 587.33][note - 1]; this.tone(pitch, 0, .75, .07, pitch, true); }
+  sceneAnswer() { [220, 277.183, 369.994].forEach((note, i) => this.tone(note, i * .12, 1.8, .09, note, true)); }
   placement() {
     this.unlock();
     // A repeating, spacious five-note call, composed for this experiment.
-    const notes = [293.665, 440, 329.628, 523.251, 391.995];
+    const notes = this.profile === 'chapter' ? [293.665, 440, 329.628, 523.251, 391.995] : [293.665, 440, 329.628, 523.251, 391.995];
     const note = notes[this.step++ % notes.length];
     this.tone(note, 0, 1.9, .19);
     this.tone(note * 2, .08, 1.3, .045);
@@ -81,10 +92,17 @@ export class OrbitAudio {
   }
   gateAcquire(layer) {
     const note=[130.81,392,783.99][layer];
+    if (this.profile === 'chapter') { this.tone(note, 0, .42, .17); this.tone(note * 2, .08, .22, .045); return; }
     this.tone(note,0,.3,.25);this.tone(note*1.5,.13,.4,.15);
     if(layer===0) { this.tone(261.63,0,.35,.18); this.tone(392,.08,.22,.06); }
   }
   gateBeat(layer,beat) {
+    if (this.profile === 'chapter') {
+      if (layer===0 && beat%4===0) this.tone(130.81, 0, .24, .2, 98);
+      if (layer===1 && beat%4===2) this.tone(329.628, 0, .16, .12);
+      if (layer===2 && beat%2===1) this.tone(beat%4===1 ? 783.99 : 587.33, 0, .16, .1);
+      return;
+    }
     if(layer===0 && beat%4===0) { this.tone(130.81,0,.22,.28,65.405); this.tone(261.63,0,.18,.085); this.tone(392,0,.11,.035); }
     if(layer===1 && beat%4===2) this.tone(392,0,.18,.2);
     if(layer===2 && beat%2===1) this.tone(beat%4===1?783.99:587.33,0,.12,.14);

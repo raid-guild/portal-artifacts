@@ -28,7 +28,7 @@ export function stepSoundGates(state, gates, before, hero, time) {
   return { state: { mask, beat }, acquired, beats };
 }
 
-export function validateBestGates(value, knownLevels = [1, 2]) {
+export function validateBestGates(value, knownLevels = [1, 2, 3]) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const result = {};
   for (const id of knownLevels) if (Number.isInteger(value[id]) && value[id] >= 0 && value[id] <= 7) result[id] = value[id];

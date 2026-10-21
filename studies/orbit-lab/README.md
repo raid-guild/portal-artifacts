@@ -33,19 +33,25 @@ injects its site-wide analytics and outbound-link scripts.
 
 The root route opens Home, with Campaign, Infinite Play, World Studies, and the
 Level editor. Campaign
-opens a two-level selector; `?campaign=1` and `?campaign=2` open either level
+opens a three-level Chapter One selector; `?campaign=1`, `?campaign=2`, and
+`?campaign=3` open levels
 directly, while `?demo=<id>` keeps a study deep link. Campaign
 starts with 60% light, burns 1.8 percentage points per simulation second,
 and receives 30 points from each pale ember. Darkness gives eight seconds to
 collect another ember before the run ends, marked by an accelerating heartbeat.
-Both levels share a bounded 96 × 54 chamber with a portal 50 world units from
+All three levels share a bounded 96 × 54 chamber with a portal 50 world units from
 the start. Level 1 has an empty interior. Level 2 adds a giant orange ember
 at the center; its gravity bends the dot and contact is lethal. Wells and
-recharge embers cannot appear inside it. The camera follows the dot; the
+recharge embers cannot appear inside it. Level 3, **An opening in the dark**,
+adds offset walls, two orbiting embers, and three collectible moons. The camera follows the dot; the
 minimap marks the dot, wells, embers, danger, portal, and current view. The
 trail art records the full path. Campaign results show time, attempts, and wells
-placed; Retry starts a new attempt. Continue advances to Level 2, then returns
-to the level selector. Completed levels are marked locally. The restart
+placed; Retry starts a new attempt. Continue advances through all three levels.
+Completing Level 3 unlocks an 18-second, skippable transmission, replayable from
+the level selector. The original five-note well call is heard there with rests;
+each level whose best successful finish collected all three sound gates fills
+one of its middle notes. Completion does not require any gates. Completed
+levels and best successful gate patterns are marked locally. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
 the full trail result.
 
@@ -103,7 +109,7 @@ header and result card return to the editor with draft, selection, view, and
 undo history intact. Playtests do not update campaign completion or best-gate
 records. The document keeps the required exit separate from transport pairs;
 interior walls are editable while the four perimeter walls derive from bounds.
-The two shipped campaign levels are version 1 JSON files in `src/levels/` and
+The three shipped campaign levels are version 1 JSON files in `src/levels/` and
 use this same compiler and mixed-entity runtime. Gallery studies keep their
 own experimental rules.
 
