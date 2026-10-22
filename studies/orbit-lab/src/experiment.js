@@ -3,10 +3,11 @@ import * as THREE from 'three';
 import { BLOB_RADIUS, sweptCircleRect } from './level.js';
 import { acceleration } from './physics.js';
 import { rotateVelocity, segmentDistance } from './studies.js';
+import { stepEclipseExposure } from './eclipse.js';
 
 export class Experiment {
  constructor(scene,audio) {this.scene=scene;this.audio=audio;this.group=new THREE.Group();scene.add(this.group);this.items=[];}
- clear() { for(const item of [...this.group.children]) {this.group.remove(item);item.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});} this.items=[];this.held=null;this.cooldown=0;this.brightness=1;this.layers=new Set();this.beat=-1;this.time=0; }
+ clear() { for(const item of [...this.group.children]) {this.group.remove(item);item.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});} this.items=[];this.held=null;this.cooldown=0;this.brightness=1;this.eclipseExposure=1;this.layers=new Set();this.beat=-1;this.time=0; }
  marker(x,y,r,color,solid=false) {
   const material=new THREE.MeshBasicMaterial({color,transparent:true,opacity:solid?1:.8});
   const mesh=new THREE.Mesh(solid?new THREE.CircleGeometry(r,48):new THREE.RingGeometry(r-.035,r+.035,64),material);mesh.position.set(x,y,1.4);this.group.add(mesh);
@@ -31,25 +32,30 @@ export class Experiment {
   if(this.kind==='portals'){add(-3,0,1,0x76e9e3);add(6,-3,1,0x76e9e3);this.marker(6,-1.6,.12,0x76e9e3,true);}
   if(this.kind==='boost') {this.marker(-2.8,0,.13,0x76e9e3,true);this.marker(-2.5,0,.09,0x76e9e3,true);}
  }
- updateVisuals(position,time,brightness=1,pixelRatio=1) {
+ updateVisuals(position,time,brightness=1,pixelRatio=1,eclipseExposure=1) {
   for(const item of this.items){
    item.mesh.userData.animate?.(time,pixelRatio);
+   if(['giant','chaser','clock','hidden'].includes(this.kind)) item.mesh.userData.setFade?.(eclipseExposure);
    if(this.kind==='hidden'){
     const d=Math.hypot(position.x-item.x,position.y-item.y);
     const blocked=this.walls.some(w=>sweptCircleRect(position,item,0,w)!==null);
     // Match the actual orb light's 50-unit range and inverse-square falloff.
     const attenuation=Math.max(0,1-(d/50)**4)**2;
     const illumination=85*Math.max(0,brightness)*attenuation/(1+d*d);
-    item.mesh.visible=illumination>.15&&!blocked;
-    item.mesh.material.opacity=Math.min(1,Math.max(.35,illumination*.6));
+    item.mesh.visible=illumination>.15&&!blocked&&eclipseExposure>0;
+    item.mesh.material.opacity=Math.min(1,Math.max(.35,illumination*.6))*eclipseExposure;
    }
    if(this.kind==='sound'&&item.used)item.mesh.scale.setScalar(1+.12*Math.exp(-((time*4)%1)*4));
   }
  }
- release(body) {if(!this.held)return; const {vx,vy}=this.held;body.velocity.set(vx,vy,0);this.held=null;this.cooldown=this.time+.8;this.brightness=1;this.audio.tone(440,0,.4,.08);}
+ release(body) {if(!this.held)return; const {vx,vy}=this.held;body.velocity.set(vx,vy,0);this.held=null;this.cooldown=this.time+.8;this.audio.tone(440,0,.4,.08);}
  step(body,before,time,wells,mode,die) {
-  this.time=time;
-  if(this.held) {body.position.set(this.held.x,this.held.y,0);body.velocity.setZero();body.force.setZero();if(this.kind==='eclipse')this.brightness=Math.max(.025,1-(time-this.held.at)/3);return;}
+  const dt=Math.max(0,time-this.time);this.time=time;
+  if(this.kind==='eclipse') {
+   this.eclipseExposure=stepEclipseExposure(this.eclipseExposure,!!this.held,dt,3);
+   this.brightness=this.eclipseExposure;
+  }
+  if(this.held) {body.position.set(this.held.x,this.held.y,0);body.velocity.setZero();body.force.setZero();return;}
   const p=body.position;
   for(let i=0;i<this.items.length;i++) {
    const item=this.items[i];if(item.used)continue;

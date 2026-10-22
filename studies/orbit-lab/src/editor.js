@@ -12,7 +12,7 @@ const fieldSpecs = {
   start: ['x','y','direction','speed'], exit: ['x','y','radius','gravity'], wall: ['x','y','width','height'], wallPath: ['thickness'],
   ember: ['x','y','radius','gravity','lethal','motion','burnsCompanions'],
   soundGate: ['x','y','radius','slot'], impulse: ['x','y','radius','direction','speed'],
-  stillness: ['x','y','radius','captureTime'], eclipse: ['x','y','radius','captureTime','fadeTime'],
+  stillness: ['x','y','radius','manualRelease','captureTime','releaseDirection'], eclipse: ['x','y','radius','manualRelease','captureTime','fadeTime','releaseDirection'],
   lightPickup: ['x','y','radius','amount','reusable','cooldown'], dimmer: ['x','y','radius','amount','reusable','cooldown'],
   portal: ['x','y','radius','pairId','exitDirection'],
   companion: ['x','y','captureRadius'],
@@ -23,8 +23,8 @@ function defaultEntity(type, x, y, model) {
   if (type === 'companion') return defaultCompanionEntity(base.id, x, y);
   if (type === 'soundGate') return {...base, slot:[0,1,2].find(slot=>!model.document.entities.some(e=>e.type==='soundGate'&&e.slot===slot)) ?? 0};
   if (type === 'impulse') return {...base, direction:0, speed:12};
-  if (type === 'stillness') return {...base, captureTime:1};
-  if (type === 'eclipse') return {...base, captureTime:2, fadeTime:2};
+  if (type === 'stillness') return {...base, captureTime:1, manualRelease:true, releaseDirection:null};
+  if (type === 'eclipse') return {...base, captureTime:2, manualRelease:true, fadeTime:2, releaseDirection:null};
   if (type === 'lightPickup' || type === 'dimmer') return {...base, radius:.65, amount:.3, reusable:false, cooldown:4};
   if (type === 'portal') {
     const unpaired = model.document.entities.find(e=>e.type==='portal'&&model.document.entities.filter(o=>o.type==='portal'&&o.pairId===e.pairId).length===1);
@@ -33,7 +33,7 @@ function defaultEntity(type, x, y, model) {
   return base;
 }
 
-export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
+export function createEditor({ mount, defaultDocument, onHome, onPlay, getCampaignTemplates = () => [], createCampaignTemplate = () => null }) {
   let stored = null;
   try { const value = localStorage.getItem(EDITOR_DRAFT_KEY); if (value && value.length < 262144) stored = JSON.parse(value); } catch {}
   const safeShape = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -49,7 +49,7 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
   const fileInput = $('#editorFile'), fields = $('#editorFields');
   for (const type of ENTITY_TYPES) { const option=document.createElement('option'); option.value=type; option.textContent=type==='companion'?'Companion moon':title(type); $('#editorEntityTool').append(option); }
   {const option=document.createElement('option');option.value='orbitRing';option.textContent='Orbit ring · 3 embers';$('#editorEntityTool').append(option);}
-  let tool='select', scale=12, offset={x:0,y:0}, pointer=null, grid=1, open=false, hasFit=false, inspectorTab='level', lineDraft=null, lineCursor=null, editorNotice='', presetCursor=null;
+  let tool='select', scale=12, offset={x:0,y:0}, pointer=null, grid=1, open=false, hasFit=false, inspectorTab='level', lineDraft=null, lineCursor=null, editorNotice='', presetCursor=null, templateSelection='';
   let fittedSize={width:0,height:0};
   const save=()=>{ try { localStorage.setItem(EDITOR_DRAFT_KEY, JSON.stringify(model.document)); $('#editorSaveState').textContent='Saved locally'; } catch { $('#editorSaveState').textContent='Local save unavailable'; } };
   const fit=()=>{const b=model.document.bounds,rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;scale=Math.min((rect.width-48)/(b.maxX-b.minX),(rect.height-48)/(b.maxY-b.minY));offset={x:rect.width/2-(b.minX+b.maxX)/2*scale,y:rect.height/2+(b.minY+b.maxY)/2*scale};hasFit=true;fittedSize={width:rect.width,height:rect.height};draw();};
@@ -108,6 +108,13 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
       }else{
         ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fillStyle=entityColors[entity.type]+'55';ctx.fill();ctx.strokeStyle=entityColors[entity.type];ctx.lineWidth=selected?3:1.5;ctx.stroke();
       }
+      if((entity.type==='stillness'||entity.type==='eclipse')&&Number.isFinite(entity.releaseDirection)){
+        const angle=entity.releaseDirection*Math.PI/180,dx=Math.cos(angle),dy=-Math.sin(angle),tx=-dy,ty=dx;
+        ctx.beginPath();ctx.moveTo(p.x+dx*radius*1.03,p.y+dy*radius*1.03);
+        ctx.lineTo(p.x+dx*radius*.68+tx*radius*.18,p.y+dy*radius*.68+ty*radius*.18);
+        ctx.lineTo(p.x+dx*radius*.68-tx*radius*.18,p.y+dy*radius*.68-ty*radius*.18);
+        ctx.closePath();ctx.fillStyle='#ffd58e';ctx.fill();
+      }
       ctx.fillStyle=entityColors[entity.type];ctx.font='11px sans-serif';ctx.fillText(entity.type==='soundGate'?`♪${entity.slot+1}`:entity.type==='portal'?`⇄${entity.pairId}`:title(entity.type),p.x+radius+4,p.y+3);
     }
     for(const [key,color,glyph] of [['start','#eafff5','●'],['exit','#aa9aff','◎']]){const point=model.document[key];if(!point)continue;const p=screen(point);ctx.fillStyle=color;ctx.font='bold 24px sans-serif';ctx.fillText(glyph,p.x-9,p.y+8);if(model.selected===key){ctx.strokeStyle=color;ctx.strokeRect(p.x-15,p.y-15,30,30);}}
@@ -137,7 +144,7 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     status.classList.toggle('invalid',!result.ok);
     $('[data-action="play"]').disabled=!result.ok; $('[data-action="export"]').disabled=!result.ok;
     $('[data-action="undo"]').disabled=!model.undoStack.length; $('[data-action="redo"]').disabled=!model.redoStack.length;
-    if(renderInspector)renderFields();draw();save();
+    if(renderInspector)renderFields();refreshDuplicateAction();draw();save();
   }
   function setInspectorTab(next) {
     model.endStroke();
@@ -146,12 +153,13 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     renderFields(); refresh(false);
   }
   function addField(parent,object,key,labelPrefix='') {
-    const value=object?.[key],label=document.createElement('label');label.textContent=key==='orbitDirection'?'Direction':key==='phase'&&labelPrefix==='Starting '?'Starting angle':key==='captureRadius'&&object?.type==='companion'?'Collection radius':key==='burnsCompanions'?'Burns companion moons':`${labelPrefix}${title(key)}`;
+    const value=object?.[key],label=document.createElement('label');label.textContent=key==='orbitDirection'?'Direction':key==='phase'&&labelPrefix==='Starting '?'Starting angle':key==='captureRadius'&&object?.type==='companion'?'Collection radius':key==='burnsCompanions'?'Burns companion moons':key==='manualRelease'?'Wait for release':key==='releaseDirection'?'Release direction (°)':`${labelPrefix}${title(key)}`;
     let input;
-    if(typeof value==='boolean'||key==='burnsCompanions'){input=document.createElement('input');input.type='checkbox';input.checked=value===true;if(key==='burnsCompanions')input.disabled=object?.motion!=='fixed'||!object?.lethal;}
+    if(typeof value==='boolean'||key==='burnsCompanions'||key==='manualRelease'){input=document.createElement('input');input.type='checkbox';input.checked=value===true;if(key==='burnsCompanions')input.disabled=object?.motion!=='fixed'||!object?.lethal;}
     else if(key==='motion'||key==='orbitDirection'){input=document.createElement('select');for(const mode of key==='motion'?['fixed','chaser','orbit']:['counterclockwise','clockwise']){const option=document.createElement('option');option.value=mode;option.textContent=title(mode);input.append(option);}input.value=value||'counterclockwise';}
-    else{input=document.createElement('input');input.type=typeof value==='number'?'number':'text';if(input.type==='number'){input.step='any';input.inputMode='decimal';}input.value=value===null?'':value;}
-    const commitInput=()=>{const newValue=input.type==='checkbox'?input.checked:input.type==='number'?(input.value===''?NaN:Number(input.value)):key==='maxTotalWells'&&input.value===''?null:input.value;const findTarget=doc=>key==='title'?doc:labelPrefix==='Settings / '?doc.settings:labelPrefix==='Bounds / '?doc.bounds:model.selected==='start'||model.selected==='exit'?doc[model.selected]:[...doc.walls,...(doc.wallPaths||[]),...doc.entities].find(item=>item.id===model.selected);const current=findTarget(model.document);if(!current||Object.is(current[key],newValue))return;model.paint(doc=>{const target=findTarget(doc);if(key==='motion'&&newValue==='orbit')Object.assign(target,startOrbitMotion(target));else if(key==='orbitRadius'&&target.type==='ember'&&target.motion==='orbit')Object.assign(target,orbitRadiusKeepingPeriod(target,newValue));else target[key]=newValue;if(target.type==='ember'&&(key==='motion'||key==='lethal'))clearIneligibleCompanionBurn(target);});editorNotice='';if(key==='motion'||key==='lethal'){model.endStroke();refresh();}else refresh(false);};
+    else{input=document.createElement('input');input.type=key==='releaseDirection'||typeof value==='number'?'number':'text';if(input.type==='number'){input.step='any';input.inputMode='decimal';}input.value=value===null?'':value;}
+    if(key==='releaseDirection')input.placeholder='Incoming direction';
+    const commitInput=()=>{const newValue=input.type==='checkbox'?input.checked:key==='releaseDirection'&&input.value===''?null:input.type==='number'?(input.value===''?NaN:Number(input.value)):key==='maxTotalWells'&&input.value===''?null:input.value;const findTarget=doc=>key==='title'?doc:labelPrefix==='Settings / '?doc.settings:labelPrefix==='Bounds / '?doc.bounds:model.selected==='start'||model.selected==='exit'?doc[model.selected]:[...doc.walls,...(doc.wallPaths||[]),...doc.entities].find(item=>item.id===model.selected);const current=findTarget(model.document);if(!current||Object.is(current[key],newValue))return;model.paint(doc=>{const target=findTarget(doc);if(key==='motion'&&newValue==='orbit')Object.assign(target,startOrbitMotion(target));else if(key==='orbitRadius'&&target.type==='ember'&&target.motion==='orbit')Object.assign(target,orbitRadiusKeepingPeriod(target,newValue));else target[key]=newValue;if(target.type==='ember'&&(key==='motion'||key==='lethal'))clearIneligibleCompanionBurn(target);});editorNotice='';if(key==='motion'||key==='lethal'||key==='manualRelease'){model.endStroke();refresh();}else refresh(false);};
     input.addEventListener('input',commitInput);
     input.addEventListener('change',commitInput);
     input.addEventListener('blur',()=>{model.endStroke();refresh(false);});
@@ -171,10 +179,22 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     if(inspectorTab==='level') {
       const intro=document.createElement('p');intro.className='editor-tab-help';intro.textContent='Set the room and its rules here. Select an element on the canvas to edit its properties.';fields.append(intro);
       heading('Level');addField(fields,model.document,'title');
+      heading('Campaign template');
+      const label=document.createElement('label');label.textContent='Campaign template';
+      const select=document.createElement('select');select.dataset.campaignTemplate='';select.setAttribute('aria-label','Campaign template');
+      const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose a completed level…';select.append(placeholder);
+      const templates=getCampaignTemplates();
+      select.disabled=templates.length===0;
+      for(const level of templates){const option=document.createElement('option');option.value=String(level.id);option.textContent=`${String(level.id).padStart(2,'0')} / ${level.title}`;select.append(option);}
+      if(templates.some(level=>String(level.id)===templateSelection))select.value=templateSelection;else templateSelection='';
+      const create=document.createElement('button');create.type='button';create.dataset.action='campaignTemplate';create.textContent='Start new from campaign';create.disabled=!templateSelection;
+      select.addEventListener('change',()=>{templateSelection=select.value;create.disabled=!templateSelection;});
+      label.append(select);fields.append(label,create);
+      const hint=document.createElement('p');hint.className='editor-tab-help';hint.textContent=templates.length?'Only levels finished with all three gates appear here. This opens an editable copy.':'Finish a campaign level with all three gates to use it as a template.';fields.append(hint);
       heading('Bounds');for(const key of ['minX','maxX','minY','maxY'])addField(fields,model.document.bounds,key,'Bounds / ');
       heading('World rules');for(const key of Object.keys(model.document.settings))addField(fields,model.document.settings,key,'Settings / ');
       const actions=document.createElement('div');actions.className='editor-level-actions';
-      for(const [action,label] of [['clearAll','Clear all elements'],['startNew','Start new level']]){const button=document.createElement('button');button.type='button';button.dataset.action=action;button.textContent=label;actions.append(button);}
+      for(const [action,text] of [['clearAll','Clear all elements'],['startNew','Start new level']]){const button=document.createElement('button');button.type='button';button.dataset.action=action;button.textContent=text;actions.append(button);}
       fields.append(actions);
       return;
     }
@@ -189,14 +209,35 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
         addField(fields,selected,'orbitRadius');addOrbitPeriodField(selected);
         addField(fields,selected,'orbitDirection','');addField(fields,selected,'phase','Starting ');
       }else if(selected.motion==='chaser')addField(fields,selected,'speed','Movement ');
-    }else for(const key of fieldSpecs[type]||[])addField(fields,selected,key);
+    }else for(const key of fieldSpecs[type]||[])if(key!=='captureTime'||!selected.manualRelease)addField(fields,selected,key);
+    if(type==='stillness'||type==='eclipse'){const hint=document.createElement('p');hint.className='editor-tab-help';hint.textContent=type==='stillness'?'Waiting here holds the dot still; campaign light and its last-embers timer pause while held. Wait for release uses Space instead of a timer.':'Eclipse holds the dot and dims the light until embers disappear. Campaign light and its last-embers timer pause while held. Wait for release uses Space instead of a timer.';fields.append(hint);const directionHint=document.createElement('p');directionHint.className='editor-tab-help';directionHint.textContent='Leave release direction blank to continue in the incoming direction. 0° right · 90° up · 180° left · 270° down. Release keeps the arrival speed.';fields.append(directionHint);}
     if(type==='companion'){const hint=document.createElement('p');hint.className='editor-tab-help';hint.textContent='The moon joins when you enter its collection ring. It can gather light, save you from an ember, or buy 4 seconds in the last embers.';fields.append(hint);}
     if(type==='wallPath') selected.points.forEach((point,index)=>{
       const row=document.createElement('div');row.className='editor-path-point';const heading=document.createElement('span');heading.textContent=`Point ${index+1}`;row.append(heading);
       for(const axis of ['x','y']){const label=document.createElement('label');label.textContent=axis.toUpperCase();const input=document.createElement('input');input.type='number';input.step='any';input.value=point[axis];input.addEventListener('input',()=>{const value=input.value===''?NaN:Number(input.value);const current=model.selectedObject?.points?.[index]?.[axis];if(Object.is(current,value))return;model.paint(doc=>{doc.wallPaths.find(path=>path.id===model.selected).points[index][axis]=value;});refresh(false);});input.addEventListener('blur',()=>{model.endStroke();refresh(false);});label.append(input);row.append(label);}
       const remove=document.createElement('button');remove.type='button';remove.textContent='−';remove.title=`Remove point ${index+1}`;remove.setAttribute('aria-label',`Remove point ${index+1}`);remove.disabled=selected.points.length<=2;remove.addEventListener('click',()=>{model.endStroke();model.transact(doc=>doc.wallPaths.find(path=>path.id===model.selected).points.splice(index,1));refresh();});row.append(remove);fields.append(row);
     });
-    if(type!=='start'&&type!=='exit'){const button=document.createElement('button');button.textContent='Delete selected';button.type='button';button.addEventListener('click',()=>{model.endStroke();model.transact(doc=>{doc.walls=doc.walls.filter(w=>w.id!==model.selected);doc.wallPaths=(doc.wallPaths||[]).filter(path=>path.id!==model.selected);doc.entities=doc.entities.filter(e=>e.id!==model.selected);});model.selected=null;refresh();});fields.append(button);}
+    if(type!=='start'&&type!=='exit'){
+      const actions=document.createElement('div');actions.className='editor-selected-actions';
+      const duplicate=document.createElement('button');duplicate.textContent='Duplicate';duplicate.type='button';duplicate.dataset.duplicateSelected='';
+      duplicate.addEventListener('click',duplicateSelected);actions.append(duplicate);
+      const remove=document.createElement('button');remove.textContent='Delete selected';remove.type='button';remove.addEventListener('click',()=>{model.endStroke();model.transact(doc=>{doc.walls=doc.walls.filter(w=>w.id!==model.selected);doc.wallPaths=(doc.wallPaths||[]).filter(path=>path.id!==model.selected);doc.entities=doc.entities.filter(e=>e.id!==model.selected);});model.selected=null;refresh();});actions.append(remove);
+      fields.append(actions);
+      const hint=document.createElement('p');hint.className='editor-tab-help';hint.dataset.duplicateReason='';hint.hidden=true;fields.append(hint);
+    }
+  }
+  function refreshDuplicateAction(){
+    const button=fields.querySelector('[data-duplicate-selected]');
+    if(!button)return;
+    const preview=model.duplicatePreview();button.disabled=!preview.ok;
+    const hint=fields.querySelector('[data-duplicate-reason]');
+    hint.hidden=preview.ok;hint.textContent=preview.ok?'':preview.error;
+  }
+  function duplicateSelected(){
+    const result=model.duplicateSelected();
+    editorNotice=result.ok?'':result.error;
+    if(result.ok){cancelLine();tool='select';$('#editorEntityTool').value='';for(const button of root.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool==='select'));setInspectorTab('selected');}
+    else refresh();
   }
   function lineButtons(){for(const button of root.querySelectorAll('.editor-line-action'))button.classList.toggle('hidden',!lineDraft?.length);}
   function cancelLine(){lineDraft=null;lineCursor=null;lineButtons();draw();}
@@ -218,6 +259,13 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
     if(action==='undo'){model.undo();refresh();}if(action==='redo'){model.redo();refresh();}
     if(action==='clearAll'){cancelLine();model.clearAll();setInspectorTab('level');refresh();}
     if(action==='startNew'){cancelLine();model.startNew();setInspectorTab('level');fit();refresh();}
+    if(action==='campaignTemplate'){
+      const chosen=templateSelection;
+      const available=getCampaignTemplates().some(level=>String(level.id)===chosen);
+      const document=available?createCampaignTemplate(chosen):null;
+      if(!document || !loadDocument(document)){editorNotice='That campaign template is no longer available.';refresh();return;}
+      templateSelection='';editorNotice='Editable copy created. Undo restores your previous map.';refresh();
+    }
     if(action==='finishLine')finishLine();if(action==='cancelLine')cancelLine();
     if(action==='fit')fit();if(action==='zoomin'){scale=Math.min(100,scale*1.25);draw();}if(action==='zoomout'){scale=Math.max(2,scale/1.25);draw();}
     if(action==='drawer')root.classList.add('inspector-open');if(action==='closeDrawer')root.classList.remove('inspector-open');
@@ -265,17 +313,15 @@ export function createEditor({ mount, defaultDocument, onHome, onPlay }) {
   canvas.addEventListener('pointermove',event=>{if(tool==='line'&&!pointer&&lineDraft?.length){lineCursor=snapPoint(world(event));draw();}else if(tool==='entity:orbitRing'&&!pointer){presetCursor=snapPoint(world(event));draw();}});
   canvas.addEventListener('dblclick',()=>{if(tool==='line')finishLine();});
   canvas.addEventListener('wheel',event=>{event.preventDefault();const rect=canvas.getBoundingClientRect(),before=world({clientX:event.clientX,clientY:event.clientY});scale=Math.max(2,Math.min(100,scale*(event.deltaY<0?1.1:.9)));offset.x=event.clientX-rect.left-before.x*scale;offset.y=event.clientY-rect.top+before.y*scale;draw();},{passive:false});
-  root.addEventListener('keydown',event=>{if(event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement)return;if(tool==='line'&&event.key==='Enter'){event.preventDefault();finishLine();return;}if(tool==='line'&&event.key==='Escape'){event.preventDefault();cancelLine();return;}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();if(event.shiftKey)model.redo();else model.undo();refresh();}else if((event.key==='Delete'||event.key==='Backspace')&&model.selected&&!['start','exit'].includes(model.selected)){event.preventDefault();model.transact(doc=>{doc.walls=doc.walls.filter(e=>e.id!==model.selected);doc.wallPaths=(doc.wallPaths||[]).filter(e=>e.id!==model.selected);doc.entities=doc.entities.filter(e=>e.id!==model.selected);});model.selected=null;refresh();}});
+  document.addEventListener('keydown',event=>{if(!open||event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement||event.target instanceof HTMLTextAreaElement||event.target?.isContentEditable)return;if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='d'){if(model.selected){event.preventDefault();duplicateSelected();}return;}if(tool==='line'&&event.key==='Enter'){event.preventDefault();finishLine();return;}if(tool==='line'&&event.key==='Escape'){event.preventDefault();cancelLine();return;}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();if(event.shiftKey)model.redo();else model.undo();refresh();}else if((event.key==='Delete'||event.key==='Backspace')&&model.selected&&!['start','exit'].includes(model.selected)){event.preventDefault();model.transact(doc=>{doc.walls=doc.walls.filter(e=>e.id!==model.selected);doc.wallPaths=(doc.wallPaths||[]).filter(e=>e.id!==model.selected);doc.entities=doc.entities.filter(e=>e.id!==model.selected);});model.selected=null;refresh();}});
   const observer=new ResizeObserver(drawOrRefit);observer.observe(canvas);
   function show(){open=true;root.classList.remove('hidden');refresh();requestAnimationFrame(hasFit?drawOrRefit:fit);}
   function hide(){cancelLine();open=false;root.classList.add('hidden');root.classList.remove('inspector-open');}
   function loadDocument(document) {
-    const checked = validateLevelDocument(document);
-    if (!checked.ok) return false;
-    cancelLine();
-    model.endStroke();
-    model.transact(draft => { for (const key of Object.keys(draft)) delete draft[key]; Object.assign(draft, clone(checked.document)); });
-    model.selected = null; setInspectorTab('level');
+    if (!validateLevelDocument(document).ok) return false;
+    cancelLine();pointer=null;presetCursor=null;tool='select';$('#editorEntityTool').value='';
+    for(const button of root.querySelectorAll('[data-tool]'))button.setAttribute('aria-pressed',String(button.dataset.tool==='select'));
+    model.loadDocument(document);setInspectorTab('level');
     hasFit = false;
     if (open) fit();
     return true;

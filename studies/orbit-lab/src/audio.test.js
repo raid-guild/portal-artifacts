@@ -25,3 +25,26 @@ test('chapter gate profile changes only campaign rhythm, and scene stop cancels 
  audio.setProfile('default'); notes.length = 0; audio.gateBeat(0, 0);
  assert.ok(notes.some(note => note[0] === 261.63));
 });
+
+test('second transmission has a related call and cancellable answer and reply voices', () => {
+ const audio = new OrbitAudio(), notes = [];
+ audio.tone = (...args) => notes.push(args);
+ audio.sceneCall(0); audio.sceneCall(4);
+ assert.deepEqual(notes.map(note => note[0]), [293.665, 391.995]);
+ notes.length = 0;
+ for (let i = 0; i < 5; i++) audio.sceneCall(i, 2);
+ assert.deepEqual(notes.map(note => note[0]), [293.665, 329.628, 391.995, 440, 587.33]);
+ audio.sceneNote(440, true); audio.sceneNote(293.665);
+ assert.ok(notes.every(note => note[5] === true));
+ assert.ok(notes.at(-2)[2] > notes.at(-1)[2]);
+});
+
+test('third transmission has a distinct five-note call and keeps scene voices cancellable', () => {
+ const audio = new OrbitAudio(), notes = [];
+ audio.tone = (...args) => notes.push(args);
+ for (let i = 0; i < 5; i++) audio.sceneCall(i, 3);
+ assert.deepEqual(notes.map(note => note[0]), [261.626, 349.228, 391.995, 440, 523.251]);
+ assert.ok(notes.every(note => note[5] === true));
+ audio.sceneNote(349.228, true); audio.sceneNote(523.251);
+ assert.ok(notes.at(-2)[2] > notes.at(-1)[2]);
+});

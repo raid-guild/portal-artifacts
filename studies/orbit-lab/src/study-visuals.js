@@ -26,15 +26,22 @@ export function createStudyVisual(radius,color,portal=false) {
   fragmentShader:'uniform float fade; uniform vec3 tint; varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(tint,vec3(1.),vHeat*.5),pow(1.-r,2.)*vHeat*.8*fade);}'
  });
  const sparks=new THREE.Points(geometry,sparkMaterial);sparks.frustumCulled=false;group.add(sparks);
+ group.userData.fade=1;
  group.userData.setFade=fade=>{
-  core.material.transparent=true;core.material.opacity=fade;
-  aura.material.opacity*=fade;sparkMaterial.uniforms.fade.value=fade;
-  light.intensity=(portal?6:2)*fade;
+  const value=Math.max(0,Math.min(1,fade));
+  group.userData.fade=value;group.visible=value>0;
+  core.material.transparent=true;core.material.opacity=value;
+  aura.material.opacity=(.7+Math.sin(group.userData.pulseTime||0)*.08)*value;
+  sparkMaterial.uniforms.fade.value=value;
+  light.intensity=(portal?6:2)*value;
+  if(portal)for(const ring of group.children.filter(child=>child.material?.isMeshBasicMaterial&&child!==core))
+   ring.material.opacity=(ring.userData.baseOpacity??=ring.material.opacity)*value;
  };
  group.userData.coreRadius=radius;
  group.userData.animate=(time,pixelRatio=1)=>{
   sparkMaterial.uniforms.pixelRatio.value=pixelRatio;
-  aura.material.opacity=.7+Math.sin(time*3)*.08;
+  group.userData.pulseTime=time*3;
+  aura.material.opacity=(.7+Math.sin(time*3)*.08)*group.userData.fade;
   for(let i=0;i<24;i++){
    const age=(time*(portal?.5:.8)+i/24)%1,angle=i*2.39996+age*.8;
    const d=portal?radius*(.8+age*.8):radius+age*(.45+radius*.8);

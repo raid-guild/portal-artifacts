@@ -33,27 +33,68 @@ injects its site-wide analytics and outbound-link scripts.
 
 The root route opens Home, with Campaign, Infinite Play, World Studies, and the
 Level editor. Campaign
-opens a three-level Chapter One selector; `?campaign=1`, `?campaign=2`, and
-`?campaign=3` open levels
+opens a grouped selector for three levels in each of three chapters.
+`?campaign=1` through `?campaign=9` open levels
 directly, while `?demo=<id>` keeps a study deep link. Campaign
 starts with 60% light, burns 1.8 percentage points per simulation second,
 and receives 30 points from each pale ember. Darkness gives eight seconds to
 collect another ember before the run ends, marked by an accelerating heartbeat.
-All three levels share a bounded 96 × 54 chamber with a portal 50 world units from
+Levels 1–7 use bounded 96 × 54 chambers. Level 8 expands to 144 × 80, and
+level 9 to 176 × 96. Levels 1–4 place the portal 50 world units from
 the start. Level 1 has an empty interior. Level 2 adds a giant orange ember
 at the center; its gravity bends the dot and contact is lethal. Wells and
 recharge embers cannot appear inside it. Level 3, **An opening in the dark**,
-adds offset walls, two orbiting embers, and three collectible moons. The camera follows the dot; the
+adds offset walls, two orbiting embers, and three collectible moons. Chapter Two
+opens with **Watch the opening**: a manual waiting place holds the dot until
+Space releases it, while a paired orbit keeps moving. Light drain and the
+last-embers deadline pause inside that stillness; wells and moving hazards
+continue. Level 5 uses the player-authored export, titled **Following the echo** in the campaign, preserving its
+impulse lanes, winding walls, orbital groups, dimmers and a manual stillness
+node in the upper-right corner. Press Space to leave that node downward at 270°,
+keeping the speed you had on arrival. Its document ID is `campaign-5`;
+impulse-6 at (-2, 0) also points downward at 270° to enter the lower route.
+Level 6 uses the player-authored export, titled **The same rhythm** in the campaign. Its
+two manual waiting places release toward 0°, between three-body orbital
+encounters, impulse lanes, three companions, and three sound gates. Its
+document ID is `campaign-6`.
+Chapter Three explores memory inside an eclipse. **A light remembered** pairs
+one manual eclipse with moving embers; **Between the pulses** expands into
+three offset passages with two fast orbital crossings and well-steered turns;
+**Carry the silence** asks for four alternating passages, four orbital crossings,
+and three deliberate changes of course. Their fixed light pickups reward a
+planned route, and walls physically redirect the dot instead of killing it.
+Eclipse holds light and
+last-embers time until Space releases the dot. Danger keeps moving after it
+vanishes from view. Level 7 retains random recharges; levels 8 and 9 use only
+authored recharge pickups so their resource diversions remain learnable.
+The camera follows the dot; the
 minimap marks the dot, wells, embers, danger, portal, and current view. The
 trail art records the full path. Campaign results show time, attempts, and wells
-placed; Retry starts a new attempt. Continue advances through all three levels.
+placed; Retry starts a new attempt. Continue advances through Chapter One,
+then Level 3's Continue opens its transmission. Levels 4 and 5 continue to
+the next level; Level 6's Continue opens the Chapter Two transmission.
+Levels 7 and 8 continue to the next level; Level 9 opens Chapter Three's transmission.
 Completing Level 3 unlocks an 18-second, skippable transmission, replayable from
 the level selector. The original five-note well call is heard there with rests;
-each level whose best successful finish collected all three sound gates fills
-one of its middle notes. Completion does not require any gates. Completed
+each Chapter One level whose best successful finish collected all three sound gates fills
+one of its middle notes. Completion does not require any gates.
+Chapter Two has its own 22-second scene, unlocked by completing Level 6.
+The answer arrives as three off-screen notes, then the light replies in the
+same rhythm. Successful three-gate finishes on Levels 4–6 fill the three
+middle notes of that chapter's call. Both scenes can be skipped and replayed
+from their chapter in the level selector. Chapter Three's 24-second scene
+is unlocked by completing Level 9. It sends one middle note per successful
+three-gate finish on Levels 7–9, pauses in silence, then hears an answer and
+briefly joins it on the same note. Completed
 levels and best successful gate patterns are marked locally. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
-the full trail result.
+the full trail result. **Trail maps** on Home and the level selector show the
+latest finished flight from each campaign level, including deaths and moon
+trails. Tap one for a larger view, outcome, time, attempts, wells, and gates.
+This local browser gallery keeps one bounded image per level; a new flight
+replaces that level's previous image. The latest outcome is separate from
+best successful gate scores. If device storage is full, maps last for the
+browser session and the gallery says so.
 
 In Level 2, a living owned moon can sacrifice itself when the dot touches a
 lethal ember. The dot returns to a safe point, flies outward, and has 1.25
@@ -65,7 +106,12 @@ consumes the oldest living owned moon; hot moons are still eligible.
 
 ## Level editor
 
-Home also opens the Level editor. It starts from Level 1 as an editable draft.
+Home also opens the Level editor. A new editor starts with a blank map; an
+existing local draft reopens where it was left. In the Level properties,
+**Campaign template** lists levels you have finished with all three gates.
+Choose one and press **Start new from campaign** to create an editable copy
+with its layout, elements, and settings. The copy has a new document ID and
+can be undone to restore the previous draft; campaign levels are unchanged.
 The Add element menu includes **Companion moon**. Its selected properties show
 position and collection radius; the core radius stays fixed at 0.16. A moon
 collects light and can be spent to save the dot from an ember or buy four
@@ -84,11 +130,17 @@ Selected properties. The shared compiler turns each segment into a rotated
 wall with overlapping joints, collision, shadows, and a minimap outline. The
 inspector reports the 300-piece compiled wall budget. Start and Exit
 are unique movable markers. The element menu includes embers (fixed, chasing,
-or orbiting), sound gates, directional impulses, timed stillness and eclipse,
+or orbiting), sound gates, directional impulses, timed or manual stillness and eclipse,
 light pickups and dimmers, and paired transport portals. The inspector edits
 level bounds, light and well rules, and every selected element's values. Pan,
 zoom, fit, undo, and redo support larger rooms. On narrow screens, **Properties**
 opens the inspector drawer.
+
+New eclipse nodes wait for Release by default. While held, the dot and ember
+light fade to full dark, and light burn and the last-embers timer pause. Orbital
+hazards continue moving and remain lethal. Release restores the incoming
+momentum (or the selected release direction), with light returning over one
+second. Older imported timed eclipses keep their authored capture time.
 
 For an orbiting ember, the editor draws its orbit, center, starting body, and
 direction. Select the moving body or the center; clicking a shared center
@@ -109,7 +161,7 @@ header and result card return to the editor with draft, selection, view, and
 undo history intact. Playtests do not update campaign completion or best-gate
 records. The document keeps the required exit separate from transport pairs;
 interior walls are editable while the four perimeter walls derive from bounds.
-The three shipped campaign levels are version 1 JSON files in `src/levels/` and
+The nine shipped campaign levels are version 1 JSON files in `src/levels/` and
 use this same compiler and mixed-entity runtime. Gallery studies keep their
 own experimental rules.
 
@@ -219,6 +271,11 @@ change illumination without changing the collision radius. Sound gates add
 bounded voices on a shared quarter-second clock with bass, offbeat, and chime parts. The S-channel uses smooth analytic wall contact;
 chaser acceleration and speed are bounded. Forecast is disabled where it cannot
 represent the interactive rule accurately.
+
+Editor: select a wall, line, or element and choose **Duplicate** in Selected
+properties, or press Ctrl/Cmd+D outside text fields. Copies keep their settings,
+receive new IDs, and are placed nearby for dragging. One Undo removes the copy.
+Portal pairs duplicate together; sound gates use a free slot when available.
 
 ### Channel and light studies
 

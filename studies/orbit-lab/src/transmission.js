@@ -1,10 +1,10 @@
-import { TRANSMISSION_DURATION, crossedEvents, transmissionEvents } from './chapter.js';
+import { crossedEvents, getChapter, transmissionEvents } from './chapter.js';
 
 export function createTransmission({ overlay, canvas, caption, audio, onFinish }) {
   const context = canvas.getContext('2d');
-  let active = false, elapsed = 0, lastFrame = 0, raf = 0, events = [], pulses = [], reduced = false;
+  let active = false, elapsed = 0, lastFrame = 0, raf = 0, events = [], pulses = [], reduced = false, chapter = getChapter(1);
   const dotAt = (time, w, h) => {
-    const travel = Math.min(1, Math.max(0, time / TRANSMISSION_DURATION * (reduced ? .38 : 1.9)));
+    const travel = Math.min(1, Math.max(0, time / chapter.duration * (reduced ? .38 : 1.9)));
     return { x: w * (.12 + travel * .54), y: h * .52 + (reduced ? 0 : Math.sin(time * .9) * h * .07) };
   };
   document.addEventListener('visibilitychange', () => { lastFrame = 0; });
@@ -75,12 +75,14 @@ export function createTransmission({ overlay, canvas, caption, audio, onFinish }
     if (!lastFrame) lastFrame = now;
     if (!document.hidden) {
       const previous = elapsed;
-      elapsed = Math.min(TRANSMISSION_DURATION, elapsed + Math.max(0, (now - lastFrame) / 1000));
+      elapsed = Math.min(chapter.duration, elapsed + Math.max(0, (now - lastFrame) / 1000));
       for (const event of crossedEvents(events, previous, elapsed)) {
-        if (event.type === 'call') { audio.sceneCall(event.note); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); }
+        if (event.type === 'call') { audio.sceneCall(event.note, chapter.id); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); }
         if (event.type === 'earned') audio.sceneEarned(event.note);
         if (event.type === 'answerSound') audio.sceneAnswer();
-        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = 'SOMETHING ANSWERED'; }
+        if (event.type === 'answerNote') audio.sceneNote(event.frequency, true);
+        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = chapter.id === 3 ? event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'A SIGNAL FINDS US' : chapter.id === 2 ? 'A RHYTHM ANSWERS' : 'SOMETHING ANSWERED'; }
+        if (event.type === 'replyNote') { audio.sceneNote(event.frequency); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); caption.textContent = chapter.id === 3 && event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'THE SAME RHYTHM'; }
         if (event.type === 'end') { finish(); return; }
       }
       draw();
@@ -89,12 +91,13 @@ export function createTransmission({ overlay, canvas, caption, audio, onFinish }
   }
   return {
     get active() { return active; },
-    start(notes) {
+    start(notes, chapterId = 1) {
       if (active) finish(false);
-      active = true; elapsed = 0; lastFrame = 0; pulses = []; events = transmissionEvents(notes);
+      chapter = getChapter(chapterId);
+      active = true; elapsed = 0; lastFrame = 0; pulses = []; events = transmissionEvents(notes, chapter.id);
       reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
       overlay.inert = false; overlay.classList.remove('hidden'); resize(); draw();
-      caption.textContent = 'A CALL INTO THE DARK'; audio.startScene(); raf = requestAnimationFrame(tick);
+      caption.textContent = chapter.caption; audio.startScene(); raf = requestAnimationFrame(tick);
     },
     stop: finish,
     resize,

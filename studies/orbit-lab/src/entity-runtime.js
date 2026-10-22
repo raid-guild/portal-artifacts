@@ -2,6 +2,7 @@ import { BLOB_RADIUS } from './level.js';
 import { SOFTENING } from './physics.js';
 import { segmentDistance } from './studies.js';
 import { orbitPosition } from './orbit.js';
+import { stepEclipseExposure } from './eclipse.js';
 
 const radians = degrees => degrees * Math.PI / 180;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -50,11 +51,18 @@ export function collectCompanionLight(runtime, entities, collectors, time, hero 
 export function releaseEntityHold(runtime, body, time) {
   if (!runtime?.held) return false;
   const held = runtime.held;
-  body.velocity.x = held.vx; body.velocity.y = held.vy;
+  if (Number.isFinite(held.releaseDirection)) {
+    const speed = Math.hypot(held.vx, held.vy), angle = radians(held.releaseDirection);
+    body.velocity.x = speed * Math.cos(angle);
+    body.velocity.y = speed * Math.sin(angle);
+  } else {
+    body.velocity.x = held.vx; body.velocity.y = held.vy;
+  }
   runtime.items[held.id].until = time + .8;
-  runtime.held = null; runtime.eclipseMultiplier = 1;
+  runtime.held = null;
   return true;
 }
+export const holdsCampaignLight = runtime => !!runtime?.held;
 export function entityAcceleration(position, entities, runtime) {
   let x = 0, y = 0;
   for (const entity of entities) if (entity.type === 'ember' && entity.gravity > 0) {
@@ -73,15 +81,15 @@ export function stepEntityRuntime(runtime, entities, before, body, time, dt, bou
   let captured = false;
   if (runtime.held) {
     const held = runtime.held;
-    if (time < held.until) {
+    if (held.manualRelease || time < held.until) {
       body.position.x = held.x; body.position.y = held.y;
       body.velocity.x = 0; body.velocity.y = 0;
-      runtime.eclipseMultiplier = held.eclipse ? Math.max(.025, 1 - (time - held.started) / held.fadeTime) : 1;
       captured = true;
     } else {
       releaseEntityHold(runtime, body, time);
     }
   }
+  runtime.eclipseMultiplier = stepEclipseExposure(runtime.eclipseMultiplier, !!runtime.held?.eclipse, dt, runtime.held?.fadeTime);
   for (const entity of entities) {
     const item = runtime.items[entity.id];
     if (!item || entity.type === 'soundGate') continue;
@@ -128,7 +136,7 @@ export function stepEntityRuntime(runtime, entities, before, body, time, dt, bou
       body.velocity.y = Math.sin(radians(entity.direction)) * entity.speed;
       item.until = time + .5; result.tones.push('impulse');
     } else if (entity.type === 'stillness' || entity.type === 'eclipse') {
-      runtime.held = { id: entity.id, x: entity.x, y: entity.y, vx: body.velocity.x, vy: body.velocity.y, started: time, until: time + entity.captureTime, eclipse: entity.type === 'eclipse', fadeTime: entity.fadeTime || 1 };
+      runtime.held = { id: entity.id, x: entity.x, y: entity.y, vx: body.velocity.x, vy: body.velocity.y, releaseDirection: entity.releaseDirection, started: time, until: time + entity.captureTime, manualRelease: entity.manualRelease === true, eclipse: entity.type === 'eclipse', fadeTime: entity.fadeTime || 1 };
       body.position.x = entity.x; body.position.y = entity.y;
       body.velocity.x = 0; body.velocity.y = 0;
       result.tones.push('capture'); return result;

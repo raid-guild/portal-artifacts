@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectCompanionLight, commitCompanionCaptures, createEntityRuntime, entityAcceleration, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
+import { collectCompanionLight, commitCompanionCaptures, createEntityRuntime, entityAcceleration, holdsCampaignLight, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
 const body = (x, y, vx = 2, vy = 0) => ({ position: { x, y }, velocity: { x: vx, y: vy } });
 const base = (id, type, x, y, extras = {}) => ({ id, type, x, y, radius: .8, ...extras });
 
@@ -121,4 +121,81 @@ test('a held hero does not stop a companion from collecting nearby authored ligh
   assert.ok(state.held);
   stepEntityRuntime(state,entities,{x:10,y:0},hero,1,1/120);
   assert.deepEqual(collectCompanionLight(state,entities,[{from:{x:-2,y:0},to:{x:1,y:0},radius:.16}],1),{energyDelta:.25,collected:1});
+});
+
+test('manual stillness holds beyond captureTime while orbit moves, then explicit release restores velocity', () => {
+  const entities = [base('wait','stillness',0,0,{captureTime:.5,manualRelease:true}),
+    base('orb','ember',10,0,{radius:.3,gravity:0,lethal:false,motion:'orbit',speed:2,orbitRadius:2,phase:0})];
+  const runtime = createEntityRuntime(entities), hero = body(0, 0, 3, 1);
+  stepEntityRuntime(runtime, entities, { x: -2, y: 0 }, hero, 0, 1 / 120);
+  assert.equal(runtime.held.manualRelease, true);
+  assert.equal(holdsCampaignLight(runtime), true);
+  const orbitStart = { ...runtime.items.orb };
+  hero.position.x = 4; hero.velocity.x = 10;
+  stepEntityRuntime(runtime, entities, { x: 0, y: 0 }, hero, 3, 1 / 120);
+  assert.deepEqual([hero.position.x, hero.position.y, hero.velocity.x, hero.velocity.y], [0, 0, 0, 0]);
+  assert.notEqual(runtime.items.orb.y, orbitStart.y);
+  assert.equal(releaseEntityHold(runtime, hero, 3), true);
+  assert.equal(holdsCampaignLight(runtime), false);
+  assert.deepEqual([hero.velocity.x, hero.velocity.y], [3, 1]);
+  assert.equal(runtime.items.wait.until, 3.8);
+  const legacy = [base('old','stillness',0,0,{captureTime:.5})], legacyRuntime = createEntityRuntime(legacy), other = body(0,0,2,0);
+  stepEntityRuntime(legacyRuntime, legacy, { x:-2,y:0 }, other, 0, 1/120);
+  stepEntityRuntime(legacyRuntime, legacy, { x:0,y:0 }, other, 1, 1/120);
+  assert.equal(legacyRuntime.held, null);
+  assert.equal(other.velocity.x, 2);
+  const eclipse = createEntityRuntime([base('shade','eclipse',0,0,{captureTime:1,fadeTime:1,manualRelease:true})]);
+  stepEntityRuntime(eclipse, [base('shade','eclipse',0,0,{captureTime:1,fadeTime:1,manualRelease:true})], { x:-2,y:0 }, body(0,0), 0, 1/120);
+  assert.equal(holdsCampaignLight(eclipse), true);
+});
+
+test('eclipse stays held and fully dark while orbital danger continues moving and stays lethal', () => {
+  const shade = base('shade','eclipse',0,0,{captureTime:.3,fadeTime:1,manualRelease:true});
+  const orbit = base('orb','ember',4,0,{motion:'orbit',orbitRadius:1,speed:1,phase:0,radius:.2,lethal:true,gravity:0});
+  const entities = [shade, orbit], runtime = createEntityRuntime(entities), hero = body(0,0,3,0);
+  stepEntityRuntime(runtime, entities, {x:-2,y:0}, hero, 0, 1/120);
+  const start = { ...runtime.items.orb };
+  stepEntityRuntime(runtime, entities, {x:0,y:0}, hero, 2, 1);
+  assert.ok(runtime.held);
+  assert.equal(runtime.eclipseMultiplier,0);
+  assert.notEqual(runtime.items.orb.y,start.y);
+  assert.equal(releaseEntityHold(runtime,hero,2),true);
+  assert.equal(runtime.eclipseMultiplier,0);
+  stepEntityRuntime(runtime, entities, {x:0,y:0}, hero, 2.5, .5);
+  assert.equal(runtime.eclipseMultiplier,.5);
+  assert.equal(hero.velocity.x,3);
+  const danger = base('close','ember',0,0,{motion:'fixed',radius:.2,lethal:true,gravity:0});
+  const trapped = createEntityRuntime([shade,danger]), target=body(0,0,3,0);
+  stepEntityRuntime(trapped,[shade],{x:-2,y:0},target,0,1/120);
+  assert.equal(stepEntityRuntime(trapped,[shade,danger],{x:0,y:0},target,1,1/120).died,true);
+});
+
+test('directed manual and timed holds keep arrival speed and preserve legacy and zero-speed behavior', () => {
+  for (const [direction, expected] of [[0, [5, 0]], [90, [0, 5]], [180, [-5, 0]], [270, [0, -5]]]) {
+    const node = base('node','stillness',0,0,{captureTime:.5,manualRelease:true,releaseDirection:direction});
+    const runtime = createEntityRuntime([node]), hero = body(0,0,3,4);
+    stepEntityRuntime(runtime,[node],{x:-2,y:0},hero,0,1/120);
+    assert.equal(runtime.held.releaseDirection, direction);
+    assert.equal(releaseEntityHold(runtime,hero,2),true);
+    assert.ok(Math.abs(hero.velocity.x-expected[0])<1e-12);
+    assert.ok(Math.abs(hero.velocity.y-expected[1])<1e-12);
+    assert.equal(Math.hypot(hero.velocity.x,hero.velocity.y),5);
+  }
+  const timed = base('timed','eclipse',0,0,{captureTime:.5,fadeTime:1,releaseDirection:270});
+  const timedRuntime = createEntityRuntime([timed]), timedHero = body(0,0,3,4);
+  stepEntityRuntime(timedRuntime,[timed],{x:-2,y:0},timedHero,0,1/120);
+  stepEntityRuntime(timedRuntime,[timed],{x:0,y:0},timedHero,1,1/120);
+  assert.equal(timedRuntime.held,null);
+  assert.ok(Math.abs(timedHero.velocity.x)<1e-12);
+  assert.equal(timedHero.velocity.y,-5);
+  const legacy = base('legacy','stillness',0,0,{captureTime:1});
+  const legacyRuntime = createEntityRuntime([legacy]), legacyHero = body(0,0,3,4);
+  stepEntityRuntime(legacyRuntime,[legacy],{x:-2,y:0},legacyHero,0,1/120);
+  releaseEntityHold(legacyRuntime,legacyHero,1);
+  assert.deepEqual([legacyHero.velocity.x,legacyHero.velocity.y],[3,4]);
+  const stopped = base('stopped','stillness',0,0,{captureTime:1,releaseDirection:270});
+  const stoppedRuntime = createEntityRuntime([stopped]), stoppedHero = body(0,0,0,0);
+  stepEntityRuntime(stoppedRuntime,[stopped],{x:-2,y:0},stoppedHero,0,1/120);
+  releaseEntityHold(stoppedRuntime,stoppedHero,1);
+  assert.equal(Math.hypot(stoppedHero.velocity.x,stoppedHero.velocity.y),0);
 });

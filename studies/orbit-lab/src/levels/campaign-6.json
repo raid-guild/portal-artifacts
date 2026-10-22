@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "id": "campaign-6",
+  "title": "The same rhythm",
+  "bounds": {
+    "minX": -20,
+    "maxX": 76,
+    "minY": -27,
+    "maxY": 27
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": -15,
+    "y": 19,
+    "direction": 270,
+    "speed": 1.8
+  },
+  "exit": {
+    "x": 63,
+    "y": -13,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [],
+  "wallPaths": [
+    {
+      "id": "path-1",
+      "thickness": 1,
+      "points": [
+        {
+          "x": -18,
+          "y": 26
+        },
+        {
+          "x": 40,
+          "y": 4
+        },
+        {
+          "x": 54,
+          "y": 4
+        },
+        {
+          "x": 54,
+          "y": 15
+        },
+        {
+          "x": 71,
+          "y": 15
+        },
+        {
+          "x": 71,
+          "y": -20
+        },
+        {
+          "x": 55,
+          "y": -19
+        },
+        {
+          "x": 55,
+          "y": -5
+        },
+        {
+          "x": 40,
+          "y": -5
+        },
+        {
+          "x": -17,
+          "y": -26
+        }
+      ]
+    },
+    {
+      "id": "path-2",
+      "thickness": 1,
+      "points": [
+        {
+          "x": -9,
+          "y": 15
+        },
+        {
+          "x": 22,
+          "y": 2
+        }
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "id": "ember-1",
+      "type": "ember",
+      "x": 62,
+      "y": 8,
+      "radius": 3,
+      "gravity": 22,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "impulse-1",
+      "type": "impulse",
+      "x": -6,
+      "y": 16,
+      "radius": 0.9,
+      "direction": 340,
+      "speed": 20
+    },
+    {
+      "id": "impulse-2",
+      "type": "impulse",
+      "x": 5,
+      "y": 11,
+      "radius": 0.9,
+      "direction": 340,
+      "speed": 20
+    },
+    {
+      "id": "impulse-3",
+      "type": "impulse",
+      "x": 20,
+      "y": 5,
+      "radius": 0.9,
+      "direction": 140,
+      "speed": 20
+    },
+    {
+      "id": "stillness-1",
+      "type": "stillness",
+      "x": -15,
+      "y": -3,
+      "radius": 0.9,
+      "captureTime": 1,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "soundGate-1",
+      "type": "soundGate",
+      "x": -15,
+      "y": 10,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "soundGate-2",
+      "type": "soundGate",
+      "x": 13,
+      "y": -3,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "soundGate-3",
+      "type": "soundGate",
+      "x": 64,
+      "y": 3,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "companion-1",
+      "type": "companion",
+      "x": -15,
+      "y": 4,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "companion-2",
+      "type": "companion",
+      "x": -15,
+      "y": -12,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "companion-3",
+      "type": "companion",
+      "x": 58,
+      "y": -15,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "ember-2",
+      "type": "ember",
+      "x": 12,
+      "y": -10,
+      "radius": 1.6,
+      "gravity": 22,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-3",
+      "type": "ember",
+      "x": 0,
+      "y": -2,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-4",
+      "type": "ember",
+      "x": 0,
+      "y": -2,
+      "radius": 1,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 3.272492347489368,
+      "orbitRadius": 5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-5",
+      "type": "ember",
+      "x": 0,
+      "y": -2,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 7.853981633974483,
+      "orbitRadius": 5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-6",
+      "type": "ember",
+      "x": 25,
+      "y": -5,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-7",
+      "type": "ember",
+      "x": 25,
+      "y": -5,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-8",
+      "type": "ember",
+      "x": 25,
+      "y": -5,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "stillness-2",
+      "type": "stillness",
+      "x": 18,
+      "y": -5,
+      "radius": 0.9,
+      "captureTime": 1,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "impulse-4",
+      "type": "impulse",
+      "x": 22,
+      "y": 9,
+      "radius": 0.9,
+      "direction": 140,
+      "speed": 12
+    },
+    {
+      "id": "impulse-5",
+      "type": "impulse",
+      "x": -5,
+      "y": 19,
+      "radius": 0.9,
+      "direction": 340,
+      "speed": 20
+    },
+    {
+      "id": "impulse-6",
+      "type": "impulse",
+      "x": 7,
+      "y": 13,
+      "radius": 0.9,
+      "direction": 340,
+      "speed": 20
+    },
+    {
+      "id": "impulse-7",
+      "type": "impulse",
+      "x": 21,
+      "y": 7,
+      "radius": 0.9,
+      "direction": 340,
+      "speed": 20
+    },
+    {
+      "id": "dimmer-1",
+      "type": "dimmer",
+      "x": 13,
+      "y": 10,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 4
+    }
+  ]
+}
