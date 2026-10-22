@@ -65,4 +65,4 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.puddle_community_versions (
 );
 CREATE INDEX IF NOT EXISTS puddle_community_versions_created
   ON artifact_leaderboards.puddle_community_versions (created_at DESC);
-CREATE INDEX IF NOT EXISTS rc_racers_runs_board ON artifact_leaderboards.runs (game,version,(run_config->>'track'),(run_config->>'direction'),(run_config->>'class')) WHERE game='rc-racers' AND submitted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS rc_racers_runs_board ON artifact_leaderboards.runs (version,(run_config->>'track'),(run_config->>'direction'),(run_config->>'class')) WHERE game='rc-racers' AND submitted_at IS NOT NULL;
