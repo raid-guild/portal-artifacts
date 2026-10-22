@@ -387,7 +387,11 @@ No new table or grant. `schema.sql` adds an optional index, `rc_racers_runs_boar
 boards' query; apply it with `npm run migrate` as an administrator, or skip it. The guarded
 `ops/configure-rc-racers.ts` follows the existing dry-run / explicit `--apply` workflow
 (signed launch, audience `rc-racers`, `RC_RACERS_LAUNCH_SECRET`, 120 s tokens, profile and
-handle only). Production configuration has not been executed. `test/rc-racers-rules.test.js`
+handle only). Copy it into a Portal checkout and run `pnpm payload run <path>` for the dry
+run, then `pnpm payload run <path> -- --apply`: Payload's `run` passes only positional
+arguments to the script, so a bare `--apply` is dropped and the run stays a dry run (it then
+prints the dry-run summary, not `"configured": true`). Production configuration has not
+been executed. `test/rc-racers-rules.test.js`
 runs every fixture case through the rules and fails on drift from the game's files;
 `test/rc-racers-api.test.js` runs them through HTTP and needs a disposable local
 TEST_DATABASE_URL ending `_test`; never run it against production. Rollback: set the Portal
