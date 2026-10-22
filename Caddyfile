@@ -44,6 +44,10 @@
 	header @raid Access-Control-Allow-Origin "*"
 	header @raid Cache-Control "no-cache"
 
+	# No Cache-Control: the game's hashed files under assets/ may be cached long.
+	@rc_racers path /rc-racers /rc-racers/*
+	header @rc_racers Access-Control-Allow-Origin "*"
+
 	# Revalidate walker assets so repeat visitors receive new deployments.
 	@field path /field /field/*
 	header @field Cache-Control "no-cache"
@@ -133,6 +137,15 @@
 			}
 		}
 		handle /leaderboard-api/puddle-study/* {
+			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
+				header_up Host {upstream_hostport}
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 8s
+				}
+			}
+		}
+		handle /leaderboard-api/rc-racers/* {
 			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
 				header_up Host {upstream_hostport}
 				transport http {

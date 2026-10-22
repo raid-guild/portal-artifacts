@@ -1,0 +1,26 @@
+{
+  "version": "1",
+  "entries": [
+    {
+      "displayName": "Carla",
+      "laps": 13,
+      "timeMs": 309870,
+      "submittedAt": "2026-10-20T09:58:12.004Z",
+      "cars": 7,
+      "difficulty": "regional",
+      "weather": "dry",
+      "assisted": false
+    },
+    {
+      "displayName": "Ana Racer",
+      "laps": 12,
+      "timeMs": 301456,
+      "submittedAt": "2026-10-20T10:12:30.512Z",
+      "cars": 7,
+      "difficulty": "club",
+      "weather": "dry",
+      "assisted": false
+    }
+  ],
+  "mine": 1
+}

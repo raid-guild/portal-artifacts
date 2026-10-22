@@ -1,0 +1,261 @@
+[
+  {
+    "name": "a lap board",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a race board of 5 minutes",
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1",
+      "minutes": "5"
+    },
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a race board of 3 minutes in the wet, clockwise, the F1",
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "clockwise",
+      "class": "f1-215",
+      "weather": "wet",
+      "version": "1",
+      "minutes": "3"
+    },
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a version with no runs answers an empty board",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "2"
+    },
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a lap board with minutes",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1",
+      "minutes": "5"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a race board without minutes",
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a race board of 4 minutes",
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1",
+      "minutes": "4"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a race board of 05 minutes",
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1",
+      "minutes": "05"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the surprise weather",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "surprise",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "no weather",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown kind",
+    "query": {
+      "kind": "best",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown track",
+    "query": {
+      "kind": "lap",
+      "track": "monaco",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown class",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-mod-99",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown direction",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "both",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "no version",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a version that is not a plain number",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "v1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an extra parameter",
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1",
+      "player": "p1"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a repeated parameter",
+    "query": {
+      "kind": [
+        "lap",
+        "race"
+      ],
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "version": "1"
+    },
+    "expect": {
+      "status": 400
+    }
+  }
+]
