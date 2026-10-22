@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import level from './levels/campaign-1.json' with { type: 'json' };
 import { EditorModel, makeBlankLevelDocument } from './editor-model.js';
+import { validateLevelDocument } from './level-document.js';
+
+test('placing successive portal pairs reserves connection IDs independently of endpoint IDs', () => {
+  const model = new EditorModel(makeBlankLevelDocument());
+  for (const x of [8, 24]) {
+    const pairId = model.nextId('pair');
+    for (const y of [-6, 6]) {
+      const id = model.nextId('portal');
+      model.transact(doc => doc.entities.push({id, type:'portal', x, y, radius:.9, pairId, exitDirection:0}));
+    }
+  }
+  assert.deepEqual(model.document.entities.map(e => e.pairId), ['pair-1', 'pair-1', 'pair-2', 'pair-2']);
+  assert.equal(validateLevelDocument(model.document).ok, true);
+  model.undo(); model.redo();
+  assert.equal(model.nextId('pair'), 'pair-3');
+});
 
 test('transactions, one undo per painted stroke, redo, and stable IDs', () => {
   const model = new EditorModel(level);

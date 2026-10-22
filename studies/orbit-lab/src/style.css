@@ -131,3 +131,5 @@
 .trail-detail p{color:#b4d0d1;font:12px 'DM Mono',monospace}
 @media(max-width:700px){.trail-gallery,.trail-detail{padding:15px}.trail-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.trail-gallery-card{padding:6px}.trail-gallery-label{font-size:11px}.trail-gallery-outcome{font-size:9px}.level-card-trail{grid-row:1/5;height:80px}}
 @media(max-width:480px){.trail-gallery-grid{grid-template-columns:1fr 1fr}}
+.campaign-settings .experiment-setting{display:none!important}.campaign-settings .settings-intro{margin-bottom:18px}.audio-volume{margin:12px 0 18px}.audio-volume .control-heading{margin-bottom:5px}.audio-volume input[type=range]{min-height:34px}#muteAll[aria-pressed=true]{border-color:#ec9eae;color:#ffc6cf;background:#34212c}
+#muteAll{font-size:20px}

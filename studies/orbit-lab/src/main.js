@@ -10,6 +10,9 @@ import { STEP, acceleration, addWell, predict, remaining, wellPower } from './ph
 import { BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
 import { OrbitAudio } from './audio.js';
+import { loadAudioPreferences, saveAudioPreferences } from './audio-preferences.js';
+import { predictCampaignPath } from './campaign-forecast.js';
+import { resolvePlayControls } from './campaign-controls.js';
 import { drawFinishArt } from './finish-art.js';
 import { captureTrailImage, createTrailGalleryStore, safeBrowserStorage } from './trail-gallery.js';
 import { DEMOS, getDemo, DEFAULT_WELL_STRENGTH, gravityExchange, plateActivated } from './demos.js';
@@ -27,11 +30,14 @@ import { wallCorners } from './wall-geometry.js';
 import { createCompanionState, stepCompanion } from './companion.js';
 import { createMoonHeat, moonEmberContact, stepMoonHeat } from './moon-heat.js';
 import { EMBER_IMMUNITY, oldestOwnedMoon, rescuePosition, rescueVelocity, safeHeroPoint } from './moon-benefits.js';
-import { ALL_CAMPAIGN_IDS, CHAPTERS, campaignContinuation, chapterUnlocked, earnedNotes, getChapter } from './chapter.js';
+import { ALL_CAMPAIGN_IDS, CHAPTERS, availableCampaignIds, campaignContinuation, campaignLevelAvailable, chapterUnlocked, earnedNotes, getChapter } from './chapter.js';
 import { createTransmission } from './transmission.js';
 const route = new URLSearchParams(location.search);
 let campaignMode = ALL_CAMPAIGN_IDS.some(id => String(id) === route.get('campaign')) && !route.has('demo');
 let campaignLevelId = campaignMode ? Number(route.get('campaign')) : 1;
+const initialBestGates = (() => { try { return validateBestGates(JSON.parse(localStorage.getItem(BEST_GATES_KEY) || '{}'), ALL_CAMPAIGN_IDS); } catch { return {}; } })();
+const lockedCampaignRoute = campaignMode && !campaignLevelAvailable(campaignLevelId, initialBestGates);
+if (lockedCampaignRoute) campaignLevelId = availableCampaignIds(initialBestGates).at(-1);
 let infiniteMode = !route.has('demo') && !campaignMode && !!normalizeInfiniteSeed(route.get('infinite'));
 let infiniteSeed = infiniteMode ? normalizeInfiniteSeed(route.get('infinite')) : '';
 let infiniteStage = infiniteMode ? normalizeInfiniteStage(route.get('stage')) : 1;
@@ -48,42 +54,49 @@ let activeLevel = structuredClone(activeDemo.level);
 let heroGravity = activeDemo.heroGravity;
 let gateOpen = false;
 const audio = new OrbitAudio();
+const audioPreferences = loadAudioPreferences(localStorage);
+audio.setMusicSource(`${import.meta.env.BASE_URL}audio/little-light-song.mp3`);
+audio.setEffects(audioPreferences.effectsEnabled, audioPreferences.effectsVolume);
+audio.setMusic(audioPreferences.musicEnabled, audioPreferences.musicVolume);
+audio.setEnabled(!audioPreferences.muted);
 let lastSoundWellTime = 0;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
   <div class="scene" id="scene"><canvas id="minimap" width="360" height="203" role="img" aria-label="Map showing walls, the portal, wells, the glowing dot, and the current view"></canvas></div>
-  <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="pause" class="quiet-button" type="button" aria-label="Pause" title="Pause (P)" disabled>Ⅱ</button><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
+  <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="pause" class="quiet-button" type="button" aria-label="Pause" title="Pause (P)" disabled>Ⅱ</button><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="muteAll" class="quiet-button" type="button" aria-label="Mute all audio" title="Mute all audio" aria-pressed="false">🔊</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
   <div class="play-control"><button id="primaryAction" class="primary-button" type="button" title="Primary action (Space)">Start</button></div>
   <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
   <div class="death-flash" id="deathFlash"></div>
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
     <p class="settings-intro">Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.</p>
-    <div class="game-modes"><button id="homeFromSettings" type="button">Home</button><button id="browseDemos" type="button">Browse studies</button></div><p id="activeDemoLabel" class="microcopy"></p>
-    <div class="control-group"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">70</output></div><input id="strength" type="range" min="35" max="180" step="1" value="70"></div>
-    <div class="control-group"><div class="control-heading"><label for="heroGravity">Dot gravity</label><output id="heroGravityValue">0</output></div><input id="heroGravity" type="range" min="0" max="30" step="1" value="0"><p id="heroGravityHelp" class="microcopy">Attracts loose moons, with a small reaction on the dot.</p></div>
-    <label class="toggle-row">Sound<input id="soundEnabled" type="checkbox" checked></label>
-    <div class="control-group"><div class="control-heading"><label for="lifetime">Well lifetime</label><output id="lifetimeValue">8.0s</output></div><input id="lifetime" type="range" min="2" max="16" step="0.5" value="8"><p class="microcopy">New wells use this lifetime.</p></div>
-    <div class="control-group"><div class="control-heading">How wells end</div><div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">Fade out</button><button data-mode="snap">Snap off</button></div><p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p></div>
+    <div class="game-modes experiment-setting"><button id="homeFromSettings" type="button">Home</button><button id="browseDemos" type="button">Browse studies</button></div><p id="activeDemoLabel" class="microcopy experiment-setting"></p>
+    <div class="control-group experiment-setting"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">70</output></div><input id="strength" type="range" min="35" max="180" step="1" value="70"></div>
+    <div class="control-group experiment-setting"><div class="control-heading"><label for="heroGravity">Dot gravity</label><output id="heroGravityValue">0</output></div><input id="heroGravity" type="range" min="0" max="30" step="1" value="0"><p id="heroGravityHelp" class="microcopy">Attracts loose moons, with a small reaction on the dot.</p></div>
+    <label class="toggle-row"><span>Sound effects</span><input id="soundEnabled" type="checkbox" checked></label>
+    <div class="control-group audio-volume"><div class="control-heading"><label for="effectsVolume">Sound effects volume</label><output id="effectsVolumeValue">100%</output></div><input id="effectsVolume" type="range" min="0" max="100" step="1" value="100"></div>
+    <label class="toggle-row"><span>Music</span><input id="musicEnabled" type="checkbox" checked></label>
+    <div class="control-group audio-volume"><div class="control-heading"><label for="musicVolume">Music volume</label><output id="musicVolumeValue">15%</output></div><input id="musicVolume" type="range" min="0" max="100" step="1" value="15"></div>
+    <div class="control-group experiment-setting"><div class="control-heading"><label for="lifetime">Well lifetime</label><output id="lifetimeValue">8.0s</output></div><input id="lifetime" type="range" min="2" max="16" step="0.5" value="8"><p class="microcopy">New wells use this lifetime.</p></div>
+    <div class="control-group experiment-setting"><div class="control-heading">How wells end</div><div class="segmented" role="group" aria-label="How wells end"><button class="selected" data-mode="fade">Fade out</button><button data-mode="snap">Snap off</button></div><p class="microcopy" id="modeHelp">Pull weakens over the last 20% of a well’s life.</p></div>
     <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label><p id="forecastHelp" class="microcopy"></p>
-    <div class="settings-stats"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
-    <div class="active-heading"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list" id="wellList"></div><button id="release" class="release-button" type="button">Release all wells</button>
+    <div class="settings-stats experiment-setting"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
+    <div class="active-heading experiment-setting"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list experiment-setting" id="wellList"></div><button id="release" class="release-button experiment-setting" type="button">Release all wells</button>
     <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R restarts · E removes oldest / releases capture · 1 / 2 remove a specific well.</p>
   </dialog>
   <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="companionHud" class="companion-hud hidden" aria-live="polite"></div><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span>LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
   <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><div class="gallery-actions"><button id="homeFromGallery" class="quiet-button" aria-label="Home" title="Home">⌂</button><button id="closeGallery" class="quiet-button" aria-label="Close gallery"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div></div><nav id="demoCategories" class="demo-categories" aria-label="Study categories"></nav><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
   <div id="home" class="home-overlay hidden"><div class="home-card"><span class="eyebrow">ORBIT LAB</span><h1>A little light in a large world.</h1><p>Draw a path with temporary gravity. Keep your light alive until you reach the portal.</p><button id="startCampaign" class="primary-button" type="button">Campaign ↗</button><button id="trailGalleryHome" class="home-secondary trail-gallery-link" type="button">Trail maps ◇</button><button id="startInfinite" class="home-secondary" type="button">Infinite Play</button><button id="studyHome" class="home-secondary" type="button">Studies</button><button id="openEditor" class="home-secondary" type="button">Level editor</button></div></div>
   <div id="infiniteSelect" class="home-overlay hidden"><div class="home-card infinite-select-card"><span class="eyebrow">INFINITE PLAY</span><h1>Every seed makes a world.</h1><p>Cross a new chamber each stage. Generation ${INFINITE_VERSION} adds companion moons, heavy neighbors, and orbiting embers. A seed and stage repeat within this generation.</p><label for="infiniteSeed">World seed</label><input id="infiniteSeed" type="text" maxlength="128" autocomplete="off" spellcheck="false"><div class="infinite-select-actions"><button id="beginInfinite" class="primary-button" type="button">Start crossing ↗</button><button id="infiniteBack" class="home-secondary" type="button">Back home</button></div></div></div>
-  <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN</span><h1>Choose a crossing.</h1><button id="trailGalleryLevels" class="home-secondary trail-gallery-link" type="button">View trail maps ◇</button><div class="chapter-list" id="levelCards"></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
+  <div id="levelSelect" class="home-overlay hidden"><div class="home-card level-select-card"><span class="eyebrow">CAMPAIGN</span><h1>Choose a crossing.</h1><p id="levelUnlockHint" class="microcopy"></p><button id="trailGalleryLevels" class="home-secondary trail-gallery-link" type="button">View trail maps ◇</button><div class="chapter-list" id="levelCards"></div><button id="levelsBack" class="home-secondary" type="button">Back home</button></div></div>
   <dialog id="trailGallery" class="trail-gallery" aria-label="Trail maps"><div class="trail-gallery-head"><div><span class="eyebrow">YOUR FLIGHTS</span><h1>Trail maps.</h1><p>The last finished flight from each campaign level, including the paths your moons made.</p></div><button id="closeTrailGallery" class="quiet-button" type="button" aria-label="Close trail maps">×</button></div><p id="trailGalleryNotice" class="trail-gallery-notice" role="status"></p><div id="trailGalleryGrid" class="trail-gallery-grid"></div></dialog>
   <dialog id="trailDetail" class="trail-detail" aria-label="Trail map detail"><div class="trail-detail-head"><span class="eyebrow" id="trailDetailLevel"></span><button id="closeTrailDetail" class="quiet-button" type="button" aria-label="Close trail detail">×</button></div><img id="trailDetailImage" alt="Glowing flight path and moon trails from this level"><h2 id="trailDetailTitle"></h2><p id="trailDetailStats"></p><div class="result-actions"><button id="playTrailLevel" class="primary-button" type="button">Play this level ↗</button><button id="backToTrailGallery" class="home-secondary" type="button">Back to maps</button></div></dialog>
   <div id="transmission" class="transmission hidden" inert role="dialog" aria-modal="true" aria-label="The transmission" aria-describedby="transmissionDescription"><canvas id="transmissionCanvas" aria-hidden="true"></canvas><div class="transmission-ui"><span class="eyebrow" id="transmissionHeading">CHAPTER ONE / TRANSMISSION</span><p id="transmissionCaption" aria-live="polite">A CALL INTO THE DARK</p><div><button id="transmissionMute" class="home-secondary" type="button">Mute</button><button id="skipTransmission" class="home-secondary" type="button">Skip · Esc</button></div></div><p class="transmission-description" id="transmissionDescription">A small light sends a five-note call into the dark. After a silence, a sound answers from beyond the screen. Press Escape or Skip to return to the levels.</p></div>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button" type="button">Retry</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
-  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
+  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="campaignUnlockHint" class="microcopy hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
 `;
 
 const $ = (selector) => document.querySelector(selector);
-$('#levelCards').innerHTML = CHAPTERS.map(chapter => `<section class="chapter-group"><h2>${chapter.label} <span>${chapter.name}</span></h2><div class="level-cards">${CAMPAIGN_LEVELS.filter(level => level.chapter === chapter.id).map(level => `<button class="level-card" data-campaign-level="${level.id}" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C42 39 65 53 100 34 S132 30 147 30" fill="none" stroke="${level.color}" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="80" cy="40" r="10" fill="none" stroke="${level.color}"/></svg><span>${String(level.id).padStart(2, '0')} / ${level.kicker}</span><strong>${level.title}</strong><small>${level.summary}</small><em data-complete="${level.id}"></em><span data-gate-best="${level.id}"></span><span data-earned-note="${level.id}"></span></button>`).join('')}</div><button class="home-secondary hidden" data-replay-chapter="${chapter.id}" type="button">Replay ${chapter.label.toLowerCase()} transmission ◇</button></section>`).join('');
 const sceneElement = $('#scene');
 const wellList = $('#wellList');
 const strengthInput = $('#strength');
@@ -91,6 +104,23 @@ const lifetimeInput = $('#lifetime');
 const settings = $('#settings');
 const caption = $('#sceneCaption');
 const showForecast = $('#showForecast');
+function persistAudioPreferences() { saveAudioPreferences(localStorage, audioPreferences); }
+function syncMuteControl() {
+  const button = $('#muteAll');
+  button.setAttribute('aria-pressed', String(audioPreferences.muted));
+  button.setAttribute('aria-label', audioPreferences.muted ? 'Unmute all audio' : 'Mute all audio');
+  button.title = audioPreferences.muted ? 'Unmute all audio' : 'Mute all audio';
+  button.textContent = audioPreferences.muted ? '🔇' : '🔊';
+  $('#transmissionMute').textContent = audioPreferences.muted ? 'Unmute' : 'Mute';
+}
+$('#soundEnabled').checked = audioPreferences.effectsEnabled;
+$('#effectsVolume').value = String(Math.round(audioPreferences.effectsVolume * 100));
+$('#effectsVolumeValue').textContent = `${Math.round(audioPreferences.effectsVolume * 100)}%`;
+$('#musicEnabled').checked = audioPreferences.musicEnabled;
+$('#musicVolume').value = String(Math.round(audioPreferences.musicVolume * 100));
+$('#musicVolumeValue').textContent = `${Math.round(audioPreferences.musicVolume * 100)}%`;
+showForecast.checked = audioPreferences.showForecast;
+syncMuteControl();
 const pauseButton = $('#pause');
 const driftOverlay = $('#driftOverlay');
 const winOverlay = $('#winOverlay');
@@ -99,7 +129,7 @@ const transmission = createTransmission({ overlay: $('#transmission'), canvas: $
   onFinish: () => { $('#levelSelect').inert = false; showLevelSelect(); $(`[data-replay-chapter="${activeTransmissionChapter}"]`)?.focus(); } });
 function startTransmission(chapterId = 1) {
   const chapter = getChapter(chapterId);
-  if (!chapterUnlocked(completedLevels, chapter.id)) return;
+  if (!chapterUnlocked(bestGates, chapter.id)) return;
   activeTransmissionChapter = chapter.id;
   paused = true; audio.stopHeartbeat(); audio.trail(false, 0, 0); audio.orb(false, 0);
   winOverlay.classList.add('hidden'); driftOverlay.classList.add('hidden');
@@ -107,6 +137,7 @@ function startTransmission(chapterId = 1) {
   $('#transmissionHeading').textContent = chapter.heading;
   $('#transmissionDescription').textContent = chapter.description;
   $('#transmissionMute').textContent = audio.enabled ? 'Mute' : 'Unmute';
+  audio.syncMusic(false);
   transmission.start(earnedNotes(bestGates, chapter.id), chapter.id); $('#skipTransmission').focus();
 }
 const mazeGroup = new THREE.Group();
@@ -176,6 +207,87 @@ for (let i = 0; i < 210; i++) {
 scene.add(new THREE.AmbientLight(0xaacadd, 1.2));
 // A real lit backdrop receives the moving walls' shadows.
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x2c4350, roughness: 1, metalness: 0 }));
+// Dark dust lives in world space on the lit floor, beneath the walls' shadows.
+const chapterBackdrop = {
+  amount: { value: 0 },
+  center: { value: new THREE.Vector2() },
+  seed: { value: 0 },
+  scale: { value: .06 },
+  density: { value: 0 },
+  strands: { value: 0 },
+  tint: { value: new THREE.Color(0x5b7484) },
+};
+floor.material.onBeforeCompile = shader => {
+  Object.assign(shader.uniforms, { chapterAmount: chapterBackdrop.amount, chapterCenter: chapterBackdrop.center,
+    chapterSeed: chapterBackdrop.seed, chapterScale: chapterBackdrop.scale, chapterDensity: chapterBackdrop.density,
+    chapterStrands: chapterBackdrop.strands, chapterTint: chapterBackdrop.tint });
+  shader.vertexShader = 'varying vec2 chapterWorld;\n' + shader.vertexShader;
+  shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nchapterWorld = (modelMatrix * vec4(transformed, 1.0)).xy;');
+  shader.fragmentShader = `uniform float chapterAmount;
+    uniform vec2 chapterCenter;
+    uniform float chapterSeed;
+    uniform float chapterScale;
+    uniform float chapterDensity;
+    uniform float chapterStrands;
+    uniform vec3 chapterTint;
+    varying vec2 chapterWorld;
+    float dustHash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+    float dustNoise(vec2 p) {
+      vec2 cell = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(dustHash(cell), dustHash(cell + vec2(1.0, 0.0)), f.x),
+        mix(dustHash(cell + vec2(0.0, 1.0)), dustHash(cell + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    float dustFbm(vec2 p) {
+      float value = 0.0;
+      float weight = 0.5;
+      for (int i = 0; i < 4; i++) {
+        value += weight * dustNoise(p);
+        p *= 2.03;
+        weight *= 0.5;
+      }
+      return value / 0.9375;
+    }
+  ` + shader.fragmentShader;
+  shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+    if (chapterAmount > 0.0) {
+      vec2 p = (chapterWorld - chapterCenter) * chapterScale;
+      vec2 offset = vec2(chapterSeed * 3.71, chapterSeed * 5.29);
+      // The long levels compress only the horizontal band coordinate, so the
+      // diagonal crosses the starting view and remains in the playfield.
+      vec2 domain = vec2(p.x * 0.42, p.y);
+      vec2 q = vec2(dot(domain, vec2(0.866, 0.5)), dot(domain, vec2(-0.5, 0.866)));
+      float crossWarp = 0.18 * (dustNoise(vec2(q.x * 2.7, chapterSeed) + offset) - 0.5);
+      float lane = q.y + crossWarp - 0.07 * sin(q.x * 0.7 + chapterSeed);
+      float band = exp(-pow(abs(lane) / 0.66, 1.5));
+      float n = dustFbm(vec2(q.x * 6.0, lane * 12.0) + offset * 0.41);
+      float patches = smoothstep(0.44 - chapterDensity * 0.25,
+        0.64 - chapterDensity * 0.25, n);
+      float fine = dustFbm(vec2(q.x * 9.0, lane * 19.0) + offset);
+      float riftWarp = (n - 0.5) * 0.18;
+      float rift = 1.0 - smoothstep(0.10, 0.24, abs(lane + riftWarp));
+      float dust = band * clamp(0.12 + 0.25 * patches + 0.62 * rift
+        + 0.12 * chapterStrands * smoothstep(0.54, 0.70, fine), 0.0, 1.0);
+      diffuseColor.rgb += (vec3(0.08, 0.10, 0.13) + chapterTint * 0.12)
+        * chapterAmount * band * 0.15;
+      diffuseColor.rgb *= 1.0 - chapterAmount * dust * 0.80;
+      vec2 starCoord = chapterWorld * 3.0;
+      vec2 starCell = floor(starCoord);
+      vec2 starPoint = vec2(dustHash(starCell + 37.1), dustHash(starCell + 91.7));
+      float starDistance = length(fract(starCoord) - starPoint);
+      float starRadius = mix(0.035, 0.075, dustHash(starCell + 26.4));
+      float starAa = max(length(fwidth(starCoord)) * 0.4, 0.003);
+      float star = (1.0 - smoothstep(starRadius - starAa,
+        starRadius + starAa, starDistance))
+        * step(mix(0.985, 0.60, band), dustHash(starCell + 54.3));
+      float starBrightness = mix(0.055, 0.16, dustHash(starCell + 12.8));
+      diffuseColor.rgb += vec3(0.72, 0.86, 1.0) * star * starBrightness
+        * (1.0 - 0.85 * dust) * chapterAmount;
+    }
+  `);
+};
 floor.position.z = -.9;
 floor.receiveShadow = true;
 scene.add(floor);
@@ -440,6 +552,12 @@ let lastFrame = performance.now();
 let wells = [];
 let nextWellId = 1;
 let mode = 'fade';
+const officialCampaign = () => campaignMode && !editorPlaytest;
+const resolvedControls = () => resolvePlayControls({ campaignMode, editorPlaytest, settings: activeDemo.settings,
+  strength: Number(strengthInput.value), lifetime: Number(lifetimeInput.value), mode, heroGravity });
+const effectiveMode = () => resolvedControls().mode;
+const effectiveStrength = () => resolvedControls().strength;
+const effectiveLifetime = () => resolvedControls().lifetime;
 let paused = true;
 let runState = 'ready';
 let resumeAfterSettings = false;
@@ -468,7 +586,7 @@ const challengeMode = () => campaignMode || infiniteMode;
 const completionKey = 'orbit-lab-campaign-complete-v1';
 let completedLevels = (() => { try { return new Set(JSON.parse(localStorage.getItem(completionKey) || '[]').filter(id => ALL_CAMPAIGN_IDS.includes(id))); } catch { return new Set(); } })();
 function markLevelComplete(id) { completedLevels.add(id); try { localStorage.setItem(completionKey, JSON.stringify([...completedLevels])); } catch {} }
-let bestGates = (() => { try { return validateBestGates(JSON.parse(localStorage.getItem(BEST_GATES_KEY) || '{}'), ALL_CAMPAIGN_IDS); } catch { return {}; } })();
+let bestGates = initialBestGates;
 const trailGalleryStore = createTrailGalleryStore({ persistent: safeBrowserStorage(window, 'localStorage'), session: safeBrowserStorage(window, 'sessionStorage'), levelIds: ALL_CAMPAIGN_IDS });
 let trailGalleryReturnFocus = null;
 let trailDetailLevelId = null;
@@ -479,7 +597,7 @@ function updateTrailGalleryNotice() {
 function renderTrailGallery() {
   const grid = $('#trailGalleryGrid');
   grid.replaceChildren();
-  for (const level of CAMPAIGN_LEVELS) {
+  for (const level of CAMPAIGN_LEVELS.filter(item => campaignLevelAvailable(item.id, bestGates))) {
     const record = trailGalleryStore.get(level.id);
     const card = document.createElement('button'); card.type = 'button'; card.className = 'trail-gallery-card';
     card.dataset.trailLevel = String(level.id); card.disabled = !record;
@@ -511,6 +629,7 @@ function openTrailGallery() {
   renderTrailGallery(); $('#trailGallery').showModal(); $('#closeTrailGallery').focus();
 }
 function openTrailDetail(id) {
+  if (!campaignLevelAvailable(id, bestGates)) return;
   const record = trailGalleryStore.get(id), level = CAMPAIGN_LEVELS.find(item => item.id === id);
   if (!record || !level) return;
   trailDetailLevelId = id;
@@ -557,6 +676,11 @@ const campaignGateMeshes = [];
 const entityGroup = new THREE.Group(); scene.add(entityGroup);
 const entityMeshes = new Map();
 let gateFrame = null;
+const portalPairColors = [0x76e9e3, 0xc3a8ff, 0xffca91, 0x9fcbff];
+function portalPairIndex(entity) {
+  const pairs = [...new Set((activeDemo.entities || []).filter(item => item.type === 'portal').map(item => item.pairId))];
+  return pairs.indexOf(entity.pairId);
+}
 
 function rebuildEntityVisuals() {
   for (const mesh of entityMeshes.values()) disposeObject(mesh);
@@ -569,8 +693,19 @@ function rebuildEntityVisuals() {
     } else if (entity.type === 'dimmer') {
       mesh = createDimmerVisual(.22);
     } else if (entity.type === 'ember' || entity.type === 'lightPickup' || entity.type === 'portal' || entity.type === 'companion') {
-      const color = entity.type === 'ember' ? 0xff8a32 : entity.type === 'lightPickup' ? 0xffdf9b : entity.type === 'portal' ? 0x76e9e3 : 0xcdb7ff;
+      const color = entity.type === 'ember' ? 0xff8a32 : entity.type === 'lightPickup' ? 0xffdf9b : entity.type === 'portal' ? portalPairColors[portalPairIndex(entity) % portalPairColors.length] : 0xcdb7ff;
       mesh = createStudyVisual(entity.type === 'ember' || entity.type === 'portal' || entity.type === 'companion' ? entity.radius : .22, color, entity.type === 'portal');
+      if (entity.type === 'portal') {
+        const pair = portalPairIndex(entity);
+        mesh.add(ring(entity.radius * 1.17, new THREE.LineBasicMaterial({ color, transparent: true, opacity: .72 })));
+        for (let tick = 0; tick <= pair; tick++) {
+          const angle = Math.PI / 2 + (tick - pair / 2) * .25;
+          mesh.add(line([{ x: Math.cos(angle) * entity.radius * 1.20, y: Math.sin(angle) * entity.radius * 1.20 },
+            { x: Math.cos(angle) * entity.radius * 1.39, y: Math.sin(angle) * entity.radius * 1.39 }],
+          new THREE.LineBasicMaterial({ color, transparent: true, opacity: .9 })));
+        }
+        mesh.add(releaseDirectionMark(entity.radius, entity.exitDirection));
+      }
       if (entity.type === 'companion') {
         const influence = ring(entity.captureRadius, new THREE.LineDashedMaterial({ color: 0xcdb7ff, transparent: true, opacity: .24, dashSize: .14, gapSize: .17, depthWrite: false }));
         influence.computeLineDistances(); mesh.add(influence);
@@ -673,7 +808,7 @@ function placeWell(x, y) {
   if (settings.open || gallery.open || homeOpen || editor?.open) return;
   if (challengeMode() && !canPlaceCampaignWell(wellsUsed, activeDemo.settings.maxTotalWells)) return;
   if (gameMode === 'maze' && !(challengeMode() ? campaignPointAllowed({ x, y }, activeLevel) : canPlaceWell({ x, y }, activeLevel))) return;
-  const well = makeWell(x, y, Number(strengthInput.value), Number(lifetimeInput.value), simTime);
+  const well = makeWell(x, y, effectiveStrength(), effectiveLifetime(), simTime);
   if (challengeMode()) wellsUsed++;
   audio.placement(); lastSoundWellTime = simTime;
   const maxActive = challengeMode() ? activeDemo.settings.maxActiveWells : 2;
@@ -726,9 +861,9 @@ function reset() {
     if (challengeMode()) visitedBounds = { minX: body.position.x, maxX: body.position.x, minY: body.position.y, maxY: body.position.y };
   } else {
     body.position.set(4, 0, 0);
-    const selectedStrength = Number(strengthInput.value);
+    const selectedStrength = effectiveStrength();
     body.velocity.set(0, Math.sqrt(selectedStrength * 4 * 4 / Math.pow(4 * 4 + 0.75 * 0.75, 1.5)), 0);
-    wells = [makeWell(0, 0, selectedStrength, Number(lifetimeInput.value), 0)];
+    wells = [makeWell(0, 0, selectedStrength, effectiveLifetime(), 0)];
   }
   resize();
   updateCamera(0, true);
@@ -782,7 +917,11 @@ function showRunArt(success, reason = 'darkness') {
   $('#editInfinite').classList.toggle('hidden', !infiniteMode);
   $('#copyInfinite').classList.toggle('hidden', !infiniteMode);
   if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage} · Generation ${INFINITE_VERSION}`;
-  $('#winRestart').textContent = challengeMode() ? success && !editorPlaytest ? 'Continue ↗' : 'Retry' : 'Fly again ↗';
+  const next = campaignMode && success && !editorPlaytest ? campaignContinuation(campaignLevelId, bestGates) : null;
+  const canContinue = next && (next.type === 'level' || next.type === 'transmission');
+  $('#campaignUnlockHint').classList.toggle('hidden', !(campaignMode && success && !editorPlaytest && !canContinue));
+  $('#campaignUnlockHint').textContent = 'Reach the portal with at least one gate to reveal the next level.';
+  $('#winRestart').textContent = infiniteMode && success || canContinue ? 'Continue ↗' : challengeMode() ? 'Retry' : 'Fly again ↗';
   $('#winEditor').classList.toggle('hidden', !editorPlaytest);
   winOverlay.classList.remove('hidden');
 }
@@ -802,6 +941,8 @@ function selectDemo(id) {
   if (transmission.active) transmission.stop(false);
   audio.setProfile('default');
   campaignMode = false; infiniteMode = false; editorPlaytest = false; setHomeOpen(false);
+  settings.classList.remove('campaign-settings');
+  $('.settings-intro').textContent = 'Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.';
   activeDemo = getDemo(id); gameMode = activeDemo.sandbox ? 'sandbox' : 'maze';
   heroGravity = activeDemo.heroGravity;
   strengthInput.min = 35; strengthInput.max = 180; lifetimeInput.min = 2; lifetimeInput.max = 16;
@@ -813,9 +954,12 @@ function selectDemo(id) {
 }
 
 function selectCampaign(levelId = 1) {
+  if (!campaignLevelAvailable(levelId, bestGates)) { showLevelSelect('That crossing is locked. Reach the portal with at least one gate to reveal the next level.'); return false; }
   if (transmission.active) transmission.stop(false);
   audio.setProfile('chapter');
   campaignMode = true; infiniteMode = false; editorPlaytest = false; setHomeOpen(false);
+  settings.classList.add('campaign-settings');
+  $('.settings-intro').textContent = 'The gravity rules are fixed for this crossing. Adjust audio and choose whether to preview the next short stretch of your path.';
   activeDemo = getCampaignLevel(levelId); campaignLevelId = activeDemo.id; gameMode = 'maze'; heroGravity = 0;
   strengthInput.min = Math.min(35, activeDemo.settings.wellStrength); strengthInput.max = Math.max(180, activeDemo.settings.wellStrength);
   lifetimeInput.min = Math.min(2, activeDemo.settings.wellLifetime); lifetimeInput.max = Math.max(16, activeDemo.settings.wellLifetime);
@@ -824,6 +968,7 @@ function selectCampaign(levelId = 1) {
   attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
   const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); url.searchParams.set('campaign', String(campaignLevelId)); history.replaceState(null, '', url);
   resize(); reset();
+  return true;
 }
 
 function selectInfinite(seed, stage = 1) {
@@ -832,6 +977,8 @@ function selectInfinite(seed, stage = 1) {
   infiniteSeed = normalizeInfiniteSeed(seed) || randomInfiniteSeed();
   infiniteStage = normalizeInfiniteStage(stage);
   infiniteMode = true; campaignMode = false; editorPlaytest = false; setHomeOpen(false);
+  settings.classList.remove('campaign-settings');
+  $('.settings-intro').textContent = 'Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.';
   activeDemo = infiniteDemo(infiniteSeed, infiniteStage); gameMode = 'maze'; heroGravity = 0;
   strengthInput.min = Math.min(35, activeDemo.settings.wellStrength); strengthInput.max = Math.max(180, activeDemo.settings.wellStrength);
   lifetimeInput.min = Math.min(2, activeDemo.settings.wellLifetime); lifetimeInput.max = Math.max(16, activeDemo.settings.wellLifetime);
@@ -847,6 +994,8 @@ function selectEditorPlaytest(document) {
   audio.setProfile('default');
   const compiled = compileLevelDocument(structuredClone(document));
   editorPlaytest = true; campaignMode = true; infiniteMode = false; setHomeOpen(false);
+  settings.classList.remove('campaign-settings');
+  $('.settings-intro').textContent = 'Experiment with this level’s gravity and audio while playtesting.';
   for (const selector of ['.chrome', '.scene', '.play-control']) $(selector).inert = false;
   activeDemo = {
     id: 'editor-playtest', title: compiled.document.title, color: '#9ee6df',
@@ -978,8 +1127,8 @@ function rebuildExperiment() {
   $('#heroGravity').disabled = hasCompanionRule() || !moonEntries.length;
   $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
   $('#heroGravityHelp').textContent = hasCompanionRule() ? 'Companions follow the dot without pulling back. Try the loose moon studies for reciprocal gravity.' : moving ? 'Pulls loose moons; their small mass also tugs back. Set 0 to compare.' : 'Choose a moon study to explore the dot’s own gravity.';
-  showForecast.disabled = moving; forecast.visible = showForecast.checked && !moving;
-  $('#forecastHelp').textContent = moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
+  showForecast.disabled = !officialCampaign() && moving; forecast.visible = showForecast.checked && (officialCampaign() || !moving);
+  $('#forecastHelp').textContent = officialCampaign() ? 'A short preview; ends at the next interaction.' : moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
   $('#activeDemoLabel').textContent = activeDemo.title;
   $('.settings-help').textContent = `Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R ${challengeMode() ? 'ends the attempt' : 'restarts'} · E removes oldest / releases capture · 1 / 2 remove a specific well.`;
   $('#demoTitle').textContent = activeDemo.title;
@@ -1073,16 +1222,16 @@ function applyMoonGravity(heroActualAcceleration) {
     body.applyForce(new CANNON.Vec3(exchange.hero.x * body.mass, exchange.hero.y * body.mass, 0));
     for (let i = 0; i < looseEntries.length; i++) {
       const satellite = looseEntries[i].body;
-      const a = mazeAcceleration(satellite.position, wells, simTime, mode, activeLevel);
+      const a = mazeAcceleration(satellite.position, wells, simTime, effectiveMode(), activeLevel);
       satellite.applyForce(new CANNON.Vec3((a.x + exchange.moons[i].x) * satellite.mass, (a.y + exchange.moons[i].y) * satellite.mass, 0));
     }
   }
   const companions = moonEntries.filter(entry => entry.companionState);
   if (!companions.length) return;
-  const heroWellAcceleration = acceleration(body.position, wells, simTime, mode);
+  const heroWellAcceleration = acceleration(body.position, wells, simTime, effectiveMode());
   for (const entry of companions) {
     const satellite = entry.body;
-    const moonWellAcceleration = acceleration(satellite.position, wells, simTime, mode);
+    const moonWellAcceleration = acceleration(satellite.position, wells, simTime, effectiveMode());
     const result = stepCompanion(entry.companionState, {
       hero: { x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y },
       moon: { x: satellite.position.x, y: satellite.position.y, vx: satellite.velocity.x, vy: satellite.velocity.y },
@@ -1237,27 +1386,38 @@ editor = createEditor({
   getCampaignTemplates: () => campaignTemplateOptions(CAMPAIGN_LEVELS, bestGates),
   createCampaignTemplate: id => createCampaignTemplate(CAMPAIGN_LEVELS, bestGates, id),
 });
-function showLevelSelect() {
+function renderCampaignCards() {
+  const available = new Set(availableCampaignIds(bestGates));
+  $('#levelCards').innerHTML = CHAPTERS.filter(chapter => chapter.levelIds.some(id => available.has(id))).map(chapter => `<section class="chapter-group"><h2>${chapter.label} <span>${chapter.name}</span></h2><div class="level-cards">${CAMPAIGN_LEVELS.filter(level => level.chapter === chapter.id && available.has(level.id)).map(level => `<button class="level-card" data-campaign-level="${level.id}" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C42 39 65 53 100 34 S132 30 147 30" fill="none" stroke="${level.color}" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="80" cy="40" r="10" fill="none" stroke="${level.color}"/></svg><span>${String(level.id).padStart(2, '0')} / ${level.kicker}</span><strong>${level.title}</strong><small>${level.summary}</small><em data-complete="${level.id}"></em><span data-gate-best="${level.id}"></span><span data-earned-note="${level.id}"></span></button>`).join('')}</div><button class="home-secondary ${chapterUnlocked(bestGates, chapter.id) ? '' : 'hidden'}" data-replay-chapter="${chapter.id}" type="button">Replay ${chapter.label.toLowerCase()} transmission ◇</button></section>`).join('');
+}
+function showLevelSelect(message = '') {
   showHome();
+  renderCampaignCards();
+  $('#levelUnlockHint').textContent = message || 'Reach the portal with at least one sound gate to reveal the next level.';
   renderLevelTrailThumbs();
-  for (const badge of $('#levelSelect').querySelectorAll('[data-complete]')) badge.textContent = completedLevels.has(Number(badge.dataset.complete)) ? 'COMPLETE ✓' : 'NOT YET COMPLETE';
+  for (const badge of $('#levelSelect').querySelectorAll('[data-complete]')) {
+    const id = Number(badge.dataset.complete);
+    badge.textContent = completedLevels.has(id) ? bestGates[id] > 0 ? 'PATH REVEALED ✓' : 'PORTAL REACHED · GATE NEEDED' : 'NOT YET COMPLETE';
+  }
   for (const badge of $('#levelSelect').querySelectorAll('[data-gate-best]')) {
     const mask = bestGates[Number(badge.dataset.gateBest)];
     badge.textContent = mask === undefined ? 'Best finish: — / 3 gates' : `Best finish: ${gateCount(mask)}/3 gates · ${gatePattern(mask)}`;
     appendGatePatternIcons(badge, mask ?? 0);
   }
   for (const badge of $('#levelSelect').querySelectorAll('[data-earned-note]')) badge.textContent = bestGates[Number(badge.dataset.earnedNote)] === 7 ? 'TRANSMISSION NOTE EARNED ♪' : 'Transmission note: find all 3 gates';
-  for (const replay of $('#levelSelect').querySelectorAll('[data-replay-chapter]')) replay.classList.toggle('hidden', !chapterUnlocked(completedLevels, Number(replay.dataset.replayChapter)));
+  for (const replay of $('#levelSelect').querySelectorAll('[data-replay-chapter]')) replay.classList.toggle('hidden', !chapterUnlocked(bestGates, Number(replay.dataset.replayChapter)));
   setHomeOpen(true, 'levels');
+  const cards = $('#levelCards').querySelectorAll('[data-campaign-level]');
+  cards[cards.length - 1]?.focus();
 }
 $('#levelSelect').addEventListener('click', event => { const replay = event.target.closest('[data-replay-chapter]'); if (replay) startTransmission(Number(replay.dataset.replayChapter)); });
 $('#skipTransmission').addEventListener('click', () => transmission.stop());
-$('#transmissionMute').addEventListener('click', () => { const enabled = !audio.enabled; audio.setEnabled(enabled); $('#soundEnabled').checked = enabled; $('#transmissionMute').textContent = enabled ? 'Mute' : 'Unmute'; });
+$('#transmissionMute').addEventListener('click', () => { audioPreferences.muted = !audioPreferences.muted; audio.setEnabled(!audioPreferences.muted); persistAudioPreferences(); syncMuteControl(); });
 $('#galleryButton').addEventListener('click', () => editorPlaytest ? showEditor() : challengeMode() ? showHome() : openGallery());
 $('#browseDemos').addEventListener('click', () => { resumeAfterSettings = false; openGallery(); });
 $('#homeFromSettings').addEventListener('click', showHome);
 $('#homeFromGallery').addEventListener('click', showHome);
-$('#startCampaign').addEventListener('click', showLevelSelect);
+$('#startCampaign').addEventListener('click', () => showLevelSelect());
 $('#trailGalleryHome').addEventListener('click', openTrailGallery);
 $('#trailGalleryLevels').addEventListener('click', openTrailGallery);
 $('#closeTrailGallery').addEventListener('click', () => $('#trailGallery').close());
@@ -1266,7 +1426,7 @@ $('#trailGalleryGrid').addEventListener('click', event => { const card = event.t
 $('#closeTrailDetail').addEventListener('click', () => $('#trailDetail').close());
 $('#backToTrailGallery').addEventListener('click', () => $('#trailDetail').close());
 $('#trailDetail').addEventListener('close', () => { if (!trailDetailGoingToLevel) $(`[data-trail-level="${trailDetailLevelId}"]`)?.focus(); trailDetailGoingToLevel = false; });
-$('#playTrailLevel').addEventListener('click', () => { const id = trailDetailLevelId; trailDetailGoingToLevel = true; trailGalleryReturnFocus = null; $('#trailDetail').close(); $('#trailGallery').close(); selectCampaign(id); });
+$('#playTrailLevel').addEventListener('click', () => { const id = trailDetailLevelId; if (!campaignLevelAvailable(id, bestGates)) return; trailDetailGoingToLevel = true; trailGalleryReturnFocus = null; $('#trailDetail').close(); $('#trailGallery').close(); selectCampaign(id); });
 $('#startInfinite').addEventListener('click', () => {
   $('#infiniteSeed').value = randomInfiniteSeed();
   setHomeOpen(true, 'infinite');
@@ -1281,15 +1441,15 @@ $('#studyHome').addEventListener('click', openGallery);
 $('#closeGallery').addEventListener('click', () => gallery.close());
 gallery.addEventListener('close', () => { if (galleryReturnHome) showHome(); else if (resumeAfterGallery && runState === 'paused' && !won && !drifted) togglePause(); resumeAfterGallery = false; galleryReturnHome = false; });
 $('#demoGrid').addEventListener('click', (event) => { const card = event.target.closest('[data-demo]'); if (!card) return; resumeAfterGallery = false; galleryReturnHome = false; selectDemo(card.dataset.demo); gallery.close(); });
-$('#heroGravity').addEventListener('input', (event) => { heroGravity = Number(event.target.value); $('#heroGravityValue').textContent = heroGravity; });
+$('#heroGravity').addEventListener('input', (event) => { if (officialCampaign()) { heroGravity = 0; event.target.value = '0'; return; } heroGravity = Number(event.target.value); $('#heroGravityValue').textContent = heroGravity; });
 
 function currentState() {
   return { x: body.position.x, y: body.position.y, vx: body.velocity.x, vy: body.velocity.y };
 }
 
 function updateForecast() {
-  if (!showForecast.checked || activeDemo.moons.length) return;
-  const result = gameMode === 'maze' ? predictToImpact(currentState(), wells, simTime, 3, mode, activeLevel) : { points: predict(currentState(), wells, simTime, 5.5, mode, 7), impact: null };
+  if (!showForecast.checked || (!officialCampaign() && activeDemo.moons.length)) return;
+  const result = officialCampaign() ? predictCampaignPath(currentState(), wells, simTime, activeLevel, activeDemo.entities || [], entityRuntime) : gameMode === 'maze' ? predictToImpact(currentState(), wells, simTime, 3, mode, activeLevel) : { points: predict(currentState(), wells, simTime, 5.5, mode, 7), impact: null };
   const points = result.points;
 
   forecast.geometry.dispose();
@@ -1323,7 +1483,7 @@ function updateTrail() {
 function updateWellVisuals() {
   for (const well of wells) {
     const fraction = remaining(well, simTime) / well.lifetime;
-    const power = wellPower(well, simTime, mode);
+    const power = wellPower(well, simTime, effectiveMode());
     well.disc.material.opacity = 0.13 + power * 0.24;
     well.inner.material.opacity = 0.25 + power * 0.6;
     well.outer.material.opacity = 0.1 + power * 0.4;
@@ -1361,6 +1521,21 @@ function resize() {
   camera.bottom = -visibleHeight / 2;
   camera.updateProjectionMatrix();
   const bounds = activeLevel.bounds;
+  const chapterStyle = campaignMode && !infiniteMode && !editorPlaytest ? {
+    1: { amount: .73, seed: 1.4, scale: .058, density: -.05, strands: .05, tint: 0x526675 },
+    2: { amount: .77, seed: 7.8, scale: .068, density: -.015, strands: .68, tint: 0x496d79 },
+    3: { amount: .82, seed: 13.2, scale: .075, density: .09, strands: .18, tint: 0x685b7d },
+    4: { amount: .78, seed: 19.6, scale: .068, density: .02, strands: .45, tint: 0x776b67 },
+  }[activeDemo.chapter] : undefined;
+  chapterBackdrop.amount.value = chapterStyle?.amount ?? 0;
+  chapterBackdrop.center.value.set((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
+  if (chapterStyle) {
+    chapterBackdrop.seed.value = chapterStyle.seed;
+    chapterBackdrop.scale.value = chapterStyle.scale;
+    chapterBackdrop.density.value = chapterStyle.density;
+    chapterBackdrop.strands.value = chapterStyle.strands;
+    chapterBackdrop.tint.value.setHex(chapterStyle.tint);
+  }
   // The follow camera can travel beyond the old 200-unit floor on wide
   // campaign levels. Keep its lit backdrop beneath the whole playfield.
   floor.scale.set(
@@ -1416,8 +1591,17 @@ function drawMinimap() {
     const item = entityRuntime.items[entity.id]; if (item.used) continue;
     if (entity.type === 'ember' && eclipseExposure <= 0) continue;
     ctx.globalAlpha = entity.type === 'ember' ? eclipseExposure : 1;
+    const portalIndex = entity.type === 'portal' ? portalPairIndex(entity) : -1;
+    const portalColor = portalIndex >= 0 ? `#${portalPairColors[portalIndex % portalPairColors.length].toString(16).padStart(6, '0')}` : '';
     marker(item.x, item.y, entity.type === 'ember' ? Math.max(3, entity.radius * Math.min(sx, sy)) : 3,
-      entity.type === 'ember' ? '#e36d31' : entity.type === 'portal' ? '#76e9e3' : entity.type === 'companion' ? '#cdb7ff' : entity.type === 'dimmer' ? '#bfa5ff' : '#ffd58e');
+      entity.type === 'ember' ? '#e36d31' : entity.type === 'portal' ? portalColor : entity.type === 'companion' ? '#cdb7ff' : entity.type === 'dimmer' ? '#bfa5ff' : '#ffd58e');
+    if (portalIndex >= 0) {
+      ctx.strokeStyle = portalColor; ctx.lineWidth = 1;
+      for (let tick = 0; tick <= portalIndex; tick++) {
+        const tx = x(item.x) + 5 + tick * 3;
+        ctx.beginPath(); ctx.moveTo(tx, y(item.y) - 5); ctx.lineTo(tx, y(item.y) - 8); ctx.stroke();
+      }
+    }
     ctx.globalAlpha = 1;
   }
   for (const entry of moonEntries) if (entry.companionState) marker(entry.body.position.x, entry.body.position.y, 2.5, '#cdb7ff');
@@ -1469,28 +1653,29 @@ wellList.addEventListener('click', (event) => {
   if (button) removeWell(Number(button.dataset.remove));
 });
 strengthInput.addEventListener('input', () => {
+  if (officialCampaign()) { strengthInput.value = String(activeDemo.settings.wellStrength); return; }
   $('#strengthValue').textContent = strengthInput.value;
   for (const well of wells) well.strength = Number(strengthInput.value);
   updateForecast();
 });
-lifetimeInput.addEventListener('input', () => { $('#lifetimeValue').textContent = `${Number(lifetimeInput.value).toFixed(1)}s`; });
+lifetimeInput.addEventListener('input', () => { if (officialCampaign()) { lifetimeInput.value = String(activeDemo.settings.wellLifetime); return; } $('#lifetimeValue').textContent = `${Number(lifetimeInput.value).toFixed(1)}s`; });
 $('.segmented').addEventListener('click', (event) => {
   const button = event.target.closest('[data-mode]');
-  if (!button) return;
+  if (!button || officialCampaign()) return;
   mode = button.dataset.mode;
   for (const tab of $('.segmented').children) tab.classList.toggle('selected', tab === button);
   $('#modeHelp').textContent = mode === 'fade' ? 'Pull weakens over the last 20% of a well’s life.' : 'Pull stays full strength, then vanishes instantly.';
   updateForecast();
 });
 $('#release').addEventListener('click', releaseAll);
-showForecast.addEventListener('change', () => { forecast.visible = showForecast.checked; updateForecast(); });
+showForecast.addEventListener('change', () => { audioPreferences.showForecast = showForecast.checked; persistAudioPreferences(); forecast.visible = showForecast.checked; updateForecast(); });
 $('#settingsButton').addEventListener('click', () => { resumeAfterSettings = runState === 'running'; if (resumeAfterSettings) togglePause(); settings.showModal(); });
 $('#closeSettings').addEventListener('click', () => settings.close());
 settings.addEventListener('close', () => { if (resumeAfterSettings && runState === 'paused' && !drifted && !won) togglePause(); resumeAfterSettings = false; });
 $('#restart').addEventListener('click', () => { if (challengeMode()) failRun('manual'); else reset(); });
 $('#driftRestart').addEventListener('click', reset);
 $('#driftHome').addEventListener('click', showHome);
-$('#winRestart').addEventListener('click', () => { if (infiniteMode && won) selectInfinite(infiniteSeed, infiniteStage + 1); else if (campaignMode && won && !editorPlaytest) { const next = campaignContinuation(campaignLevelId); if (next.type === 'level') selectCampaign(next.id); else if (next.type === 'transmission') startTransmission(next.chapterId); else showLevelSelect(); } else reset(); });
+$('#winRestart').addEventListener('click', () => { if (infiniteMode && won) selectInfinite(infiniteSeed, infiniteStage + 1); else if (campaignMode && won && !editorPlaytest) { const next = campaignContinuation(campaignLevelId, bestGates); if (next.type === 'level') selectCampaign(next.id); else if (next.type === 'transmission') startTransmission(next.chapterId); else if (next.type === 'retry') reset(); else showLevelSelect(); } else reset(); });
 $('#winEditor').addEventListener('click', showEditor);
 $('#editInfinite').addEventListener('click', () => { if (infiniteMode && editor.loadDocument(activeDemo.document)) showEditor(); });
 $('#copyInfinite').addEventListener('click', async () => {
@@ -1501,7 +1686,11 @@ $('#copyInfinite').addEventListener('click', async () => {
 });
 $('#winHome').addEventListener('click', showHome);
 pauseButton.addEventListener('click', () => { if (runState !== 'ready') togglePause(); });
-$('#soundEnabled').addEventListener('change', (event) => audio.setEnabled(event.target.checked));
+$('#soundEnabled').addEventListener('change', (event) => { audioPreferences.effectsEnabled = event.target.checked; audio.setEffects(audioPreferences.effectsEnabled, audioPreferences.effectsVolume); persistAudioPreferences(); });
+$('#effectsVolume').addEventListener('input', (event) => { audioPreferences.effectsVolume = Number(event.target.value) / 100; $('#effectsVolumeValue').textContent = `${event.target.value}%`; audio.setEffects(audioPreferences.effectsEnabled, audioPreferences.effectsVolume); persistAudioPreferences(); });
+$('#musicEnabled').addEventListener('change', (event) => { audioPreferences.musicEnabled = event.target.checked; audio.setMusic(audioPreferences.musicEnabled, audioPreferences.musicVolume); persistAudioPreferences(); });
+$('#musicVolume').addEventListener('input', (event) => { audioPreferences.musicVolume = Number(event.target.value) / 100; $('#musicVolumeValue').textContent = `${event.target.value}%`; audio.setMusic(audioPreferences.musicEnabled, audioPreferences.musicVolume); persistAudioPreferences(); });
+$('#muteAll').addEventListener('click', () => { audioPreferences.muted = !audioPreferences.muted; audio.setEnabled(!audioPreferences.muted); persistAudioPreferences(); syncMuteControl(); });
 document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { audio.stopHeartbeat(); audio.stopScene(); audio.context?.suspend().catch(() => {}); } else if (audio.enabled) audio.context?.resume().catch(() => {}); lastFrame = performance.now(); accumulator = 0; });
@@ -1567,13 +1756,13 @@ function frame(now) {
   requestAnimationFrame(frame);
   const elapsed = Math.min((now - lastFrame) / 1000, 0.05);
   lastFrame = now;
-  if (document.hidden || transmission.active) { accumulator = 0; return; }
+  if (document.hidden || transmission.active) { audio.syncMusic(false); accumulator = 0; return; }
   if (!paused && !drifted && !won) {
     accumulator += elapsed;
     while (accumulator >= STEP) {
       for (const expired of wells.filter((well) => remaining(well, simTime) <= 0)) removeWell(expired.id);
       const before = { x: body.position.x, y: body.position.y };
-      const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, mode, activeLevel) : acceleration(body.position, wells, simTime, mode);
+      const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, effectiveMode(), activeLevel) : acceleration(body.position, wells, simTime, effectiveMode());
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
       const heroActualAcceleration = { ...a };
       if (entityRuntime) { const pull = entityAcceleration(body.position, activeDemo.entities, entityRuntime); body.applyForce(new CANNON.Vec3(pull.x * body.mass, pull.y * body.mass, 0)); heroActualAcceleration.x += pull.x; heroActualAcceleration.y += pull.y; }
@@ -1587,8 +1776,9 @@ function frame(now) {
       if (gameMode === 'maze') {
         capVelocity(body.velocity, Math.max(activeDemo.mechanic === 'boost' ? 16 : SPEED_CAP,
           ...(activeDemo.entities || []).filter(entity => entity.type === 'impulse').map(entity => entity.speed)));
-        const special = experiment.step(body, before, simTime, wells, mode, failRun);
+        const special = experiment.step(body, before, simTime, wells, effectiveMode(), failRun);
         if (drifted) break;
+        const physicalEnd = { x: body.position.x, y: body.position.y };
         let entityStep = null;
         if (entityRuntime) {
           // A rescued sweep is rolled back before any pending pickup or capture
@@ -1612,7 +1802,9 @@ function frame(now) {
           for (const tone of entityStep.tones) audio.tone(tone === 'lightPickup' ? 587.33 : tone === 'dimmer' ? 196 : tone === 'portal' ? 330 : 440, 0, .35, .08);
         }
         if (soundGates) {
-          const result = stepSoundGates(soundGates, activeDemo.soundGates, before, body.position, simTime);
+          const result = stepSoundGates(soundGates, activeDemo.soundGates, before,
+            entityStep?.teleported ? physicalEnd : body.position, simTime,
+            entityStep?.teleported ? body.position : null);
           soundGates = result.state;
           for (const id of result.acquired) audio.gateAcquire(id);
           for (const { id, beat } of result.beats) audio.gateBeat(id, beat);
@@ -1713,6 +1905,8 @@ function frame(now) {
   updateCamera(elapsed);
   drawMinimap();
   audio.trail(!homeOpen && !editor?.open && !paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
+  audio.syncMusic(officialCampaign() && !homeOpen && !editor?.open && !gallery.open && !settings.open && !paused && !drifted && !won,
+    campaign?.energy <= 0 ? .16 : (soundGates?.mask || 0) ? .45 : 1);
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
   renderer.render(scene, camera);
 }
@@ -1720,7 +1914,7 @@ function frame(now) {
 mazeGroup.visible = !activeDemo.sandbox;
 startingOrbit.visible = !!activeDemo.sandbox;
 if (route.has('demo')) selectDemo(activeDemo.id);
-else if (campaignMode) selectCampaign(campaignLevelId);
+else if (campaignMode) { selectCampaign(campaignLevelId); if (lockedCampaignRoute) showLevelSelect('That crossing is locked. Reach the portal with at least one gate to reveal the next level.'); }
 else if (infiniteMode) selectInfinite(infiniteSeed, infiniteStage);
 else { selectDemo(activeDemo.id); showHome(); }
 requestAnimationFrame(frame);

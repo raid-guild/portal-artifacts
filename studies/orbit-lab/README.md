@@ -25,16 +25,23 @@ injects its site-wide analytics and outbound-link scripts.
 
 - Click or tap open space to place a well. Two may exist at once; a third
   replaces the oldest. Tap **Start** to release the particle; the primary button then removes the oldest well or releases a capture. Pause is in the top toolbar.
-- Use the gear for gravity strength, lifetime, fade or snap release, mode,
-  forecast, active wells, run statistics, and help. Opening it pauses a running
-  simulation; closing it resumes that run.
+- In the official campaign, gravity strength, lifetime, fade behavior, and dot
+  gravity are fixed by the level. The gear offers independent sound effects and
+  music switches and volumes, plus a short predicted path. The top toolbar has
+  a master mute. These choices persist on this device. Music is the local
+  `public/audio/little-light-song.mp3` recording, mixed quietly and softened
+  while collected sound gates play or the dot enters last embers. It plays only
+  during an active official campaign run and resumes its position after pauses.
+  Three-gate melodies and transmission tones remain part of the sound effects.
+  Studies, infinite play, and editor playtests keep the experimental controls.
+  Opening Settings pauses a running simulation; closing it resumes that run.
 - Right-click a well or use its list button in Settings to remove it.
 - Keyboard: Space performs the primary action (Start, Resume, Release, or remove oldest well); P pauses/resumes; R restarts the current mode; E removes the oldest well or releases a capture.
 
 The root route opens Home, with Campaign, Infinite Play, World Studies, and the
 Level editor. Campaign
-opens a grouped selector for three levels in each of three chapters.
-`?campaign=1` through `?campaign=9` open levels
+opens a grouped selector that reveals three levels per chapter as you progress through four chapters.
+`?campaign=1` through `?campaign=12` open levels
 directly, while `?demo=<id>` keeps a study deep link. Campaign
 starts with 60% light, burns 1.8 percentage points per simulation second,
 and receives 30 points from each pale ember. Darkness gives eight seconds to
@@ -70,14 +77,14 @@ authored recharge pickups so their resource diversions remain learnable.
 The camera follows the dot; the
 minimap marks the dot, wells, embers, danger, portal, and current view. The
 trail art records the full path. Campaign results show time, attempts, and wells
-placed; Retry starts a new attempt. Continue advances through Chapter One,
+placed; Retry starts a new attempt. Reach the portal with at least one sound gate in a single run to reveal the next level. A portal finish with zero gates still saves its completion and trail, but offers Retry and leaves the next level hidden. A previous qualifying finish remains valid when a replay collects no gates. Continue advances through Chapter One,
 then Level 3's Continue opens its transmission. Levels 4 and 5 continue to
 the next level; Level 6's Continue opens the Chapter Two transmission.
-Levels 7 and 8 continue to the next level; Level 9 opens Chapter Three's transmission.
+Levels 7 and 8 continue to the next level; Level 9 opens Chapter Three's transmission. Levels 10 and 11 continue to the next level; Level 12 opens Chapter Four's transmission.
 Completing Level 3 unlocks an 18-second, skippable transmission, replayable from
 the level selector. The original five-note well call is heard there with rests;
 each Chapter One level whose best successful finish collected all three sound gates fills
-one of its middle notes. Completion does not require any gates.
+one of its middle notes. All three gates are optional for progression; one gate is required.
 Chapter Two has its own 22-second scene, unlocked by completing Level 6.
 The answer arrives as three off-screen notes, then the light replies in the
 same rhythm. Successful three-gate finishes on Levels 4–6 fill the three
@@ -85,8 +92,7 @@ middle notes of that chapter's call. Both scenes can be skipped and replayed
 from their chapter in the level selector. Chapter Three's 24-second scene
 is unlocked by completing Level 9. It sends one middle note per successful
 three-gate finish on Levels 7–9, pauses in silence, then hears an answer and
-briefly joins it on the same note. Completed
-levels and best successful gate patterns are marked locally. The restart
+briefly joins it on the same note. Chapter Four, **Across the divide**, adds three sealed-room crossings. Level 10 links three chambers with two transport pairs and clear turns after each landing. Level 11 branches from a hub into two sealed reward rooms; their paired portals can be used in both directions to collect companions, authored light, and optional gates. Level 12 crosses three divided chambers with offset doors, manual stillness releases, and timed orbital groups. Matching portal colors and tick marks identify each pair in the scene and minimap. Teleportation checks gate contact at the physical departure path and arrival point, without awarding gates crossed only by the jump. These levels use authored light pickups and no random recharge. A qualifying finish on Level 12 unlocks a 20-second duet transmission whose middle call notes come from perfect three-gate finishes on Levels 10–12. Reached portals and best successful gate patterns are marked locally. The level selector, trail gallery, and campaign templates show only levels available from the ordered qualifying gate record; old out-of-order records remain saved without exposing future levels. The restart
 control ends a live campaign attempt, so it also works as a quick way to see
 the full trail result. **Trail maps** on Home and the level selector show the
 latest finished flight from each campaign level, including deaths and moon
@@ -161,7 +167,7 @@ header and result card return to the editor with draft, selection, view, and
 undo history intact. Playtests do not update campaign completion or best-gate
 records. The document keeps the required exit separate from transport pairs;
 interior walls are editable while the four perimeter walls derive from bounds.
-The nine shipped campaign levels are version 1 JSON files in `src/levels/` and
+The twelve shipped campaign levels are version 1 JSON files in `src/levels/` and
 use this same compiler and mixed-entity runtime. Gallery studies keep their
 own experimental rules.
 
@@ -193,9 +199,9 @@ explicitly replaces the current editor draft as one undoable step; it does not
 write campaign completion or gate records. Generated levels use only authored
 recharge embers rather than periodic random spawns.
 
-Each campaign level also has three optional sound gates. Crossing cyan, violet,
+Each campaign level also has three sound gates. Collect at least one before reaching the portal to reveal the next crossing; all three are needed only for a transmission note and a campaign editor template. Crossing cyan, violet,
 and gold rings adds bass, offbeat, and chime parts to a shared quarter-second
-rhythm without spending light; the exit stays available without them. The HUD,
+rhythm without spending light; the exit remains physically reachable without them. The HUD,
 minimap, and end-of-attempt card show the gates collected in that attempt. The
 level selector keeps each level's best successful-attempt pattern separately from
 its completion badge. Retry clears the active pattern. The gallery sound study

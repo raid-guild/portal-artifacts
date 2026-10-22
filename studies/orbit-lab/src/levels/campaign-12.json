@@ -1,0 +1,378 @@
+{
+  "version": 1,
+  "id": "campaign-12",
+  "title": "A crossing together",
+  "bounds": {
+    "minX": -20,
+    "maxX": 160,
+    "minY": -48,
+    "maxY": 48
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": false
+  },
+  "start": {
+    "x": -12,
+    "y": -20,
+    "direction": 0,
+    "speed": 4
+  },
+  "exit": {
+    "x": 150,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "divide-one",
+      "x": 20,
+      "y": 0,
+      "width": 1,
+      "height": 96
+    },
+    {
+      "id": "divide-two",
+      "x": 60,
+      "y": 0,
+      "width": 1,
+      "height": 96
+    },
+    {
+      "id": "divide-three",
+      "x": 100,
+      "y": 0,
+      "width": 1,
+      "height": 96
+    },
+    {
+      "id": "entry-shoulder",
+      "x": 0,
+      "y": 21,
+      "width": 2,
+      "height": 28
+    },
+    {
+      "id": "first-door-low",
+      "x": 45,
+      "y": -31.5,
+      "width": 1,
+      "height": 33
+    },
+    {
+      "id": "first-door-high",
+      "x": 45,
+      "y": 17.5,
+      "width": 1,
+      "height": 61
+    },
+    {
+      "id": "second-door-low",
+      "x": 84,
+      "y": -17,
+      "width": 1,
+      "height": 62
+    },
+    {
+      "id": "second-door-high",
+      "x": 84,
+      "y": 36,
+      "width": 1,
+      "height": 24
+    },
+    {
+      "id": "last-door-low",
+      "x": 133,
+      "y": -32.5,
+      "width": 1,
+      "height": 31
+    },
+    {
+      "id": "last-door-high",
+      "x": 133,
+      "y": 20.5,
+      "width": 1,
+      "height": 55
+    }
+  ],
+  "entities": [
+    {
+      "id": "cross-a-in",
+      "type": "portal",
+      "x": 8,
+      "y": -20,
+      "radius": 1,
+      "pairId": "cross-a",
+      "exitDirection": 180
+    },
+    {
+      "id": "cross-a-out",
+      "type": "portal",
+      "x": 30,
+      "y": -20,
+      "radius": 1,
+      "pairId": "cross-a",
+      "exitDirection": 0
+    },
+    {
+      "id": "first-wait",
+      "type": "stillness",
+      "x": 35,
+      "y": -20,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 35
+    },
+    {
+      "id": "first-launch",
+      "type": "impulse",
+      "x": 38,
+      "y": -18,
+      "radius": 1.15,
+      "direction": 35,
+      "speed": 12
+    },
+    {
+      "id": "first-moon-a",
+      "type": "ember",
+      "x": 47,
+      "y": -12,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.0471975511965976,
+      "orbitRadius": 2.8,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "first-moon-b",
+      "type": "ember",
+      "x": 47,
+      "y": -12,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.0471975511965976,
+      "orbitRadius": 2.8,
+      "phase": 180,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "cross-b-in",
+      "type": "portal",
+      "x": 55,
+      "y": -20,
+      "radius": 1,
+      "pairId": "cross-b",
+      "exitDirection": 180
+    },
+    {
+      "id": "cross-b-out",
+      "type": "portal",
+      "x": 70,
+      "y": -8,
+      "radius": 1,
+      "pairId": "cross-b",
+      "exitDirection": 90
+    },
+    {
+      "id": "second-wait",
+      "type": "stillness",
+      "x": 70,
+      "y": 8,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 25
+    },
+    {
+      "id": "second-launch",
+      "type": "impulse",
+      "x": 76,
+      "y": 11,
+      "radius": 1.15,
+      "direction": 25,
+      "speed": 12
+    },
+    {
+      "id": "second-moon-a",
+      "type": "ember",
+      "x": 88,
+      "y": 18,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.121997376282069,
+      "orbitRadius": 3.1,
+      "phase": 10,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "second-moon-b",
+      "type": "ember",
+      "x": 88,
+      "y": 18,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.121997376282069,
+      "orbitRadius": 3.1,
+      "phase": 190,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "second-moon-c",
+      "type": "ember",
+      "x": 88,
+      "y": 18,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 0.9377888518178487,
+      "orbitRadius": 2.3,
+      "phase": -70,
+      "orbitDirection": "clockwise"
+    },
+    {
+      "id": "cross-c-in",
+      "type": "portal",
+      "x": 96,
+      "y": 8,
+      "radius": 1,
+      "pairId": "cross-c",
+      "exitDirection": 180
+    },
+    {
+      "id": "cross-c-out",
+      "type": "portal",
+      "x": 112,
+      "y": 0,
+      "radius": 1,
+      "pairId": "cross-c",
+      "exitDirection": 0
+    },
+    {
+      "id": "third-wait",
+      "type": "stillness",
+      "x": 118,
+      "y": 0,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 340
+    },
+    {
+      "id": "first-light",
+      "type": "lightPickup",
+      "x": 4,
+      "y": -20,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "second-light",
+      "type": "lightPickup",
+      "x": 50,
+      "y": -10,
+      "radius": 0.7,
+      "amount": 0.33,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "third-light",
+      "type": "lightPickup",
+      "x": 78,
+      "y": 8,
+      "radius": 0.7,
+      "amount": 0.34,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "last-light",
+      "type": "lightPickup",
+      "x": 141,
+      "y": -14,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 13,
+      "y": -27,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 80,
+      "y": 7,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 142,
+      "y": -18,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "first-catch",
+      "type": "stillness",
+      "x": 51,
+      "y": -13,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 300
+    },
+    {
+      "id": "second-catch",
+      "type": "stillness",
+      "x": 93,
+      "y": 28.5,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 280
+    },
+    {
+      "id": "last-catch",
+      "type": "stillness",
+      "x": 140,
+      "y": -15,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 55
+    }
+  ]
+}
