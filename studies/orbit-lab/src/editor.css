@@ -28,6 +28,9 @@
 .editor-tab-help{font-size:11px;line-height:1.55;color:#a5c7c8;margin:11px 0 13px}
 .editor-level-actions{display:grid;gap:8px;margin:24px 0 4px}
 .editor-level-actions button{width:100%}
+#editorFields [data-action=campaignTemplate]{width:100%}
+.editor-selected-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0 4px}
+.editor-selected-actions button{min-width:0;padding:0 6px}
 #editorValidation{font:10px 'DM Mono',monospace;line-height:1.5;color:#a8eedf;background:#143438;padding:10px;border-radius:8px}
 #editorValidation.invalid{color:#ffcfb3;background:#3e2829}
 #editorFields label{display:flex;flex-direction:column;gap:5px;margin:9px 0;color:#b6d6d3;font-size:11px}

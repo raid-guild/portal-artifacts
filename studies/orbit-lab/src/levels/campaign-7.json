@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "id": "campaign-7",
+  "title": "A light remembered",
+  "bounds": {
+    "minX": -20,
+    "maxX": 76,
+    "minY": -27,
+    "maxY": 27
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": 0,
+    "y": 0,
+    "direction": 0,
+    "speed": 3
+  },
+  "exit": {
+    "x": 50,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "divider-lower",
+      "x": 22,
+      "y": -15.7,
+      "width": 1,
+      "height": 22.6
+    },
+    {
+      "id": "divider-upper",
+      "x": 22,
+      "y": 15.7,
+      "width": 1,
+      "height": 22.6
+    }
+  ],
+  "entities": [
+    {
+      "id": "first-eclipse",
+      "type": "eclipse",
+      "x": 17.5,
+      "y": 0,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0,
+      "fadeTime": 3
+    },
+    {
+      "id": "opening-1",
+      "type": "ember",
+      "x": 22,
+      "y": 0,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.0106192982974678,
+      "orbitRadius": 3.2,
+      "phase": 90,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "opening-2",
+      "type": "ember",
+      "x": 22,
+      "y": 0,
+      "radius": 0.55,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.0106192982974678,
+      "orbitRadius": 3.2,
+      "phase": 270,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "moon-1",
+      "type": "companion",
+      "x": 6,
+      "y": 2,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "light-1",
+      "type": "lightPickup",
+      "x": 13,
+      "y": 0,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "light-2",
+      "type": "lightPickup",
+      "x": 34,
+      "y": 0,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 8,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 30,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 42,
+      "y": 4,
+      "radius": 0.9,
+      "slot": 2
+    }
+  ]
+}

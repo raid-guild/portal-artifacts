@@ -3,6 +3,12 @@ import { segmentDistance } from './studies.js';
 import levelOne from './levels/campaign-1.json' with { type: 'json' };
 import levelTwo from './levels/campaign-2.json' with { type: 'json' };
 import levelThree from './levels/campaign-3.json' with { type: 'json' };
+import levelFour from './levels/campaign-4.json' with { type: 'json' };
+import levelFive from './levels/campaign-5.json' with { type: 'json' };
+import levelSix from './levels/campaign-6.json' with { type: 'json' };
+import levelSeven from './levels/campaign-7.json' with { type: 'json' };
+import levelEight from './levels/campaign-8.json' with { type: 'json' };
+import levelNine from './levels/campaign-9.json' with { type: 'json' };
 import { compileLevelDocument } from './level-document.js';
 
 export const CAMPAIGN = {
@@ -10,12 +16,12 @@ export const CAMPAIGN = {
   maxActiveWells: 2, maxTotalWells: null, pickupLife: 18, pickupRadius: .65,
 };
 
-const compiled = [levelOne, levelTwo, levelThree].map(compileLevelDocument);
+const compiled = [levelOne, levelTwo, levelThree, levelFour, levelFive, levelSix, levelSeven, levelEight, levelNine].map(compileLevelDocument);
 export const CAMPAIGN_LEVELS = compiled.map((item, index) => ({
-  id: index + 1, title: item.document.title, color: ['#b9fff0', '#ffb365', '#bdb3ff'][index],
-  kicker: ['LIGHT & DISTANCE', 'GRAVITY & DANGER', 'WALLS & ORBITS'][index],
-  summary: ['A clear chamber. Keep the fire alive to reach the far portal.', 'Gather two pale moons before facing the giant ember.', 'Weave between offset walls and two orbiting embers.'][index],
-  objective: ['Keep your light alive. Cross the open chamber to the far portal.', 'Gather pale moons. Their orbits catch light as you curve around the giant ember.', 'Carry light through the broad S and time the orbiting embers.'][index],
+  id: index + 1, chapter: Math.floor(index / 3) + 1, title: item.document.title, color: ['#b9fff0', '#ffb365', '#bdb3ff', '#a6e9ff', '#ffd58e', '#ffae82', '#acbaff', '#c9a9ff', '#a2d4ff'][index],
+  kicker: ['LIGHT & DISTANCE', 'GRAVITY & DANGER', 'WALLS & ORBITS', 'FINDING THE FREQUENCY', 'FOLLOWING THE SIGNAL', 'AN ANSWER TAKES SHAPE', 'A LIGHT REMEMBERED', 'BETWEEN THE PULSES', 'CARRY THE SILENCE'][index],
+  summary: ['A clear chamber. Keep the fire alive to reach the far portal.', 'Gather two pale moons before facing the giant ember.', 'Weave between offset walls and two orbiting embers.', 'Wait for the orbiting pair to open a path, then release.', 'Follow the echo through winding chambers. Keep its rhythm and your light alive.', 'Find your moment between moving lights, and carry an answer into the dark.', 'Hold inside an eclipse and remember the moving danger before crossing.', 'Follow the echo through offset passages. Bend your route, then accelerate between the pulses.', 'Carry the signal through a winding dark maze. Remember the openings and conserve your light.'][index],
+  objective: ['Keep your light alive. Cross the open chamber to the far portal.', 'Gather pale moons. Their orbits catch light as you curve around the giant ember.', 'Carry light through the broad S and time the orbiting embers.', 'Enter the waiting place. Hold still as the orbiting embers move, then press Space to release through the opening.', 'Follow the echo through the chambers. Cross the sound gates and keep your light alive.', 'Watch the moving lights, then release in time. Carry your gathered notes to the portal.', 'Study the embers, enter the eclipse, and release when you remember an opening.', 'Steer between the three offset openings. Launch through two moving pairs, then bend below the last wall.', 'Thread four offset openings. Use each burst of speed, but steer early enough to meet the next passage.'][index],
   mechanic: 'campaign', heroGravity: 0, moons: [],
   document: item.document, entities: item.entities, settings: item.settings,
   soundGates: item.entities.filter(entity => entity.type === 'soundGate').map(entity => ({ id: entity.slot, x: entity.x, y: entity.y, radius: entity.radius })),
@@ -64,10 +70,10 @@ export function spawnCampaignPickup(hero, state, level = CAMPAIGN_DEMO.level) {
 }
 
 // Only call this from the fixed simulation step. A pickup is swept before darkness expires.
-export function stepCampaign(state, { before, hero, collectors = [], dt, time, level = CAMPAIGN_DEMO.level, config = CAMPAIGN, extraEnergy = 0, availableCompanions = 0 }) {
+export function stepCampaign(state, { before, hero, collectors = [], dt, time, level = CAMPAIGN_DEMO.level, config = CAMPAIGN, extraEnergy = 0, availableCompanions = 0, lightPaused = false }) {
   if (state.failed) return { state, collected: 0, heartbeat: [], failed: false };
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < CAMPAIGN.pickupLife) };
-  next.energy = Math.max(0, state.energy - config.burnRate * dt);
+  next.energy = Math.max(0, state.energy - (lightPaused ? 0 : config.burnRate * dt));
   let collected = 0;
   next.pickups = next.pickups.filter(pickup => {
     const heroHit = segmentDistance(before, hero, pickup) <= CAMPAIGN.pickupRadius + BLOB_RADIUS;
@@ -89,6 +95,11 @@ export function stepCampaign(state, { before, hero, collectors = [], dt, time, l
     next.graceLeft = config.graceSeconds;
     next.graceDuration = config.graceSeconds;
     next.beatPhase = 0;
+  } else if (lightPaused) {
+    next.graceLeft = state.graceLeft;
+    next.graceDuration = state.graceDuration;
+    next.beatPhase = state.beatPhase;
+    next.failed = false;
   } else {
     next.graceLeft = Math.max(0, state.graceLeft - dt);
     if (next.graceLeft <= 0 && availableCompanions > 0) {

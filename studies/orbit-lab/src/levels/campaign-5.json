@@ -1,0 +1,558 @@
+{
+  "version": 1,
+  "id": "campaign-5",
+  "title": "Following the echo",
+  "bounds": {
+    "minX": -20,
+    "maxX": 76,
+    "minY": -27,
+    "maxY": 27
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": -13,
+    "y": 21,
+    "direction": 0,
+    "speed": 1.8
+  },
+  "exit": {
+    "x": 63,
+    "y": -18,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "wall-5",
+      "x": -18,
+      "y": -7,
+      "width": 1,
+      "height": 1
+    },
+    {
+      "id": "wall-4",
+      "x": -17,
+      "y": -6,
+      "width": 1,
+      "height": 1
+    },
+    {
+      "id": "wall-3",
+      "x": -15,
+      "y": -5,
+      "width": 1,
+      "height": 1
+    },
+    {
+      "id": "wall-2",
+      "x": -13,
+      "y": -3,
+      "width": 1,
+      "height": 1
+    },
+    {
+      "id": "wall-1",
+      "x": -11,
+      "y": -2,
+      "width": 1,
+      "height": 1
+    }
+  ],
+  "wallPaths": [
+    {
+      "id": "path-1",
+      "thickness": 1,
+      "points": [
+        {
+          "x": -15,
+          "y": 15
+        },
+        {
+          "x": 40,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "id": "path-2",
+      "thickness": 1,
+      "points": [
+        {
+          "x": 75,
+          "y": 0
+        },
+        {
+          "x": 45,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "path-3",
+      "thickness": 1,
+      "points": [
+        {
+          "x": 40,
+          "y": 5
+        },
+        {
+          "x": -15,
+          "y": 5
+        },
+        {
+          "x": -15,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "id": "path-4",
+      "thickness": 1,
+      "points": [
+        {
+          "x": 45,
+          "y": 0
+        },
+        {
+          "x": 45,
+          "y": -19
+        },
+        {
+          "x": 35,
+          "y": -19
+        },
+        {
+          "x": 35,
+          "y": -6
+        },
+        {
+          "x": 20,
+          "y": -6
+        },
+        {
+          "x": 20,
+          "y": -19
+        },
+        {
+          "x": 5,
+          "y": -19
+        },
+        {
+          "x": 5,
+          "y": -15
+        }
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "id": "soundGate-1",
+      "type": "soundGate",
+      "x": 14,
+      "y": 21,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "impulse-1",
+      "type": "impulse",
+      "x": -5,
+      "y": 20,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-2",
+      "type": "impulse",
+      "x": 5,
+      "y": 20,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-3",
+      "type": "impulse",
+      "x": 25,
+      "y": 20,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-4",
+      "type": "impulse",
+      "x": 36,
+      "y": 20,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "stillness-1",
+      "type": "stillness",
+      "x": 60,
+      "y": 20,
+      "radius": 0.9,
+      "captureTime": 3,
+      "manualRelease": true,
+      "releaseDirection": 270
+    },
+    {
+      "id": "ember-1",
+      "type": "ember",
+      "x": 54,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-2",
+      "type": "ember",
+      "x": 54,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-3",
+      "type": "ember",
+      "x": 54,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-4",
+      "type": "ember",
+      "x": 66,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-5",
+      "type": "ember",
+      "x": 66,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-6",
+      "type": "ember",
+      "x": 66,
+      "y": 8,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "dimmer-1",
+      "type": "dimmer",
+      "x": 30,
+      "y": 10,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 4
+    },
+    {
+      "id": "dimmer-2",
+      "type": "dimmer",
+      "x": 5,
+      "y": 10,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 4
+    },
+    {
+      "id": "lightPickup-1",
+      "type": "lightPickup",
+      "x": -10,
+      "y": 10,
+      "radius": 0.65,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 4
+    },
+    {
+      "id": "companion-1",
+      "type": "companion",
+      "x": -2,
+      "y": 13,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "companion-2",
+      "type": "companion",
+      "x": -2,
+      "y": 8,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "companion-3",
+      "type": "companion",
+      "x": 47,
+      "y": 20,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "soundGate-2",
+      "type": "soundGate",
+      "x": 60,
+      "y": 3,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "soundGate-3",
+      "type": "soundGate",
+      "x": -1,
+      "y": -11,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "ember-7",
+      "type": "ember",
+      "x": -16,
+      "y": 0,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-8",
+      "type": "ember",
+      "x": -16,
+      "y": 0,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-9",
+      "type": "ember",
+      "x": -16,
+      "y": 0,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "impulse-5",
+      "type": "impulse",
+      "x": 30,
+      "y": 0,
+      "radius": 0.9,
+      "direction": 180,
+      "speed": 12
+    },
+    {
+      "id": "impulse-6",
+      "type": "impulse",
+      "x": -2,
+      "y": 0,
+      "radius": 0.9,
+      "direction": 270,
+      "speed": 12
+    },
+    {
+      "id": "impulse-7",
+      "type": "impulse",
+      "x": -1,
+      "y": -23,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "ember-10",
+      "type": "ember",
+      "x": 27,
+      "y": -13,
+      "radius": 4,
+      "gravity": 22,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "impulse-8",
+      "type": "impulse",
+      "x": 26,
+      "y": -23,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "ember-11",
+      "type": "ember",
+      "x": 53,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-12",
+      "type": "ember",
+      "x": 53,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-13",
+      "type": "ember",
+      "x": 53,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-14",
+      "type": "ember",
+      "x": 69,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-15",
+      "type": "ember",
+      "x": 69,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 120,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "ember-16",
+      "type": "ember",
+      "x": 69,
+      "y": -9,
+      "radius": 0.35,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.2907446432425576,
+      "orbitRadius": 3.5,
+      "phase": 240,
+      "orbitDirection": "counterclockwise"
+    }
+  ]
+}

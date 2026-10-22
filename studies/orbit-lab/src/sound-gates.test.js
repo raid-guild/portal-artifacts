@@ -1,3 +1,4 @@
+import { ALL_CAMPAIGN_IDS } from './chapter.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSoundGates, stepSoundGates, gateCount, gatePattern, validateBestGates, betterGateMask } from './sound-gates.js';
@@ -40,5 +41,16 @@ test('best pattern is a single-attempt mask, not a union, with stable ties', () 
   assert.equal(betterGateMask(undefined, 1), 1);
   assert.equal(betterGateMask(1, 4), 1);
   assert.equal(betterGateMask(1, 6), 6);
-  assert.deepEqual(validateBestGates({ 1: 5, 2: 9, 3: 7, fake: 2 }), { 1: 5, 3: 7 });
+  assert.deepEqual(validateBestGates({ 1: 5, 2: 9, 3: 7, 4: 7, fake: 2 }, ALL_CAMPAIGN_IDS), { 1: 5, 3: 7, 4: 7 });
+});
+
+
+test('all shipped campaign gate records survive validation and serialization', () => {
+  const saved = JSON.parse(JSON.stringify({1: 3, 4: 7, 5: 6, 6: 7}));
+  assert.deepEqual(validateBestGates(saved, ALL_CAMPAIGN_IDS), {1: 3, 4: 7, 5: 6, 6: 7});
+});
+
+
+test('gate record validation requires an explicit campaign ID list', () => {
+  assert.throws(() => validateBestGates({5:7,6:7}), /campaign level IDs/);
 });

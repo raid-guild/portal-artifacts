@@ -109,6 +109,9 @@ export function validateLevelDocument(input) {
       base.speed = number(e.speed, `${name}.speed`, errors, 0, 30);
     } else if (e.type === 'stillness' || e.type === 'eclipse') {
       base.captureTime = number(e.captureTime, `${name}.captureTime`, errors, .05, 30);
+      if (e.manualRelease !== undefined && typeof e.manualRelease !== 'boolean') errors.push(`${name}.manualRelease must be boolean`);
+      base.manualRelease = e.manualRelease ?? false;
+      base.releaseDirection = e.releaseDirection == null ? null : number(e.releaseDirection, `${name}.releaseDirection`, errors, -360, 360);
       if (e.type === 'eclipse') base.fadeTime = number(e.fadeTime, `${name}.fadeTime`, errors, .05, 30);
     } else if (e.type === 'lightPickup' || e.type === 'dimmer') {
       base.amount = number(e.amount, `${name}.amount`, errors, 0, 1);

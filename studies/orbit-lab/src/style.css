@@ -43,7 +43,7 @@
  .resource-hud{width:min(250px,85vw);margin:5px 0 0}
  .play-control{right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:64px}
  #primaryAction{width:64px;height:64px;min-width:64px;max-width:64px;min-height:64px;padding:6px;font-size:11px}
- .scene-caption{left:20px;right:90px;top:154px;bottom:auto;text-align:left;font-size:8px}
+ .scene-caption{left:20px;right:90px;top:auto;bottom:112px;text-align:left;font-size:8px}
  #minimap{left:9px;bottom:9px;width:125px}
  .settings{position:fixed;top:8px;right:8px;left:8px;width:auto;max-height:calc(100dvh - 16px)}
  .trail-result{display:block;width:min(380px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:18px;overflow:auto}
@@ -63,6 +63,7 @@
 @media(max-width:700px) and (orientation:portrait){.home-card{padding:26px 20px}.home-card p{font-size:13px}}
 .level-select-card{width:min(720px,100%);max-height:calc(100dvh - 32px);overflow:auto}
 .level-select-card h1{font-size:clamp(26px,4vw,38px);margin-bottom:22px}
+.chapter-group{margin-bottom:22px}.chapter-group h2{margin:0 0 10px;color:#a8f0e8;font:11px 'DM Mono',monospace;letter-spacing:.15em}.chapter-group h2 span{color:#85aeb5;letter-spacing:.07em;margin-left:9px}
 .level-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:22px}
 .level-select-card{width:min(1040px,100%)}
 .level-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -104,3 +105,29 @@
 .resource-hud.meter-paused .resource-track{animation-play-state:paused}
 @keyframes ember-warning{0%,100%{box-shadow:0 0 3px #ff596e44;filter:brightness(.85)}50%{box-shadow:0 0 15px #ff596eaa;filter:brightness(1.25)}}
 @media(prefers-reduced-motion:reduce){.resource-hud.last-embers .resource-track{animation:none;box-shadow:0 0 8px #ff596e88}}
+/* A saved flight is its own piece of art, shown beside campaign progress. */
+.trail-gallery-link{margin:0 auto 14px;border-color:#9be4d4;color:#c9fff3}
+.level-select-card>.trail-gallery-link{margin-bottom:22px}
+.level-card-trail{display:block;width:100%;height:68px;border-radius:8px;object-fit:cover;background:#071924}
+.level-card .level-card-last{font:10px 'DM Mono',monospace;letter-spacing:.03em;color:#d3b7ff}
+.trail-gallery,.trail-detail{position:fixed;inset:0;margin:auto;z-index:30;width:min(1120px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:24px;border:1px solid #527b84;border-radius:22px;background:#091c29;color:#e2f9f5;box-shadow:0 26px 100px #000d;overflow:auto}
+.trail-gallery::backdrop,.trail-detail::backdrop{background:#030914e8;backdrop-filter:blur(8px)}
+.trail-gallery-head,.trail-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.trail-gallery-head h1{margin:8px 0;font-size:clamp(28px,4vw,44px);font-weight:500;letter-spacing:-.05em}
+.trail-gallery-head p{margin:0 0 18px;color:#9bbdc2;font-size:13px;line-height:1.5}
+.trail-gallery-notice{min-height:1.2em;color:#ffd398;font-size:11px}
+.trail-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.trail-gallery-card{min-width:0;padding:10px;text-align:left;border:1px solid #3a6470;border-radius:14px;background:#102a37;color:#e2f9f5}
+.trail-gallery-card:not(:disabled):hover,.trail-gallery-card:not(:disabled):focus-visible{border-color:#b5fff0;background:#173946}
+.trail-gallery-card:disabled{opacity:.64;cursor:default}
+.trail-gallery-art{display:grid;place-items:center;width:100%;aspect-ratio:16/9;border-radius:8px;background:#06141f;color:#647f8b;font:10px 'DM Mono',monospace;letter-spacing:.13em;overflow:hidden}
+.trail-gallery-art img{display:block;width:100%;height:100%;object-fit:cover}
+.trail-gallery-label,.trail-gallery-outcome{display:block;margin:9px 2px 0;font-size:13px}
+.trail-gallery-outcome{margin-top:5px;color:#a2c6c8;font:10px 'DM Mono',monospace;line-height:1.4}
+.trail-detail{width:min(1100px,calc(100vw - 24px));text-align:center}
+.trail-detail-head{align-items:center;margin-bottom:12px}
+.trail-detail img{display:block;width:100%;max-height:min(65dvh,630px);aspect-ratio:16/9;object-fit:contain;border-radius:12px;background:#050e18}
+.trail-detail h2{font-size:24px;font-weight:500;margin:16px 0 2px}
+.trail-detail p{color:#b4d0d1;font:12px 'DM Mono',monospace}
+@media(max-width:700px){.trail-gallery,.trail-detail{padding:15px}.trail-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.trail-gallery-card{padding:6px}.trail-gallery-label{font-size:11px}.trail-gallery-outcome{font-size:9px}.level-card-trail{grid-row:1/5;height:80px}}
+@media(max-width:480px){.trail-gallery-grid{grid-template-columns:1fr 1fr}}

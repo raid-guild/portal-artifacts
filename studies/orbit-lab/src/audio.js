@@ -58,7 +58,8 @@ export class OrbitAudio {
     for (const voice of this.sceneVoices) { try { voice.stop(); } catch {} }
     this.sceneVoices.clear();
   }
-  sceneCall(note) { const pitch = [293.665, 440, 329.628, 523.251, 391.995][note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
+  sceneCall(note, chapterId = 1) { const pitches = chapterId === 3 ? [261.626, 349.228, 391.995, 440, 523.251] : chapterId === 2 ? [293.665, 329.628, 391.995, 440, 587.33] : [293.665, 440, 329.628, 523.251, 391.995]; const pitch = pitches[note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
+  sceneNote(frequency, answer = false) { this.tone(frequency, 0, answer ? 1.55 : 1.1, answer ? .11 : .13, frequency, true); }
   sceneEarned(note) { const pitch = [369.994, 493.883, 587.33][note - 1]; this.tone(pitch, 0, .75, .07, pitch, true); }
   sceneAnswer() { [220, 277.183, 369.994].forEach((note, i) => this.tone(note, i * .12, 1.8, .09, note, true)); }
   placement() {

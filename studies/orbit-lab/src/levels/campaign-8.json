@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "id": "campaign-8",
+  "title": "Between the pulses",
+  "bounds": {
+    "minX": -20,
+    "maxX": 124,
+    "minY": -40,
+    "maxY": 40
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": false
+  },
+  "start": {
+    "x": -12,
+    "y": -14,
+    "direction": 0,
+    "speed": 3
+  },
+  "exit": {
+    "x": 116,
+    "y": -12,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "divider-22-lower",
+      "x": 22,
+      "y": -29.5,
+      "width": 1,
+      "height": 21.0
+    },
+    {
+      "id": "divider-22-upper",
+      "x": 22,
+      "y": 15.5,
+      "width": 1,
+      "height": 49.0
+    },
+    {
+      "id": "divider-66-lower",
+      "x": 66,
+      "y": -15.5,
+      "width": 1,
+      "height": 49.0
+    },
+    {
+      "id": "divider-66-upper",
+      "x": 66,
+      "y": 29.5,
+      "width": 1,
+      "height": 21.0
+    },
+    {
+      "id": "divider-104-lower",
+      "x": 104,
+      "y": -28.5,
+      "width": 1,
+      "height": 23.0
+    },
+    {
+      "id": "divider-104-upper",
+      "x": 104,
+      "y": 16.5,
+      "width": 1,
+      "height": 47.0
+    },
+    {
+      "id": "lower-shoulder",
+      "x": 49,
+      "y": -21,
+      "width": 2,
+      "height": 12
+    },
+    {
+      "id": "upper-shoulder",
+      "x": 89,
+      "y": 11,
+      "width": 2,
+      "height": 22
+    }
+  ],
+  "entities": [
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 3,
+      "y": -14,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "light-1",
+      "type": "lightPickup",
+      "x": 2,
+      "y": -14,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "first-heavy",
+      "type": "ember",
+      "x": 6,
+      "y": -27,
+      "radius": 2,
+      "gravity": 17,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "approach-hold",
+      "type": "stillness",
+      "x": 10,
+      "y": -14,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "first-launch",
+      "type": "impulse",
+      "x": 13,
+      "y": -14,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "first-moon-a",
+      "type": "ember",
+      "x": 22,
+      "y": -14,
+      "radius": 0.58,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.9264150745767936,
+      "orbitRadius": 3.4,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "first-moon-b",
+      "type": "ember",
+      "x": 22,
+      "y": -14,
+      "radius": 0.58,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.9264150745767936,
+      "orbitRadius": 3.4,
+      "phase": 180,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "first-catch",
+      "type": "stillness",
+      "x": 34,
+      "y": -14,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "first-brake",
+      "type": "impulse",
+      "x": 37,
+      "y": -14,
+      "radius": 1.15,
+      "direction": 45,
+      "speed": 6
+    },
+    {
+      "id": "turn-light",
+      "type": "lightPickup",
+      "x": 43,
+      "y": -3,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "turn-heavy",
+      "type": "ember",
+      "x": 54,
+      "y": -22,
+      "radius": 2.2,
+      "gravity": 20,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 53,
+      "y": 14,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "middle-eclipse",
+      "type": "eclipse",
+      "x": 54,
+      "y": 14,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0,
+      "fadeTime": 2.7
+    },
+    {
+      "id": "second-launch",
+      "type": "impulse",
+      "x": 57,
+      "y": 14,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 12.5
+    },
+    {
+      "id": "second-moon-a",
+      "type": "ember",
+      "x": 66,
+      "y": 14,
+      "radius": 0.6,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.855993321445266,
+      "orbitRadius": 3.5,
+      "phase": 25,
+      "orbitDirection": "clockwise"
+    },
+    {
+      "id": "second-moon-b",
+      "type": "ember",
+      "x": 66,
+      "y": 14,
+      "radius": 0.6,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 2.855993321445266,
+      "orbitRadius": 3.5,
+      "phase": 205,
+      "orbitDirection": "clockwise"
+    },
+    {
+      "id": "second-catch",
+      "type": "stillness",
+      "x": 78,
+      "y": 14,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "second-brake",
+      "type": "impulse",
+      "x": 81,
+      "y": 14,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 3.1
+    },
+    {
+      "id": "turn-light-2",
+      "type": "lightPickup",
+      "x": 84,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.34,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "upper-heavy",
+      "type": "ember",
+      "x": 90,
+      "y": 28,
+      "radius": 2.5,
+      "gravity": 21,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 97,
+      "y": -15,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "final-light",
+      "type": "lightPickup",
+      "x": 96,
+      "y": -15,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "final-heavy",
+      "type": "ember",
+      "x": 100,
+      "y": -27,
+      "radius": 2.4,
+      "gravity": 20,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "exit-light",
+      "type": "lightPickup",
+      "x": 110,
+      "y": -12,
+      "radius": 0.7,
+      "amount": 0.25,
+      "reusable": false,
+      "cooldown": 0
+    }
+  ]
+}

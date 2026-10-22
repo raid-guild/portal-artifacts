@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import one from './levels/campaign-1.json' with { type: 'json' };
 import two from './levels/campaign-2.json' with { type: 'json' };
+import four from './levels/campaign-4.json' with { type: 'json' };
 import { compileLevelDocument, parseLevelDocument, validateLevelDocument } from './level-document.js';
 const copy = value => structuredClone(value);
 
@@ -103,4 +104,41 @@ test('campaign companion pickups survive schema round-trip and require a valid i
   assert.deepEqual(compileLevelDocument(checked.document).entities.filter(e=>e.type==='companion'),two.entities.filter(e=>e.type==='companion'));
   const invalid=copy(two);invalid.entities.find(e=>e.type==='companion').captureRadius=NaN;
   assert.equal(validateLevelDocument(invalid).ok,false);
+});
+
+test('manualRelease defaults off in older stillness and eclipse documents and round-trips when enabled', () => {
+  const legacy = copy(one);
+  legacy.entities.push({ id:'old-wait', type:'stillness', x:10, y:9, radius:1, captureTime:2 });
+  legacy.entities.push({ id:'old-eclipse', type:'eclipse', x:20, y:9, radius:1, captureTime:2, fadeTime:2 });
+  const checked = validateLevelDocument(legacy);
+  assert.equal(checked.ok, true, checked.errors.join('\n'));
+  assert.deepEqual(checked.document.entities.slice(-2).map(entity => entity.manualRelease), [false, false]);
+  const fourth = validateLevelDocument(four);
+  assert.equal(fourth.ok, true, fourth.errors.join('\n'));
+  assert.equal(parseLevelDocument(JSON.stringify(fourth.document)).document.entities.find(entity => entity.id === 'waiting-place').manualRelease, true);
+  const invalid = copy(four); invalid.entities.find(entity => entity.id === 'waiting-place').manualRelease = 'yes';
+  assert.equal(validateLevelDocument(invalid).ok, false);
+});
+
+test('stillness and eclipse optionally direct release without changing document version', () => {
+  const document = copy(one);
+  document.entities.push(
+    { id:'wait', type:'stillness', x:10, y:9, radius:1, captureTime:2, manualRelease:true },
+    { id:'shade', type:'eclipse', x:20, y:9, radius:1, captureTime:2, fadeTime:2, releaseDirection:0 },
+  );
+  const checked = validateLevelDocument(document);
+  assert.equal(checked.ok, true, checked.errors.join('\n'));
+  assert.equal(checked.document.version, 1);
+  assert.equal(checked.document.entities.find(entity => entity.id === 'wait').releaseDirection, null);
+  assert.equal(checked.document.entities.find(entity => entity.id === 'shade').releaseDirection, 0);
+  for (const direction of [90, 180, 270, -360, 360, null]) {
+    document.entities.at(-1).releaseDirection = direction;
+    const result = validateLevelDocument(document);
+    assert.equal(result.ok, true, result.errors.join('\n'));
+    assert.equal(parseLevelDocument(JSON.stringify(result.document)).document.entities.at(-1).releaseDirection, direction);
+  }
+  for (const direction of ['90', NaN, Infinity, -361, 361]) {
+    document.entities.at(-1).releaseDirection = direction;
+    assert.equal(validateLevelDocument(document).ok, false);
+  }
 });
