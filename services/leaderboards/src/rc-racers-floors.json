@@ -1,0 +1,20 @@
+{
+  "scoringVersion": "1",
+  "margin": 0.2,
+  "floors": {
+    "cuenca-rc": {
+      "counter-clockwise": {
+        "tc-stock-175": 16780,
+        "tc-mod-45": 15541,
+        "fwd-105": 15778,
+        "f1-215": 17669
+      },
+      "clockwise": {
+        "tc-stock-175": 16768,
+        "tc-mod-45": 15820,
+        "fwd-105": 16429,
+        "f1-215": 17736
+      }
+    }
+  }
+}

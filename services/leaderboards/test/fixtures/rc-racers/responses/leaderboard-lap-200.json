@@ -1,0 +1,24 @@
+{
+  "version": "1",
+  "entries": [
+    {
+      "displayName": "Bruno",
+      "bestLapMs": 23987,
+      "submittedAt": "2026-10-20T10:01:00.000Z",
+      "cars": 7,
+      "difficulty": "national",
+      "weather": "dry",
+      "assisted": false
+    },
+    {
+      "displayName": "Ana Racer",
+      "bestLapMs": 24656,
+      "submittedAt": "2026-10-20T10:12:30.512Z",
+      "cars": 4,
+      "difficulty": "club",
+      "weather": "changeable",
+      "assisted": true
+    }
+  ],
+  "mine": 1
+}

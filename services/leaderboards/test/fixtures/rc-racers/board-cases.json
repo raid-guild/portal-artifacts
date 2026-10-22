@@ -1,0 +1,2551 @@
+[
+  {
+    "name": "one best per player",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24800,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p2",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24800,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": 1
+    }
+  },
+  {
+    "name": "a tie goes to the earlier submission, then the lower id; a player tied with themself shows the earlier run",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000011",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:05:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000013",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000014",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000012",
+        "playerId": "p4",
+        "displayName": "Diego",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "playerId": "p5",
+        "displayName": "Elena",
+        "submittedAt": "2026-10-20T10:09:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000016",
+        "playerId": "p5",
+        "displayName": "Elena",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Diego",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Carla",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Elena",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:05:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "one condition takes only its runs",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000021",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000022",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 30000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000023",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "changeable",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000024",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 29000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "wet"
+    },
+    "viewer": "p1",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Carla",
+          "bestLapMs": 29000,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "wet",
+          "assisted": false
+        },
+        {
+          "displayName": "Ana",
+          "bestLapMs": 30000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "wet",
+          "assisted": false
+        }
+      ],
+      "mine": 1
+    }
+  },
+  {
+    "name": "all takes each player's best across the three conditions",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000021",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000022",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 30000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000023",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "changeable",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000024",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 29000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p1",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24500,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "changeable",
+          "assisted": false
+        },
+        {
+          "displayName": "Carla",
+          "bestLapMs": 29000,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "wet",
+          "assisted": false
+        }
+      ],
+      "mine": 0
+    }
+  },
+  {
+    "name": "a qualifying heat feeds the lap board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000031",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "qualifying",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 300500
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000032",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 11,
+          "timeMs": 301000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 25000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a qualifying heat is not on a race board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000031",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "qualifying",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 300500
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000032",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 11,
+          "timeMs": 301000
+        }
+      }
+    ],
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "minutes": 5
+    },
+    "viewer": "p1",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Bruno",
+          "laps": 11,
+          "timeMs": 301000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a final of 5 minutes is not on the 3-minute board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000041",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 301000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 3,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 7,
+          "timeMs": 181000
+        }
+      }
+    ],
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "minutes": 3
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Bruno",
+          "laps": 7,
+          "timeMs": 181000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a final of 5 minutes is on the 5-minute board, and both on the lap board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000041",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 301000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 3,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 7,
+          "timeMs": 181000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24500,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "(A*) rows are ranked like any other",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000051",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": true
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000052",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": true
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24500,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "eleven players: ten shown, the eleventh not, and not mine",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000061",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 301000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000062",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24100,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000063",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24200,
+          "laps": 12,
+          "timeMs": 303000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000064",
+        "playerId": "p4",
+        "displayName": "Diego",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24300,
+          "laps": 12,
+          "timeMs": 304000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000065",
+        "playerId": "p5",
+        "displayName": "Elena",
+        "submittedAt": "2026-10-20T10:05:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24400,
+          "laps": 12,
+          "timeMs": 305000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000066",
+        "playerId": "p6",
+        "displayName": "Felipe",
+        "submittedAt": "2026-10-20T10:06:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 306000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000067",
+        "playerId": "p7",
+        "displayName": "Gabriela",
+        "submittedAt": "2026-10-20T10:07:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24600,
+          "laps": 12,
+          "timeMs": 307000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000068",
+        "playerId": "p8",
+        "displayName": "Hugo",
+        "submittedAt": "2026-10-20T10:08:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24700,
+          "laps": 12,
+          "timeMs": 308000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000069",
+        "playerId": "p9",
+        "displayName": "Ines",
+        "submittedAt": "2026-10-20T10:09:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24800,
+          "laps": 12,
+          "timeMs": 309000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000070",
+        "playerId": "p10",
+        "displayName": "Jorge",
+        "submittedAt": "2026-10-20T10:10:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24900,
+          "laps": 12,
+          "timeMs": 310000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000071",
+        "playerId": "p11",
+        "displayName": "Karen",
+        "submittedAt": "2026-10-20T10:11:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 311000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p11",
+    "finished": "00000000-0000-4000-8000-000000000071",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24100,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Carla",
+          "bestLapMs": 24200,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Diego",
+          "bestLapMs": 24300,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Elena",
+          "bestLapMs": 24400,
+          "submittedAt": "2026-10-20T10:05:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Felipe",
+          "bestLapMs": 24500,
+          "submittedAt": "2026-10-20T10:06:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Gabriela",
+          "bestLapMs": 24600,
+          "submittedAt": "2026-10-20T10:07:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Hugo",
+          "bestLapMs": 24700,
+          "submittedAt": "2026-10-20T10:08:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Ines",
+          "bestLapMs": 24800,
+          "submittedAt": "2026-10-20T10:09:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Jorge",
+          "bestLapMs": 24900,
+          "submittedAt": "2026-10-20T10:10:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null,
+      "ranks": {
+        "lap": {
+          "rank": 11,
+          "best": true
+        },
+        "race": {
+          "rank": 11,
+          "best": true
+        }
+      }
+    }
+  },
+  {
+    "name": "eleven players: the tenth is mine at index 9",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000061",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 301000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000062",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24100,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000063",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24200,
+          "laps": 12,
+          "timeMs": 303000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000064",
+        "playerId": "p4",
+        "displayName": "Diego",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24300,
+          "laps": 12,
+          "timeMs": 304000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000065",
+        "playerId": "p5",
+        "displayName": "Elena",
+        "submittedAt": "2026-10-20T10:05:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24400,
+          "laps": 12,
+          "timeMs": 305000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000066",
+        "playerId": "p6",
+        "displayName": "Felipe",
+        "submittedAt": "2026-10-20T10:06:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 306000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000067",
+        "playerId": "p7",
+        "displayName": "Gabriela",
+        "submittedAt": "2026-10-20T10:07:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24600,
+          "laps": 12,
+          "timeMs": 307000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000068",
+        "playerId": "p8",
+        "displayName": "Hugo",
+        "submittedAt": "2026-10-20T10:08:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24700,
+          "laps": 12,
+          "timeMs": 308000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000069",
+        "playerId": "p9",
+        "displayName": "Ines",
+        "submittedAt": "2026-10-20T10:09:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24800,
+          "laps": 12,
+          "timeMs": 309000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000070",
+        "playerId": "p10",
+        "displayName": "Jorge",
+        "submittedAt": "2026-10-20T10:10:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24900,
+          "laps": 12,
+          "timeMs": 310000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000071",
+        "playerId": "p11",
+        "displayName": "Karen",
+        "submittedAt": "2026-10-20T10:11:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 311000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p10",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24100,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Carla",
+          "bestLapMs": 24200,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Diego",
+          "bestLapMs": 24300,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Elena",
+          "bestLapMs": 24400,
+          "submittedAt": "2026-10-20T10:05:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Felipe",
+          "bestLapMs": 24500,
+          "submittedAt": "2026-10-20T10:06:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Gabriela",
+          "bestLapMs": 24600,
+          "submittedAt": "2026-10-20T10:07:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Hugo",
+          "bestLapMs": 24700,
+          "submittedAt": "2026-10-20T10:08:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Ines",
+          "bestLapMs": 24800,
+          "submittedAt": "2026-10-20T10:09:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Jorge",
+          "bestLapMs": 24900,
+          "submittedAt": "2026-10-20T10:10:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": 9
+    }
+  },
+  {
+    "name": "a race board: more laps first, then the lower time",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000075",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 301000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000076",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 13,
+          "timeMs": 305000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000077",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24200,
+          "laps": 12,
+          "timeMs": 300500
+        }
+      }
+    ],
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "minutes": 5
+    },
+    "viewer": "p3",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Bruno",
+          "laps": 13,
+          "timeMs": 305000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Carla",
+          "laps": 12,
+          "timeMs": 300500,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Ana",
+          "laps": 12,
+          "timeMs": 301000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": 1
+    }
+  },
+  {
+    "name": "a run with no counted lap is on no lap board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000081",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": null,
+          "laps": 0,
+          "timeMs": 0
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p1",
+    "finished": "00000000-0000-4000-8000-000000000081",
+    "expect": {
+      "entries": [],
+      "mine": null,
+      "ranks": {
+        "lap": null,
+        "race": null
+      }
+    }
+  },
+  {
+    "name": "a run with no counted lap is on no race board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000081",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": null,
+          "laps": 0,
+          "timeMs": 0
+        }
+      }
+    ],
+    "query": {
+      "kind": "race",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all",
+      "minutes": 5
+    },
+    "viewer": "p1",
+    "expect": {
+      "entries": [],
+      "mine": null
+    }
+  },
+  {
+    "name": "another direction, class or track is another board",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000091",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000092",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-mod-45",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 23000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000093",
+        "playerId": "p3",
+        "displayName": "Carla",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "another-track",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 22000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000094",
+        "playerId": "p4",
+        "displayName": "Diego",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p1",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Diego",
+          "bestLapMs": 25000,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a viewer with no run there has no mine",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24800,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p9",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24800,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a guest has no mine",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24500,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:04:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24800,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": null,
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24800,
+          "submittedAt": "2026-10-20T10:04:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": null
+    }
+  },
+  {
+    "name": "a finish that is not the player's best keeps their place, best false",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000101",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000102",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24200,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 25000,
+          "laps": 11,
+          "timeMs": 302500
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p1",
+    "finished": "00000000-0000-4000-8000-000000000103",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 24200,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": 0,
+      "ranks": {
+        "lap": {
+          "rank": 1,
+          "best": false
+        },
+        "race": {
+          "rank": 1,
+          "best": false
+        }
+      }
+    }
+  },
+  {
+    "name": "a finish is ranked on the board of its own weather",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000111",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000112",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 29000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000113",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:03:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "wet",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 30000,
+          "laps": 10,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "wet"
+    },
+    "viewer": "p1",
+    "finished": "00000000-0000-4000-8000-000000000113",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 29000,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "wet",
+          "assisted": false
+        },
+        {
+          "displayName": "Ana",
+          "bestLapMs": 30000,
+          "submittedAt": "2026-10-20T10:03:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "wet",
+          "assisted": false
+        }
+      ],
+      "mine": 1,
+      "ranks": {
+        "lap": {
+          "rank": 2,
+          "best": true
+        },
+        "race": {
+          "rank": 2,
+          "best": true
+        }
+      }
+    }
+  },
+  {
+    "name": "a qualifying heat's finish has a lap rank and no race rank",
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-000000000121",
+        "playerId": "p1",
+        "displayName": "Ana",
+        "submittedAt": "2026-10-20T10:01:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "qualifying",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 24000,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000122",
+        "playerId": "p2",
+        "displayName": "Bruno",
+        "submittedAt": "2026-10-20T10:02:00.000Z",
+        "runConfig": {
+          "track": "cuenca-rc",
+          "direction": "counter-clockwise",
+          "class": "tc-stock-175",
+          "kind": "final",
+          "minutes": 5,
+          "weather": "dry",
+          "cars": 7,
+          "difficulty": "club",
+          "assisted": false
+        },
+        "finish": {
+          "bestLapMs": 23900,
+          "laps": 12,
+          "timeMs": 302000
+        }
+      }
+    ],
+    "query": {
+      "kind": "lap",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "weather": "all"
+    },
+    "viewer": "p1",
+    "finished": "00000000-0000-4000-8000-000000000121",
+    "expect": {
+      "entries": [
+        {
+          "displayName": "Bruno",
+          "bestLapMs": 23900,
+          "submittedAt": "2026-10-20T10:02:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        },
+        {
+          "displayName": "Ana",
+          "bestLapMs": 24000,
+          "submittedAt": "2026-10-20T10:01:00.000Z",
+          "cars": 7,
+          "difficulty": "club",
+          "weather": "dry",
+          "assisted": false
+        }
+      ],
+      "mine": 1,
+      "ranks": {
+        "lap": {
+          "rank": 2,
+          "best": true
+        },
+        "race": null
+      }
+    }
+  }
+]

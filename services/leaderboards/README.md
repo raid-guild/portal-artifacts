@@ -340,3 +340,59 @@ the session that started them; exact finish retries are idempotent. Client-repor
 outcomes are not authoritative physics replay. Source rules must match
 studies/neon-drop/src/challenge.js verbatim. API tests require a disposable local
 TEST_DATABASE_URL ending `_test`; never run them against production.
+
+## Mini RC Racers (version 1)
+
+Optional module/audience `rc-racers`, environment `RC_RACERS_LAUNCH_SECRET` (32+
+characters, the same value on Portal); a missing or shorter secret disables only this
+module: every `/leaderboard-api/rc-racers/*` route answers 503
+`Leaderboard temporarily unavailable. Local play still works.` and nothing else on the
+host changes. Callback `/leaderboard-api/rc-racers/callback`; a launch lands on the game
+at `/rc-racers/play/` (`/rc-racers/` is its home page), or `/rc-racers/play/?ranked=launch-failed`.
+Cookie `rc_racers_ranked`, path `/leaderboard-api/rc-racers`, 12-hour sessions. The HTTP
+contract is the game's `docs/portal-leaderboard-api.md`, copied with the game's fixtures
+to `test/fixtures/rc-racers/`.
+
+Routes: GET ready, callback, session, leaderboard; POST runs, runs/:id/finish, logout.
+Start body `{version:"1",track,direction,class,kind,minutes,weather,cars,difficulty,assisted}`
+(stored less `version` as `run_config`). Finish body `{version:"1",bestLapMs,laps,timeMs}`
+(stored as `details`, `duration_ms` = `timeMs`, `score` = `laps`: the shared table needs a
+non-negative score, and the boards rank by `details`). Board query
+`?kind=lap|race&track&direction&class&weather=all|dry|changeable|wet[&minutes=3|5|7]&version=1`,
+answering at most ten entries and `mine`. 60 starts per player per rolling hour, then 429;
+a run can be finished for 2 hours, then 410. Runs are tied to the session that started them;
+an exact finish retry answers 200 again, a changed one 409.
+
+Boards keep one best per player. Lap boards per track, direction and class (qualifying
+heats and finals of any length, least `bestLapMs`); race boards per track, direction, class
+and length (finals with a counted lap, more laps then less time); `weather=all` takes each
+player's best across conditions. Ties go to the earlier submission, then the lower run id.
+Assisted (A*) runs rank like any other and carry their mark. `src/rc-racers-rules.js` is
+the game's `rules.mjs` verbatim (one header line) and does the validation, ranking and
+finish ranks, so the service's answers are the fixtures'.
+
+This is a casual, client-reported leaderboard. The checks bound what they can: allow-listed
+start values, a lap-time floor per track, direction and class taken from the game
+(`src/rc-racers-floors.json`, the game's `floors.json` verbatim), the longest time a session
+of that config can give, the server's wall clock since the start, the hourly limit and the
+run lifetime. They cannot stop a fabricated plausible time, tuned cars or a bot.
+
+Versions: the game's `SCORING_VERSION` is `VERSION`. Anything that changes lap times bumps
+both in one release, with the game's regenerated `floors.json` copied to
+`src/rc-racers-floors.json` and its `rules.mjs` and fixtures copied again; the app refuses
+to start if the floor table's `scoringVersion` is not `VERSION`. Old boards stay readable
+with `?version=`.
+
+No new table or grant. `schema.sql` adds an optional index, `rc_racers_runs_board`, for the
+boards' query; apply it with `npm run migrate` as an administrator, or skip it. The guarded
+`ops/configure-rc-racers.ts` follows the existing dry-run / explicit `--apply` workflow
+(signed launch, audience `rc-racers`, `RC_RACERS_LAUNCH_SECRET`, 120 s tokens, profile and
+handle only). Copy it into a Portal checkout and run `pnpm payload run <path>` for the dry
+run, then `pnpm payload run <path> -- --apply`: Payload's `run` passes only positional
+arguments to the script, so a bare `--apply` is dropped and the run stays a dry run (it then
+prints the dry-run summary, not `"configured": true`). Production configuration has not
+been executed. `test/rc-racers-rules.test.js`
+runs every fixture case through the rules and fails on drift from the game's files;
+`test/rc-racers-api.test.js` runs them through HTTP and needs a disposable local
+TEST_DATABASE_URL ending `_test`; never run it against production. Rollback: set the Portal
+module's Auth mode to `None`, or remove `RC_RACERS_LAUNCH_SECRET` from the API and redeploy.

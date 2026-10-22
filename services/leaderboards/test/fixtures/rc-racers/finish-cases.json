@@ -1,0 +1,843 @@
+[
+  {
+    "name": "a 5-minute final as the game sends it",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "the best lap at the floor (16780 ms)",
+    "body": {
+      "version": "1",
+      "bestLapMs": 16780,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "the best lap one below the floor",
+    "body": {
+      "version": "1",
+      "bestLapMs": 16779,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the F1 clockwise at its floor (17736 ms)",
+    "body": {
+      "version": "1",
+      "bestLapMs": 17736,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "clockwise",
+      "class": "f1-215",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "the F1 clockwise one below its floor",
+    "body": {
+      "version": "1",
+      "bestLapMs": 17735,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "clockwise",
+      "class": "f1-215",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "no counted lap: no best lap, a time of 0",
+    "body": {
+      "version": "1",
+      "bestLapMs": null,
+      "laps": 0,
+      "timeMs": 0
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 200000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "no counted lap but a time",
+    "body": {
+      "version": "1",
+      "bestLapMs": null,
+      "laps": 0,
+      "timeMs": 5
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 200000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "no counted lap but a best lap",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 0,
+      "timeMs": 0
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 200000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "counted laps but no best lap",
+    "body": {
+      "version": "1",
+      "bestLapMs": null,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "one lap: the best lap is the whole time (a qualifying heat)",
+    "body": {
+      "version": "1",
+      "bestLapMs": 30000,
+      "laps": 1,
+      "timeMs": 30000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 200000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "one lap: the best lap longer than the time",
+    "body": {
+      "version": "1",
+      "bestLapMs": 30000,
+      "laps": 1,
+      "timeMs": 29999
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 200000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "ten laps of the best less 1 ms each fit the time exactly",
+    "body": {
+      "version": "1",
+      "bestLapMs": 30000,
+      "laps": 10,
+      "timeMs": 299990
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "ten laps of the best do not fit the time",
+    "body": {
+      "version": "1",
+      "bestLapMs": 30000,
+      "laps": 10,
+      "timeMs": 299989
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a final whose last lap did not count ends before its clock",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 11,
+      "timeMs": 280000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a lap of more than 3 minutes (the car stopped on track)",
+    "body": {
+      "version": "1",
+      "bestLapMs": 200000,
+      "laps": 1,
+      "timeMs": 200000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 7,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 260000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a 7-car 5-minute final at its longest: 300000 + 7 x 30000",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 20,
+      "timeMs": 510000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 600000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a 7-car 5-minute final one over its longest",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 20,
+      "timeMs": 510001
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 600000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a 2-car 3-minute final at its longest: 180000 + 2 x 30000",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 9,
+      "timeMs": 240000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 2,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 300000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a 2-car 3-minute final one over its longest",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 9,
+      "timeMs": 240001
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 3,
+      "weather": "dry",
+      "cars": 2,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 300000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a 7-minute qualifying heat at its longest: 420000 + 360000",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 30,
+      "timeMs": 780000
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 7,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 800000,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "a 7-minute qualifying heat one over its longest",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24000,
+      "laps": 30,
+      "timeMs": 780001
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 7,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 800000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the time at the wall bound: wall time + 10000",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 291456,
+    "expect": {
+      "status": 200
+    }
+  },
+  {
+    "name": "the time one over the wall bound",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 291455,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "1000 laps",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 1000,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "negative laps",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": -1,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "laps not a whole number",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 11.5,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a negative time",
+    "body": {
+      "version": "1",
+      "bestLapMs": null,
+      "laps": 0,
+      "timeMs": -1
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the time as a string",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": "301456"
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the best lap not a whole number",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656.5,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the best lap as a string",
+    "body": {
+      "version": "1",
+      "bestLapMs": "24656",
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an extra key",
+    "body": {
+      "version": "1",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456,
+      "displayName": "FASTEST"
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a missing key",
+    "body": {
+      "version": "1",
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "another version",
+    "body": {
+      "version": "2",
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 409
+    }
+  },
+  {
+    "name": "no version",
+    "body": {
+      "bestLapMs": 24656,
+      "laps": 12,
+      "timeMs": 301456
+    },
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 409
+    }
+  },
+  {
+    "name": "a body that is a list",
+    "body": [
+      {
+        "version": "1",
+        "bestLapMs": 24656,
+        "laps": 12,
+        "timeMs": 301456
+      }
+    ],
+    "runConfig": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "wallMs": 330000,
+    "expect": {
+      "status": 400
+    }
+  }
+]

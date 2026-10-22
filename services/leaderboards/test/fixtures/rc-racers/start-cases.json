@@ -1,0 +1,485 @@
+[
+  {
+    "name": "a 5-minute final as the game sends it",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "a qualifying heat",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "qualifying",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "3 minutes, 2 cars, regional, changeable",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 3,
+      "weather": "changeable",
+      "cars": 2,
+      "difficulty": "regional",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "7 minutes, 4 cars, national, wet",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 7,
+      "weather": "wet",
+      "cars": 4,
+      "difficulty": "national",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "clockwise in the Modified",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "clockwise",
+      "class": "tc-mod-45",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "the front-drive car",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "fwd-105",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "the F1 car clockwise",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "clockwise",
+      "class": "f1-215",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "with driving assistance",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": true
+    },
+    "expect": {
+      "status": 201
+    }
+  },
+  {
+    "name": "another version",
+    "body": {
+      "version": "2",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 409
+    }
+  },
+  {
+    "name": "the version as a number",
+    "body": {
+      "version": 1,
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 409
+    }
+  },
+  {
+    "name": "no version",
+    "body": {
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 409
+    }
+  },
+  {
+    "name": "an extra key",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false,
+      "player": "someone"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a missing key",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown track",
+    "body": {
+      "version": "1",
+      "track": "monaco",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a track name that is an object property",
+    "body": {
+      "version": "1",
+      "track": "__proto__",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a direction not in the table",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "ccw",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown class",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-215",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a practice session",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "practice",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "4 minutes",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 4,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "minutes as a string",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": "5",
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "the surprise forecast",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "surprise",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "3 cars",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 3,
+      "difficulty": "club",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "an unknown difficulty",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "pro",
+      "assisted": false
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "assisted as a string",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": "false"
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "assisted as a number",
+    "body": {
+      "version": "1",
+      "track": "cuenca-rc",
+      "direction": "counter-clockwise",
+      "class": "tc-stock-175",
+      "kind": "final",
+      "minutes": 5,
+      "weather": "dry",
+      "cars": 7,
+      "difficulty": "club",
+      "assisted": 0
+    },
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a body that is a list",
+    "body": [
+      {
+        "version": "1",
+        "track": "cuenca-rc",
+        "direction": "counter-clockwise",
+        "class": "tc-stock-175",
+        "kind": "final",
+        "minutes": 5,
+        "weather": "dry",
+        "cars": 7,
+        "difficulty": "club",
+        "assisted": false
+      }
+    ],
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a body that is null",
+    "body": null,
+    "expect": {
+      "status": 400
+    }
+  },
+  {
+    "name": "a body that is a string",
+    "body": "final",
+    "expect": {
+      "status": 400
+    }
+  }
+]
