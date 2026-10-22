@@ -81,8 +81,8 @@ export function createTransmission({ overlay, canvas, caption, audio, onFinish }
         if (event.type === 'earned') audio.sceneEarned(event.note);
         if (event.type === 'answerSound') audio.sceneAnswer();
         if (event.type === 'answerNote') audio.sceneNote(event.frequency, true);
-        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = chapter.id === 3 ? event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'A SIGNAL FINDS US' : chapter.id === 2 ? 'A RHYTHM ANSWERS' : 'SOMETHING ANSWERED'; }
-        if (event.type === 'replyNote') { audio.sceneNote(event.frequency); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); caption.textContent = chapter.id === 3 && event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'THE SAME RHYTHM'; }
+        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'AN ANSWER ACROSS THE DIVIDE' : chapter.id === 3 ? event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'A SIGNAL FINDS US' : chapter.id === 2 ? 'A RHYTHM ANSWERS' : 'SOMETHING ANSWERED'; }
+        if (event.type === 'replyNote') { audio.sceneNote(event.frequency); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); caption.textContent = chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'WE ANSWER TOGETHER' : chapter.id === 3 && event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'THE SAME RHYTHM'; }
         if (event.type === 'end') { finish(); return; }
       }
       draw();

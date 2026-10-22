@@ -99,8 +99,8 @@ test('bounded chamber has an empty interior and pickup retries stay inside at co
   }
 });
 
-test('nine levels share the chamber across three chapters', () => {
-  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+test('twelve levels span four chapters', () => {
+  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   assert.equal(getCampaignLevel(2).level.goal.x, 50);
   assert.equal(getCampaignLevel(2).level.bounds.maxX - getCampaignLevel(2).level.bounds.minX, 96);
   assert.equal(getCampaignLevel(2).giant.radius, 4);
@@ -113,7 +113,10 @@ test('nine levels share the chamber across three chapters', () => {
   assert.equal(nextCampaignLevel(6).id, 7);
   assert.equal(nextCampaignLevel(7).id, 8);
   assert.equal(nextCampaignLevel(8).id, 9);
-  assert.equal(nextCampaignLevel(9), null);
+  assert.equal(nextCampaignLevel(9).id, 10);
+  assert.equal(nextCampaignLevel(10).id, 11);
+  assert.equal(nextCampaignLevel(11).id, 12);
+  assert.equal(nextCampaignLevel(12), null);
   const third = getCampaignLevel(3);
   assert.equal(third.title, 'An opening in the dark');
   assert.equal(third.level.bounds.maxX - third.level.bounds.minX, 96);

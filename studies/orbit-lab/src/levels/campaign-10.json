@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "id": "campaign-10",
+  "title": "Across the divide",
+  "bounds": {
+    "minX": -20,
+    "maxX": 100,
+    "minY": -30,
+    "maxY": 30
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": false
+  },
+  "start": {
+    "x": -12,
+    "y": 0,
+    "direction": 0,
+    "speed": 4
+  },
+  "exit": {
+    "x": 92,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "divide-one",
+      "x": 20,
+      "y": 0,
+      "width": 1,
+      "height": 60
+    },
+    {
+      "id": "divide-two",
+      "x": 60,
+      "y": 0,
+      "width": 1,
+      "height": 60
+    },
+    {
+      "id": "first-shoulder",
+      "x": 3,
+      "y": -23,
+      "width": 2,
+      "height": 14
+    },
+    {
+      "id": "middle-shoulder",
+      "x": 42,
+      "y": -19,
+      "width": 2,
+      "height": 16
+    },
+    {
+      "id": "last-shoulder",
+      "x": 82,
+      "y": 21,
+      "width": 2,
+      "height": 17
+    }
+  ],
+  "entities": [
+    {
+      "id": "bridge-a-in",
+      "type": "portal",
+      "x": 10,
+      "y": 0,
+      "radius": 1,
+      "pairId": "bridge-a",
+      "exitDirection": 0
+    },
+    {
+      "id": "bridge-a-out",
+      "type": "portal",
+      "x": 30,
+      "y": -4,
+      "radius": 1,
+      "pairId": "bridge-a",
+      "exitDirection": 90
+    },
+    {
+      "id": "turn-to-second",
+      "type": "stillness",
+      "x": 30,
+      "y": 6,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "bridge-b-in",
+      "type": "portal",
+      "x": 50,
+      "y": 6,
+      "radius": 1,
+      "pairId": "bridge-b",
+      "exitDirection": 0
+    },
+    {
+      "id": "bridge-b-out",
+      "type": "portal",
+      "x": 70,
+      "y": 12,
+      "radius": 1,
+      "pairId": "bridge-b",
+      "exitDirection": 270
+    },
+    {
+      "id": "turn-to-exit",
+      "type": "impulse",
+      "x": 70,
+      "y": 0,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 6
+    },
+    {
+      "id": "first-light",
+      "type": "lightPickup",
+      "x": 15,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "middle-light",
+      "type": "lightPickup",
+      "x": 36,
+      "y": 6,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "last-light",
+      "type": "lightPickup",
+      "x": 78,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 5,
+      "y": 6,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 40,
+      "y": 13,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 81,
+      "y": -7,
+      "radius": 0.9,
+      "slot": 2
+    }
+  ]
+}

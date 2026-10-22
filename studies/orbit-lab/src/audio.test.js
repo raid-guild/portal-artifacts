@@ -48,3 +48,24 @@ test('third transmission has a distinct five-note call and keeps scene voices ca
  audio.sceneNote(349.228, true); audio.sceneNote(523.251);
  assert.ok(notes.at(-2)[2] > notes.at(-1)[2]);
 });
+
+test('effects, music, and master mute use independent gains', async () => {
+ const audio = new OrbitAudio(), effects = [], music = [], master = [];
+ const gain = sink => ({ setTargetAtTime(value) { sink.push(value); } });
+ audio.context = { currentTime: 0 };
+ audio.effectsBus = { gain: gain(effects) };
+ audio.musicBus = { gain: gain(music) };
+ audio.master = { gain: gain(master) };
+ audio.music = { paused: false, pause() { this.paused = true; } };
+ audio.setEffects(false, .7);
+ assert.equal(effects.at(-1), 0);
+ audio.syncMusic(false);
+ await new Promise(resolve => setTimeout(resolve, 470));
+ assert.equal(audio.music.paused, true);
+ assert.equal(music.at(-1), 0);
+ audio.setEnabled(false);
+ assert.equal(master.at(-1), 0);
+ assert.equal(audio.effectsVolume, .7);
+ audio.setMusic(false, .2);
+ assert.equal(audio.musicVolume, .2);
+});

@@ -13,12 +13,13 @@ export function gatePattern(mask) {
 }
 
 // One fixed-step update: swept pickup once, then a shared quarter-second clock.
-export function stepSoundGates(state, gates, before, hero, time) {
+export function stepSoundGates(state, gates, before, hero, time, teleportArrival = null) {
   let mask = state.mask;
   const acquired = [];
   for (const gate of gates) {
     if (mask & (1 << gate.id)) continue;
-    if (segmentDistance(before, hero, gate) <= gate.radius + BLOB_RADIUS) {
+    if (segmentDistance(before, hero, gate) <= gate.radius + BLOB_RADIUS ||
+      (teleportArrival && segmentDistance(teleportArrival, teleportArrival, gate) <= gate.radius + BLOB_RADIUS)) {
       mask |= 1 << gate.id;
       acquired.push(gate.id);
     }

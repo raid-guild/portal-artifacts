@@ -1,0 +1,282 @@
+{
+  "version": 1,
+  "id": "campaign-11",
+  "title": "The distant room",
+  "bounds": {
+    "minX": -20,
+    "maxX": 140,
+    "minY": -48,
+    "maxY": 48
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": false
+  },
+  "start": {
+    "x": -12,
+    "y": -18,
+    "direction": 0,
+    "speed": 4
+  },
+  "exit": {
+    "x": 132,
+    "y": 10,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "divide-one",
+      "x": 28,
+      "y": 0,
+      "width": 1,
+      "height": 96
+    },
+    {
+      "id": "divide-two",
+      "x": 80,
+      "y": 0,
+      "width": 1,
+      "height": 96
+    },
+    {
+      "id": "last-room-lower",
+      "x": 112,
+      "y": -29,
+      "width": 2,
+      "height": 22
+    },
+    {
+      "id": "hub-lower-seal",
+      "x": 54,
+      "y": -22,
+      "width": 52,
+      "height": 1
+    },
+    {
+      "id": "hub-upper-seal",
+      "x": 54,
+      "y": 25,
+      "width": 52,
+      "height": 1
+    }
+  ],
+  "entities": [
+    {
+      "id": "route-a-in",
+      "type": "portal",
+      "x": 14,
+      "y": -18,
+      "radius": 1,
+      "pairId": "route-a",
+      "exitDirection": 0
+    },
+    {
+      "id": "route-a-out",
+      "type": "portal",
+      "x": 40,
+      "y": -18,
+      "radius": 1,
+      "pairId": "route-a",
+      "exitDirection": 90
+    },
+    {
+      "id": "hub-turn",
+      "type": "stillness",
+      "x": 40,
+      "y": 10,
+      "radius": 1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "route-b-in",
+      "type": "portal",
+      "x": 70,
+      "y": 10,
+      "radius": 1,
+      "pairId": "route-b",
+      "exitDirection": 0
+    },
+    {
+      "id": "route-b-out",
+      "type": "portal",
+      "x": 92,
+      "y": 10,
+      "radius": 1,
+      "pairId": "route-b",
+      "exitDirection": 0
+    },
+    {
+      "id": "spoke-c-hub",
+      "type": "portal",
+      "x": 48,
+      "y": -6,
+      "radius": 1,
+      "pairId": "spoke-c",
+      "exitDirection": 90
+    },
+    {
+      "id": "spoke-c-reward",
+      "type": "portal",
+      "x": 52,
+      "y": -36,
+      "radius": 1,
+      "pairId": "spoke-c",
+      "exitDirection": 0
+    },
+    {
+      "id": "spoke-d-hub",
+      "type": "portal",
+      "x": 59,
+      "y": 19,
+      "radius": 1,
+      "pairId": "spoke-d",
+      "exitDirection": 270
+    },
+    {
+      "id": "spoke-d-reward",
+      "type": "portal",
+      "x": 66,
+      "y": 35,
+      "radius": 1,
+      "pairId": "spoke-d",
+      "exitDirection": 180
+    },
+    {
+      "id": "lower-companion",
+      "type": "companion",
+      "x": 62,
+      "y": -36,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "upper-companion",
+      "type": "companion",
+      "x": 55,
+      "y": 35,
+      "radius": 0.16,
+      "captureRadius": 2.8
+    },
+    {
+      "id": "lower-ember",
+      "type": "ember",
+      "x": 70,
+      "y": -26,
+      "radius": 2.4,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "upper-ember",
+      "type": "ember",
+      "x": 73,
+      "y": 28,
+      "radius": 2.4,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "fixed",
+      "speed": 0,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "hub-light",
+      "type": "lightPickup",
+      "x": 46,
+      "y": 10,
+      "radius": 0.7,
+      "amount": 0.34,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "lower-reward",
+      "type": "lightPickup",
+      "x": 58,
+      "y": -36,
+      "radius": 0.7,
+      "amount": 0.33,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "upper-reward",
+      "type": "lightPickup",
+      "x": 62,
+      "y": 36,
+      "radius": 0.7,
+      "amount": 0.33,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "final-light",
+      "type": "lightPickup",
+      "x": 113,
+      "y": 10,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 60,
+      "y": -36,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 56,
+      "y": 35,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 117,
+      "y": 28,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "lower-return",
+      "type": "impulse",
+      "x": 75,
+      "y": -36,
+      "radius": 1.15,
+      "direction": 180,
+      "speed": 5
+    },
+    {
+      "id": "upper-return",
+      "type": "impulse",
+      "x": 37,
+      "y": 35,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 5
+    }
+  ]
+}

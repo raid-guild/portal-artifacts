@@ -1,6 +1,6 @@
-// Original procedural tones: no samples or external audio requests.
+// Procedural game sounds plus a quiet, optional local soundtrack.
 export class OrbitAudio {
-  constructor() { this.enabled = true; this.step = 0; this.profile = 'default'; this.sceneVoices = new Set(); }
+  constructor() { this.enabled = true; this.effectsEnabled = true; this.effectsVolume = 1; this.musicEnabled = true; this.musicVolume = .15; this.musicActive = false; this.musicDuck = 1; this.step = 0; this.profile = 'default'; this.sceneVoices = new Set(); }
   unlock() {
     if (!this.enabled) return;
     const Audio = window.AudioContext || window.webkitAudioContext;
@@ -10,14 +10,16 @@ export class OrbitAudio {
       this.master = c.createGain(); this.master.gain.value = .32;
       const limiter = c.createDynamicsCompressor();
       this.master.connect(limiter); limiter.connect(c.destination);
-      this.heartbeatBus = c.createGain(); this.heartbeatBus.gain.value = 1; this.heartbeatBus.connect(this.master);
-      this.sceneBus = c.createGain(); this.sceneBus.gain.value = 1; this.sceneBus.connect(this.master);
+      this.effectsBus = c.createGain(); this.effectsBus.gain.value = this.effectsEnabled ? this.effectsVolume : 0; this.effectsBus.connect(this.master);
+      this.musicBus = c.createGain(); this.musicBus.gain.value = 0; this.musicBus.connect(this.master);
+      this.heartbeatBus = c.createGain(); this.heartbeatBus.gain.value = 1; this.heartbeatBus.connect(this.effectsBus);
+      this.sceneBus = c.createGain(); this.sceneBus.gain.value = 1; this.sceneBus.connect(this.effectsBus);
       // Quiet, continuous tail voice with a smoothly controlled envelope.
       this.tail = c.createOscillator(); this.tail.type = 'triangle';
       this.tailGain = c.createGain(); this.tailGain.gain.value = 0;
-      this.tail.connect(this.tailGain); this.tailGain.connect(this.master); this.tail.start();
+      this.tail.connect(this.tailGain); this.tailGain.connect(this.effectsBus); this.tail.start();
       // Orb voice: a low fundamental and a soft beating overtone, independent of flight.
-      this.humGain = c.createGain(); this.humGain.gain.value = 0; this.humGain.connect(this.master);
+      this.humGain = c.createGain(); this.humGain.gain.value = 0; this.humGain.connect(this.effectsBus);
       this.hum = c.createOscillator(); this.hum.type = 'triangle'; this.hum.frequency.value = 196; this.hum.connect(this.humGain); this.hum.start();
       this.humOvertone = c.createOscillator(); this.humOvertone.frequency.value = 392.35;
       const overtoneGain = c.createGain(); overtoneGain.gain.value = .3;
@@ -29,17 +31,56 @@ export class OrbitAudio {
       this.air = c.createBufferSource(); this.air.buffer = noiseBuffer; this.air.loop = true;
       const airFilter = c.createBiquadFilter(); airFilter.type = 'bandpass'; airFilter.frequency.value = 1600; airFilter.Q.value = .8;
       this.airGain = c.createGain(); this.airGain.gain.value = 0;
-      this.air.connect(airFilter); airFilter.connect(this.airGain); this.airGain.connect(this.master); this.air.start();
+      this.air.connect(airFilter); airFilter.connect(this.airGain); this.airGain.connect(this.effectsBus); this.air.start();
+      if (this.music) this.connectMusic();
     }
     if (this.context.state === 'suspended') this.context.resume().catch(() => {});
   }
   setEnabled(enabled) {
-    this.enabled = enabled;
+    this.enabled = !!enabled;
     if (enabled) this.unlock();
-    if (this.context) this.master.gain.setTargetAtTime(enabled ? .32 : 0, this.context.currentTime, .04);
+    if (this.context) this.master.gain.setTargetAtTime(this.enabled ? .32 : 0, this.context.currentTime, .04);
+    this.syncMusic();
+  }
+  setEffects(enabled, volume = this.effectsVolume) {
+    this.effectsEnabled = !!enabled; this.effectsVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+    if (this.context) this.effectsBus.gain.setTargetAtTime(this.effectsEnabled ? this.effectsVolume : 0, this.context.currentTime, .04);
+  }
+  setMusic(enabled, volume = this.musicVolume) {
+    this.musicEnabled = !!enabled; this.musicVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+    this.syncMusic();
+  }
+  setMusicSource(url) { this.musicUrl = url; }
+  connectMusic() {
+    if (!this.music || !this.context || this.musicSource) return;
+    this.musicSource = this.context.createMediaElementSource(this.music);
+    this.musicSource.connect(this.musicBus);
+  }
+  syncMusic(active = this.musicActive, duck = this.musicDuck) {
+    this.musicActive = !!active; this.musicDuck = Math.max(0, Math.min(1, duck));
+    const shouldPlay = this.musicActive && this.musicEnabled && this.enabled;
+    if (shouldPlay && this.musicUrl) {
+      if (this.musicPauseTimer) { clearTimeout(this.musicPauseTimer); this.musicPauseTimer = null; }
+      this.unlock();
+      if (!this.music && this.context) {
+        this.music = new Audio(this.musicUrl); this.music.loop = true; this.music.preload = 'none';
+        this.connectMusic();
+      }
+      if (this.music?.paused && !this.musicStartPending) {
+        this.musicStartPending = true;
+        this.music.play().catch(() => {}).finally(() => { this.musicStartPending = false; });
+      }
+    } else if (this.music && !this.music.paused && !this.musicPauseTimer) {
+      this.musicPauseTimer = setTimeout(() => { this.music.pause(); this.musicPauseTimer = null; }, 450);
+    }
+    const target = shouldPlay ? this.musicVolume * this.musicDuck : 0;
+    if (this.context && target !== this.musicTarget) {
+      this.musicBus.gain.setTargetAtTime(target, this.context.currentTime, .18);
+      this.musicTarget = target;
+    }
   }
   tone(frequency, delay = 0, duration = 1.4, volume = .16, endFrequency = frequency, sceneVoice = false) {
-    if (!this.enabled || !this.context) return;
+    if (!this.enabled || !this.effectsEnabled || !this.context) return;
     const c = this.context, time = c.currentTime + delay;
     const oscillator = c.createOscillator(), gain = c.createGain();
     oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, time);
@@ -47,7 +88,7 @@ export class OrbitAudio {
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(volume, time + .025);
     gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    oscillator.connect(gain); gain.connect(sceneVoice ? this.sceneBus : this.master);
+    oscillator.connect(gain); gain.connect(sceneVoice ? this.sceneBus : this.effectsBus);
     if (sceneVoice) this.sceneVoices.add(oscillator);
     oscillator.start(time); oscillator.stop(time + duration + .05);
     oscillator.onended = () => { this.sceneVoices.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
@@ -58,7 +99,7 @@ export class OrbitAudio {
     for (const voice of this.sceneVoices) { try { voice.stop(); } catch {} }
     this.sceneVoices.clear();
   }
-  sceneCall(note, chapterId = 1) { const pitches = chapterId === 3 ? [261.626, 349.228, 391.995, 440, 523.251] : chapterId === 2 ? [293.665, 329.628, 391.995, 440, 587.33] : [293.665, 440, 329.628, 523.251, 391.995]; const pitch = pitches[note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
+  sceneCall(note, chapterId = 1) { const pitches = chapterId === 4 ? [329.628, 392, 440, 493.883, 523.251] : chapterId === 3 ? [261.626, 349.228, 391.995, 440, 523.251] : chapterId === 2 ? [293.665, 329.628, 391.995, 440, 587.33] : [293.665, 440, 329.628, 523.251, 391.995]; const pitch = pitches[note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
   sceneNote(frequency, answer = false) { this.tone(frequency, 0, answer ? 1.55 : 1.1, answer ? .11 : .13, frequency, true); }
   sceneEarned(note) { const pitch = [369.994, 493.883, 587.33][note - 1]; this.tone(pitch, 0, .75, .07, pitch, true); }
   sceneAnswer() { [220, 277.183, 369.994].forEach((note, i) => this.tone(note, i * .12, 1.8, .09, note, true)); }
@@ -75,7 +116,7 @@ export class OrbitAudio {
     if (!this.context) return;
     const time = this.context.currentTime;
     const fade = Math.exp(-Math.max(0, age) / 10);
-    const active = running && this.enabled;
+    const active = running && this.enabled && this.effectsEnabled;
     this.tailGain.gain.setTargetAtTime(active ? Math.min(.11, .035 + speed * .009) * fade * .55 : 0, time, .16);
     this.airGain.gain.setTargetAtTime(active ? Math.min(.13, speed * .018) * fade * .12 : 0, time, .2);
     this.tail.frequency.setTargetAtTime(260 + Math.min(speed, 15) * 16, time, .3);
@@ -84,7 +125,7 @@ export class OrbitAudio {
     const pulse = .5 + .5 * Math.sin(time * Math.PI * 2 * .65);
     if (this.context) {
       const light = Math.max(.08, Math.min(1.5, brightness));
-      this.humGain.gain.setTargetAtTime(present && this.enabled ? (.04 + pulse * .085) * light : 0, this.context.currentTime, .08);
+      this.humGain.gain.setTargetAtTime(present && this.enabled && this.effectsEnabled ? (.04 + pulse * .085) * light : 0, this.context.currentTime, .08);
       const pitch = 196 * Math.pow(2, (Math.max(.15,brightness)-1)*.22);
       this.hum.frequency.setTargetAtTime(pitch,this.context.currentTime,.2);
       this.humOvertone.frequency.setTargetAtTime(pitch*2+.35,this.context.currentTime,.2);
@@ -109,7 +150,7 @@ export class OrbitAudio {
     if(layer===2 && beat%2===1) this.tone(beat%4===1?783.99:587.33,0,.12,.14);
   }
   heartbeat(part, urgency = 0) {
-    if (!this.enabled || !this.context) return;
+    if (!this.enabled || !this.effectsEnabled || !this.context) return;
     const c = this.context, time = c.currentTime;
     const high = part === 'lub' ? 90 : 115;
     const low = part === 'lub' ? 55 : 70;
@@ -133,13 +174,13 @@ export class OrbitAudio {
     if (this.context && this.heartbeatBus) this.heartbeatBus.gain.setTargetAtTime(0, this.context.currentTime, .015);
   }
   noise(duration, frequency, volume) {
-    if (!this.enabled || !this.context) return;
+    if (!this.enabled || !this.effectsEnabled || !this.context) return;
     const c = this.context, time = c.currentTime;
     const source = c.createBufferSource(), filter = c.createBiquadFilter(), gain = c.createGain();
     source.buffer = this.noiseBuffer; filter.type = 'lowpass'; filter.frequency.setValueAtTime(frequency, time);
     filter.frequency.exponentialRampToValueAtTime(80, time + duration);
     gain.gain.setValueAtTime(volume, time); gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    source.connect(filter); filter.connect(gain); gain.connect(this.master);
+    source.connect(filter); filter.connect(gain); gain.connect(this.effectsBus);
     source.start(); source.stop(time + duration);
     source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
   }

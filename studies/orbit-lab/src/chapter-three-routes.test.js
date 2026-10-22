@@ -119,7 +119,7 @@ function physicalFlight(id, { steer = true, firstWait = 0, maxSeconds = 70 } = {
 }
 
 test('chapter three starts with a readable single-rule level', () => {
-  assert.deepEqual(CAMPAIGN_LEVELS.slice(6).map(level => [level.id, level.chapter]), [[7, 3], [8, 3], [9, 3]]);
+  assert.deepEqual(CAMPAIGN_LEVELS.slice(6, 9).map(level => [level.id, level.chapter]), [[7, 3], [8, 3], [9, 3]]);
   assert.equal(flySeven(3.25).outcome, 'goal');
   assert.equal(flySeven(0).outcome, 'ember');
   for (const delta of [-.1, .1]) assert.equal(flySeven(3.25 + delta).outcome, 'goal');

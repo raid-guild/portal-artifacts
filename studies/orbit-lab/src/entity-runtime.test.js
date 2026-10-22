@@ -4,6 +4,25 @@ import { collectCompanionLight, commitCompanionCaptures, createEntityRuntime, en
 const body = (x, y, vx = 2, vy = 0) => ({ position: { x, y }, velocity: { x: vx, y: vy } });
 const base = (id, type, x, y, extras = {}) => ({ id, type, x, y, radius: .8, ...extras });
 
+test('multiple portal pairs route only to their matching endpoint and preserve speed', () => {
+  const entities = [
+    base('a','portal',0,0,{pairId:'first',exitDirection:0}),
+    base('c','portal',10,0,{pairId:'second',exitDirection:0}),
+    base('b','portal',20,0,{pairId:'first',exitDirection:90}),
+    base('d','portal',30,0,{pairId:'second',exitDirection:270}),
+  ];
+  const runtime = createEntityRuntime(entities), b = body(0,0,3,4);
+  assert.equal(stepEntityRuntime(runtime,entities,{x:-2,y:0},b,0,1/120).teleported,true);
+  assert.equal(b.position.x,20);
+  assert.ok(b.position.y>0);
+  assert.ok(Math.abs(b.velocity.y-5)<1e-8);
+  b.position = {x:10,y:0};
+  assert.equal(stepEntityRuntime(runtime,entities,{x:8,y:0},b,1,1/120).teleported,true);
+  assert.equal(b.position.x,30);
+  assert.ok(b.position.y<0);
+  assert.ok(Math.abs(b.velocity.y+5)<1e-8);
+});
+
 test('mixed entities apply impulse, energy, capture, and portal without duplicate pickup', () => {
   const entities = [base('boost','impulse',1,0,{direction:90,speed:8}),base('light','lightPickup',4,0,{amount:.3,reusable:false,cooldown:0}),base('hold','stillness',7,0,{captureTime:1}),base('a','portal',12,0,{pairId:'p',exitDirection:0}),base('b','portal',20,0,{pairId:'p',exitDirection:90})];
   const state = createEntityRuntime(entities), b = body(2,0);

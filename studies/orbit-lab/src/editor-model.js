@@ -41,7 +41,12 @@ export class EditorModel {
   }
   undo() { this.endStroke(); if (!this.undoStack.length) return false; this.redoStack.push(copy(this.document)); this.document = this.undoStack.pop(); return true; }
   redo() { if (!this.redoStack.length) return false; this.undoStack.push(copy(this.document)); this.document = this.redoStack.pop(); return true; }
-  nextId(prefix = 'item') { let n = 1; const ids = new Set([...this.document.walls, ...(this.document.wallPaths || []), ...this.document.entities].map(e => e.id)); while (ids.has(`${prefix}-${n}`)) n++; return `${prefix}-${n}`; }
+  nextId(prefix = 'item') {
+    const ids = new Set([...this.document.walls, ...(this.document.wallPaths || []), ...this.document.entities].map(e => e.id));
+    // Pair IDs belong to connections, rather than either endpoint's entity ID.
+    if (prefix === 'pair') for (const entity of this.document.entities) if (entity.type === 'portal') ids.add(entity.pairId);
+    return nextUniqueId(prefix, ids);
+  }
   get selectedObject() { return this.selected === 'start' || this.selected === 'exit' ? this.document[this.selected] : [...this.document.walls, ...(this.document.wallPaths || []), ...this.document.entities].find(item => item.id === this.selected); }
   duplicatePreview() {
     const source = this.selectedObject;

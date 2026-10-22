@@ -40,6 +40,8 @@ test('best pattern is a single-attempt mask, not a union, with stable ties', () 
   assert.equal(gatePattern(5), 'bass + chime');
   assert.equal(betterGateMask(undefined, 1), 1);
   assert.equal(betterGateMask(1, 4), 1);
+  assert.equal(betterGateMask(1, 0), 1, 'a zero-gate replay keeps a prior qualifying finish');
+  assert.equal(betterGateMask(0, 2), 2);
   assert.equal(betterGateMask(1, 6), 6);
   assert.deepEqual(validateBestGates({ 1: 5, 2: 9, 3: 7, 4: 7, fake: 2 }, ALL_CAMPAIGN_IDS), { 1: 5, 3: 7, 4: 7 });
 });
@@ -53,4 +55,11 @@ test('all shipped campaign gate records survive validation and serialization', (
 
 test('gate record validation requires an explicit campaign ID list', () => {
   assert.throws(() => validateBestGates({5:7,6:7}), /campaign level IDs/);
+});
+
+test('a teleport collects physical entry and arrival gates without an imaginary chord', () => {
+  const gates = [{ id: 0, x: 5, y: 0, radius: .9 }, { id: 1, x: 50, y: 0, radius: .9 }, { id: 2, x: 100, y: 0, radius: .9 }];
+  const result = stepSoundGates(createSoundGates(), gates, { x: 0, y: 0 }, { x: 10, y: 0 }, .5, { x: 100, y: 0 });
+  assert.deepEqual(result.acquired, [0, 2]);
+  assert.equal(result.state.mask, 5);
 });
