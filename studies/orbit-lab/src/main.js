@@ -14,6 +14,7 @@ import { loadAudioPreferences, saveAudioPreferences } from './audio-preferences.
 import { predictCampaignPath } from './campaign-forecast.js';
 import { resolvePlayControls } from './campaign-controls.js';
 import { drawFinishArt } from './finish-art.js';
+import { presentRunResult } from './run-result.js';
 import { captureTrailImage, createTrailGalleryStore, safeBrowserStorage } from './trail-gallery.js';
 import { DEMOS, getDemo, DEFAULT_WELL_STRENGTH, gravityExchange, plateActivated } from './demos.js';
 import { createBurnout, stepBurnout, cameraFrame, PICKUP_LIFE } from './burnout.js';
@@ -93,7 +94,7 @@ app.innerHTML = `
   <dialog id="trailDetail" class="trail-detail" aria-label="Trail map detail"><div class="trail-detail-head"><span class="eyebrow" id="trailDetailLevel"></span><button id="closeTrailDetail" class="quiet-button" type="button" aria-label="Close trail detail">×</button></div><img id="trailDetailImage" alt="Glowing flight path and moon trails from this level"><h2 id="trailDetailTitle"></h2><p id="trailDetailStats"></p><div class="result-actions"><button id="playTrailLevel" class="primary-button" type="button">Play this level ↗</button><button id="backToTrailGallery" class="home-secondary" type="button">Back to maps</button></div></dialog>
   <div id="transmission" class="transmission hidden" inert role="dialog" aria-modal="true" aria-label="The transmission" aria-describedby="transmissionDescription"><canvas id="transmissionCanvas" aria-hidden="true"></canvas><div class="transmission-ui"><span class="eyebrow" id="transmissionHeading">CHAPTER ONE / TRANSMISSION</span><p id="transmissionCaption" aria-live="polite">A CALL INTO THE DARK</p><div><button id="transmissionMute" class="home-secondary" type="button">Mute</button><button id="skipTransmission" class="home-secondary" type="button">Skip · Esc</button></div></div><p class="transmission-description" id="transmissionDescription">A small light sends a five-note call into the dark. After a silence, a sound answers from beyond the screen. Press Escape or Skip to return to the levels.</p></div>
   <div class="drift-overlay hidden" id="driftOverlay"><div class="result-card"><span class="eyebrow">SIGNAL LOST</span><h2>Out of orbit.</h2><p>The particle drifted beyond the visible arena.</p><div class="result-actions"><button id="driftRestart" class="primary-button" type="button">Retry</button><button id="driftHome" class="home-secondary" type="button">Home</button></div></div></div>
-  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="campaignUnlockHint" class="microcopy hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
+  <div class="win-overlay hidden" id="winOverlay"><div class="result-card trail-result"><span class="eyebrow" id="resultEyebrow">COURSE COMPLETE</span><h2 id="resultTitle">Your orbit.</h2><canvas id="winArtwork" width="1280" height="720" role="img" aria-label="The complete glowing trail drawn during your run"></canvas><p id="artworkUnavailable" class="microcopy hidden" role="status">Trail artwork unavailable for this flight.</p><p id="winStats"></p><p id="winGateStats" class="gate-result hidden"></p><p id="campaignUnlockHint" class="microcopy hidden"></p><p id="infiniteResult" class="infinite-result hidden"></p><div class="result-actions"><button id="winRestart" class="primary-button">Fly again ↗</button><button id="winEditor" class="home-secondary hidden" type="button">Back to editor</button><button id="editInfinite" class="home-secondary hidden" type="button">Edit this level</button><button id="copyInfinite" class="home-secondary hidden" type="button">Copy link</button><button id="winHome" class="home-secondary" type="button">Home</button></div></div></div>
 `;
 
 const $ = (selector) => document.querySelector(selector);
@@ -124,12 +125,15 @@ syncMuteControl();
 const pauseButton = $('#pause');
 const driftOverlay = $('#driftOverlay');
 const winOverlay = $('#winOverlay');
+let resultArtworkGeneration = 0;
+function invalidateRunArtwork() { resultArtworkGeneration++; }
 let activeTransmissionChapter = 1;
 const transmission = createTransmission({ overlay: $('#transmission'), canvas: $('#transmissionCanvas'), caption: $('#transmissionCaption'), audio,
   onFinish: () => { $('#levelSelect').inert = false; showLevelSelect(); $(`[data-replay-chapter="${activeTransmissionChapter}"]`)?.focus(); } });
 function startTransmission(chapterId = 1) {
   const chapter = getChapter(chapterId);
   if (!chapterUnlocked(bestGates, chapter.id)) return;
+  invalidateRunArtwork();
   activeTransmissionChapter = chapter.id;
   paused = true; audio.stopHeartbeat(); audio.trail(false, 0, 0); audio.orb(false, 0);
   winOverlay.classList.add('hidden'); driftOverlay.classList.add('hidden');
@@ -822,17 +826,18 @@ function placeWell(x, y) {
   if (runState === 'ready') caption.textContent = 'TAP START TO RELEASE';
 }
 
-function releaseAll() {
+function releaseAll(refresh = true) {
   wells.forEach(disposeWell);
   wells = [];
-  redrawWellList();
-  updateForecast();
+  if (refresh) { redrawWellList(); updateForecast(); }
 }
 
 function reset() {
+  invalidateRunArtwork();
   audio.reset(); lastSoundWellTime = 0;
   if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
-  releaseAll();
+  // No observers may run with the new document and the previous runtime.
+  releaseAll(false);
   rebuildExperiment();
   wellsUsed = 0;
   simTime = 0;
@@ -868,6 +873,7 @@ function reset() {
   resize();
   updateCamera(0, true);
   $('#runTime').textContent = '0.0s';
+  updateResourceHud();
   redrawWellList();
   updateForecast();
   updateStatus();
@@ -890,40 +896,57 @@ function failRun(reason = 'darkness') {
 }
 
 function showRunArt(success, reason = 'darkness') {
+  const artworkGeneration = ++resultArtworkGeneration;
   if (campaignMode && success && !editorPlaytest) saveBestGates(campaignLevelId, soundGates?.mask || 0);
-  const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : activeLevel.spawn;
-  archiveSegment(last, body.position);
-  const bounds = challengeMode() ? {
-    minX: Math.min(visitedBounds.minX, activeLevel.spawn.x, body.position.x) - 6,
-    maxX: Math.max(visitedBounds.maxX, activeLevel.spawn.x, body.position.x) + 6,
-    minY: Math.min(visitedBounds.minY, activeLevel.spawn.y, body.position.y) - 6,
-    maxY: Math.max(visitedBounds.maxY, activeLevel.spawn.y, body.position.y) + 6,
-  } : activeLevel.bounds;
-  drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, bounds, activeLevel.spawn, body.position, moonArchiveCanvas);
-  if (campaignMode && !editorPlaytest) {
-    const image = captureTrailImage($('#winArtwork'));
-    if (image) trailGalleryStore.save({ levelId: campaignLevelId, outcome: success ? 'complete' : 'lost', seconds: Number(simTime.toFixed(1)), attempts, wells: wellsUsed, gates: soundGates?.mask || 0, image, savedAt: Date.now() });
-    renderLevelTrailThumbs();
-  }
-  $('#resultEyebrow').textContent = success ? 'COURSE COMPLETE' : 'SIGNAL LOST';
-  $('#resultTitle').textContent = challengeMode() ? success ? 'Light carried home.' : reason === 'manual' ? 'Journey ended.' : reason === 'hazard' ? 'Taken by the ember.' : 'The light went out.' : 'Your orbit.';
-  $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${challengeMode() ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
-  $('#winGateStats').classList.toggle('hidden', !challengeMode());
-  if (challengeMode()) {
-    $('#winGateStats').textContent = `${success ? "Gates" : "Collected (not scored)"} ${gateCount(soundGates.mask)}/3 · ${gatePattern(soundGates.mask)}`;
-    appendGatePatternIcons($('#winGateStats'), soundGates.mask);
-  }
-  $('#infiniteResult').classList.toggle('hidden', !infiniteMode);
-  $('#editInfinite').classList.toggle('hidden', !infiniteMode);
-  $('#copyInfinite').classList.toggle('hidden', !infiniteMode);
-  if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage} · Generation ${INFINITE_VERSION}`;
-  const next = campaignMode && success && !editorPlaytest ? campaignContinuation(campaignLevelId, bestGates) : null;
-  const canContinue = next && (next.type === 'level' || next.type === 'transmission');
-  $('#campaignUnlockHint').classList.toggle('hidden', !(campaignMode && success && !editorPlaytest && !canContinue));
-  $('#campaignUnlockHint').textContent = 'Reach the portal with at least one gate to reveal the next level.';
-  $('#winRestart').textContent = infiniteMode && success || canContinue ? 'Continue ↗' : challengeMode() ? 'Retry' : 'Fly again ↗';
-  $('#winEditor').classList.toggle('hidden', !editorPlaytest);
-  winOverlay.classList.remove('hidden');
+  presentRunResult({
+    outcome: success ? 'complete' : 'lost',
+    mode: campaignMode ? 'campaign' : infiniteMode ? 'infinite' : editorPlaytest ? 'editor' : 'study',
+    populateCore() {
+      $('#resultEyebrow').textContent = success ? 'COURSE COMPLETE' : 'SIGNAL LOST';
+      $('#resultTitle').textContent = challengeMode() ? success ? 'Light carried home.' : reason === 'manual' ? 'Journey ended.' : reason === 'hazard' ? 'Taken by the ember.' : 'The light went out.' : 'Your orbit.';
+      $('#winStats').textContent = `${simTime.toFixed(1)} seconds  ·  ${attempts} attempt${attempts === 1 ? '' : 's'}${challengeMode() ? `  ·  ${wellsUsed} well${wellsUsed === 1 ? '' : 's'} placed` : ''}`;
+      $('#winGateStats').classList.toggle('hidden', !challengeMode());
+      if (challengeMode()) {
+        $('#winGateStats').textContent = `${success ? 'Gates' : 'Collected (not scored)'} ${gateCount(soundGates.mask)}/3 · ${gatePattern(soundGates.mask)}`;
+        appendGatePatternIcons($('#winGateStats'), soundGates.mask);
+      }
+      $('#infiniteResult').classList.toggle('hidden', !infiniteMode);
+      $('#editInfinite').classList.toggle('hidden', !infiniteMode);
+      $('#copyInfinite').classList.toggle('hidden', !infiniteMode);
+      if (infiniteMode) $('#infiniteResult').textContent = `Seed ${infiniteSeed} · Stage ${infiniteStage} · Generation ${INFINITE_VERSION}`;
+      const next = campaignMode && success && !editorPlaytest ? campaignContinuation(campaignLevelId, bestGates) : null;
+      const canContinue = next && (next.type === 'level' || next.type === 'transmission');
+      $('#campaignUnlockHint').classList.toggle('hidden', !(campaignMode && success && !editorPlaytest && !canContinue));
+      $('#campaignUnlockHint').textContent = 'Reach the portal with at least one gate to reveal the next level.';
+      $('#winRestart').textContent = infiniteMode && success || canContinue ? 'Continue ↗' : challengeMode() ? 'Retry' : 'Fly again ↗';
+      $('#winEditor').classList.toggle('hidden', !editorPlaytest);
+      $('#winArtwork').classList.remove('hidden');
+      $('#artworkUnavailable').classList.add('hidden');
+    },
+    showResult() { winOverlay.classList.remove('hidden'); },
+    scheduleArtwork(callback) { requestAnimationFrame(() => setTimeout(callback, 0)); },
+    isCurrent() { return artworkGeneration === resultArtworkGeneration && !winOverlay.classList.contains('hidden'); },
+    renderArtwork() {
+      const last = trailCount ? trailSamples[(trailStart + trailCount - 1) % TRAIL_CAPACITY] : activeLevel.spawn;
+      archiveSegment(last, body.position);
+      const bounds = challengeMode() ? {
+        minX: Math.min(visitedBounds.minX, activeLevel.spawn.x, body.position.x) - 6,
+        maxX: Math.max(visitedBounds.maxX, activeLevel.spawn.x, body.position.x) + 6,
+        minY: Math.min(visitedBounds.minY, activeLevel.spawn.y, body.position.y) - 6,
+        maxY: Math.max(visitedBounds.maxY, activeLevel.spawn.y, body.position.y) + 6,
+      } : activeLevel.bounds;
+      drawFinishArt($('#winArtwork'), archiveCanvas, archiveHalfWidth, archiveHalfHeight, bounds, activeLevel.spawn, body.position, moonArchiveCanvas);
+      if (campaignMode && !editorPlaytest) {
+        const image = captureTrailImage($('#winArtwork'));
+        if (image) trailGalleryStore.save({ levelId: campaignLevelId, outcome: success ? 'complete' : 'lost', seconds: Number(simTime.toFixed(1)), attempts, wells: wellsUsed, gates: soundGates?.mask || 0, image, savedAt: Date.now() });
+        renderLevelTrailThumbs();
+      }
+    },
+    artworkFailed() {
+      $('#winArtwork').classList.add('hidden');
+      $('#artworkUnavailable').classList.remove('hidden');
+    },
+  });
 }
 
 function winRun() {
@@ -933,8 +956,8 @@ function winRun() {
   won = true;
   paused = true; runState = 'won';
   if (campaignMode && !editorPlaytest) markLevelComplete(campaignLevelId);
-  showRunArt(true);
   updateStatus();
+  showRunArt(true);
 }
 
 function selectDemo(id) {
@@ -950,7 +973,7 @@ function selectDemo(id) {
   $('#heroGravity').value = heroGravity; $('#heroGravityValue').textContent = heroGravity;
   attempts = 0; resumeAfterSettings = false;
   const url = new URL(location.href); url.searchParams.delete('campaign'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); url.searchParams.set('demo', activeDemo.id); history.replaceState(null, '', url);
-  resize(); reset();
+  reset();
 }
 
 function selectCampaign(levelId = 1) {
@@ -967,7 +990,7 @@ function selectCampaign(levelId = 1) {
   lifetimeInput.value = activeDemo.settings.wellLifetime; $('#lifetimeValue').textContent = `${activeDemo.settings.wellLifetime.toFixed(1)}s`;
   attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
   const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); url.searchParams.set('campaign', String(campaignLevelId)); history.replaceState(null, '', url);
-  resize(); reset();
+  reset();
   return true;
 }
 
@@ -986,7 +1009,7 @@ function selectInfinite(seed, stage = 1) {
   lifetimeInput.value = activeDemo.settings.wellLifetime; $('#lifetimeValue').textContent = `${activeDemo.settings.wellLifetime.toFixed(1)}s`;
   attempts = 0; resumeAfterSettings = false; resumeAfterGallery = false;
   const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.set('infinite', infiniteSeed); url.searchParams.set('stage', String(infiniteStage)); history.replaceState(null, '', url);
-  resize(); reset();
+  reset();
 }
 
 function selectEditorPlaytest(document) {
@@ -1010,7 +1033,7 @@ function selectEditorPlaytest(document) {
   strengthInput.value = compiled.settings.wellStrength; $('#strengthValue').textContent = compiled.settings.wellStrength;
   lifetimeInput.value = compiled.settings.wellLifetime; $('#lifetimeValue').textContent = `${compiled.settings.wellLifetime.toFixed(1)}s`;
   const url = new URL(location.href); url.searchParams.delete('demo'); url.searchParams.delete('campaign'); url.searchParams.delete('infinite'); url.searchParams.delete('stage'); history.replaceState(null, '', url);
-  resize(); reset();
+  reset();
 }
 
 const moonGroup = new THREE.Group(); scene.add(moonGroup);
@@ -1351,6 +1374,7 @@ function openGallery() {
   settings.close(); gallery.showModal();
 }
 function showHome() {
+  invalidateRunArtwork();
   if (transmission.active) transmission.stop(false);
   resumeAfterGallery = false; resumeAfterSettings = false; galleryReturnHome = false;
   editor?.hide();
@@ -1367,6 +1391,7 @@ function showHome() {
   updateControls();
 }
 function showEditor() {
+  invalidateRunArtwork();
   if (transmission.active) transmission.stop(false);
   resumeAfterGallery = false; resumeAfterSettings = false;
   if (settings.open) settings.close(); if (gallery.open) gallery.close();
@@ -1588,7 +1613,7 @@ function drawMinimap() {
   if (challengeMode()) for (const gate of activeDemo.soundGates) marker(gate.x, gate.y, 4, soundGates?.mask & (1 << gate.id) ? '#6d8993' : SOUND_GATE_COLORS[gate.id]);
   for (const pickup of campaign?.pickups || []) marker(pickup.x, pickup.y, 3, '#ffd58e');
   if (entityRuntime) for (const entity of activeDemo.entities) if (entity.type !== 'soundGate') {
-    const item = entityRuntime.items[entity.id]; if (item.used) continue;
+    const item = entityRuntime.items[entity.id]; if (!item || item.used) continue;
     if (entity.type === 'ember' && eclipseExposure <= 0) continue;
     ctx.globalAlpha = entity.type === 'ember' ? eclipseExposure : 1;
     const portalIndex = entity.type === 'portal' ? portalPairIndex(entity) : -1;
