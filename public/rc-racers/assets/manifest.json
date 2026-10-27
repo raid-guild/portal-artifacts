@@ -10508,6 +10508,58 @@
     "y": 0
    },
    "artPixelsPerScreenPixel": 0.5
+  },
+  "ui.howto.buttons": {
+   "atlas": "ui",
+   "frame": "ui/howto/buttons",
+   "frameSize": {
+    "w": 628,
+    "h": 320
+   },
+   "pivot": {
+    "x": 0,
+    "y": 0
+   },
+   "artPixelsPerScreenPixel": 0.5
+  },
+  "ui.howto.pause": {
+   "atlas": "ui",
+   "frame": "ui/howto/pause",
+   "frameSize": {
+    "w": 628,
+    "h": 320
+   },
+   "pivot": {
+    "x": 0,
+    "y": 0
+   },
+   "artPixelsPerScreenPixel": 0.5
+  },
+  "ui.howto.stick": {
+   "atlas": "ui",
+   "frame": "ui/howto/stick",
+   "frameSize": {
+    "w": 628,
+    "h": 320
+   },
+   "pivot": {
+    "x": 0,
+    "y": 0
+   },
+   "artPixelsPerScreenPixel": 0.5
+  },
+  "ui.howto.tilt": {
+   "atlas": "ui",
+   "frame": "ui/howto/tilt",
+   "frameSize": {
+    "w": 628,
+    "h": 320
+   },
+   "pivot": {
+    "x": 0,
+    "y": 0
+   },
+   "artPixelsPerScreenPixel": 0.5
   }
  },
  "fonts": {
