@@ -81,6 +81,7 @@ export class PuddleSimulation {
     this.startGarden(next);this.descending=true;return true;}
   reset(size=this.size){
     this.size=size;
+    this.pendingFlick=null;this.pendingBurst=false;
     this.gardenInputArmed=true;
     const x=this.selectedTest==='garden'?this.gardenLevel.start.x:this.selectedTest==='field'?PUDDLE_FIELD.startX:this.selectedTest==='growth'?GROWTH.startX:
       this.selectedTest==='pressure'?PRESSURE.startX:this.selectedTest==='gap'?-2.1*size:0;
@@ -99,6 +100,15 @@ export class PuddleSimulation {
   }
   selectTest(test){if(!['field','growth','gap','pressure','puddle','garden'].includes(test))return false;
     this.retrievalSetup=false;this.selectedTest=test;this.reset(test==='gap'?this.size:1);return true;}
+  queueFlick(direction,force=1){
+    if(this.pendingBurst||this.selectedTest==='garden'&&(this.garden.phase!=='playing'||!this.gardenInputArmed))return false;
+    if(!Number.isFinite(direction?.x)||!Number.isFinite(direction?.z)||!Number.isFinite(force)||Math.hypot(direction.x,direction.z)<.1)return false;
+    this.pendingFlick={direction:{x:direction.x,z:direction.z},force};return true;
+  }
+  queueBurst(){
+    if(this.selectedTest==='garden'&&(this.garden.phase!=='playing'||!this.gardenInputArmed))return false;
+    this.pendingFlick=null;this.pendingBurst=true;return true;
+  }
   seedField(){
     PUDDLE_FIELD.patches.forEach(([x,z],patchId)=>{
       const count=23+(patchId<4?1:0);
@@ -157,7 +167,7 @@ export class PuddleSimulation {
     const count=Math.min(Math.floor(this.pressure.credit),candidates.length);
     for(let i=0;i<count;i++){
       const p=candidates[i].p;p.feedstock=true;p.shedLocked=true;p.shedAt=f.time;
-      delete p.patchId;this.pressure.shed++;
+      delete p.patchId;delete p.burstGroup;delete p.burstUntil;delete p.burstRecoverAt;this.pressure.shed++;
     }
     this.pressure.credit-=count;
     if(!candidates.length)this.pressure.credit=0;
@@ -191,32 +201,44 @@ export class PuddleSimulation {
     return this.selectedTest==='gap'?[TERRACE_BOUNDARY,...GAP_COLLIDERS]:[TERRACE_BOUNDARY];}
   step(input={},dt=DT){
     if(!(dt>0))return this;
-    if(this.selectedTest==='garden'&&!['playing','draining','arriving','settling'].includes(this.garden.phase))return this;
+    if(this.selectedTest==='garden'&&!['playing','draining','arriving','settling'].includes(this.garden.phase)){
+      this.pendingFlick=null;this.pendingBurst=false;return this;}
     dt=clamp(dt,0,DT);
-    if(this.selectedTest==='garden'&&this.garden.phase==='arriving'){updateGarden(this,dt);return this;}
-    if(this.selectedTest==='garden'&&this.garden.phase==='draining'){updateGarden(this,dt);return this;}
+    if(this.selectedTest==='garden'&&this.garden.phase==='arriving'){this.pendingFlick=null;this.pendingBurst=false;updateGarden(this,dt);return this;}
+    if(this.selectedTest==='garden'&&this.garden.phase==='draining'){this.pendingFlick=null;this.pendingBurst=false;updateGarden(this,dt);return this;}
     const settling=this.selectedTest==='garden'&&this.garden.phase==='settling';
-    if(settling)input={};
+    if(settling){input={};this.pendingFlick=null;this.pendingBurst=false;}
     if(this.selectedTest==='garden'&&!settling&&!this.gardenInputArmed){
-      if(input.x||input.z||input.contract||input.shed||input.push||input.recallToggle)input={};
+      if(input.x||input.z||input.contract||input.shed||input.push||input.recallToggle||this.pendingFlick||this.pendingBurst){input={};this.pendingFlick=null;this.pendingBurst=false;}
       else this.gardenInputArmed=true;
     }
     const gatedGarden=this.selectedTest==='garden'&&!!this.gardenLevel.gate;
     const editorShed=this.selectedTest==='garden'&&!!this.gardenLevel.editorCanShed;
-    const shedding=(this.selectedTest==='pressure'||gatedGarden||editorShed)&&!!input.shed;
+    const bursting=!!this.pendingBurst;this.pendingBurst=false;
+    const shedding=!bursting&&(this.selectedTest==='pressure'||gatedGarden||editorShed)&&!!input.shed;
     if(shedding){if(this.tendril.active)this.tendril.release('released');this.shed(dt);}else this.pressure.credit=0;
-    if(input.recallToggle&&!shedding&&(this.selectedTest==='pressure'||this.selectedTest==='garden'&&gardenCanCast(this.gardenLevel)))this.tendril.toggleRecall();
-    const contracting=!!input.contract&&!shedding;
+    if(input.recallToggle&&!shedding&&!bursting&&(this.selectedTest==='pressure'||this.selectedTest==='garden'&&gardenCanCast(this.gardenLevel)))this.tendril.toggleRecall();
+    const contracting=!!input.contract&&!shedding&&!bursting;
     const colliders=this.activeColliders();
+    if(bursting){
+      this.tendril.release('released');
+      this.pressure.shed+=this.fluid.burstFlesh(colliders);
+    }
+    if(this.pendingFlick){
+      const flick=this.pendingFlick;this.pendingFlick=null;
+      if(!shedding&&this.fluid.launchFlick(flick.direction,flick.force,colliders)){
+        if(this.tendril.active)this.tendril.release('released');
+      }
+    }
     const source=this.selectedTest==='gap'&&this.oozeForward?{x:1,z:0}:input;
     const speed=Math.hypot(source.x||0,source.z||0);
-    this.tendril.prepare(dt,contracting,colliders,speed>0);
+    this.tendril.prepare(dt,contracting&&!this.fluid.flickFlight,colliders,speed>0);
     this.emitGrowth(dt);
     if(contracting){this.materialState='contracting';this.relaxTime=1.5;}
     else if(this.relaxTime>0){this.relaxTime=Math.max(0,this.relaxTime-dt);this.materialState='relaxing';}
     else this.materialState='oozing';
     this.fluid.step(dt,{x:speed?(source.x||0)/speed:0,z:speed?(source.z||0)/speed:0,
-      holdPosition:this.tendril.active?this.tendril.brainAnchor:null,push:!!input.push,shed:shedding,expireFragments:this.selectedTest==='pressure'||gatedGarden||editorShed||this.selectedTest==='garden'&&!!(this.gardenLevel.tendrils||this.gardenLevel.grip||this.gardenTendrilUsed),puddle:true,growth:this.selectedTest!=='gap',contract:contracting},colliders,this.tendril.active?{
+      holdPosition:this.tendril.active?this.tendril.brainAnchor:null,push:!!input.push,shed:shedding,expireFragments:this.selectedTest==='pressure'||gatedGarden||editorShed||this.selectedTest==='garden'&&!!(this.gardenLevel.tendrils||this.gardenLevel.grip||this.gardenTendrilUsed),puddle:true,growth:this.selectedTest!=='gap',contract:contracting&&!this.fluid.flickFlight},colliders,this.tendril.active?{
         controls:i=>this.tendril.controls(i),forces:(p,i,h)=>this.tendril.forces(p,i,h),solve:()=>this.tendril.solve()}:{});
     this.tendril.finish(dt,colliders);
     if(this.selectedTest==='garden'&&!settling&&updateHazards(this,dt,colliders))return this;

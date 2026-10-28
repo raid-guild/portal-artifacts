@@ -579,7 +579,7 @@ export function gardenHint(sim){
     if(s.moved<.8)return ['THE THREADWORKS','Flow through the narrow entrance to the open bank. Green flesh waits in three shallow wells.'];
     if(b.z<level.terrain.frontZ){
       if(t.recalling)return ['RECALLING FLESH',`${t.count} / 3 strands drawing loose flesh back. Tap Space to pause; hold to contract.`];
-      if(t.count)return ['STRANDS EXTENDED',`${t.count} / 3 strands. Click a well or press E to cast another; tap Space to recall all.`];
+      if(t.count)return ['STRANDS EXTENDED',`${t.count} / 3 strands. Double click a well or press E to cast another; hold still to gather and recall.`];
       if(b.x<-4)return ['FIRST VIOLET STONE','Regather your flesh around the gem, then descend the west stairs.'];
       return ['REACH INTO THE WELLS','From the open bank, click a well or press E to cast toward green flesh. Tap Space to recall it.'];
     }

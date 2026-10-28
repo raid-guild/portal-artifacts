@@ -15,6 +15,9 @@ import {createLocalLevelLibrary,localStorageForPage,localPageQuery} from './loca
 import {createPrintedMaterialLibrary} from './printed-material.js';
 import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
 import {TouchJoystick} from './touch-joystick.js';
+import {KeyboardGestures} from './keyboard-gestures.js';
+import {burstFlashColor} from './burst-charge.js';
+import {createBurstFragments,isBurstFragment} from './burst-fragments.js';
 import {bindHoldButton,bindPullButton} from './touch-actions.js';
 import {createBurnFeedback} from './burn-feedback.js';
 import {openTablet,closeTablet,nearbyTablet} from './memory-tablets.js';
@@ -46,7 +49,21 @@ tabletDialog.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby
 $('app').append(tabletRead,tabletDialog);
 let shownTablet=null;
 const burnFeedback=createBurnFeedback(scene);
-const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
+function flingDirection(horizontal,vertical,strength=1){
+  if(!playing||sim?.garden.phase!=='playing')return;
+  const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);right.y=0;right.normalize();
+  const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);forward.y=0;forward.normalize();
+  sim.queueFlick(movementAxes('garden',horizontal,vertical,right,forward),strength);
+}
+const keyboard=new KeyboardGestures({onRecall:()=>{recall=true;},
+  onHoldStart:()=>{if(sim?.tendril.active)sim.tendril.recalling=true;},
+  onBurst:()=>{if(playing&&sim?.garden.phase==='playing')sim.queueBurst();},
+  onFling:({horizontal,vertical})=>flingDirection(horizontal,vertical)});
+const joystick=new TouchJoystick({onBurst:()=>{if(playing&&sim?.garden.phase==='playing')sim.queueBurst();},onHoldStart:()=>{
+  if(sim?.tendril.active)sim.tendril.recalling=true;
+},onFlick:({dx,dy,distance,duration})=>{
+  flingDirection(dx/distance,-dy/distance,Math.min(1,Math.max(.55,(distance/duration)/.9)));
+},onDoubleTap:(x,y)=>{
   if(!playing||sim?.garden.phase!=='playing'||!sim.gardenInputArmed||!sim.gardenLevel.tendrils)return;
   if(aimAt({clientX:x,clientY:y})){const target={...aim};sim.castTendril(target);}
 
@@ -68,6 +85,7 @@ const pipeline=createSurfacePipeline(),bodyMaterial=new THREE.MeshBasicMaterial(
   poolMaterial=new THREE.MeshBasicMaterial({color:0x86a398,transparent:true,opacity:.83}),
   body=pipeline.create(bodyMaterial,48,{priority:0}),poolSurfaces=[];
 scene.add(body.mesh);
+const burstFragments=createBurstFragments(scene,poolMaterial);
 const brain=new THREE.Mesh(new THREE.SphereGeometry(.072,12,8),new THREE.MeshBasicMaterial({color:0x795952}));scene.add(brain);
 const aimRing=new THREE.Mesh(new THREE.TorusGeometry(.22,.018,5,32),new THREE.MeshBasicMaterial({color:0x805976}));
 aimRing.rotation.x=-Math.PI/2;scene.add(aimRing);aimRing.visible=false;
@@ -141,7 +159,7 @@ function updateParticles(){if(!sim)return;
     playing&&state.phase==='draining'?drainPosition(p,state.drainTime,sim.gardenLevel):p;
   body.mesh.visible=brain.visible=state.phase!=='complete';
   body.update(particles.flatMap((p,i)=>p.feedstock?[]:[pose(p,i)]),c,sim.fluid.radius,{maskTerrain:!arriving&&state.phase!=='draining'});
-  for(let i=0;i<poolSurfaces.length;i++)poolSurfaces[i].update(particles.filter(p=>p.feedstock&&
+  for(let i=0;i<poolSurfaces.length;i++)poolSurfaces[i].update(particles.filter(p=>p.feedstock&&!isBurstFragment(p)&&
     (i===poolSurfaces.length-1?p.patchId===undefined:p.patchId===i)),c,sim.fluid.radius);
   const b=pose(sim.brain,sim.fluid.brainIndex);brain.position.set(b.x,b.y,b.z);
 }
@@ -244,10 +262,10 @@ $('paint-rectangle').onchange=()=>{paintMode='rectangle';activePaintFace=null;$(
   $('paint-selection').textContent='Selected face: none';ghost.visible=false;status('Drag a rectangle on one flat face.');};
 $('paint-apply').onclick=()=>{if(activePaintFace&&tool.startsWith('paint-'))paint(paintArea(activePaintFace.face,activePaintFace.point,activePaintFace.point,'fill'));
   activePaintFace=null;$('paint-apply').disabled=true;$('paint-selection').textContent='Selected face: none';ghost.visible=false;};
-canvas.addEventListener('pointerdown',e=>{if(playing){if(e.pointerType==='touch'){
+canvas.addEventListener('pointerdown',e=>{if(playing){if(e.pointerType==='touch'||e.button===0){
     if(sim.garden.phase!=='playing'||!sim.gardenInputArmed)return;
     e.preventDefault();joystick.down(e.pointerId,e.clientX,e.clientY,performance.now());canvas.setPointerCapture(e.pointerId);
-  }else if(e.button===0&&sim.gardenLevel.tendrils&&sim.garden.phase==='playing'&&aimAt(e))cast();return;}
+  }return;}
   if(e.button===2||e.altKey){drag={mode:'orbit',clientX:e.clientX,clientY:e.clientY,az:orbit.azimuth,el:orbit.elevation};canvas.setPointerCapture(e.pointerId);return;}
   const id=tool.startsWith('paint-')?null:hitHandle(e);
   const p=pointFromEvent(e);
@@ -272,8 +290,8 @@ canvas.addEventListener('pointerdown',e=>{if(playing){if(e.pointerType==='touch'
   else place(tool,p);
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointermove',e=>{if(playing){if(e.pointerType==='touch')joystick.move(e.pointerId,e.clientX,e.clientY);
-  else if(sim.gardenLevel.tendrils)aimAt(e);return;}
+canvas.addEventListener('pointermove',e=>{if(playing){if(joystick.touches.has(e.pointerId))joystick.move(e.pointerId,e.clientX,e.clientY,performance.now());
+  if(e.pointerType!=='touch'&&sim.gardenLevel.tendrils)aimAt(e);return;}
   if(drag?.mode==='orbit'){orbit.azimuth=drag.az+(e.clientX-drag.clientX)*.007;orbit.elevation=clamp(drag.el+(e.clientY-drag.clientY)*.006,.12,1.55);updateCamera();return;}
   const p=drag?.mode==='move'?dragPoint(e,drag.planeY):pointFromEvent(e);
   if(drag?.mode==='paint'){showPaintPreview(paintArea(drag.face,brushStart,paintPlanePoint(e,drag.face),'rectangle'));return;}
@@ -290,7 +308,8 @@ canvas.addEventListener('pointermove',e=>{if(playing){if(e.pointerType==='touch'
       drag.moved=true;renderHandles();pendingPreview=true;}}
   else{ghost.visible=tool!=='select'&&tool!=='erase';if(ghost.visible)ghost.position.set(p.x,p.y+.05,p.z);}
 });
-canvas.addEventListener('pointerup',e=>{if(playing){if(e.pointerType==='touch')joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());return;}
+canvas.addEventListener('pointerup',e=>{if(playing){if(!joystick.touches.has(e.pointerId))return;
+  joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());return;}
   if(drag?.mode==='move'&&drag.moved){
     if($('snap-high').checked)snapDraftObjectToHighest(draft,selected);
     commit('Object moved.');}
@@ -303,7 +322,7 @@ canvas.addEventListener('pointerup',e=>{if(playing){if(e.pointerType==='touch')j
   else ghost.visible=false;});
 canvas.addEventListener('pointercancel',e=>{if(playing){joystick.cancel(e.pointerId);return;}
   if((drag?.mode==='move'||drag?.mode==='move-paint')&&drag.moved){draft=copy(history.states[history.index]);pendingPreview=true;renderEditor();}drag=null;brushStart=null;ghost.visible=false;});
-canvas.addEventListener('lostpointercapture',e=>{if(playing&&e.pointerType==='touch'&&joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);});
+canvas.addEventListener('lostpointercapture',e=>{if(playing&&joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);});
 function addField(label,value,change,{step=.1,min,max}={}){const wrap=document.createElement('label');wrap.textContent=label;
   const input=document.createElement('input');input.type='number';input.value=Number(value.toFixed(3));input.step=step;
   if(min!==undefined)input.min=min;if(max!==undefined)input.max=max;
@@ -473,7 +492,7 @@ $('file').onchange=async()=>{const file=$('file').files[0];if(!file)return;try{i
   community?.clearAssociation();
   selected=null;tool='select';commit('Imported '+draft.name+'.');}
   catch(e){status('Import failed: '+e.message);}};
-function clearInput(){keys.clear();joystick.cancel();contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();recall=false;}
+function clearInput(){keys.clear();joystick.cancel();keyboard.cancel();contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();recall=false;if(sim){sim.pendingFlick=null;sim.pendingBurst=false;}}
 function dismissTablet(){if(closeTablet(sim)){clearInput();tabletDialog.hidden=true;tabletRead.focus({preventScroll:true});}}
 tabletDialog.querySelector('#tablet-dialog-continue').onclick=dismissTablet;
 tabletRead.onclick=()=>{if(openTablet(sim,nearbyTablet(sim))){clearInput();syncTabletDialog();}};
@@ -486,8 +505,8 @@ function syncTabletDialog(){const active=playing&&sim?.garden.phase==='reading',
   tabletDialog.querySelector('#tablet-dialog-kind').textContent=t.category==='story'?'A MEMORY OF THE TOWER':'A NOTE FROM THE GARDEN';
   tabletDialog.querySelector('#tablet-dialog-title').textContent=t.title;
   tabletDialog.querySelector('#tablet-dialog-text').textContent=t.text;
-  const touch={move:'Drag anywhere to move.',contract:'Hold Contract to gather.',cast:'Double tap to cast.',shed:'Hold Shed to leave flesh.',run:'Hold Run to sprint.'};
-  const keyboard={move:'Move with WASD or arrow keys.',contract:'Hold Space to contract.',cast:'Press E or click to cast.',shed:'Hold F to shed flesh.',run:'Hold Shift to run.'};
+  const touch={move:'Drag anywhere to move; flick to hop.',contract:'Hold still on the garden to gather.',cast:'Double tap to cast.',shed:'Show extra buttons to shed flesh.',run:'Show extra buttons to sprint.'};
+  const keyboard={move:'Move with WASD or arrows; double tap a direction to fling.',contract:'Hold Space or hold still on the garden.',cast:'Press E or double click to cast.',shed:'Hold F to shed flesh.',run:'Hold Shift to run.'};
   tabletDialog.querySelector('#tablet-dialog-hint').textContent=(matchMedia('(pointer: coarse)').matches?touch:keyboard)[t.hint]||'';
   tabletDialog.querySelector('#tablet-dialog-continue').focus({preventScroll:true});
 }
@@ -505,7 +524,7 @@ function togglePlay(){clearInput();if(!playing){const result=validateDraft(draft
     memory&&['save','save-level','save-level-new'].includes(id);
   $('undo').disabled=playing||history.index===0;
   $('redo').disabled=playing||history.index===history.states.length-1;
-  $('play-help').textContent=playing?'WASD / arrows move · hold Space gathers · tap Space recalls · E casts · F sheds flesh · Shift runs · Escape returns.':'Right-drag or Alt-drag orbits; wheel zooms. Select, move, and paint directly in 3D.';
+  $('play-help').textContent=playing?'Drag to move · flick to hop · hold still to gather and recall · hold 3s to charge, 3s more to explode · double tap or double click to cast · keyboard: double tap WASD/arrows to fling; hold Space to gather/charge; E, F, Shift · Escape returns.':'Right-drag or Alt-drag orbits; wheel zooms. Select, move, and paint directly in 3D.';
   status(playing?'Play test started. Return to edit whenever you like.':'Returned to your exact draft.');last=performance.now();acc=0;requestAnimationFrame(resize);}
 $('play').onclick=togglePlay;$('restart').onclick=()=>{if(playing){clearInput();rebuild(true);status('Test restarted.');last=performance.now();acc=0;}};
 $('play-settings-restart').onclick=()=>{$('restart').click();$('play-settings').open=false;};
@@ -518,7 +537,7 @@ function cast(){if(!playing||!sim?.gardenLevel.tendrils||sim.garden.phase!=='pla
     .sort((a,b)=>Math.hypot(a.x-sim.brain.x,a.z-sim.brain.z)-Math.hypot(b.x-sim.brain.x,b.z-sim.brain.z))[0];
     aim=target||{x:sim.brain.x+1.5,z:sim.brain.z};}
   if(aim){const ok=sim.castTendril(aim);status(ok?'Tendril cast. Tap Space to recall.':sim.tendril.feedback||'Cast at loose flesh on a clear path.');}}
-function editingInput(e){return e.target.matches('input,select,textarea');}
+function editingInput(e){return !!e.target.closest?.('input,select,textarea,[contenteditable="true"]');}
 window.addEventListener('keydown',e=>{
   if(playing&&sim?.garden.phase==='reading'){
     if(e.code==='Tab'){e.preventDefault();tabletDialog.querySelector('#tablet-dialog-continue').focus({preventScroll:true});return;}
@@ -531,14 +550,19 @@ window.addEventListener('keydown',e=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='Escape'){togglePlay();return;}if(e.repeat)return;keys.add(e.code);
   if(e.code==='KeyQ'){const tablet=nearbyTablet(sim);if(tablet&&openTablet(sim,tablet)){clearInput();syncTabletDialog();}return;}
-  if(e.code==='Space'&&sim.garden.phase==='playing')pull.down('keyboard',performance.now());
+  if(sim.garden.phase==='playing'&&sim.gardenInputArmed)keyboard.down(e.code,performance.now(),{modified:e.ctrlKey||e.metaKey||e.altKey});
   if(e.code==='KeyE')cast();});
-window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')pull.up('keyboard',performance.now());});
+window.addEventListener('keyup',e=>{keys.delete(e.code);if(playing&&sim?.garden.phase==='playing')keyboard.up(e.code,performance.now());else keyboard.cancel();});
 window.addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{clearInput();acc=0;last=performance.now();});
 const canTouchAct=()=>playing&&sim?.garden.phase==='playing'&&sim.gardenInputArmed;
 const contractHold=bindPullButton($('contract'),pull,canTouchAct);
 const shedHold=bindHoldButton($('shed'),canTouchAct);
 const runHold=bindHoldButton($('run'),canTouchAct);
+const extraControls=$('play-extra-controls');
+extraControls.addEventListener('change',()=>{
+  if(!extraControls.checked){contractHold.clear();shedHold.clear();runHold.clear();pull.cancel();}
+  document.body.classList.toggle('extra-controls',extraControls.checked);
+});
 function updateHUD(){const s=sim.garden;$('score').textContent=matchMedia('(pointer: coarse), (max-width: 680px), (max-width: 1000px) and (max-height: 500px)').matches?
   `◇ ${s.gemCount}/${s.gems.length} · ● ${s.goldCount}/${s.gold.length} · ${Math.floor(s.finishElapsed??s.playElapsed)}s/${sim.gardenLevel.targetTime}s`:
   `${s.gemCount}/${s.gems.length} gems · ${s.goldCount}/${s.gold.length} gold · ${sim.fluid.attachedCount} attached flesh · ${Math.floor(s.finishElapsed??s.playElapsed)}s/${sim.gardenLevel.targetTime}s`;
@@ -547,14 +571,17 @@ let last=performance.now(),acc=0;
 function frame(now){const elapsed=clamp((now-last)/1000,0,.066);last=now;
   if(pendingPreview&&!playing){rebuild(false);pendingPreview=false;}
   if(playing&&sim&&!document.hidden){acc=Math.min(acc+elapsed,DT*4);
+    joystick.update(now);keyboard.update(now);
     const horizontal=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'))+joystick.vector.x;
     const vertical=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'))-joystick.vector.y;
     const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);right.y=0;right.normalize();
     const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);forward.y=0;forward.normalize();
-    const axes=movementAxes('garden',horizontal,vertical,right,forward),contract=pull.update(now);
+    const axes=movementAxes('garden',horizontal,vertical,right,forward),contract=pull.update(now)||joystick.holding||keyboard.holding;
     while(acc>=DT){sim.step({...axes,contract,shed:keys.has('KeyF')||shedHold.active,push:keys.has('ShiftLeft')||keys.has('ShiftRight')||runHold.active,recallToggle:recall});recall=false;acc-=DT;}
     if(frameCount++%3===0)updateParticles();updateHUD();audio.update(sim.garden);syncTabletDialog();}
   if(view&&sim)view.update(sim,camera);
+  burstFragments.update(sim?.fluid.particles||[],sim?.fluid.radius??.067,{active:playing&&sim?.garden.phase!=='complete'});
+  bodyMaterial.color.setHex(burstFlashColor(keyboard.charging&&keyboard.chargeProgress>=joystick.chargeProgress?keyboard:joystick,0xc6746e));
   burnFeedback.update(sim,{active:playing});
   aimRing.visible=playing&&!!draft.tendrils&&!!aim&&sim.garden.phase==='playing';
   if(aimRing.visible)aimRing.position.set(aim.x,groundAt(aim.x,aim.z,sim.activeColliders()).height+.035,aim.z);
@@ -569,5 +596,5 @@ community=setupEditorCommunity({getDraft:()=>draft,exportDraft,validateDraft,imp
   clearLocalLink:()=>{linkedLevelId=null;linkedDocument=null;updateLinkedStatus();},notify:status});
 renderEditor();rebuild(false);resize();status(startup);requestAnimationFrame(frame);
 if(import.meta.hot)import.meta.hot.dispose(()=>{community?.dispose();music();audio.dispose();view?.dispose();printLibrary.dispose();pipeline.dispose();
-  burnFeedback.dispose();
+  burnFeedback.dispose();burstFragments.dispose();
   handleGeo.dispose();haloGeo.dispose();haloMaterial.dispose();for(const m of markerMaterials.values())m.dispose();outlineMaterial.dispose();bodyMaterial.dispose();poolMaterial.dispose();renderer.dispose();});
