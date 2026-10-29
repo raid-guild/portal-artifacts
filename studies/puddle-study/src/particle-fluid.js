@@ -5,6 +5,7 @@ import {solidInside} from './editor-solid-physics.js';
 
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const key=(x,y,z)=>`${x},${y},${z}`;
+const sameBurstChunk=(a,b)=>a.burstGroup!==undefined&&a.burstGroup===b.burstGroup;
 
 export class ParticleFluid {
   constructor({x=-2.1,z=0,size=1,seedCount=null,massReferenceCount=null}={}){
@@ -39,7 +40,7 @@ export class ParticleFluid {
     this.restDensity=0;
     this.time=0;this.contacts=0;this.mainComponent=0;
     this.contractAnchor=null;this.brainDrive={x:0,z:0};
-    this.brainAirborne=false;
+    this.brainAirborne=false;this.flickFlight=null;this.flickReadyAt=0;
     this.components=[];this.pairs=[];
     this.cohesion=.16;this.viscosity=.22;
     this.edgeReach=size>=1.2?2.9:2.4;
@@ -109,8 +110,102 @@ export class ParticleFluid {
     this.contractAnchor={x:points.length?points.reduce((s,i)=>s+this.particles[i].x,0)/n:this.brain.x,
       z:points.length?points.reduce((s,i)=>s+this.particles[i].z,0)/n:this.brain.z};
   }
+  // Eject existing local flesh, retaining the real brain coat and recoverable shed.
+  burstFlesh(colliders=[],random=Math.random){
+    this.samplePairs();this.updateComponents(colliders);
+    const b=this.brain,coat=new Set(this.coatIndices),scale=Math.max(this.size,1);
+    const candidates=this.particles.map((p,i)=>({p,i})).filter(({p,i})=>
+      i!==this.brainIndex&&!coat.has(i)&&!p.feedstock&&p.component===b.component&&
+      Math.hypot(p.x-b.x,p.y-b.y,p.z-b.z)<=2.4*this.size&&
+      !segmentBlockedBySolid(b,p,colliders,this.radius*.35));
+    // Split spatial neighbors into substantial pieces, then throw each piece
+    // together. Independent impulses per particle pulverized the entire body.
+    const count=candidates.length,chunkCount=Math.min(count,Math.max(3,Math.min(14,Math.ceil(count/20))));
+    const seeds=count?[candidates[Math.floor(random()*count)].p]:[];
+    const distance=(a,c)=>(a.x-c.x)**2+(a.y-c.y)**2+(a.z-c.z)**2;
+    while(seeds.length<chunkCount){
+      let next=null,best=-1;
+      for(const {p} of candidates){const d=Math.min(...seeds.map(seed=>distance(p,seed)));if(d>best){best=d;next=p;}}
+      seeds.push(next);
+    }
+    const chunks=seeds.map(()=>[]);
+    for(const entry of candidates){let nearest=0;for(let k=1;k<seeds.length;k++)
+      if(distance(entry.p,seeds[k])<distance(entry.p,seeds[nearest]))nearest=k;
+      chunks[nearest].push(entry);
+    }
+    const batch=(this.burstSerial=(this.burstSerial||0)+1)*32;
+    chunks.forEach((chunk,k)=>{
+      if(!chunk.length)return;
+      const center=chunk.reduce((c,{p})=>({x:c.x+p.x,y:c.y+p.y,z:c.z+p.z}),{x:0,y:0,z:0});
+      center.x/=chunk.length;center.z/=chunk.length;
+      const radial=Math.hypot(center.x-b.x,center.z-b.z)>1e-5?Math.atan2(center.z-b.z,center.x-b.x):random()*Math.PI*2;
+      const angle=radial+(random()-.5)*.7,speed=(3.5+random()*9.5)*scale,lift=(2+random()*6.5)*scale;
+      for(const {p} of chunk){
+        p.vx=Math.cos(angle)*speed+(random()-.5)*.16*scale;
+        p.vz=Math.sin(angle)*speed+(random()-.5)*.16*scale;
+        p.vy=lift+(random()-.5)*.16*scale;
+        p.feedstock=true;p.shedLocked=true;p.shedAt=this.time;p.burstGroup=batch+k;
+        p.burstUntil=this.time+3;p.burstRecoverAt=this.time+6;delete p.patchId;
+      }
+    });
+    this.contractAnchor=null;
+    this.updateComponents(colliders);
+    return count;
+  }
+  launchFlick(direction,force,colliders=[]){
+    if(!Number.isFinite(direction?.x)||!Number.isFinite(direction?.z)||!Number.isFinite(force))return false;
+    const length=Math.hypot(direction.x,direction.z),brain=this.brain;
+    if(!Number.isFinite(length)||length<.1||this.flickFlight||this.time<this.flickReadyAt||this.brainAirborne||
+      this.attachedCount<8)return false;
+    const ground=supportedGroundAt(brain,this.radius,colliders);
+    // A connected mound can support a raised core; a freefalling core cannot jump again.
+    if(brain.y>ground+this.radius+.5*this.size&&this.coatContacts(colliders).length<8)return false;
+    const ux=direction.x/length,uz=direction.z/length;
+    const ahead={x:brain.x+ux*this.radius*3,y:brain.y+.08*this.size,z:brain.z+uz*this.radius*3};
+    if(segmentBlockedBySolid(brain,ahead,colliders,this.radius*.55))return false;
+    const power=clamp(force,.55,1),horizontal=(3.4+1.4*power)*Math.max(this.size,1),lift=(2.65+.55*power)*Math.max(this.size,1);
+    this.flickFlight={vx:ux*horizontal,vz:uz*horizontal,vy:lift,age:0};
+    this.flickReadyAt=this.time+.7;this.contractAnchor=null;
+    this.brainDrive.x=0;this.brainDrive.z=0;
+    // Carry the connected body near the core. The farthest quarter peels into a trail.
+    const attached=this.particles.map((p,i)=>({p,i,d:Math.hypot(p.x-brain.x,p.y-brain.y,p.z-brain.z)}))
+      .filter(({p,i})=>i!==this.brainIndex&&!p.feedstock&&p.component===brain.component&&
+        !segmentBlockedBySolid(brain,p,colliders,this.radius*.35))
+      .sort((a,b)=>a.d-b.d);
+    const carry=Math.ceil(attached.length*.74);
+    attached.slice(0,carry).forEach(({p,d})=>{
+      const taper=clamp(1-d/(2.5*this.size),.45,1);
+      p.vx+=ux*horizontal*(.48+.3*taper);
+      p.vz+=uz*horizontal*(.48+.3*taper);
+      p.vy=Math.max(p.vy,lift*(.48+.27*taper));
+    });
+    return true;
+  }
   moveBrain(h,input,colliders){
     const p=this.brain,s=this.size,anchor=this.contractAnchor;
+    if(this.flickFlight){
+      const flight=this.flickFlight,old={x:p.x,y:p.y,z:p.z};
+      flight.age+=h;flight.vy=Math.max(-5,flight.vy-7.2*h);
+      flight.vx*=.992;flight.vz*=.992;
+      const travel=Math.hypot(flight.vx,flight.vy,flight.vz)*h;
+      const steps=Math.max(1,Math.ceil(travel/(this.radius*.45)));
+      for(let k=0;k<steps;k++){
+        p.px=p.x;p.py=p.y;p.pz=p.z;
+        p.x+=flight.vx*h/steps;p.y+=flight.vy*h/steps;p.z+=flight.vz*h/steps;
+        this.contacts+=resolveParticle(p,this.radius,colliders);
+      }
+      p.px=old.x;p.py=old.y;p.pz=old.z;
+      p.vx=(p.x-old.x)/h;p.vy=(p.y-old.y)/h;p.vz=(p.z-old.z)/h;
+      // The next substep follows collision-accepted motion instead of
+      // continuing to drive into a wall or ceiling at the requested speed.
+      flight.vx=p.vx;flight.vy=p.vy;flight.vz=p.vz;
+      this.brainAirborne=true;this.gripClimbing=false;this.gripFace=null;
+      const ground=supportedGroundAt(p,this.radius,colliders);
+      if(flight.age>.12&&flight.vy<=0&&p.y<=ground+this.radius+.07*s){
+        this.flickFlight=null;this.brainAirborne=false;
+      }else if(flight.age>1.8)this.flickFlight=null;
+      return;
+    }
     const speed=Math.hypot(input.x||0,input.z||0),ux=speed?(input.x||0)/speed:0,uz=speed?(input.z||0)/speed:0;
     const centering=anchor&&Math.hypot(anchor.x-p.x,anchor.z-p.z)>.08*s;
     const power=this.brainPower,maxSpeed=(input.push?4.8:3.6)*Math.max(s,1)*power,accel=24*Math.max(s,1)*power;
@@ -367,6 +462,7 @@ export class ParticleFluid {
     const degree=new Uint8Array(n),spent=new Float32Array(n),scale=(h*60)*this.cohesion/.16;
     for(const pair of candidates){
       const {i,j,d,ux,uz}=pair;
+      if((particles[i].burstRecoverAt>this.time||particles[j].burstRecoverAt>this.time)&&!sameBurstChunk(particles[i],particles[j]))continue;
       if(degree[i]>=2||degree[j]>=2||controlledBrain&&(i===this.brainIndex||j===this.brainIndex))continue;
       if(controlledBrain&&!!particles[i].feedstock!==!!particles[j].feedstock)continue;
       if(segmentBlockedBySolid(particles[i],particles[j],colliders,this.radius*.35))continue;
@@ -479,7 +575,18 @@ export class ParticleFluid {
         const drag=floor?(slip?.994:sticky?.94:.968):.993;
         p.vx*=drag;p.vy*=.995;p.vz*=drag;
         if(floor&&!speed){p.vx*=slip?.99:sticky?.68:.88;p.vz*=slip?.99:sticky?.68:.88;}
-        p.x+=p.vx*h;p.y+=p.vy*h;p.z+=p.vz*h;
+        if(p.burstUntil>this.time){
+          // Sweep fast fragments in radius-sized increments so thin walls still stop them.
+          const steps=Math.max(1,Math.ceil(Math.hypot(p.vx,p.vy,p.vz)*h/(r*.6)));
+          const frameX=p.px,frameY=p.py,frameZ=p.pz;
+          for(let k=0;k<steps;k++){
+            const oldX=p.x,oldY=p.y,oldZ=p.z;p.px=oldX;p.py=oldY;p.pz=oldZ;
+            p.x+=p.vx*h/steps;p.y+=p.vy*h/steps;p.z+=p.vz*h/steps;
+            this.contacts+=resolveParticle(p,r,colliders);
+            p.vx=(p.x-oldX)*steps/h;p.vy=(p.y-oldY)*steps/h;p.vz=(p.z-oldZ)*steps/h;
+          }
+          p.px=frameX;p.py=frameY;p.pz=frameZ;
+        }else{p.x+=p.vx*h;p.y+=p.vy*h;p.z+=p.vz*h;}
       }
       hooks.preSubstep?.(h,particles);
       this.samplePairs();this.attractExposedEdges(h,colliders,input.puddle);
@@ -497,7 +604,7 @@ export class ParticleFluid {
           let shift=((pressureA+pressureB)*q+nearPressure*q*q)*.5;
           if(d<r*1.78)shift+=Math.min(.006,(r*1.78-d)*.06);
           if(d>r*2.45)shift-=this.cohesion*.02*q;
-          shift=clamp(shift,-.005,.007);
+          shift=clamp(shift,(a.burstRecoverAt>this.time||b.burstRecoverAt>this.time)&&!sameBurstChunk(a,b)?0:-.005,.007);
           if(input.puddle&&i===this.brainIndex){b.x+=nx*shift*2;b.y+=ny*shift*2;b.z+=nz*shift*2;}
           else if(input.puddle&&j===this.brainIndex){a.x-=nx*shift*2;a.y-=ny*shift*2;a.z-=nz*shift*2;}
           else{a.x-=nx*shift;a.y-=ny*shift;a.z-=nz*shift;
@@ -509,10 +616,16 @@ export class ParticleFluid {
       }
       this.samplePairs();
       const horizontalLimit=input.puddle?5*Math.max(this.size,1):5;
-      for(const p of particles){p.vx=clamp((p.x-p.px)/h,-horizontalLimit,horizontalLimit);p.vy=clamp((p.y-p.py)/h,-5,5);p.vz=clamp((p.z-p.pz)/h,-horizontalLimit,horizontalLimit);}
+      for(const p of particles){
+        const limit=p.burstUntil>this.time?16*Math.max(this.size,1):horizontalLimit;
+        const vertical=p.burstUntil>this.time?10*Math.max(this.size,1):5;
+        p.vx=clamp((p.x-p.px)/h,-limit,limit);p.vy=clamp((p.y-p.py)/h,-vertical,vertical);p.vz=clamp((p.z-p.pz)/h,-limit,limit);
+      }
       for(const [i,j,d] of this.pairs){
         if(input.puddle&&(i===this.brainIndex||j===this.brainIndex))continue;
-        const a=particles[i],b=particles[j],blend=this.viscosity*(1-d/this.range)*.045;
+        const a=particles[i],b=particles[j];
+        if((a.burstRecoverAt>this.time||b.burstRecoverAt>this.time)&&!sameBurstChunk(a,b))continue;
+        const blend=this.viscosity*(1-d/this.range)*.045;
         const dx=(b.vx-a.vx)*blend,dy=(b.vy-a.vy)*blend,dz=(b.vz-a.vz)*blend;
         a.vx+=dx;a.vy+=dy;a.vz+=dz;b.vx-=dx;b.vy-=dy;b.vz-=dz;
       }
@@ -548,7 +661,7 @@ export class ParticleFluid {
     const holdingBasin=colliders.find(c=>c.type==='funnel'&&c.holdsFeedstock);
     const holdingFloor=holdingBasin?groundAt(holdingBasin.x,holdingBasin.z,colliders).height:0;
     for(const p of this.particles){
-      if(!p.feedstock)continue;
+      if(!p.feedstock||p.burstRecoverAt>this.time)continue;
       if(holdingBasin&&p.shedAt!==undefined&&
         Math.hypot(p.x-holdingBasin.x,p.z-holdingBasin.z)<holdingBasin.bottomRadius+.04&&
         p.y<holdingFloor+this.radius+.23)continue;
@@ -561,7 +674,9 @@ export class ParticleFluid {
         if(separated)continue;
       }
       if(owned.some(q=>Math.hypot(q.x-p.x,q.y-p.y,q.z-p.z)<reach&&
-        !segmentBlockedBySolid(q,p,colliders,this.radius*.35)))p.feedstock=false;
+        !segmentBlockedBySolid(q,p,colliders,this.radius*.35))){
+        p.feedstock=false;delete p.burstGroup;delete p.burstUntil;delete p.burstRecoverAt;
+      }
     }
   }
 }

@@ -8,6 +8,8 @@
 #play-settings summary{cursor:pointer;min-height:28px}
 #play-settings .music-controls{display:flex;position:static;width:auto;border:0;padding:0;margin:0;background:none}
 #play-settings .music-controls input{width:120px}
+body.playing:not(.extra-controls) #touch{display:none!important}
+body.playing #world{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #touch{display:flex;gap:8px;text-align:right;left:auto;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom))}
 #touch button{min-width:58px;min-height:58px;border-radius:50%;touch-action:none;user-select:none}
 #touch #shed{min-width:48px;min-height:48px;align-self:center}

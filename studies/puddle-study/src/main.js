@@ -20,6 +20,9 @@ import {movementAxes} from './movement.js';
 import {canStartControl} from './game-input.js';
 import {bindHoldButton,bindPullButton} from './touch-actions.js';
 import {TouchJoystick} from './touch-joystick.js';
+import {KeyboardGestures} from './keyboard-gestures.js';
+import {burstFlashColor} from './burst-charge.js';
+import {createBurstFragments,isBurstFragment} from './burst-fragments.js';
 import {FollowGardenCamera,cameraPointVisible,gardenMovementBasis} from './game-camera.js';
 import {createBurnFeedback} from './burn-feedback.js';
 
@@ -185,6 +188,8 @@ const bodyGroup=new THREE.Group();scene.add(bodyGroup);
 const supplyGroup=new THREE.Group();scene.add(supplyGroup);
 const body=bodySurface.mesh;bodyGroup.add(body);body.renderOrder=4;
 const supplyMat=new THREE.MeshLambertMaterial({color:0xa9c9bf,transparent:true,opacity:.78,side:THREE.DoubleSide,depthWrite:false});
+const burstFragments=createBurstFragments(scene,supplyMat);
+if(import.meta.hot)import.meta.hot.dispose(()=>burstFragments.dispose());
 const supplySurface=surfacePipeline.create(supplyMat);
 supplyGroup.add(supplySurface.mesh);supplySurface.mesh.renderOrder=3;
 const shedSurface=surfacePipeline.create(supplyMat);
@@ -243,33 +248,50 @@ function cast(pointerAim=false){
     sim.castTendril(target);
   }
 }
-const joystick=new TouchJoystick({onDoubleTap:(x,y)=>{
+function flingDirection(horizontal,vertical,strength=1){
+  if(!canStartControl(sim))return;
+  const basis=sim.selectedTest==='garden'?gardenMovementBasis():null;
+  const forward=basis?.forward||camera.getWorldDirection(new THREE.Vector3());
+  const right=basis?.right||new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
+  if(!basis){forward.y=0;forward.normalize();right.y=0;right.normalize();}
+  sim.queueFlick(movementAxes(sim.selectedTest,horizontal,vertical,right,forward),strength);
+}
+function flickFromPointer({dx,dy,distance,duration}){
+  flingDirection(dx/distance,-dy/distance,Math.min(1,Math.max(.55,(distance/duration)/.9)));
+}
+function recallTendrils(){
+  if(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel)&&sim.garden.phase==='playing'&&sim.gardenInputArmed)
+    sim.tendril.toggleRecall();
+}
+const keyboard=new KeyboardGestures({onRecall:recallTendrils,
+  onHoldStart:()=>{if(sim.tendril.active)sim.tendril.recalling=true;},
+  onBurst:()=>{if(canStartControl(sim))sim.queueBurst();},
+  onFling:({horizontal,vertical})=>flingDirection(horizontal,vertical)});
+const joystick=new TouchJoystick({onBurst:()=>{if(canStartControl(sim))sim.queueBurst();},onFlick:flickFromPointer,onHoldStart:()=>{
+  if(sim.tendril.active)sim.tendril.recalling=true;
+},onDoubleTap:(x,y)=>{
   if(!canStartControl(sim))return;
   const hit=aimFromPointer({clientX:x,clientY:y});
   if(hit){if(sim.selectedTest==='pressure')sim.castTendril({...aim});
     else if(sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel))sim.castTendril({...aim});}
 
 }});
-canvas.addEventListener('pointermove',e=>{if(e.pointerType==='touch')joystick.move(e.pointerId,e.clientX,e.clientY);else aimFromPointer(e);});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('pointermove',e=>{if(joystick.touches.has(e.pointerId))joystick.move(e.pointerId,e.clientX,e.clientY,performance.now());
+  if(e.pointerType!=='touch')aimFromPointer(e);});
 canvas.addEventListener('pointerdown',e=>{
-  if(e.pointerType==='touch'){
+  if(e.pointerType==='touch'||e.button===0){
     if(!canStartControl(sim))return;
     e.preventDefault();joystick.down(e.pointerId,e.clientX,e.clientY,performance.now());canvas.setPointerCapture(e.pointerId);return;
   }
-  if(e.button===0&&(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel))){
-    const hit=aimFromPointer(e);if(hit)cast(true);
-  }
 });
-canvas.addEventListener('pointerup',e=>{if(e.pointerType==='touch')joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());});
+canvas.addEventListener('pointerup',e=>{if(joystick.touches.has(e.pointerId))joystick.up(e.pointerId,e.clientX,e.clientY,performance.now());});
 for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{
-  if(e.pointerType==='touch'&&joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);
+  if(joystick.touches.has(e.pointerId))joystick.cancel(e.pointerId);
 });
 const castButton=document.querySelector('#cast');castButton.addEventListener('click',cast);
 const keys=new Set(),blockedUntilRelease=new Set();
-const pullGesture=new PullGesture(()=>{
-  if(sim.selectedTest==='pressure'||sim.selectedTest==='garden'&&gardenCanCast(sim.gardenLevel)&&sim.garden.phase==='playing'&&sim.gardenInputArmed)
-    sim.tendril.toggleRecall();
-});
+const pullGesture=new PullGesture(recallTendrils);
 const shedButton=document.querySelector('#shed');
 const pullButton=document.querySelector('#pull');
 const applyMaterial=()=>{sim.fluid.cohesion=Number(document.querySelector('#cohesion').value);
@@ -277,7 +299,8 @@ const applyMaterial=()=>{sim.fluid.cohesion=Number(document.querySelector('#cohe
 for(const id of ['cohesion','viscosity'])document.getElementById(id).addEventListener('input',applyMaterial);
 function clearInputs(){
   for(const key of keys)blockedUntilRelease.add(key);
-  keys.clear();joystick.cancel();pullHold.clear();shedHold.clear();pushHold.clear();pullGesture.cancel();sim.tendril.recalling=false;
+  keys.clear();joystick.cancel();keyboard.cancel();pullHold.clear();shedHold.clear();pushHold.clear();pullGesture.cancel();sim.tendril.recalling=false;
+  sim.pendingFlick=null;sim.pendingBurst=false;
   hasGardenAim=false;
   pullButton.setAttribute('aria-pressed','false');
 }
@@ -306,6 +329,11 @@ const gameShell=setupGameShell(sim,{clearInputs,onStart:()=>{disposeMusic.begin(
     if(sim.selectedTest!=='garden'||sim.fluid!==cameraFluid&&!sim.descending)followCamera.initialized=false;
     cameraFluid=sim.fluid;applyMaterial();resize();
   }});
+const extraControls=document.querySelector('#game-extra-controls');
+extraControls.addEventListener('change',()=>{
+  if(!extraControls.checked){pullHold.clear();shedHold.clear();pushHold.clear();pullGesture.cancel();}
+  document.body.classList.toggle('extra-controls',extraControls.checked);
+});
 const studyMenu=document.querySelector('#study-menu'),studyMenuBody=document.querySelector('#study-menu-body');
 const studyPanels=['.test-controls','.gap-controls','#retrieval-controls','.readout','.size-controls','.material-controls','.music-controls'];
 function syncStudyMenu(){
@@ -327,7 +355,7 @@ window.addEventListener('blur',clearInputs);
 window.addEventListener('keydown',e=>{
   if(document.documentElement.classList.contains('booting'))return;
   if(gameShell.handleKey(e))return;
-  if(e.target.closest?.('.music-controls')||e.target.matches?.('input,select,textarea'))return;
+  if(e.target.closest?.('.music-controls')||e.target.closest?.('input,select,textarea,[contenteditable="true"]'))return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(blockedUntilRelease.has(e.code))return;
   keys.add(e.code);
@@ -335,9 +363,10 @@ window.addEventListener('keydown',e=>{
   if(e.code==='KeyR')resetStudy();
   if(e.code==='KeyP')toggleParticles();
   if(e.code==='KeyE')cast();
-  if(e.code==='Space')pullGesture.down('keyboard',performance.now());
+  if(canStartControl(sim)&&(sim.selectedTest!=='garden'||sim.gardenInputArmed))
+    keyboard.down(e.code,performance.now(),{modified:e.ctrlKey||e.metaKey||e.altKey});
 });
-window.addEventListener('keyup',e=>{if(e.code==='Space')pullGesture.up('keyboard',performance.now());keys.delete(e.code);blockedUntilRelease.delete(e.code);});
+window.addEventListener('keyup',e=>{if(canStartControl(sim))keyboard.up(e.code,performance.now());else keyboard.cancel();keys.delete(e.code);blockedUntilRelease.delete(e.code);});
 document.querySelector('#reset').addEventListener('click',()=>resetStudy());
 const pullHold=bindPullButton(pullButton,pullGesture,()=>canStartControl(sim));
 pullButton.addEventListener('click',e=>{if(e.detail===0&&canStartControl(sim)&&
@@ -401,7 +430,7 @@ function updateSkin(){
     const surfaceStart=perfEnabled?performance.now():0;
     const growth=sim.selectedTest==='growth',field=sim.selectedTest==='field'||garden;
     const colliders=sim.activeColliders(),particles=sim.fluid.particles;
-    let living=growth||field||pressure?particles.filter(p=>!p.feedstock):particles;
+    let living=growth||field||pressure?particles.filter(p=>!p.feedstock):particles.filter(p=>!isBurstFragment(p));
     if(arriving)living=particles.map((p,i)=>p.feedstock?null:arrivalPosition(p,i,sim.garden.arrivalTime,sim.gardenLevel,sim.fluid.coatIndices)).filter(Boolean);
     if(garden&&sim.garden.phase==='draining'){
       living=living.map(p=>drainPosition(p,sim.garden.drainTime,sim.gardenLevel));
@@ -421,13 +450,13 @@ function updateSkin(){
       else body.position.fromArray(bodySurface.completedPosition);
     }
     supplySurface.mesh.visible=growth||pressure;
-    if(growth||pressure)supplySurface.update(particles.filter(p=>p.feedstock),colliders,sim.fluid.radius);
-    const shed=garden?looseGardenParticles(particles):[];
+    if(growth||pressure)supplySurface.update(particles.filter(p=>p.feedstock&&!isBurstFragment(p)),colliders,sim.fluid.radius);
+    const shed=garden?looseGardenParticles(particles).filter(p=>!isBurstFragment(p)):[];
     shedSurface.mesh.visible=shed.length>0;
     if(shed.length)shedSurface.update(shed,colliders,sim.fluid.radius);
     if(garden)ensurePoolSurfaces(sim.gardenLevel.pools.length);
     fieldSurfaces.forEach((surface,patchId)=>{
-      const pool=field?particles.filter(p=>p.feedstock&&p.patchId===patchId):[];
+      const pool=field?particles.filter(p=>p.feedstock&&!isBurstFragment(p)&&p.patchId===patchId):[];
       surface.mesh.visible=pool.length>0;
       if(pool.length)surface.update(pool,colliders,sim.fluid.radius);
     });
@@ -458,15 +487,15 @@ function updateHud(){
       `Tap: ${sim.tendril.recalling?'pause':'recall'} / Hold: contract`:'Hold to contract';
     pullButton.setAttribute('aria-pressed',String(pullGesture.holding||reach&&sim.tendril.recalling));
     document.querySelector('.size-controls').hidden=true;
-    document.querySelector('.instructions').textContent='WASD / ARROWS TO OOZE · SHIFT TO RUN · CLICK / E TO CAST · TAP SPACE TO RECALL · HOLD SPACE TO GATHER'+
+    document.querySelector('.instructions').textContent='DRAG TO OOZE · FLICK TO HOP · HOLD STILL TO GATHER · HOLD 3s TO CHARGE + 3s TO EXPLODE · DOUBLE CLICK / E TO CAST · SPACE: HOLD / CHARGE'+
       (sim.gardenLevel.gate||sim.gardenLevel.editorCanShed?' · HOLD F TO LEAVE FLESH':'');
     document.querySelector('#tendril-status').hidden=!reach;
     if(reach)document.querySelector('#tendril-status').textContent=
-      `${sim.tendril.count}/3 TENDRILS · ${sim.tendril.recalling?'RECALLING · SPACE: PAUSE':'CLICK / E: CAST · SPACE: RECALL'}`;
+      `${sim.tendril.count}/3 TENDRILS · ${sim.tendril.recalling?'RECALLING · SPACE: PAUSE':'DOUBLE CLICK / E: CAST · HOLD TO RECALL'}`;
     gameShell.update();return;
   }
   gameShell.update();
-  document.querySelector('.instructions').textContent='WASD / ARROWS TO OOZE · TAP SPACE TO RECALL · HOLD TO CONTRACT · P SHOW PARTICLES';
+  document.querySelector('.instructions').textContent='WASD / ARROWS TO OOZE · HOLD STILL TO GATHER · HOLD 3s TO CHARGE + 3s TO EXPLODE · P SHOW PARTICLES';
   if(mode!==headingMode){
     const titles={field:'FIELD',growth:'GROWTH',gap:'LOW GAP',pressure:'TENDRILS'};
     const descriptions={pressure:'Cast a little of yourself. Draw the loose flesh home.',field:'Gather the small living puddles scattered across the terrace.',
@@ -500,15 +529,15 @@ function updateHud(){
   }
   if(mode==='pressure'){
     const t=sim.tendril;
-    if(t.active){title=t.recalling?'RECALLING':`${t.count} TENDRIL${t.count===1?'':'S'} OUT`;hint=t.recalling?'Gathering automatically. Tap Space to pause, or hold it to contract the body too.':t.count>=3?'All three strands are out. Tap Space to recall all; hold Space to gather the body.':'Click to cast another. Tap Space to recall all; hold Space to gather the body. Casting pauses recall.';}
+    if(t.active){title=t.recalling?'RECALLING':`${t.count} TENDRIL${t.count===1?'':'S'} OUT`;hint=t.recalling?'Gathering automatically. Tap Space to pause, or hold it to contract the body too.':t.count>=3?'All three strands are out. Tap Space to recall all; hold Space to gather the body.':'Double click or press E to cast another. Hold still or press Space to recall all. Casting pauses recall.';}
     else if(t.state==='broken'){title='STRAND BROKEN';hint='The connection stretched or caught on an obstacle. Disconnected flesh turns green; cast again to recover it.';}
     else if(t.state==='need flesh'){title='MORE FLESH NEEDED';hint='Keep more than the minimum coating to cast a tendril. Gather loose flesh, or load Retrieval Setup.';}
-    else if(sim.retrievalSetup){title=sim.pressure.weight?'CAST INTO THE BASIN':'FLESH RECOVERED';hint='Click the loose flesh in the basin to cast, or aim and press E. Tap Space to recall. Hold it to contract. F still sheds.';}
+    else if(sim.retrievalSetup){title=sim.pressure.weight?'CAST INTO THE BASIN':'FLESH RECOVERED';hint='Double click the loose flesh in the basin to cast, or aim and press E. Hold still to gather and recall; Space also recalls. F still sheds.';}
   }
   if(mode==='pressure'&&sim.fluid.time<sim.tendril.feedbackUntil){title=sim.tendril.feedback.startsWith('Not enough')?'NOT ENOUGH FLESH':'CAST STATUS';hint=sim.tendril.feedback;}
   document.querySelector('#tendril-status').hidden=mode!=='pressure';
   document.querySelector('#tendril-status').textContent=sim.tendril.active?
-    `${sim.tendril.count}/3 TENDRILS · ${sim.tendril.recalling?'RECALLING · SPACE: PAUSE':'SPACE: RECALL'}`:'0/3 TENDRILS · CLICK TO CAST';
+    `${sim.tendril.count}/3 TENDRILS · ${sim.tendril.recalling?'RECALLING · SPACE: PAUSE':'HOLD TO RECALL · SPACE: RECALL'}`:'0/3 TENDRILS · DOUBLE CLICK TO CAST';
   document.querySelector('#mode').textContent=title;
   document.querySelector('#message').textContent=hint;
   const count=sim.fluid.particles.length,growth=mode==='growth',field=mode==='field',gap=mode==='gap';
@@ -568,6 +597,7 @@ function frame(now){
   const interval=Math.max(0,now-last),elapsed=Math.min(interval/1000,.08);last=now;
   sim.syncGardenClock(now,document.hidden);
   if(document.hidden){acc=0;requestAnimationFrame(frame);return;}
+  joystick.update(now);keyboard.update(now);
   const idle=sim.selectedTest==='garden'&&['title','paused','complete','reading'].includes(sim.garden.phase);
   if(idle){acc=0;if(now-lastIdleDraw<100){requestAnimationFrame(frame);return;}lastIdleDraw=now;}
   if(!idle)acc+=elapsed;
@@ -579,7 +609,7 @@ function frame(now){
   const right=basis?.right||new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
   if(!basis){forward.y=0;forward.normalize();right.y=0;right.normalize();}
   const {x,z}=movementAxes(sim.selectedTest,horizontal,vertical,right,forward);
-  const contracting=pullGesture.update(now);
+  const contracting=pullGesture.update(now)||joystick.holding||keyboard.holding;
   const physicsStart=perfEnabled?performance.now():0;
   let steps=0;
   while(acc>=DT){const draining=sim.selectedTest==='garden'&&sim.garden.phase==='draining';sim.step({x:draining?0:x,z:draining?0:z,contract:draining?false:contracting,shed:shedHold.active||keys.has('KeyF'),push:pushHold.active||keys.has('ShiftLeft')||keys.has('ShiftRight')},DT);acc-=DT;steps++;}
@@ -617,6 +647,8 @@ function frame(now){
   gripGardenView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&
     (sim.gardenLevelId===5||sim.descending&&sim.gardenLevelId===6&&sim.garden.phase==='arriving'&&sim.garden.arrivalTime<.5);
   if(sim.gardenLevelId===5&&gripGardenView.group.visible)gripGardenView.update(sim,activeCamera);
+  burstFragments.update(sim.fluid.particles,sim.fluid.radius,{offsetY:sim.selectedTest==='garden'&&!sim.isLocalGarden?gardenWorldOffset(sim.gardenLevelId):0,active:sim.selectedTest!=='garden'||sim.garden.phase!=='complete'});
+  bodyMat.color.setHex(burstFlashColor(keyboard.charging&&keyboard.chargeProgress>=joystick.chargeProgress?keyboard:joystick,0xdb8e83));
   burnFeedback.update(sim,{offsetY:sim.selectedTest==='garden'&&!sim.isLocalGarden?gardenWorldOffset(sim.gardenLevelId):0});
   crownView.group.visible=sim.selectedTest==='garden'&&!sim.isLocalGarden&&sim.gardenLevelId===6;
   if(crownView.group.visible)crownView.update(sim,activeCamera);
