@@ -5,6 +5,7 @@ import {solidInside,solidRay,disposeEditorSolid} from './editor-solid-physics.js
 import {groundAt} from './colliders.js';
 import {DEFAULT_TARGET_TIME,CAMPAIGN_TARGETS} from './game-score.js';
 import {TABLET_HINTS} from './memory-tablets.js';
+import {reconcileAttachedPaint} from './editor-paint.js';
 
 const copy=value=>JSON.parse(JSON.stringify(value));
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&Math.abs(n)<=1000;
@@ -481,7 +482,7 @@ export function validateDraft(draft){
   return {errors:[...new Set(errors)],warnings};
 }
 
-export function exportDraft(draft){return JSON.stringify({format:'puddle-level',version:3,draft},null,2);}
+export function exportDraft(draft){return JSON.stringify({format:'puddle-level',version:3,draft:reconcileAttachedPaint(copy(draft))},null,2);}
 export function importDraft(text){
   if(text.length>250000)throw new Error('Level file is too large.');
   const data=JSON.parse(text);
@@ -501,7 +502,7 @@ export function importDraft(text){
   if(!Number.isSafeInteger(draft.nextObjectId)||draft.nextObjectId<1)
     draft.nextObjectId=1;
   while(draft.objects.some(o=>o.id===`object-${draft.nextObjectId}`))draft.nextObjectId++;
-  return draft;
+  return reconcileAttachedPaint(draft);
 }
 
 function draftFromLegacy(level){
@@ -649,6 +650,7 @@ export function snapDraftObjectToHighest(draft,id){
   else return {ok:false,reason:'This object does not support height snapping.'};
   if(o.kind==='block')alignAttachedBasinHeight(draft,id,o.maxY);
   if(o.kind==='pillar')alignAttachedBasinHeight(draft,id,o.base+o.height);
+  reconcileAttachedPaint(draft);
   return {ok:true,height:next,targetId:support.targetId};
 }
 const shiftRect=(o,dx,dz)=>{o.minX+=dx;o.maxX+=dx;o.minZ+=dz;o.maxZ+=dz;};
@@ -673,7 +675,7 @@ export function resizeDraftFootprint(draft,id,dimension,size){
   const after=solidFootprint(o),scaleX=(after.maxX-after.minX)/(old.maxX-old.minX),
     scaleZ=(after.maxZ-after.minZ)/(old.maxZ-old.minZ);
   for(const coat of attachedPaint(draft,id)){
-    if(o.kind==='grip'&&(coat.part==='ramp'||!coat.part&&Math.abs((coat.base??0)-o.platform.maxY)>.2))continue;
+    if(o.kind==='grip'&&coat.face==='floor'&&(coat.part==='ramp'||!coat.part&&Math.abs((coat.base??0)-o.platform.maxY)>.2))continue;
     const minX=after.minX+(coat.minX-old.minX)*scaleX,
       maxX=after.minX+(coat.maxX-old.minX)*scaleX,
       minZ=after.minZ+(coat.minZ-old.minZ)*scaleZ,
@@ -684,6 +686,7 @@ export function resizeDraftFootprint(draft,id,dimension,size){
     basin.x=after.minX+(basin.x-old.minX)*scaleX;
     basin.z=after.minZ+(basin.z-old.minZ)*scaleZ;
   }
+  reconcileAttachedPaint(draft);
   return true;
 }
 const rotateRect=(o,cx,cz)=>{const minX=cx-(o.maxZ-cz),maxX=cx-(o.minZ-cz),
