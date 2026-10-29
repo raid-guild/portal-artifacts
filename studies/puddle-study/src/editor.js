@@ -13,7 +13,7 @@ import {setupMusic} from './music.js';
 import {setupPickupAudio} from './pickup-audio.js';
 import {createLocalLevelLibrary,localStorageForPage,localPageQuery} from './local-levels.js';
 import {createPrintedMaterialLibrary} from './printed-material.js';
-import {paintFaceForHit,paintArea,movePaintWithinFace} from './editor-paint.js';
+import {paintFaceForHit,paintArea,movePaintWithinFace,reconcileAttachedPaint} from './editor-paint.js';
 import {TouchJoystick} from './touch-joystick.js';
 import {KeyboardGestures} from './keyboard-gestures.js';
 import {burstFlashColor} from './burst-charge.js';
@@ -99,6 +99,7 @@ function updateLinkedStatus(){const node=$('linked-level');if(!node)return;
   node.textContent=linkedLevelId?`Local level · ${linkedLevelId.slice(0,8)}${linkedDocument===exportDraft(draft)?' · saved':' · unsaved changes'}`:
     'Not linked to a local level';}
 function commit(message='Garden updated.'){
+  reconcileAttachedPaint(draft);
   history.commit(draft);selected=draft.objects.some(o=>o.id===selected)?selected:null;
   renderEditor();pendingPreview=true;
   const saved=persist();updateLinkedStatus();status(memory?message+' Temporary session · export to keep this draft.':

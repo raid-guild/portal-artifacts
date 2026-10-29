@@ -1,5 +1,5 @@
 import {resolveParticle,segmentBlockedBySolid,groundAt,supportedGroundAt,contactingCommittedTop} from './colliders.js';
-import {floorPaintApplies} from './surface-paint.js';
+import {floorPaintApplies,paintSurfaceSlope} from './surface-paint.js';
 import {gripAxis} from './grip-ramp.js';
 import {solidInside} from './editor-solid-physics.js';
 
@@ -217,11 +217,14 @@ export class ParticleFluid {
     this.brainSlipping=!!slip;
     const steering=slip?accel*.12:stickyFloor?accel*.65:accel,
       surfaceSpeed=stickyFloor?maxSpeed*.78:maxSpeed;
-    this.brainDrive.x=power?approach(this.brainDrive.x,centering?0:ux*surfaceSpeed,steering*h):0;
-    this.brainDrive.z=power?approach(this.brainDrive.z,centering?0:uz*surfaceSpeed,steering*h):0;
+    const glide=!!slip&&!speed&&!centering&&!anchor&&!input.holdPosition;
+    this.brainDrive.x=power?(glide?this.brainDrive.x*.997:
+      approach(this.brainDrive.x,centering?0:ux*surfaceSpeed,steering*h)):0;
+    this.brainDrive.z=power?(glide?this.brainDrive.z*.997:
+      approach(this.brainDrive.z,centering?0:uz*surfaceSpeed,steering*h)):0;
     const hold=anchor||input.holdPosition;
     const toward=hold?{x:hold.x-p.x,z:hold.z-p.z}:{x:0,z:0};
-    const horizontal={x:this.brainDrive.x+clamp(toward.x*3.3,-1.8*s,1.8*s)*power,
+    let horizontal={x:this.brainDrive.x+clamp(toward.x*3.3,-1.8*s,1.8*s)*power,
       z:this.brainDrive.z+clamp(toward.z*3.3,-1.8*s,1.8*s)*power};
     const attachedFraction=Math.min(1,this.attachedCount/Math.max(1,this.massReferenceCount-1));
     const ground=supportedGroundAt(p,this.radius,colliders);
@@ -329,6 +332,17 @@ export class ParticleFluid {
     }
     const stickySupported=atFace&&supports>=6&&this.coatContacts(colliders).length>=8;
     this.brainAirborne=!directSupport&&basalSupport<4&&!stickySupported&&!transferring;
+    if(slip&&!this.brainAirborne&&!anchor&&!input.holdPosition){
+      const slope=paintSurfaceSlope(slip,p.x,p.z,colliders),steepness=Math.hypot(slope.dx,slope.dz);
+      if(steepness>.001){
+        // Gravity projected down the actual coated top, including a ramp
+        // retained in a Boolean solid. Steering remains available to resist it.
+        const downhill=7.2/Math.sqrt(1+steepness*steepness)*h;
+        this.brainDrive.x=clamp(this.brainDrive.x-slope.dx*downhill,-5.4*s,5.4*s);
+        this.brainDrive.z=clamp(this.brainDrive.z-slope.dz*downhill,-5.4*s,5.4*s);
+        horizontal={x:this.brainDrive.x,z:this.brainDrive.z};
+      }
+    }
     let vertical=clamp((targetY-p.y)*(under?6:3.2),-1.8*s,1.8*s)*power;
     if(this.brainAirborne){
       vertical=clamp((p.vy-7.2*h)*.995,-5,5);

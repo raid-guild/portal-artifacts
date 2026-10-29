@@ -17,6 +17,45 @@ const bottomOf=o=>o.kind==='block'?o.minY??0:o.kind==='pillar'?o.base??0:
   ['legacy-roof','legacy-passage','lowgap'].includes(o.kind)?o.bottom:o.kind==='grip'?o.platform.minY??0:0;
 const wallFaces=new Set(['north','south','east','west']);
 
+// Keep attached strokes on the surviving part of their authored face when a
+// host changes size or height. A wholly detached stroke stays invalid so the
+// author can decide where it belongs rather than having it silently moved.
+export function reconcileAttachedPaint(draft){
+  for(const paint of draft.objects||[]){
+    if(paint.kind!=='paint'||!paint.targetId)continue;
+    const owner=draft.objects.find(o=>o.id===paint.targetId);
+    if(!owner)continue;
+    const gripRamp=owner.kind==='grip'&&paint.face==='floor'&&(paint.part==='ramp'||!paint.part&&
+      Math.abs((paint.base??0)-owner.platform.maxY)>.2);
+    const part=gripRamp?owner.ramp:
+      owner.kind==='grip'?owner.platform:rectOf(owner);
+    if(!part)continue;
+    const x0=Math.max(paint.minX,part.minX),x1=Math.min(paint.maxX,part.maxX),
+      z0=Math.max(paint.minZ,part.minZ),z1=Math.min(paint.maxZ,part.maxZ);
+    if(paint.face==='floor'){
+      if(x1-x0<.02||z1-z0<.02)continue;
+      Object.assign(paint,{minX:x0,maxX:x1,minZ:z0,maxZ:z1});
+      const top=owner.kind==='block'||owner.kind==='pillar'||['legacy-roof','legacy-passage','lowgap'].includes(owner.kind)?
+        topOf(owner):owner.kind==='grip'&&!gripRamp?owner.platform.maxY:null;
+      if(top!==null&&Math.abs((paint.base??0)-top)>.0001)paint.base=top;
+      continue;
+    }
+    if(!wallFaces.has(paint.face))continue;
+    if(['west','east'].includes(paint.face)?z1-z0<.02:x1-x0<.02)continue;
+    const low=bottomOf(owner),high=topOf(owner);
+    if(high===null||!Number.isFinite(high))continue;
+    const y0=Math.max(paint.minY??paint.base??low,low),
+      y1=Math.min(paint.maxY??high,high);
+    if(y1-y0<.02)continue;
+    const edge=paint.face==='west'?part.minX:paint.face==='east'?part.maxX:
+      paint.face==='north'?part.minZ:part.maxZ;
+    if(['west','east'].includes(paint.face))Object.assign(paint,{minX:edge-.015,maxX:edge+.015,minZ:z0,maxZ:z1});
+    else Object.assign(paint,{minX:x0,maxX:x1,minZ:edge-.015,maxZ:edge+.015});
+    paint.minY=y0;paint.maxY=y1;paint.base=low;
+  }
+  return draft;
+}
+
 export function paintFaceForHit(draft,hit){
   if(!hit)return {error:'Choose a visible floor or flat exterior wall.'};
   const owner=hit.targetId?draft.objects.find(o=>o.id===hit.targetId):null;
