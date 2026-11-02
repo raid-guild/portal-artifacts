@@ -145,7 +145,7 @@
   .web-class-skills li{background:#dce8e2;padding:.3rem .65rem;font:700 .75rem var(--louch-label);color:#0a292b}
   .web-path-list{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-top:.8rem}
   .web-path-list div{border-left:2px solid #d66a7d;padding-left:.7rem}
-  .web-path-list h4{font:800 .78rem var(--louch-display);margin:0 0 .3rem}
+  .web-path-list h4{font:700 .78rem var(--louch-display);margin:0 0 .3rem}
   .web-path-list p{font-size:.82rem;line-height:1.45;margin:0}
   .web-class-moves p{font-size:.9rem;margin:.5rem 0}
   .web-stat-line{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1.5rem}

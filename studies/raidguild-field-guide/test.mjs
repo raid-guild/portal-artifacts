@@ -13,7 +13,7 @@ const publicationCss = await readFile(path.join(published, 'publication.css'), '
 const publication = JSON.parse(await readFile(path.join(here, 'publication.json'), 'utf8'));
 const edition = JSON.parse(await readFile(path.join(published, 'publication.json'), 'utf8'));
 const printExtract = await readFile(path.join(published, 'integrated-content-print.html'), 'utf8');
-const social = await readFile(path.join(published, 'field-guide-social-v2.png'));
+const social = await readFile(path.join(published, 'field-guide-social-v3.png'));
 const studies = JSON.parse(await readFile(path.join(here, 'content-studies.json'), 'utf8'));
 const studiesHtml = await readFile(path.join(published, 'content-studies.html'), 'utf8');
 const studiesCss = await readFile(path.join(published, 'content-studies.css'), 'utf8');
@@ -224,7 +224,7 @@ assert.ok(html.includes('id="kingdom-arrival-road"'));
 assert.ok(html.includes('IN THE FIELD GUIDE'));
 assert.ok(html.includes('Shared ownership, useful tools, and deliberate cooperation'));
 assert.ok(html.includes(`rel="canonical" href="${guide.canonical}"`));
-assert.ok(html.includes(`property="og:image" content="${guide.canonical}field-guide-social-v2.png"`));
+assert.ok(html.includes(`property="og:image" content="${guide.canonical}field-guide-social-v3.png"`));
 assert.ok(!html.includes('src="https://'));
 assert.ok(!html.includes('wip-queen-raida-content-reference.png'));
 assert.ok(!html.includes('wip-moloch-content-reference.png'));
