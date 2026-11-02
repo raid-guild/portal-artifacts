@@ -1,0 +1,52 @@
+/* Field Guide adaptation of @raidguild/brand-system's Louchi reign.
+   Grinder files come from the first-party Louchi handbook; see fonts/README.md. */
+@font-face{font-family:"Grinder Refined";src:url("./fonts/Grinder-Refined-Regular.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:"Grinder Refined";src:url("./fonts/Grinder-Refined-Italic.woff2") format("woff2");font-style:italic;font-weight:400;font-display:swap}
+@font-face{font-family:"Grinder Refined Retalic";src:url("./fonts/Grinder-Refined-Retalic.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:Ubuntu;src:url("./fonts/Ubuntu-Variable.ttf") format("truetype");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Ubuntu Mono";src:url("./fonts/UbuntuMono-Regular.ttf") format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:"Ubuntu Mono";src:url("./fonts/UbuntuMono-Bold.ttf") format("truetype");font-weight:700;font-display:swap}
+:root{--louch-field:#b8e0df;--louch-cyan:#78c5c3;--louch-paper:#efe9d7;--louch-ink:#102d2c;--louch-deep:#0a292b;--louch-coral:#ee3c78;--louch-lime:#d7e34d;--louch-night:#191e4e;--louch-night-cyan:#8fe3ef;--louch-display:"Grinder Refined","Afacad Flux",sans-serif;--louch-retalic:"Grinder Refined Retalic","Grinder Refined",sans-serif;--louch-body:Ubuntu,Arial,sans-serif;--louch-label:"Ubuntu Mono",monospace}
+/* The browser story and the bound reader share the same source and visual grammar. */
+.web-experience{--web-navy:var(--louch-night);--web-ink:var(--louch-ink);--web-cream:var(--louch-paper);--web-coral:var(--louch-coral);--web-teal:var(--louch-cyan);--web-line:var(--louch-cyan);background:var(--louch-paper);color:var(--louch-ink);font-family:var(--louch-body)}
+.web-experience h1,.web-experience h2,.web-experience h3,.web-experience h4{font-family:var(--louch-display);letter-spacing:-.025em}
+.web-experience .web-kicker,.web-experience .web-note-number,.web-experience .web-panel-count,.web-experience .web-hero-scroll,.web-experience .web-brand,.web-experience .web-nav nav a,.web-experience .web-book-link,.web-experience .web-hero-actions a,.web-experience .web-choice-list a,.web-experience .web-class-roster a,.web-experience .web-class-skills li,.web-experience .web-stat-line span,.web-experience .web-sidequest-grid a,.web-experience .web-footer a{font-family:var(--louch-label)}
+.web-hero{background:var(--louch-night)}
+.web-hero::after{background:linear-gradient(90deg,#191e4efa 0%,#191e4ee9 41%,#191e4e66 70%,transparent 100%)}
+.web-hero h1 em{font-family:var(--louch-retalic);font-style:normal;color:var(--louch-lime)}
+.web-hero h1{font-size:clamp(3.8rem,6.3vw,7rem);line-height:.98;max-width:16ch}
+.web-hero .web-kicker,.web-hero-scroll{color:var(--louch-night-cyan)}
+.web-hero-actions a:first-child{background:var(--louch-coral);border-color:var(--louch-coral);color:var(--louch-night)}
+.web-nav,.web-stage-panel,.web-history,.web-onward,.web-brood-story,.web-party-bridge{background:var(--louch-night);color:var(--louch-paper)}
+.web-brand-mark{border:0;color:var(--louch-lime);border-radius:0;background:currentColor;mask:url('./raidguild-crossed-swords.svg') center/contain no-repeat}
+.web-nav nav a:hover,.web-nav nav a[aria-current="location"],.web-note-next,.web-onward-grid a{color:var(--louch-lime)!important}
+.web-chapter-world{background:var(--louch-field)}.web-chapter-joining{background:var(--louch-paper)}.web-chapter-airship{background:#c1e0dc}.web-chapter-rip{background:var(--louch-paper)}.web-chapter-walker{background:var(--louch-field)}
+.web-culture{background:var(--louch-coral);color:var(--louch-deep)}.web-classes,.web-sidequests{background:var(--louch-paper)}
+.web-class-panel,.web-sidequest-grid article{background:#f7f3e8;box-shadow:none;border:1px solid var(--louch-cyan)}
+.web-class-art{background:var(--louch-field);display:flex;align-items:flex-start;padding-top:clamp(2rem,4vw,4rem)}.web-class-art::before{display:none}.web-class-art-label{background:linear-gradient(0deg,var(--louch-night),transparent);color:var(--louch-paper)}
+.web-class-art>.web-portrait{height:auto;flex:none}
+.web-class-panel:nth-child(-n+12) .web-class-art>.web-portrait{transform-origin:top center}
+.web-portrait{background:var(--louch-field)}.web-class-roster a[aria-current="true"]{background:var(--louch-night);color:var(--louch-paper)}
+.web-pin:hover,.web-pin:focus-visible,.web-pin[aria-current="true"],.web-pin[data-preview="true"]{background:var(--louch-coral);color:var(--louch-night)!important}
+.web-class-skills li{background:var(--louch-field);color:var(--louch-deep)}
+/* Print book and workbook pages retain their page geometry and use the same reign. */
+.publication,.workbook-page,.book-page{--navy:var(--louch-night);--ink:var(--louch-ink);--paper:var(--louch-paper);--teal:var(--louch-deep);--coral:var(--louch-coral);--line:var(--louch-cyan);font-family:var(--louch-body)}
+.book-page,.book-workbook.workbook-page,.workbook-page{background:var(--louch-paper);color:var(--louch-ink)}
+.book-page h2,.book-page h3,.book-page h4,.workbook-page h2,.workbook-page h3,.workbook-page h4,.book-reader-head h1{font-family:var(--louch-display);letter-spacing:-.018em}
+.book-page-body,.book-page-header p,.workbook-page p,.class-profile,.workbook-lore-columns,.culture-columns,.member-credit-list li{font-family:var(--louch-body)}
+.book-eyebrow,.book-folio,.workbook-page .eyebrow,.workbook-page-foot,.class-skill,.class-moves h4,.class-paths h4{font-family:var(--louch-label)}
+.class-profile .workbook-portrait,.role-portrait{background:var(--louch-field)}
+.workbook-portrait img,.role-portrait img{mix-blend-mode:normal}
+.web-class-art>.web-portrait img{filter:none}
+@media print{
+  .publication,.workbook-page,.book-page{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .workbook-page{font-variation-settings:"wdth" 82}
+  .layout-class-duo .class-profile{font-size:9.3pt;line-height:1.2}
+  .layout-class-duo .class-paths p{font-size:8.5pt;line-height:1.14}
+  .layout-class-duo .class-moves p{font-size:8.8pt;line-height:1.16}
+  .layout-sidequest-story .sidequest-columns{font-size:9.5pt;line-height:1.24}
+  .layout-sidequest-story .sidequest-columns p{margin-bottom:6px}
+  .mmd-prompts section{min-height:180pt}
+  .mmd-prompts .rule-lines span{height:20pt}
+  .layout-guild-offshoots .offshoot-common{margin-top:10pt}
+}

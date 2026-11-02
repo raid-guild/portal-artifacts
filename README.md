@@ -239,6 +239,11 @@ preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
 
+- `raidguild-field-guide/` — Illustrated Guild field guide with a longform
+  website, interactive class and diagram notes, an alternate book reader, and
+  a 35-page print edition. Editable content, art provenance, tests, and print
+  proof commands are in [`studies/raidguild-field-guide/`](studies/raidguild-field-guide/README.md).
+
 - `discord-cleanup/` — Read-only RaidGuild Discord channel audit, proposed structure, and a local rollout checklist. Browser progress can be exported and imported; it does not change Discord. See [`studies/discord-cleanup/`](studies/discord-cleanup/README.md).
 
 - `orbit-lab/` — A gravity maze and orbital sandbox controlled by placing

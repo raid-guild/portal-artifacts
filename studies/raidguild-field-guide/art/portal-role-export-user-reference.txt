@@ -1,0 +1,25 @@
+User-supplied Portal export. Reference snapshot, not independently fetched from admin.
+Priority illustration classes: Cleric, Monk, Bard, Wizard, Warrior, Archer.
+Format: class | skill | category | slug | profileRoles ID
+
+Rogue | Legal | Support | rogue | 18
+Healer | Internal Ops | Support | healer | 17
+Scribe | Content Creator | Support | scribe | 16
+Tavern Keeper | Community | Support | tavern-keeper | 15
+Bard | Marketing | Support | bard | 14
+Angry Dwarf | Treasury | Support | angry-dwarf | 13
+Apprentice | New Applicants | Support | apprentice | 12
+Mystic Alchemist | DAO Consultant | Builder | mystic-alchemist | 11
+Monk | Support | Support | monk | 10
+Hunter | BizDev | Builder | hunter | 8
+Wizard | Smart Contracts | Builder | wizard | 9
+Cleric | Account Manager | Builder | cleric | 7
+Warrior | Builder | Builder | warrior | 6
+Ranger | UX/User Testing | Builder | ranger | 5
+Necromancer | DevOps | Builder | necromancer | 4
+Paladin | Backend Dev | Builder | paladin | 3
+Druid | Data Science/Analytics | Builder | druid | 2
+Archer | Design | Builder | archer | 1
+
+Admin URL pattern supplied: https://portal.raidguild.org/admin/collections/profileRoles/{ID}
+Related handbook: docs/membership/skills-roles.md; labels differ for Monk (Project Manager there) and Warrior (Frontend Dev there). Preserve discrepancy for editorial reconciliation; do not change handbook.

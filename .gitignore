@@ -14,3 +14,10 @@
 /studies/raidguild-launch-film/__pycache__/
 /studies/raidguild-launch-film/**/__pycache__/
 /studies/raidguild-launch-film/**/Grinder*.woff2
+
+# Field Guide local proof tooling and scratch exports.
+/studies/raidguild-field-guide/print/node_modules/
+/studies/raidguild-field-guide/print/.venv/
+/studies/raidguild-field-guide/print/proof-output/
+/studies/raidguild-field-guide/**/__pycache__/
+/studies/raidguild-field-guide/art/*.blend1

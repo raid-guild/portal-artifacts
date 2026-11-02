@@ -1,0 +1,6 @@
+# Treat the generated publication as an opaque download, not a text diff.
+/public/raidguild-field-guide/*.pdf binary
+
+# Preserve upstream dependency formatting unchanged.
+/public/raidguild-field-guide/vendor/** -whitespace
+/studies/raidguild-field-guide/vendor/** -whitespace

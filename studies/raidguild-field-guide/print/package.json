@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "name": "raidguild-field-guide-print-tools",
+  "version": "1.0.0",
+  "description": "Local print export tooling for the RaidGuild Field Guide",
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}
