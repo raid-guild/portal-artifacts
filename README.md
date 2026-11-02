@@ -239,6 +239,8 @@ preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
 
+- `discord-cleanup/` — Read-only RaidGuild Discord channel audit, proposed structure, and a local rollout checklist. Browser progress can be exported and imported; it does not change Discord. See [`studies/discord-cleanup/`](studies/discord-cleanup/README.md).
+
 - `orbit-lab/` — A gravity maze and orbital sandbox controlled by placing
   temporary wells to curve a blob's flight.
 
