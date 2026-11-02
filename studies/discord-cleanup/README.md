@@ -17,3 +17,5 @@ python3 -m http.server 8766 -d public
 Open <http://127.0.0.1:8766/discord-cleanup/>. Run focused tests with `node --test studies/discord-cleanup/state.test.mjs`. No install or build step is needed. `artifact-social-v1.png` is the versioned 1200 × 630 link cover described by the static metadata in `index.html`.
 
 The social cover is a browser screenshot of the app dashboard, captured at 1200 × 630 and encoded as PNG. No generated illustration is used. Verified desktop and 390px responsive layout, channel notes/status persistence after reload, checkbox/status synchronization, and copyable JSON export/paste import roundtrip. Independent code review found no actionable issues.
+
+The Rollout Checklist and Proposed Structure also include a deferred, optional web-discovery pilot. It is outside the 29 cleanup tasks and does not change progress IDs, access, or Discord settings. Its admin gate, channel exclusions, posting guidance, member controls and source links are planning guidance for a separate future decision; recheck Discord documentation before activation.
