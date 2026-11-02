@@ -1,0 +1,1700 @@
+{
+  "schemaVersion": 1,
+  "title": "RaidGuild Field Guide",
+  "edition": "Review draft · Volume 01",
+  "pageSizeInches": [
+    7,
+    10
+  ],
+  "assets": {
+    "landscape": {
+      "path": "art/guild-landscape-concept-v1.png",
+      "alt": "Illustrated Guild landscape with varied settlements and routes."
+    },
+    "kingdom": {
+      "path": "art/guild-kingdom-concept-v2.png",
+      "alt": "Wide illustrated kingdom of desert, riverlands, floating citadels and a dark fortress."
+    },
+    "joining": {
+      "path": "art/joining-map-concept-v1.png",
+      "alt": "Illustrated seven-stop joining path through a Guild landscape."
+    },
+    "party": {
+      "path": "art/meet-the-party-twelve-louchi-v1.png",
+      "alt": "Twelve Louchi style Guild adventurer silhouettes, including human, alien and mechanical characters."
+    },
+    "airship": {
+      "path": "art/raid-spherical-airship-concept-v1.png",
+      "alt": "Cutaway illustration of a spherical expedition airship."
+    },
+    "walker": {
+      "path": "art/guild-kit-walker-cutaway-v1.png",
+      "alt": "Exploded illustrated desert walker used as a metaphor for Guild Kit infrastructure."
+    },
+    "social": {
+      "path": "art/field-guide-social-v2.png",
+      "alt": "Crossed swords and a Field Guide title over the illustrated Moloch kingdom."
+    },
+    "coverMoloch": {
+      "path": "art/field-guide-cover-moloch-v1.png",
+      "alt": "Five adventurers face monumental horned Moloch amid floating citadels and lavender mist.",
+      "width": 1050,
+      "height": 1500
+    }
+  },
+  "sources": {
+    "joining": {
+      "title": "Join the Guild · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/join-the-guild"
+    },
+    "apprentice": {
+      "title": "Become an Apprentice · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/become-an-apprentice"
+    },
+    "member": {
+      "title": "Become a Member · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/become-a-member"
+    },
+    "paid": {
+      "title": "Getting Paid · handbook",
+      "url": "https://handbook.raidguild.org/docs/raids/getting-paid"
+    },
+    "raids": {
+      "title": "Raid lifecycle · handbook",
+      "url": "https://handbook.raidguild.org/docs/raids/raid-lifecycle"
+    },
+    "rips": {
+      "title": "RIP process · handbook",
+      "url": "https://handbook.raidguild.org/docs/dao-operations/rips"
+    },
+    "benefits": {
+      "title": "Member Benefits · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/member-benefits"
+    },
+    "prism": {
+      "title": "Prism · handbook",
+      "url": "https://handbook.raidguild.org/docs/agents/prism"
+    },
+    "overview": {
+      "title": "What is RaidGuild · handbook",
+      "url": "https://handbook.raidguild.org/docs/overview/what-is-raidguild"
+    },
+    "portal": {
+      "title": "RaidGuild Portal",
+      "url": "https://portal.raidguild.org/"
+    },
+    "discord": {
+      "title": "RaidGuild Discord",
+      "url": "https://discord.gg/rGFpfQf"
+    },
+    "github": {
+      "title": "RaidGuild GitHub",
+      "url": "https://github.com/raid-guild"
+    },
+    "daohaus": {
+      "title": "RaidGuild DAOhaus",
+      "url": "https://admin.daohaus.club/#/molochv3/0x64/0xf02fd4286917270cb94fbc13a0f4e1ed76f7e986"
+    },
+    "skills": {
+      "title": "Skills and roles · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/skills-roles"
+    }
+  },
+  "sections": [
+    {
+      "id": "opening",
+      "title": "Open the atlas",
+      "pageNumbers": [
+        1
+      ]
+    },
+    {
+      "id": "world",
+      "title": "The Guild Kingdom",
+      "pageNumbers": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "joining",
+      "title": "The joining route",
+      "pageNumbers": [
+        4,
+        5
+      ]
+    },
+    {
+      "id": "party",
+      "title": "Meet the party",
+      "pageNumbers": [
+        6,
+        7
+      ]
+    },
+    {
+      "id": "raid",
+      "title": "How a Raid works",
+      "pageNumbers": [
+        8,
+        9
+      ]
+    },
+    {
+      "id": "rip",
+      "title": "The improvement trail",
+      "pageNumbers": [
+        10,
+        11
+      ]
+    },
+    {
+      "id": "kit",
+      "title": "The Guild Kit",
+      "pageNumbers": [
+        12,
+        13
+      ]
+    },
+    {
+      "id": "doors",
+      "title": "Doors and onward paths",
+      "pageNumbers": [
+        14,
+        15,
+        16
+      ]
+    }
+  ],
+  "spreads": [
+    {
+      "id": "spread-01",
+      "pageNumbers": [
+        1
+      ]
+    },
+    {
+      "id": "spread-02",
+      "pageNumbers": [
+        2,
+        3
+      ],
+      "layout": "atlas-spread",
+      "artPage": 2,
+      "notesPage": 3,
+      "atlas": {
+        "id": "atlas",
+        "landmarks": [
+          {
+            "id": "gathering-hall",
+            "number": 1,
+            "x": 72,
+            "y": 62,
+            "title": "Gathering Hall",
+            "meaning": "People and relationships",
+            "destination": {
+              "pageNumber": 6,
+              "label": "Meet the party"
+            },
+            "card": {
+              "x": 41,
+              "y": 84,
+              "width": 18
+            }
+          },
+          {
+            "id": "workshop",
+            "number": 2,
+            "x": 87,
+            "y": 70,
+            "title": "Workshop",
+            "meaning": "Ideas and improvements",
+            "destination": {
+              "pageNumber": 10,
+              "label": "Improvement trail"
+            },
+            "card": {
+              "x": 81,
+              "y": 84,
+              "width": 18
+            }
+          },
+          {
+            "id": "expedition-dock",
+            "number": 3,
+            "x": 22,
+            "y": 67,
+            "title": "Expedition Dock",
+            "meaning": "Client Raids",
+            "destination": {
+              "pageNumber": 8,
+              "label": "How a Raid works"
+            },
+            "card": {
+              "x": 1,
+              "y": 84,
+              "width": 18
+            }
+          },
+          {
+            "id": "archive",
+            "number": 4,
+            "x": 32,
+            "y": 31,
+            "title": "Archive",
+            "meaning": "Shared knowledge",
+            "destination": {
+              "pageNumber": 14,
+              "label": "Where next"
+            },
+            "card": {
+              "x": 26,
+              "y": 1,
+              "width": 17
+            }
+          },
+          {
+            "id": "commons",
+            "number": 5,
+            "x": 77,
+            "y": 76,
+            "title": "Commons",
+            "meaning": "Shared resources",
+            "destination": {
+              "pageNumber": 12,
+              "label": "Guild Kit"
+            },
+            "card": {
+              "x": 61,
+              "y": 84,
+              "width": 18
+            }
+          },
+          {
+            "id": "raida",
+            "number": 6,
+            "x": 22,
+            "y": 12,
+            "title": "Queen Raida",
+            "meaning": "Signal and understanding",
+            "destination": {
+              "pageNumber": 13,
+              "label": "Guild Kit feature"
+            },
+            "card": {
+              "x": 1,
+              "y": 1,
+              "width": 18
+            }
+          },
+          {
+            "id": "moloch",
+            "number": 7,
+            "x": 89,
+            "y": 16,
+            "title": "Moloch",
+            "meaning": "Coordination failure",
+            "destination": {
+              "sectionId": "doors",
+              "pageNumber": 14,
+              "label": "Field notes"
+            },
+            "card": {
+              "x": 80,
+              "y": 26,
+              "width": 18
+            }
+          },
+          {
+            "id": "arrival-road",
+            "number": 8,
+            "x": 47,
+            "y": 78,
+            "title": "Arrival Road",
+            "meaning": "Joining the Guild",
+            "destination": {
+              "pageNumber": 4,
+              "label": "Joining route"
+            },
+            "card": {
+              "x": 21,
+              "y": 84,
+              "width": 18
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "spread-03",
+      "pageNumbers": [
+        4,
+        5
+      ]
+    },
+    {
+      "id": "spread-04",
+      "pageNumbers": [
+        6,
+        7
+      ]
+    },
+    {
+      "id": "spread-05",
+      "pageNumbers": [
+        8,
+        9
+      ],
+      "layout": "illustrated-spread",
+      "artPage": 8,
+      "notesPage": 9,
+      "calloutSides": {
+        "left": [
+          "coordination",
+          "build",
+          "support"
+        ],
+        "right": [
+          "direction",
+          "agreements",
+          "review",
+          "handover"
+        ]
+      }
+    },
+    {
+      "id": "spread-06",
+      "pageNumbers": [
+        10,
+        11
+      ],
+      "layout": "trail-spread",
+      "artPage": 10,
+      "notesPage": 11,
+      "trail": {
+        "id": "rip",
+        "hotspots": [
+          {
+            "itemId": "describe-problem",
+            "x": 44,
+            "y": 70
+          },
+          {
+            "itemId": "find-collaborators",
+            "x": 46,
+            "y": 39
+          },
+          {
+            "itemId": "shape-proposal",
+            "x": 18,
+            "y": 35
+          },
+          {
+            "itemId": "record-final-rip",
+            "x": 78,
+            "y": 70
+          },
+          {
+            "itemId": "seek-approval",
+            "x": 49,
+            "y": 27
+          },
+          {
+            "itemId": "deliver-report",
+            "x": 86,
+            "y": 44
+          }
+        ],
+        "cards": [
+          {
+            "itemId": "describe-problem",
+            "x": 1,
+            "y": 82,
+            "width": 29
+          },
+          {
+            "itemId": "find-collaborators",
+            "x": 35.5,
+            "y": 1,
+            "width": 29
+          },
+          {
+            "itemId": "shape-proposal",
+            "x": 1,
+            "y": 1,
+            "width": 29
+          },
+          {
+            "itemId": "record-final-rip",
+            "x": 69,
+            "y": 82,
+            "width": 29
+          },
+          {
+            "itemId": "seek-approval",
+            "x": 69,
+            "y": 1,
+            "width": 29
+          },
+          {
+            "itemId": "deliver-report",
+            "x": 35.5,
+            "y": 82,
+            "width": 29
+          }
+        ]
+      }
+    },
+    {
+      "id": "spread-07",
+      "pageNumbers": [
+        12,
+        13
+      ],
+      "layout": "illustrated-spread",
+      "artPage": 12,
+      "notesPage": 13,
+      "calloutSides": {
+        "left": [
+          "governance",
+          "identity",
+          "operations"
+        ],
+        "right": [
+          "assistance",
+          "network",
+          "support"
+        ]
+      }
+    },
+    {
+      "id": "spread-08",
+      "pageNumbers": [
+        14,
+        15
+      ]
+    },
+    {
+      "id": "spread-09",
+      "pageNumbers": [
+        16
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "number": 1,
+      "id": "cover",
+      "sectionId": "opening",
+      "layout": "cover",
+      "eyebrow": "RAIDGUILD · VOLUME 01",
+      "title": "Field Guide",
+      "intro": "An illustrated atlas of Guild life.",
+      "art": {
+        "assetId": "coverMoloch",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [],
+      "sourceIds": [
+        "overview"
+      ]
+    },
+    {
+      "number": 2,
+      "id": "kingdom-plate",
+      "sectionId": "world",
+      "layout": "full-art",
+      "eyebrow": "THE WORLD",
+      "title": "The Guild Kingdom",
+      "intro": "A landscape of collaboration, shared resources, and imagined possibilities.",
+      "art": {
+        "assetId": "kingdom",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "title": "Five practical landmarks",
+          "items": [
+            {
+              "id": "hall",
+              "title": "Gathering Hall",
+              "text": "Meet complementary builders; turn to the party portraits.",
+              "destination": {
+                "sectionId": "party",
+                "pageNumber": 6
+              }
+            },
+            {
+              "id": "dock",
+              "title": "Expedition Dock",
+              "text": "Assemble a client Raid; board the airship.",
+              "destination": {
+                "sectionId": "raid",
+                "pageNumber": 8
+              }
+            },
+            {
+              "id": "workshop",
+              "title": "Workshop",
+              "text": "Shape an improvement idea into a RIP.",
+              "destination": {
+                "sectionId": "rip",
+                "pageNumber": 10
+              }
+            },
+            {
+              "id": "commons",
+              "title": "Commons",
+              "text": "Explore shared resources in the Guild Kit.",
+              "destination": {
+                "sectionId": "kit",
+                "pageNumber": 12
+              }
+            },
+            {
+              "id": "archive",
+              "title": "Archive",
+              "text": "Find knowledge and the public doors onward.",
+              "destination": {
+                "sectionId": "doors",
+                "pageNumber": 14
+              }
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Queen Raida, Moloch, and the arrival road are interpreted on the next page. These places are metaphors, not formal departments."
+        }
+      ],
+      "sourceIds": [
+        "overview",
+        "benefits"
+      ]
+    },
+    {
+      "number": 3,
+      "id": "contents",
+      "sectionId": "world",
+      "layout": "contents",
+      "eyebrow": "A READER’S MAP",
+      "title": "Choose a path",
+      "intro": "These page numbers guide the printed edition. In the web reader, choose a section or turn the pages.",
+      "art": {
+        "assetId": "kingdom",
+        "crop": [
+          0.35,
+          0.2,
+          0.55,
+          0.65
+        ]
+      },
+      "blocks": [
+        {
+          "type": "contents",
+          "title": "In this guide",
+          "items": [
+            {
+              "id": "opening",
+              "title": "Open the atlas",
+              "text": "1",
+              "destination": {
+                "sectionId": "opening",
+                "pageNumber": 1
+              }
+            },
+            {
+              "id": "world",
+              "title": "The Guild Kingdom",
+              "text": "2–3",
+              "destination": {
+                "sectionId": "world",
+                "pageNumber": 2
+              }
+            },
+            {
+              "id": "joining",
+              "title": "The joining route",
+              "text": "4–5",
+              "destination": {
+                "sectionId": "joining",
+                "pageNumber": 4
+              }
+            },
+            {
+              "id": "party",
+              "title": "Meet the party",
+              "text": "6–7",
+              "destination": {
+                "sectionId": "party",
+                "pageNumber": 6
+              }
+            },
+            {
+              "id": "raid",
+              "title": "How a Raid works",
+              "text": "8–9",
+              "destination": {
+                "sectionId": "raid",
+                "pageNumber": 8
+              }
+            },
+            {
+              "id": "rip",
+              "title": "The improvement trail",
+              "text": "10–11",
+              "destination": {
+                "sectionId": "rip",
+                "pageNumber": 10
+              }
+            },
+            {
+              "id": "kit",
+              "title": "The Guild Kit",
+              "text": "12–13",
+              "destination": {
+                "sectionId": "kit",
+                "pageNumber": 12
+              }
+            },
+            {
+              "id": "doors",
+              "title": "Doors and onward paths",
+              "text": "14–16",
+              "destination": {
+                "sectionId": "doors",
+                "pageNumber": 14
+              }
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "title": "How to read the kingdom",
+          "text": "Five practical places, an arrival-road gateway, and two imagined realms point to the chapters ahead. Their pin numbers identify map locations, not page order."
+        },
+        {
+          "type": "caption",
+          "title": "Eight landmarks",
+          "text": "Gathering Hall · Workshop · Expedition Dock · Archive · Commons · Queen Raida · Moloch · Arrival Road. Their map pins identify places, not a reading order."
+        },
+        {
+          "type": "caption",
+          "title": "Two realms",
+          "text": "Queen Raida helps surface context and draft next steps while people exercise judgment. Moloch names a coordination failure: shared ownership, useful tools, and cooperation help people avoid outcomes nobody wants."
+        }
+      ],
+      "sourceIds": [
+        "overview",
+        "prism"
+      ]
+    },
+    {
+      "number": 4,
+      "id": "joining-plate",
+      "sectionId": "joining",
+      "layout": "full-art",
+      "eyebrow": "THE JOURNEY",
+      "title": "Your path into the Guild",
+      "intro": "An illustrated route from first contact to active membership.",
+      "art": {
+        "assetId": "joining",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [
+        {
+          "type": "caption",
+          "text": "Concept art contains baked-in captions. Read the next page and the live handbook for editable, current guidance."
+        }
+      ],
+      "sourceIds": [
+        "joining"
+      ]
+    },
+    {
+      "number": 5,
+      "id": "joining-steps",
+      "sectionId": "joining",
+      "layout": "steps",
+      "eyebrow": "THE ROUTE",
+      "title": "Seven stops, separate approvals",
+      "intro": "Cohort graduation and full membership Championing are distinct decisions.",
+      "art": {
+        "assetId": "joining",
+        "crop": [
+          0.02,
+          0.1,
+          0.58,
+          0.72
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "id": "1",
+              "title": "Find the Guild",
+              "text": "Create a Portal profile and join Discord. Start with either door.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "2",
+              "title": "Join a cohort",
+              "text": "Signal interest in Portal and complete the cohort’s learning and workshops.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "3",
+              "title": "Demo and graduate",
+              "text": "An accepted Demo Day submission leads to cohort graduate or apprentice status.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "4",
+              "title": "Contribute",
+              "text": "Build trust through Raids, RIPs, meetings, and Guild life.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "5",
+              "title": "Find a Champion",
+              "text": "A current member other than your cohort host speaks for you at Raider Roundtable.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "6",
+              "title": "Membership proposal",
+              "text": "Submit and complete the onchain proposal under current governance settings.",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "7",
+              "title": "Make it your Guild",
+              "text": "Participate in governance and activate resources through their current processes.",
+              "sourceIds": [
+                "joining"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "title": "Before paid work",
+          "text": "LLC registration and light KYC are required before receiving paid Raid compensation. This is separate from DAO membership."
+        }
+      ],
+      "sourceIds": [
+        "joining",
+        "apprentice",
+        "member",
+        "paid"
+      ]
+    },
+    {
+      "number": 6,
+      "id": "party-left",
+      "sectionId": "party",
+      "layout": "character-plate",
+      "eyebrow": "CHARACTER FIELD NOTES",
+      "title": "Meet the party · I",
+      "intro": "Twelve illustrated archetypes suggest ways people may contribute; they are not fixed ranks or assignments.",
+      "art": {
+        "assetId": "party",
+        "crop": [
+          0,
+          0,
+          0.5,
+          0.353516
+        ]
+      },
+      "blocks": [
+        {
+          "type": "roles",
+          "items": [
+            {
+              "id": "cleric",
+              "title": "Cleric",
+              "text": "You might be the person who cares for a client relationship and keeps expectations clear.",
+              "assetId": "party",
+              "crop": [
+                0.0,
+                0,
+                0.25,
+                0.353516
+              ],
+              "skill": "Account Manager",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "monk",
+              "title": "Monk",
+              "text": "You might be the person who supports a party with coordination and follow-through.",
+              "assetId": "party",
+              "crop": [
+                0.25,
+                0,
+                0.25,
+                0.353516
+              ],
+              "skill": "Support",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "warrior",
+              "title": "Warrior",
+              "text": "You might be the person who builds and ships a piece of the work.",
+              "assetId": "party",
+              "crop": [
+                0.0,
+                0.353516,
+                0.25,
+                0.300781
+              ],
+              "skill": "Builder",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "archer",
+              "title": "Archer",
+              "text": "You might be the person who makes a product clearer and easier to use through design.",
+              "assetId": "party",
+              "crop": [
+                0.25,
+                0.353516,
+                0.25,
+                0.300781
+              ],
+              "skill": "Design",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "paladin",
+              "title": "Paladin",
+              "text": "You might be the person who builds the services and systems behind an experience.",
+              "assetId": "party",
+              "crop": [
+                0.0,
+                0.654297,
+                0.25,
+                0.345703
+              ],
+              "skill": "Backend Dev",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "necromancer",
+              "title": "Necromancer",
+              "text": "You might be the person who keeps delivery systems and infrastructure working.",
+              "assetId": "party",
+              "crop": [
+                0.25,
+                0.654297,
+                0.25,
+                0.345703
+              ],
+              "skill": "DevOps",
+              "sourceIds": [
+                "skills"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Class and skill labels follow a user-supplied Portal role export. The public handbook currently uses different labels for Monk and Warrior; these portraits do not assign permanent roles."
+        }
+      ],
+      "sourceIds": [
+        "skills"
+      ]
+    },
+    {
+      "number": 7,
+      "id": "party-right",
+      "sectionId": "party",
+      "layout": "character-plate",
+      "eyebrow": "CHARACTER FIELD NOTES",
+      "title": "Meet the party · II",
+      "intro": "Twelve illustrated archetypes suggest ways people may contribute; they are not fixed ranks or assignments.",
+      "art": {
+        "assetId": "party",
+        "crop": [
+          0.5,
+          0,
+          0.5,
+          0.353516
+        ]
+      },
+      "blocks": [
+        {
+          "type": "roles",
+          "items": [
+            {
+              "id": "bard",
+              "title": "Bard",
+              "text": "You might be the person who helps tell the story of useful work.",
+              "assetId": "party",
+              "crop": [
+                0.5,
+                0,
+                0.25,
+                0.353516
+              ],
+              "skill": "Marketing",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "wizard",
+              "title": "Wizard",
+              "text": "You might be the person who designs and builds smart-contract systems.",
+              "assetId": "party",
+              "crop": [
+                0.75,
+                0,
+                0.25,
+                0.353516
+              ],
+              "skill": "Smart Contracts",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "hunter",
+              "title": "Hunter",
+              "text": "You might be the person who discovers a fitting opportunity and starts a useful conversation.",
+              "assetId": "party",
+              "crop": [
+                0.5,
+                0.353516,
+                0.25,
+                0.300781
+              ],
+              "skill": "BizDev",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "ranger",
+              "title": "Ranger",
+              "text": "You might be the person who learns from users and tests how an experience works.",
+              "assetId": "party",
+              "crop": [
+                0.75,
+                0.353516,
+                0.25,
+                0.300781
+              ],
+              "skill": "UX/User Testing",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "druid",
+              "title": "Druid",
+              "text": "You might be the person who finds patterns in data and helps others understand them.",
+              "assetId": "party",
+              "crop": [
+                0.5,
+                0.654297,
+                0.25,
+                0.345703
+              ],
+              "skill": "Data Science/Analytics",
+              "sourceIds": [
+                "skills"
+              ]
+            },
+            {
+              "id": "mystic-alchemist",
+              "title": "Mystic Alchemist",
+              "text": "You might be the person who helps a DAO work through design and coordination questions.",
+              "assetId": "party",
+              "crop": [
+                0.75,
+                0.654297,
+                0.25,
+                0.345703
+              ],
+              "skill": "DAO Consultant",
+              "sourceIds": [
+                "skills"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Class and skill labels follow a user-supplied Portal role export. The public handbook currently uses different labels for Monk and Warrior; these portraits do not assign permanent roles."
+        }
+      ],
+      "sourceIds": [
+        "skills"
+      ]
+    },
+    {
+      "number": 8,
+      "id": "airship-plate",
+      "sectionId": "raid",
+      "layout": "full-art",
+      "eyebrow": "THE EXPEDITION",
+      "title": "How a Raid works",
+      "intro": "The spherical airship is a diagram of collaboration, not a prescribed organization chart.",
+      "art": {
+        "assetId": "airship",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [
+        {
+          "type": "caption",
+          "text": "Each deck suggests a function that helps a client engagement stay clear and accountable."
+        }
+      ],
+      "sourceIds": [
+        "raids"
+      ],
+      "diagram": {
+        "id": "airship",
+        "notesPage": 9,
+        "hotspots": [
+          {
+            "itemId": "direction",
+            "x": 64,
+            "y": 44
+          },
+          {
+            "itemId": "coordination",
+            "x": 42,
+            "y": 30
+          },
+          {
+            "itemId": "agreements",
+            "x": 55,
+            "y": 61
+          },
+          {
+            "itemId": "build",
+            "x": 44,
+            "y": 48
+          },
+          {
+            "itemId": "review",
+            "x": 52,
+            "y": 48
+          },
+          {
+            "itemId": "handover",
+            "x": 77,
+            "y": 66
+          },
+          {
+            "itemId": "support",
+            "x": 29,
+            "y": 46
+          }
+        ]
+      }
+    },
+    {
+      "number": 9,
+      "id": "airship-notes",
+      "sectionId": "raid",
+      "layout": "diagram-notes",
+      "eyebrow": "SEVEN FUNCTIONS",
+      "title": "Inside the Raid airship",
+      "intro": "Spatial functions describe the work around a Raid; their numbering is not a required sequence.",
+      "art": {
+        "assetId": "airship",
+        "crop": [
+          0.1,
+          0.1,
+          0.8,
+          0.8
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "id": "direction",
+              "title": "Agree on the destination",
+              "text": "Clarify the client’s need, intended outcomes, deliverables, responsibilities, timeline, and budget. Give the party a shared destination.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "coordination",
+              "title": "Keep the party connected",
+              "text": "Keep decisions, progress, and next actions visible. Coordinate internally and agree on a useful communication channel with the client.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "agreements",
+              "title": "Make the engagement clear",
+              "text": "Agree scope, milestones, responsibilities, commercial terms, payment schedule, and the party split before the engagement is authorized to start.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "build",
+              "title": "Build with complementary skills",
+              "text": "Bring the right skills together and make responsibility for each part clear. The party delivers the agreed work, with an agreed delivery lead when assigned.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "review",
+              "title": "Review the work together",
+              "text": "Share work, gather feedback, and check it against the agreed outcomes. Keep the client relationship and delivery expectations aligned as the work develops.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "handover",
+              "title": "Deliver and close the loop",
+              "text": "Confirm acceptance, hand over the work, resolve final payment and distributions, and leave useful documentation. Capture lessons for the next party.",
+              "sourceIds": [
+                "raids"
+              ]
+            },
+            {
+              "id": "support",
+              "title": "Keep the expedition running",
+              "text": "Contracts, records, and financial administration support the party’s work. Coordinate with the responsible operators and use the approved systems.",
+              "sourceIds": [
+                "raids"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Coordinate with the responsible operators and use approved systems for contracts, records, and payments."
+        }
+      ],
+      "sourceIds": [
+        "raids",
+        "paid"
+      ]
+    },
+    {
+      "number": 10,
+      "id": "rip-trail",
+      "sectionId": "rip",
+      "layout": "trail",
+      "eyebrow": "THE IMPROVEMENT TRAIL",
+      "title": "An idea becomes a RIP",
+      "intro": "A proposal starts with a problem worth solving and becomes stronger as more people can understand and shape it.",
+      "art": {
+        "assetId": "landscape",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Bring a problem or experiment into the open. Find collaborators, test the scope, and write a proposal clear enough for the Guild to deliberate. A RIP can become a funded shared project when governance approves it."
+        },
+        {
+          "type": "caption",
+          "text": "Follow the visible trail from shared question to accountable work. Check the current RIP guide before submitting a proposal."
+        }
+      ],
+      "sourceIds": [
+        "rips"
+      ]
+    },
+    {
+      "number": 11,
+      "id": "rip-steps",
+      "sectionId": "rip",
+      "layout": "steps",
+      "eyebrow": "FROM IDEA TO ACCOUNTABILITY",
+      "title": "Six turns of the trail",
+      "intro": "Each turn leaves a clearer record for collaborators and members.",
+      "art": {
+        "assetId": "kingdom",
+        "crop": [
+          0.38,
+          0.35,
+          0.5,
+          0.5
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "id": "describe-problem",
+              "title": "Describe the problem",
+              "text": "Explain who benefits and the intended outcome.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "find-collaborators",
+              "title": "Find collaborators",
+              "text": "Discuss in the current Guild space; invite objections and alternatives.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "shape-proposal",
+              "title": "Shape the proposal",
+              "text": "Set scope, ownership, budget, risks, and success criteria.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "record-final-rip",
+              "title": "Record the final RIP",
+              "text": "Keep a durable proposal in the Guild RIPs GitHub repository with discussion links.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "seek-approval",
+              "title": "Seek approval",
+              "text": "Follow the current proposal and onchain governance process before committing shared funds.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "deliver-report",
+              "title": "Deliver and report back",
+              "text": "Agree release conditions, do the approved work, record results, and close out.",
+              "sourceIds": [
+                "rips"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Check the handbook for current submission and governance details before acting."
+        }
+      ],
+      "sourceIds": [
+        "rips"
+      ]
+    },
+    {
+      "number": 12,
+      "id": "walker-plate",
+      "sectionId": "kit",
+      "layout": "full-art",
+      "eyebrow": "SHARED MACHINERY",
+      "title": "The Guild Kit walker",
+      "intro": "A desert walker makes shared support visible through a playful exploded diagram.",
+      "art": {
+        "assetId": "walker",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "blocks": [
+        {
+          "type": "caption",
+          "text": "Its parts are metaphors for tools and coordination; they do not grant access or authority by themselves."
+        }
+      ],
+      "sourceIds": [
+        "benefits"
+      ],
+      "diagram": {
+        "id": "walker",
+        "notesPage": 13,
+        "hotspots": [
+          {
+            "itemId": "network",
+            "x": 66,
+            "y": 38
+          },
+          {
+            "itemId": "operations",
+            "x": 46,
+            "y": 53
+          },
+          {
+            "itemId": "governance",
+            "x": 17,
+            "y": 37
+          },
+          {
+            "itemId": "identity",
+            "x": 40,
+            "y": 31
+          },
+          {
+            "itemId": "assistance",
+            "x": 73,
+            "y": 13
+          },
+          {
+            "itemId": "support",
+            "x": 84,
+            "y": 40
+          }
+        ]
+      }
+    },
+    {
+      "number": 13,
+      "id": "guild-kit",
+      "sectionId": "kit",
+      "layout": "resource-notes",
+      "eyebrow": "TOOLS AND STEWARDS",
+      "title": "What the kit can do",
+      "intro": "Membership brings people, a shared business foundation, governance, and tools that support work.",
+      "art": {
+        "assetId": "walker",
+        "crop": [
+          0.08,
+          0.1,
+          0.75,
+          0.72
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "id": "network",
+              "title": "People and collaboration",
+              "text": "Meet complementary builders, exchange feedback, and develop work through participation.",
+              "sourceIds": [
+                "benefits"
+              ]
+            },
+            {
+              "id": "operations",
+              "title": "Shared business operations",
+              "text": "Coordinate contracts, client payments, records, and financial administration through responsible Guild operators.",
+              "sourceIds": [
+                "benefits"
+              ]
+            },
+            {
+              "id": "governance",
+              "title": "Ownership and governance",
+              "text": "Members can vote and propose uses of collective resources under current governance processes.",
+              "sourceIds": [
+                "benefits"
+              ]
+            },
+            {
+              "id": "identity",
+              "title": "Guild email and web presence",
+              "text": "Ask the Infrastructure Maestro to coordinate Guild email, website hosting, and a domain or subdomain setup.",
+              "sourceIds": [
+                "benefits"
+              ]
+            },
+            {
+              "id": "assistance",
+              "title": "Prism and Queen Raida",
+              "text": "Personalized assistance can surface relevant updates and draft context; people bring the judgment and make decisions.",
+              "sourceIds": [
+                "benefits",
+                "prism"
+              ]
+            },
+            {
+              "id": "support",
+              "title": "Discretionary support and RIPs",
+              "text": "The Cookie Jar follows its active allowlist, limits, purpose, and evidence rules. RIPs provide a route to propose shared work for approval.",
+              "sourceIds": [
+                "benefits",
+                "rips"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "Each resource has its current steward, access route, and approval requirements. Membership does not guarantee paid work or an automatic allowance."
+        }
+      ],
+      "sourceIds": [
+        "benefits",
+        "prism",
+        "rips"
+      ]
+    },
+    {
+      "number": 14,
+      "id": "public-doors",
+      "sectionId": "doors",
+      "layout": "links",
+      "eyebrow": "FIVE PUBLIC DOORS",
+      "title": "Find your next doorway",
+      "intro": "Use the current public sources when a map prompts a real action.",
+      "art": {
+        "assetId": "landscape",
+        "crop": [
+          0.15,
+          0.15,
+          0.7,
+          0.7
+        ]
+      },
+      "blocks": [
+        {
+          "type": "links",
+          "items": [
+            {
+              "id": "portal",
+              "title": "Portal",
+              "text": "Profiles, cohort interest, sessions, and posts.",
+              "url": "https://portal.raidguild.org/",
+              "sourceIds": [
+                "portal"
+              ]
+            },
+            {
+              "id": "discord",
+              "title": "Discord",
+              "text": "Live conversation and community coordination.",
+              "url": "https://discord.gg/rGFpfQf",
+              "sourceIds": [
+                "discord"
+              ]
+            },
+            {
+              "id": "joining",
+              "title": "Handbook",
+              "text": "Current joining, membership, Raid, and operating guidance.",
+              "url": "https://handbook.raidguild.org/docs/membership/join-the-guild",
+              "sourceIds": [
+                "joining"
+              ]
+            },
+            {
+              "id": "github",
+              "title": "GitHub",
+              "text": "Open-source work and the RIP record.",
+              "url": "https://github.com/raid-guild",
+              "sourceIds": [
+                "github"
+              ]
+            },
+            {
+              "id": "daohaus",
+              "title": "DAOhaus",
+              "text": "Onchain proposals and governance records.",
+              "url": "https://admin.daohaus.club/#/molochv3/0x64/0xf02fd4286917270cb94fbc13a0f4e1ed76f7e986",
+              "sourceIds": [
+                "daohaus"
+              ]
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "portal",
+        "discord",
+        "joining",
+        "github",
+        "daohaus"
+      ]
+    },
+    {
+      "number": 15,
+      "id": "participation-notes",
+      "sectionId": "doors",
+      "layout": "notes",
+      "eyebrow": "CARTOGRAPHER’S NOTES",
+      "title": "Choose your next move",
+      "intro": "Take one useful step from the map into Guild life.",
+      "art": {
+        "assetId": "kingdom",
+        "crop": [
+          0.0,
+          0.0,
+          0.55,
+          0.65
+        ]
+      },
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "id": "profile",
+              "title": "Share your skills",
+              "text": "Keep your Portal profile current so people can find your interests and work.",
+              "sourceIds": [
+                "portal"
+              ]
+            },
+            {
+              "id": "session",
+              "title": "Join a session",
+              "text": "Look for a Guild gathering or cohort opportunity and show up ready to learn.",
+              "sourceIds": [
+                "portal"
+              ]
+            },
+            {
+              "id": "collaborator",
+              "title": "Find a collaborator",
+              "text": "Start a conversation with someone whose strengths complement yours.",
+              "sourceIds": [
+                "overview"
+              ]
+            },
+            {
+              "id": "idea",
+              "title": "Bring an improvement idea",
+              "text": "Name the problem, invite questions, and use the RIP route when the work is ready.",
+              "sourceIds": [
+                "rips"
+              ]
+            },
+            {
+              "id": "setup",
+              "title": "Ask about Guild Kit setup",
+              "text": "If eligible, contact the Infrastructure Maestro about email, web presence, or personalized assistance.",
+              "sourceIds": [
+                "benefits",
+                "prism"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "title": "Editorial source note",
+          "text": "This guide draws on supplied handbook review snapshots and a Portal role export. The linked public guidance may differ, including Monk and Warrior labels; confirm the current workflow before acting."
+        }
+      ],
+      "sourceIds": [
+        "portal",
+        "overview",
+        "rips",
+        "benefits",
+        "prism",
+        "skills"
+      ]
+    },
+    {
+      "number": 16,
+      "id": "back-cover",
+      "sectionId": "doors",
+      "layout": "back-cover",
+      "eyebrow": "THE ROAD CONTINUES",
+      "title": "Build what comes next",
+      "intro": "Return to the Guild with a question, a collaborator, or a useful piece of work.",
+      "art": {
+        "assetId": "landscape",
+        "crop": [
+          0.18,
+          0.05,
+          0.82,
+          0.9
+        ]
+      },
+      "blocks": [
+        {
+          "type": "links",
+          "items": [
+            {
+              "id": "portal",
+              "title": "Open Portal",
+              "url": "https://portal.raidguild.org/",
+              "sourceIds": [
+                "portal"
+              ]
+            },
+            {
+              "id": "handbook",
+              "title": "Read the handbook",
+              "url": "https://handbook.raidguild.org/docs/overview/what-is-raidguild",
+              "sourceIds": [
+                "overview"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "caption",
+          "text": "RaidGuild Field Guide · Volume 01"
+        }
+      ],
+      "sourceIds": [
+        "portal",
+        "overview"
+      ]
+    }
+  ],
+  "roleProvenance": "Role class and skill labels follow the user-supplied Portal profileRoles export snapshot in art/portal-role-export-user-reference.txt. The related public handbook uses different labels for Monk and Warrior; reconcile before treating either as definitive."
+}

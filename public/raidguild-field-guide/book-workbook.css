@@ -1,0 +1,29 @@
+/* Workbook pages retain the 7×10 reading measure inside the integrated reader. */
+.book-spread:has(.book-workbook){width:min(100%,1344px);max-width:1344px;grid-template-columns:repeat(2,672px);overflow-x:auto;align-items:start;scrollbar-color:#9b8069 #eee2d0}
+.book-workbook.workbook-page{width:672px;min-width:672px;height:960px;min-height:0;aspect-ratio:auto;margin:0;padding:.45in .47in .38in;overflow:hidden;box-shadow:inset 0 0 0 1px var(--louch-cyan)}
+.book-workbook h2{font-size:28px;letter-spacing:normal;line-height:1.05;margin:6px 0}
+.book-workbook .workbook-page-head{flex:none}
+.book-workbook .workbook-page-foot{flex:none}
+.book-workbook .book-workbook-nav{font:700 9px var(--louch-body);margin:0 0 4px}
+.book-workbook .book-workbook-nav a{color:var(--louch-deep);text-underline-offset:2px}
+.book-workbook .class-profile{font-size:10pt;line-height:1.3}
+.book-workbook .workbook-lore-columns{font-size:10pt;line-height:1.3}
+@media(max-width:760px){.book-spread:has(.book-workbook){display:block;overflow:visible}.book-workbook.workbook-page{width:100%;min-width:0;height:auto;min-height:0;overflow:visible;margin-bottom:1rem}.book-workbook .class-duo{grid-template-columns:1fr}.book-workbook .workbook-lore-columns{columns:1}.book-workbook .sheet-abilities{grid-template-columns:repeat(3,1fr)}.book-workbook .sheet-identity,.book-workbook .sheet-skill-role,.book-workbook .sheet-sections{grid-template-columns:1fr}.book-workbook .workbook-chronology{grid-template-columns:1fr}}
+@media print{.book-spread:has(.book-workbook){display:block;overflow:visible;width:7in}.book-workbook.workbook-page{width:7in;min-width:0;height:10in;max-height:10in;overflow:visible;break-after:page;page-break-after:always;box-shadow:none}.book-workbook .class-duo{grid-template-columns:repeat(2,minmax(0,1fr))}.book-workbook .workbook-lore-columns{columns:2}.book-workbook .sheet-abilities{grid-template-columns:repeat(6,1fr)}.book-workbook .sheet-identity,.book-workbook .sheet-skill-role,.book-workbook .sheet-sections{grid-template-columns:1fr 1fr}.book-workbook .workbook-chronology{grid-template-columns:1fr 1fr}}
+.book-workbook .workbook-page-foot a{font:700 9px var(--louch-body);color:var(--louch-deep);letter-spacing:0;text-decoration:underline}
+.book-workbook.workbook-page{padding-top:.38in;padding-bottom:.32in}
+.book-workbook .class-profile p{margin-bottom:6px}
+.book-workbook .class-moves p{margin-bottom:4px}
+.book-workbook.workbook-page{padding-bottom:.28in}
+@media screen and (max-width:1400px){.book-spread:has(.book-workbook){display:flex;flex-direction:column;align-items:center;gap:1rem;overflow:visible;width:100%}.book-workbook.workbook-page{width:min(100%,672px);min-width:0}}
+@media screen and (max-width:1400px){.js .publication .book-spread:has(.book-workbook)[data-active="true"],.js .publication[data-view="all"] .book-spread:has(.book-workbook){display:flex!important;flex-direction:column;align-items:center;gap:1rem;overflow:visible}}
+@media screen{.book-spread:has(.book-workbook){max-width:1400px;width:100%}}
+@media screen and (max-width:1500px){.js .publication .book-spread:has(.book-workbook)[data-active="true"],.js .publication[data-view="all"] .book-spread:has(.book-workbook){display:flex!important;flex-direction:column;align-items:center;gap:1rem;overflow:visible}}
+@media screen{.js .publication:not([data-view="all"]) .book-spread:has(.book-workbook):not([data-active="true"]){display:none!important}}
+/* Preserve paired-class print measure inside the integrated reader. */
+.book-workbook.layout-class-duo .class-profile p{margin-bottom:3px}
+.book-workbook.layout-class-duo .class-moves p{margin-bottom:2px}
+.book-workbook.layout-class-duo .workbook-page-head h2{font-size:26px;margin:4px 0}
+.book-workbook.layout-class-duo{padding-left:.43in;padding-right:.43in}
+.book-workbook.layout-class-duo .class-duo{gap:16px}
+@media screen and (min-width:761px){.book-workbook.layout-class-duo{height:972px}}

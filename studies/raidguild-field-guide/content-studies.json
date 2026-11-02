@@ -1,0 +1,1594 @@
+{
+  "schemaVersion": 1,
+  "title": "RaidGuild Field Guide · RPG workbook",
+  "edition": "Review workbook · fourteen standalone pages in the integrated Field Guide",
+  "pageSizeInches": [
+    7,
+    10
+  ],
+  "art": {
+    "party": {
+      "path": "art/meet-the-party-twelve-louchi-v1.png",
+      "width": 1536,
+      "height": 1024,
+      "alt": "Twelve Louchi style Guild adventurer silhouettes, including human, alien and mechanical characters."
+    },
+    "warlock": {
+      "path": "art/warlock-louchi-v1.png",
+      "width": 1024,
+      "height": 1536,
+      "alt": "Louchi style Warlock adventurer with spellbook, familiar and floating crystalline tools."
+    },
+    "artificer": {
+      "path": "art/artificer-louchi-v1.png",
+      "width": 1024,
+      "height": 1536,
+      "alt": "Louchi style alien biomechanical Artificer with a weathered cloak, insectile drones and field tools."
+    }
+  },
+  "sources": {
+    "overview": {
+      "title": "What is RaidGuild · handbook",
+      "url": "https://handbook.raidguild.org/docs/overview/what-is-raidguild"
+    },
+    "skills": {
+      "title": "Skills and roles · handbook",
+      "url": "https://handbook.raidguild.org/docs/membership/skills-roles"
+    },
+    "portal": {
+      "title": "Portal role export · supplied review snapshot",
+      "url": null
+    },
+    "odyssy": {
+      "title": "Meet Odyssy, the DAO Launchers · Cooper Turley, 11 Dec 2019",
+      "url": "https://medium.com/metacartel/meet-odyssy-the-dao-launchers-d25fea4e169f"
+    },
+    "raidbrood": {
+      "title": "RaidBrood · Guild side quest",
+      "url": "https://brood.raidguild.org/"
+    },
+    "sasquatch": {
+      "title": "Sasquatch · Ian Boucher",
+      "url": "https://www.linkedin.com/in/ian-h-boucher/"
+    },
+    "twCulture": {
+      "title": "TW · What the Fuck is Raid Guild",
+      "url": "https://blog.traviswyche.com/p/what-the-fuck-is-raid-guild"
+    },
+    "portalMembers": {
+      "title": "RaidGuild Portal · member profiles",
+      "url": "https://portal.raidguild.org/"
+    },
+    "earlyMetaCartel": {
+      "title": "Cooper Turley · Meet James Waugh (2019)",
+      "url": "https://medium.com/metacartel/meet-james-waugh-the-daoenomic-kiwi-b7e5770c1703"
+    },
+    "raidguildAI": {
+      "title": "RaidGuild AI · practical AI for real work",
+      "url": "https://raidguild.ai/"
+    },
+    "forge": {
+      "title": "RaidGuild Forge · autonomous worlds and real machines",
+      "url": "https://forge.raidguild.org/"
+    }
+  },
+  "pages": [
+    {
+      "id": "lore",
+      "label": "01",
+      "title": "The Guild we build together",
+      "subtitle": "History, people, and a living experiment in working together",
+      "layout": "lore-columns",
+      "sections": [
+        {
+          "title": "A cooperative beginning",
+          "paragraphs": [
+            "RaidGuild took shape in 2019 from Odyssy, a three-person agency with Ven, Dekan, and Sam already experimenting with cooperative work. They pooled income in a multisig and used light governance to decide what to fund. The question was larger than one agency: could builders own and govern a network for their work together?",
+            "MetaCartel offered a place to try those ideas. James Young and Peter Pan helped draw Odyssy into that early community. James Waugh and Cooper Turley were part of the wider MetaCartel circle connecting people, ideas, and experiments. Building in that company led to Pokemol and then DAOhaus: tools for making DAOs easier to launch and use."
+          ]
+        },
+        {
+          "title": "The first party grows",
+          "paragraphs": [
+            "A DAOhaus prototype received a $1,500 community award at a Berlin hackathon. RaidGuild’s treasury also drew on leftover PokeMol grant funds and ETHBerlin funds. The group put shared resources toward coordination tools and a wider builder network.",
+            "An early public introduction at ETHDenver brought prospective collaborators and clients. Early RaidGuild members included Cooper Turley, Elliott Conway, Yalor (yalormewn), Hammad Jutt (meta_dreamer), peth, and Scottrepreneur."
+          ]
+        },
+        {
+          "title": "Different hands on the wheel",
+          "paragraphs": [
+            "Cohorts helped newcomers find their party, and elected stewards took care of shared operations. Successive brand stewards—Ven, TW, Suede, and Louchi—gave the Guild different looks and stories. Each era brought new energy while the builder-owned, community-first idea remained central.",
+            "The Field Guide turns that living history into places and characters. Queen Raida scouts and scribes; people make the judgments and build trust. Moloch gives a face to coordination failure. The Guild keeps changing because its members keep making things together.",
+            "The shared treasury was only one part of the experiment. A builder-owned network also needs people to bring in work, assemble teams, care for tools, keep records, and make room for newcomers. Cohorts and stewardship grew around those needs. Membership meant taking part in shaping the organization as well as benefiting from it.",
+            "The Guild also developed a Marshall Islands DAO LLC to connect onchain governance with the practical world of client relationships, contracts, liability, and taxes. The aim was to give collective work a structure that could meet people and institutions where they already operate.",
+            "The work continues to change. A network first known for Web3 services and DAO coordination tools now includes applied AI, games, and experiments that cross into physical making. New members bring new obsessions and form new parties. The through-line is ownership: builders helping decide how their network works and sharing in what they create."
+          ]
+        }
+      ],
+      "closing": "",
+      "sourceIds": [
+        "overview",
+        "odyssy",
+        "earlyMetaCartel",
+        "portalMembers"
+      ],
+      "chronology": [
+        {
+          "label": "2019",
+          "text": "A cooperative agency and MetaCartel work frame the Guild idea."
+        },
+        {
+          "label": "Early tools",
+          "text": "Pokemol leads toward the DAOhaus prototype and Berlin award."
+        },
+        {
+          "label": "Opening out",
+          "text": "RaidGuild begins with the award; ETHDenver brings a public introduction."
+        },
+        {
+          "label": "Growing practice",
+          "text": "Cohorts and stewardship develop as the builder network evolves."
+        },
+        {
+          "label": "Beyond the first raids",
+          "text": "AI, games, and community offshoots open new paths for the builder network."
+        }
+      ],
+      "aboutNote": ""
+    },
+    {
+      "id": "culture",
+      "title": "Is this your kind of party?",
+      "subtitle": "Builders. Explorers. Nerds. Bring something strange.",
+      "layout": "culture-primer",
+      "intro": "RaidGuild is for people who see something worth making and start figuring out how. Bring curiosity, initiative, and the willingness to bring other people into the work.",
+      "sections": [
+        {
+          "title": "You’ll probably feel at home if you…",
+          "items": [
+            "Make things because you can’t leave an interesting idea alone.",
+            "Find collaborators, ask useful questions, and follow through.",
+            "Share what you learn and help the next person get further.",
+            "Enjoy weird worlds, deep rabbit holes, and people with unusual obsessions.",
+            "Can challenge an idea, hear a challenge back, and keep building together."
+          ]
+        },
+        {
+          "title": "You may find it frustrating if…",
+          "items": [
+            "You want someone to assign your next task and manage every step.",
+            "You expect joining a community to produce a steady queue of paid work.",
+            "You need everything settled, polished, and predictable before participating.",
+            "You’re mainly here to extract contacts, attention, or opportunities."
+          ]
+        }
+      ],
+      "calloutTitle": "High agency is a party skill.",
+      "callout": "Take initiative. Make your intentions visible. Ask for help when you need it. Respect other people’s time and boundaries. Finish things—or tell your party what changed.",
+      "afterword": "",
+      "closing": "If that sounds exhausting, fair enough. If it sounds like your people, pull up a chair.",
+      "quote": "",
+      "attribution": "TW / Travis Wyche",
+      "sourceIds": [
+        "twCulture",
+        "overview"
+      ],
+      "label": "02",
+      "agreements": [
+        {
+          "title": "Carry your share",
+          "paragraphs": [
+            "Make a clear commitment and follow through. If scope, time, or capacity changes, say so while the party can adjust. Ask for help before you are stranded. Leave notes and a handoff someone can use."
+          ]
+        },
+        {
+          "title": "Challenge ideas. Respect people.",
+          "paragraphs": [
+            "Disagree with substance. Ask what you might be missing and make room for quieter voices. Be direct without humiliation. A joke does not erase a boundary: respect consent, privacy, and a clear no."
+          ]
+        },
+        {
+          "title": "Share credit and context",
+          "paragraphs": [
+            "Credit collaborators. Set expectations about ownership, payment, and time before work gets tangled. Document useful discoveries. An introduction is not a claim on someone’s labor."
+          ]
+        },
+        {
+          "title": "Make repairs",
+          "paragraphs": [
+            "Speak up early when something goes sideways. Describe what happened, listen to its impact, own your part, and agree on a concrete repair. Ask a trusted steward for support when you cannot resolve it together."
+          ]
+        }
+      ],
+      "agreementsClosing": "Strong opinions. Open ears. Useful hands.",
+      "agreementCallout": "What can your party expect from you? What do you need from them? Have that conversation before the first encounter."
+    },
+    {
+      "id": "classes",
+      "label": "03",
+      "title": "Cleric & Monk",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "cleric",
+          "title": "Cleric",
+          "skill": "Account Manager",
+          "jobTitle": "Client steward",
+          "crop": [
+            0,
+            0,
+            0.25,
+            0.353516
+          ],
+          "opening": "The Cleric makes a client relationship feel cared for without promising what the party cannot deliver. They listen for the real need, translate a broad wish into decisions a team can act on, and keep expectations visible when scope or timing changes. An Account Manager knows that trust grows through clear follow-through, including an honest account of what remains unknown.",
+          "partyRole": "In a Raid, the Cleric is often the bridge between a client and the builders. They organize useful conversations, record decisions, check who owns each next step, and help the party notice when a quiet concern needs attention.",
+          "signatureMoves": [
+            {
+              "title": "Name the quest",
+              "text": "Turn a client’s scattered needs into a short, agreed brief with outcomes, owners, and open questions."
+            },
+            {
+              "title": "Keep the campfire lit",
+              "text": "Send a candid update that names completed work, risks, decisions needed, and the next meeting."
+            }
+          ],
+          "gear": "Ledger of Promises (decision log), a shared scope, conversation notes, and the party calendar.",
+          "stats": {
+            "STR": 9,
+            "DEX": 11,
+            "CON": 12,
+            "INT": 13,
+            "WIS": 15,
+            "CHA": 16
+          },
+          "fieldNote": "When the quest changes, the Cleric does not hide the turn. They bring the new information to the client and party, check the agreement, and help everyone choose a responsible next step.",
+          "defaultSkills": [
+            "Client discovery",
+            "Scope alignment",
+            "Expectation setting",
+            "Stakeholder updates"
+          ],
+          "paths": [
+            {
+              "id": "carekeeping",
+              "title": "Carekeeping",
+              "text": "Keep promises visible, notice when a teammate needs help, and make difficult conversations easier to begin."
+            },
+            {
+              "id": "client-stewardship",
+              "title": "Client Stewardship",
+              "text": "Translate a client’s needs into clear agreements, calm updates, and a dependable point of contact."
+            },
+            {
+              "id": "rituals",
+              "title": "Rituals",
+              "text": "Design check-ins and handoffs that help a scattered party stay connected through the work."
+            }
+          ]
+        },
+        {
+          "roleId": "monk",
+          "title": "Monk",
+          "skill": "Support",
+          "jobTitle": "Party support",
+          "crop": [
+            0.25,
+            0,
+            0.25,
+            0.353516
+          ],
+          "opening": "The Monk notices the work between the visible tasks. Support can mean preparing a room for a good discussion, making sure a new contributor has context, or tracking a loose end before it becomes a blocker. They bring patience and practical attention to a party that may be moving quickly across disciplines.",
+          "partyRole": "On a Raid, the Monk helps the party keep its rhythm. They gather decisions where people can find them, follow up on commitments, and ask whether each participant has what they need to contribute. They can help surface a stalled handoff early and bring the right people together to resolve it. Their best work leaves the group more capable, not more dependent on them.",
+          "signatureMoves": [
+            {
+              "title": "Clear the path",
+              "text": "Collect missing context, access, and decisions before they slow the next piece of work."
+            },
+            {
+              "title": "Hold the circle",
+              "text": "Make room for quieter voices and end a meeting with named actions and owners."
+            }
+          ],
+          "gear": "Compass of Context (shared notes), a project board, access checklist, and short check-ins.",
+          "stats": {
+            "STR": 10,
+            "DEX": 13,
+            "CON": 15,
+            "INT": 12,
+            "WIS": 16,
+            "CHA": 12
+          },
+          "fieldNote": "The Monk knows that support is a skill rather than an afterthought. They can spot a missing owner, welcome a newcomer into the context, and help a busy group finish what it began.",
+          "defaultSkills": [
+            "Meeting facilitation",
+            "Task follow-through",
+            "Onboarding support",
+            "Knowledge sharing"
+          ],
+          "paths": [
+            {
+              "id": "onboarding",
+              "title": "Onboarding",
+              "text": "Help new builders find the right doorway, people, and next action without losing their curiosity."
+            },
+            {
+              "id": "troubleshooting",
+              "title": "Troubleshooting",
+              "text": "Trace a blocked workflow patiently, gather useful evidence, and bring the right specialist into the room."
+            },
+            {
+              "id": "community-care",
+              "title": "Community Care",
+              "text": "Hold space for questions and feedback while keeping support routes and expectations easy to understand."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "classes2",
+      "label": "04",
+      "title": "Bard & Wizard",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "bard",
+          "title": "Bard",
+          "skill": "Marketing",
+          "jobTitle": "Story and reach",
+          "crop": [
+            0.5,
+            0,
+            0.25,
+            0.353516
+          ],
+          "opening": "The Bard helps useful work find the people who need to understand it. Marketing here begins with listening: who is this for, what changed, and what evidence supports the story? The Bard can shape a launch, a community update, or a simple explanation of an unfamiliar product. They give the work a memorable voice while staying faithful to what the party actually built.",
+          "partyRole": "On a Raid, the Bard asks the builders for concrete details, the client for its audience, and users for language that sounds like real life. They plan channels and timing, draft copy, and check that claims can be supported. A good campaign is a bridge between a finished artifact and a community able to use it.",
+          "signatureMoves": [
+            {
+              "title": "Find the refrain",
+              "text": "Turn a complex project into one clear promise supported by examples and limits."
+            },
+            {
+              "title": "Call the audience",
+              "text": "Prepare a launch note, gather feedback, and revise the next message from what people understood."
+            }
+          ],
+          "gear": "Songbook of Evidence (message map), interview notes, accessible images, and an editorial calendar.",
+          "stats": {
+            "STR": 9,
+            "DEX": 12,
+            "CON": 11,
+            "INT": 14,
+            "WIS": 13,
+            "CHA": 17
+          },
+          "fieldNote": "A message succeeds when the right people know what the work does, why it matters, and where they can learn more.",
+          "defaultSkills": [
+            "Audience research",
+            "Messaging",
+            "Editorial planning",
+            "Campaign review"
+          ],
+          "paths": [
+            {
+              "id": "storytelling",
+              "title": "Storytelling",
+              "text": "Turn actual Guild work into memorable narratives with clear sources, voices, and an invitation to participate."
+            },
+            {
+              "id": "audiovisual",
+              "title": "Audiovisual",
+              "text": "Blend AI writing, audio, image, motion, and video tools with human editing to make stories travel."
+            },
+            {
+              "id": "campaigns",
+              "title": "Campaigns",
+              "text": "Coordinate social posts, releases, and community moments so a useful message reaches the right people."
+            }
+          ]
+        },
+        {
+          "roleId": "wizard",
+          "title": "Wizard",
+          "skill": "Smart Contracts",
+          "jobTitle": "Contract craft",
+          "crop": [
+            0.75,
+            0,
+            0.25,
+            0.353516
+          ],
+          "opening": "Their magic is careful reasoning about what should happen, what could go wrong, and what happens when the unexpected arrives. Code that manages shared resources deserves clear requirements and review before anyone relies on it. A Wizard is most useful when they can explain the system to the people it affects, not only to other contract developers.",
+          "partyRole": "On a Raid, the Wizard turns product intent into testable behavior. They ask about permissions, failure states, upgrades, and what should remain immutable. They coordinate with designers and other builders so the interface tells the truth about the contract underneath. When it is time to hand over, they document assumptions, tests, and operational limits.",
+          "signatureMoves": [
+            {
+              "title": "Trace the spell",
+              "text": "Write a test for the intended path and the edge case that could surprise the party."
+            },
+            {
+              "title": "Open the grimoire",
+              "text": "Explain permissions, risks, and contract behavior in language the client can use."
+            }
+          ],
+          "gear": "Grimoire of Edge Cases (test suite), specifications, version control, and deployment checklist.",
+          "stats": {
+            "STR": 10,
+            "DEX": 12,
+            "CON": 13,
+            "INT": 17,
+            "WIS": 15,
+            "CHA": 11
+          },
+          "fieldNote": "Before deployment, the Wizard asks the party to rehearse what happens when an assumption fails. That conversation can change a permission, a test, or a handoff before the cost rises.",
+          "defaultSkills": [
+            "Contract design",
+            "Testing",
+            "Security review",
+            "Technical handoff"
+          ],
+          "paths": [
+            {
+              "id": "contract-craft",
+              "title": "Contract Craft",
+              "text": "Write and test smart contracts whose permissions, state changes, and failure paths a party can explain."
+            },
+            {
+              "id": "protocol-design",
+              "title": "Protocol Design",
+              "text": "Shape system rules and interfaces so builders can coordinate without hiding the important tradeoffs."
+            },
+            {
+              "id": "security",
+              "title": "Security",
+              "text": "Review assumptions, threat paths, and tests before powerful code crosses the boundary into production."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "classes3",
+      "label": "05",
+      "title": "Warrior & Archer",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "warrior",
+          "title": "Warrior",
+          "skill": "Builder",
+          "jobTitle": "Hands-on builder",
+          "crop": [
+            0,
+            0.353516,
+            0.25,
+            0.300781
+          ],
+          "opening": "The Warrior builds and ships a concrete piece of the quest. The name suggests courage, but the useful habit is disciplined craft: choose a tractable slice, make it work, and leave enough context for another person to continue. They face constraints directly and make progress visible rather than hiding uncertainty behind confidence.",
+          "partyRole": "On a Raid, the Warrior works with design, product, and technical companions to turn a brief into working software. They clarify acceptance criteria before starting, show an early version, and respond to feedback while there is still room to change course. They keep the branch reviewable and the handoff understandable. When pressure rises, they protect the party by naming tradeoffs instead of silently cutting corners.",
+          "signatureMoves": [
+            {
+              "title": "Take the first step",
+              "text": "Ship a small end-to-end slice so the party can test the real shape of the solution."
+            },
+            {
+              "title": "Raise the shield",
+              "text": "Call out a dependency or risk early, with a practical option for moving forward."
+            }
+          ],
+          "gear": "Forge Kit (local development setup), issue notes, version control, tests, and a clear demo.",
+          "stats": {
+            "STR": 17,
+            "DEX": 13,
+            "CON": 15,
+            "INT": 13,
+            "WIS": 12,
+            "CHA": 10
+          },
+          "fieldNote": "A small, clear change with evidence of what it does can be stronger than a heroic rush to finish alone.",
+          "defaultSkills": [
+            "Implementation",
+            "Code review",
+            "Prototyping",
+            "Delivery"
+          ],
+          "paths": [
+            {
+              "id": "frontend-building",
+              "title": "Frontend Building",
+              "text": "Turn a design into a fast, accessible interface that real people can navigate and use."
+            },
+            {
+              "id": "product-engineering",
+              "title": "Product Engineering",
+              "text": "Carry a feature across components, data, tests, and release until the outcome works end to end."
+            },
+            {
+              "id": "integration",
+              "title": "Integration",
+              "text": "Connect tools and services carefully, making failures visible and handoffs clear to the next builder."
+            }
+          ]
+        },
+        {
+          "roleId": "archer",
+          "title": "Archer",
+          "skill": "Design",
+          "jobTitle": "Visual direction",
+          "crop": [
+            0.25,
+            0.353516,
+            0.25,
+            0.300781
+          ],
+          "opening": "The Archer brings design into focus. They study what a person is trying to do, decide where attention should land, and give an experience a visual language that supports the task. It calls for understanding the audience, the content, and the constraints of the medium. The Archer can make complexity approachable while keeping the distinctive character of a project alive.",
+          "partyRole": "On a Raid, the Archer turns research and product goals into sketches, flows, and detailed designs that builders can implement. They invite feedback early, explain why a choice helps the user, and check the result in the working product. They notice where copy, contrast, spacing, or state changes can alter meaning. Their handoff gives the next person a path rather than a picture with unanswered questions.",
+          "signatureMoves": [
+            {
+              "title": "Set the sightline",
+              "text": "Sketch a clear path through one important user task before polishing every surface."
+            },
+            {
+              "title": "Test the target",
+              "text": "Compare a design with a real interaction and adjust where people hesitate."
+            }
+          ],
+          "gear": "Sightline Map (wireframes), research notes, design files, component guidance, and accessibility checks.",
+          "stats": {
+            "STR": 10,
+            "DEX": 17,
+            "CON": 12,
+            "INT": 14,
+            "WIS": 14,
+            "CHA": 12
+          },
+          "fieldNote": "The Archer shares work in progress because a sketch can reveal a bad assumption cheaply.",
+          "defaultSkills": [
+            "Visual design",
+            "Interaction flows",
+            "Prototyping",
+            "Accessibility"
+          ],
+          "paths": [
+            {
+              "id": "product-design",
+              "title": "Product Design",
+              "text": "Find the user’s real target, prototype a path, and sharpen the interface through observation."
+            },
+            {
+              "id": "visual-identity",
+              "title": "Visual Identity",
+              "text": "Build a coherent visual language that makes the Guild or a client recognizable across touchpoints."
+            },
+            {
+              "id": "creative-technology",
+              "title": "Creative Technology",
+              "text": "Mix design, code, and interactive media to make an idea tangible before the party commits."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "classes4",
+      "label": "06",
+      "title": "Hunter & Ranger",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "hunter",
+          "title": "Hunter",
+          "skill": "BizDev",
+          "jobTitle": "Opportunity scout",
+          "crop": [
+            0.5,
+            0.353516,
+            0.25,
+            0.300781
+          ],
+          "opening": "The Hunter looks for work where the Guild can be genuinely useful. BizDev is not a race to collect leads; it is a practice of finding a fit between a person’s problem and a party able to solve it. The Hunter asks good questions before making an introduction.",
+          "partyRole": "On a Raid, the Hunter may start the relationship and help shape its first scope. They identify decision makers, surface budget or timing constraints, and bring the right specialists into discovery. They keep the conversation honest about capability and availability. A strong handoff gives the client a clear path to a proposal and gives the party enough context to decide whether to take the work.",
+          "signatureMoves": [
+            {
+              "title": "Read the tracks",
+              "text": "Write down the need, the people involved, and why this party might be a good fit."
+            },
+            {
+              "title": "Open the gate",
+              "text": "Make a warm introduction with a precise next conversation and no invented commitments."
+            }
+          ],
+          "gear": "Trail Map (relationship map), discovery notes, fit checklist, and a thoughtful follow-up.",
+          "stats": {
+            "STR": 11,
+            "DEX": 14,
+            "CON": 12,
+            "INT": 12,
+            "WIS": 15,
+            "CHA": 17
+          },
+          "fieldNote": "They listen for whether the conversation produced a real next step, and they can gracefully close an opportunity that is not right for this party.",
+          "defaultSkills": [
+            "Discovery",
+            "Relationship building",
+            "Opportunity qualification",
+            "Handoff"
+          ],
+          "paths": [
+            {
+              "id": "opportunity-mapping",
+              "title": "Opportunity Mapping",
+              "text": "Scan the terrain for aligned clients, collaborators, and problems the Guild can actually help solve."
+            },
+            {
+              "id": "partnerships",
+              "title": "Partnerships",
+              "text": "Build durable relationships through clear expectations, mutual benefit, and a useful next conversation."
+            },
+            {
+              "id": "scoping",
+              "title": "Scoping",
+              "text": "Turn a promising lead into a concrete brief with ownership, constraints, and a sensible first step."
+            }
+          ]
+        },
+        {
+          "roleId": "ranger",
+          "title": "Ranger",
+          "skill": "UX/User Testing",
+          "jobTitle": "User pathfinder",
+          "crop": [
+            0.75,
+            0.353516,
+            0.25,
+            0.300781
+          ],
+          "opening": "The Ranger learns how an experience works for the people who use it. UX and user testing begin with observation: where does someone hesitate, what language do they use, and what do they expect to happen next? The Ranger can work with a prototype, a live product, or even a paper sketch.",
+          "partyRole": "On a Raid, the Ranger defines a useful question, recruits or identifies fitting participants, and gives them a realistic task. They listen more than they lead. Afterward they separate what was observed from what they infer, then share patterns the party can act on. They work with the Archer and Warrior to test whether a revision removes friction.",
+          "signatureMoves": [
+            {
+              "title": "Scout the route",
+              "text": "Watch someone attempt a task and record the point where expectation and interface diverge."
+            },
+            {
+              "title": "Mark the trail",
+              "text": "Turn observations into a prioritized list of changes and questions for another test."
+            }
+          ],
+          "gear": "Field Journal (task scripts), consent notes, findings board, and recordings when appropriate.",
+          "stats": {
+            "STR": 10,
+            "DEX": 15,
+            "CON": 12,
+            "INT": 13,
+            "WIS": 17,
+            "CHA": 13
+          },
+          "fieldNote": "The Ranger makes findings specific enough to guide a change. They can say which participant struggled, with which task, and what happened, without pretending that one session proves a universal truth.",
+          "defaultSkills": [
+            "User interviews",
+            "Usability testing",
+            "Synthesis",
+            "Research reporting"
+          ],
+          "paths": [
+            {
+              "id": "user-research",
+              "title": "User Research",
+              "text": "Listen to people doing the work, document patterns, and bring evidence back to the party."
+            },
+            {
+              "id": "journey-testing",
+              "title": "Journey Testing",
+              "text": "Walk the full path a user takes, including confusing branches and the moments where trust breaks."
+            },
+            {
+              "id": "accessibility",
+              "title": "Accessibility",
+              "text": "Test practical access across devices, inputs, and abilities, then help the team fix the friction."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "classes5",
+      "label": "07",
+      "title": "Paladin & Necromancer",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "paladin",
+          "title": "Paladin",
+          "skill": "Backend Dev",
+          "jobTitle": "Backend guardian",
+          "crop": [
+            0,
+            0.654297,
+            0.25,
+            0.345703
+          ],
+          "opening": "The Paladin builds the services and systems behind the visible experience. Backend development asks for sturdy interfaces, sensible data models, and careful handling of failure. The armor in the illustration suggests reliability, but reliability comes from choices that can be explained and tested.",
+          "partyRole": "On a Raid, the Paladin works with the party to define contracts between components, choose where data lives, and protect sensitive operations. They discuss scale and security in proportion to the real task. They write tests around critical behavior and document the assumptions behind an integration. When they deliver, they make monitoring and recovery part of the handoff so the system can keep serving users.",
+          "signatureMoves": [
+            {
+              "title": "Guard the passage",
+              "text": "Define a clear API boundary with useful errors and permission checks."
+            },
+            {
+              "title": "Keep the watch",
+              "text": "Add a test and a signal that make an important failure visible before it spreads."
+            }
+          ],
+          "gear": "Shield Wall (API specifications), schemas, logs, tests, and a maintainer runbook.",
+          "stats": {
+            "STR": 16,
+            "DEX": 11,
+            "CON": 17,
+            "INT": 16,
+            "WIS": 14,
+            "CHA": 10
+          },
+          "fieldNote": "The Paladin treats maintainers as future users. They leave names, logs, and recovery steps that make sense to someone who did not design the original service or sit in the planning meetings.",
+          "defaultSkills": [
+            "API design",
+            "Data modeling",
+            "Service reliability",
+            "Security"
+          ],
+          "paths": [
+            {
+              "id": "service-design",
+              "title": "Service Design",
+              "text": "Build sturdy backend boundaries so data and responsibilities move safely between the right systems."
+            },
+            {
+              "id": "api-craft",
+              "title": "API Craft",
+              "text": "Give other builders clear contracts, meaningful errors, and documentation they can use without divination."
+            },
+            {
+              "id": "reliability",
+              "title": "Reliability",
+              "text": "Watch performance and failure modes, then make recovery part of the design instead of an afterthought."
+            }
+          ]
+        },
+        {
+          "roleId": "necromancer",
+          "title": "Necromancer",
+          "skill": "DevOps",
+          "jobTitle": "Systems restorer",
+          "crop": [
+            0.25,
+            0.654297,
+            0.25,
+            0.345703
+          ],
+          "opening": "The Necromancer keeps delivery systems alive and can bring a faltering service back into working order. DevOps touches deployments, infrastructure, observability, and the small rituals that make changes safer. The title is theatrical; the work is practical. They look for repeatable ways to move software from a developer’s machine into an environment people can trust, and they prepare for the day a process breaks.",
+          "partyRole": "They ask who receives an alert, where secrets live, and what evidence shows a service is healthy. They coordinate with builders before changing infrastructure that others rely on. Their goal is to leave the party with a system they can operate, not a set of incantations only one person knows.",
+          "signatureMoves": [
+            {
+              "title": "Raise the service",
+              "text": "Practice a repeatable deploy and rollback before a critical release."
+            },
+            {
+              "title": "Read the omens",
+              "text": "Connect logs and health signals to a clear response when a service falters."
+            }
+          ],
+          "gear": "Resurrection Scroll (rollback plan), pipelines, dashboards, backups, and a recovery runbook.",
+          "stats": {
+            "STR": 14,
+            "DEX": 12,
+            "CON": 18,
+            "INT": 15,
+            "WIS": 16,
+            "CHA": 9
+          },
+          "fieldNote": "The Necromancer prepares for ordinary mistakes as well as dramatic outages. A calm, rehearsed recovery path lets a team make necessary changes without depending on luck or a single keeper.",
+          "defaultSkills": [
+            "Deployment automation",
+            "Observability",
+            "Incident response",
+            "Infrastructure"
+          ],
+          "paths": [
+            {
+              "id": "infrastructure",
+              "title": "Infrastructure",
+              "text": "Keep environments, deployment paths, and secrets organized so a party can build without surprises."
+            },
+            {
+              "id": "resilience",
+              "title": "Resilience",
+              "text": "Prepare monitoring, backups, and recovery moves that make an outage survivable for the people affected."
+            },
+            {
+              "id": "release-operations",
+              "title": "Release Operations",
+              "text": "Automate repeatable releases and leave clear rollback steps when the spirits in production stir."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "classes6",
+      "label": "08",
+      "title": "Druid & Mystic Alchemist",
+      "subtitle": "Class field notes · two ways to help a party",
+      "layout": "class-duo",
+      "profiles": [
+        {
+          "roleId": "druid",
+          "title": "Druid",
+          "skill": "Data Science/Analytics",
+          "jobTitle": "Pattern reader",
+          "crop": [
+            0.5,
+            0.654297,
+            0.25,
+            0.345703
+          ],
+          "opening": "The Druid finds patterns in data and helps others understand what those patterns can and cannot say. The Druid asks where the data came from, what is missing, and which decision the analysis should support. Their craft connects careful measurement with human questions.",
+          "partyRole": "On a Raid, the Druid works with the client and party to define a useful measure, inspect data quality, and choose an analysis that fits the available evidence. They make assumptions explicit and share results in a form others can question. They resist dramatic conclusions from a thin sample. The best answer may be a small experiment or a better question, not a dashboard with every possible number.",
+          "signatureMoves": [
+            {
+              "title": "Listen to the grove",
+              "text": "Audit a dataset for missing context before promising a conclusion."
+            },
+            {
+              "title": "Map the seasons",
+              "text": "Turn a trend into a clear chart, its caveats, and a decision the party can test."
+            }
+          ],
+          "gear": "Grove Atlas (data dictionary), queries, notebooks, charts, and an assumptions record.",
+          "stats": {
+            "STR": 10,
+            "DEX": 11,
+            "CON": 12,
+            "INT": 17,
+            "WIS": 17,
+            "CHA": 11
+          },
+          "fieldNote": "The Druid can explain a chart without asking the audience to trust the chart alone. They point to the source, the method, and the alternative explanations worth considering before action.",
+          "defaultSkills": [
+            "Data quality",
+            "Analysis",
+            "Visualization",
+            "Experiment design"
+          ],
+          "paths": [
+            {
+              "id": "analytics",
+              "title": "Analytics",
+              "text": "Turn messy activity into honest measures and explanations that help the Guild choose its next move."
+            },
+            {
+              "id": "machine-learning",
+              "title": "Machine Learning",
+              "text": "Build and evaluate models around useful questions, representative examples, and human judgment at decision points."
+            },
+            {
+              "id": "data-engineering",
+              "title": "Data Engineering",
+              "text": "Shape reliable pipelines and definitions so others can find, trust, and reuse the same evidence."
+            }
+          ]
+        },
+        {
+          "roleId": "mystic-alchemist",
+          "title": "Mystic Alchemist",
+          "skill": "DAO Consultant",
+          "jobTitle": "DAO guide",
+          "crop": [
+            0.75,
+            0.654297,
+            0.25,
+            0.345703
+          ],
+          "opening": "The Mystic Alchemist helps a DAO think through design and coordination questions. A DAO Consultant works where governance, software, incentives, and human practice meet. There is no single recipe that fits every community. Their advice should leave the community able to choose for itself.",
+          "partyRole": "On a Raid, the Alchemist may facilitate discovery, compare governance options, and help translate a decision into workable steps. They ask who has authority, how participation happens, and how shared resources are protected. They make tradeoffs legible rather than presenting a tool as an answer to every problem. They can guide a pilot and invite feedback before a process becomes durable.",
+          "signatureMoves": [
+            {
+              "title": "Mix the ingredients",
+              "text": "Lay out two governance choices with benefits, risks, and who does the work."
+            },
+            {
+              "title": "Test the potion",
+              "text": "Run a small, reversible pilot before asking a community to adopt a permanent process."
+            }
+          ],
+          "gear": "Alchemist’s Bench (decision map), workshop notes, governance drafts, and a review plan.",
+          "stats": {
+            "STR": 10,
+            "DEX": 12,
+            "CON": 14,
+            "INT": 16,
+            "WIS": 18,
+            "CHA": 15
+          },
+          "fieldNote": "The Alchemist brings people into the design of the process itself. Those affected by a rule should be able to see its tradeoffs, question its assumptions, and help decide how to improve it.",
+          "defaultSkills": [
+            "Governance design",
+            "Facilitation",
+            "Incentive analysis",
+            "Process review"
+          ],
+          "paths": [
+            {
+              "id": "dao-design",
+              "title": "DAO Design",
+              "text": "Help a group choose decision rules, roles, and tools that fit how its people actually cooperate."
+            },
+            {
+              "id": "facilitation",
+              "title": "Facilitation",
+              "text": "Guide difficult choices toward clear options, recorded agreements, and room for dissent before commitment."
+            },
+            {
+              "id": "experimentation",
+              "title": "Experimentation",
+              "text": "Try small governance changes, observe their effects, and carry the learning into the next cycle."
+            }
+          ]
+        }
+      ],
+      "sourceIds": [
+        "skills",
+        "portal"
+      ]
+    },
+    {
+      "id": "warlock",
+      "label": "09",
+      "title": "Warlock · Forward Deployed Engineer",
+      "subtitle": "A featured class · working magic in the client’s world",
+      "layout": "class-feature",
+      "profile": {
+        "roleId": "warlock",
+        "title": "Warlock",
+        "skill": "Forward Deployed Engineer",
+        "jobTitle": "Embedded client builder",
+        "assetId": "warlock",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "opening": "The Warlock steps through a working portal into the client’s world. A Forward Deployed Engineer learns the real workflow beside the people who use it, then builds in context. Their magic joins product discovery, engineering, and delivery: a useful system, not a distant demonstration.",
+        "partyRole": "On a Raid, the Warlock learns the tools, constraints, and handoffs already in place. They agree on a small testable outcome, connect existing services where possible, and build a thin integration or prototype. They ask who depends on each step, what failure looks like, and which decision belongs to a human. A familiar, a local teammate, challenges assumptions.",
+        "fieldNote": "Release comes in increments. The Warlock watches real use, tests awkward cases, and widens access as trust grows. They leave documentation, named ownership, and a handoff the client can operate after the party departs.",
+        "defaultSkills": [
+          "Workflow discovery",
+          "Rapid prototyping",
+          "Systems integration",
+          "Incremental release",
+          "Client handoff"
+        ],
+        "signatureMoves": [
+          {
+            "title": "Pact Ledger",
+            "text": "Agree on one measurable outcome, the people affected, and the acceptance check before casting the first spell."
+          },
+          {
+            "title": "Bridge Realms",
+            "text": "Join two existing tools with a thin, observable integration that can be tested in the real workflow."
+          }
+        ],
+        "gear": "Working Portal (client environment), a Pact Ledger (outcome brief), integration tests, logs, release notes, and a familiar who knows the workflow.",
+        "stats": {
+          "STR": 12,
+          "DEX": 16,
+          "CON": 14,
+          "INT": 17,
+          "WIS": 14,
+          "CHA": 15
+        },
+        "paths": [
+          {
+            "id": "discovery",
+            "title": "Discovery",
+            "text": "Learn the client’s real workflow beside its users, then choose one outcome worth proving first."
+          },
+          {
+            "id": "systems-integration",
+            "title": "Systems Integration",
+            "text": "Bridge existing tools with a thin connection that preserves context, visibility, and human control."
+          },
+          {
+            "id": "field-delivery",
+            "title": "Field Delivery",
+            "text": "Release in small steps with the client, watch real use, and leave ownership behind."
+          }
+        ]
+      },
+      "sourceIds": [],
+      "provenance": "Field Guide editorial addition; not part of the supplied twelve-class Portal role export."
+    },
+    {
+      "id": "artificer",
+      "label": "10",
+      "title": "Artificer · Automation & Agent Systems",
+      "subtitle": "A featured class · dependable magic for recurring work",
+      "layout": "class-feature",
+      "profile": {
+        "roleId": "artificer",
+        "title": "Artificer",
+        "skill": "Automation & Agent Systems",
+        "jobTitle": "Workflow and tool builder",
+        "assetId": "artificer",
+        "crop": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "opening": "The Artificer hears a mechanism inside a repeated task. They study where information enters, who checks it, and what should happen next. Their craft turns rituals into dependable workflows, useful tools, and bounded agents. The best enchantment is quiet: the right output arrives with enough context to trust it.",
+        "partyRole": "On a Raid, the Artificer works beside the process owner. They name the trigger, expected output, and decisions that still need human judgment. Then they build the small automation or agent-assisted step using systems. An agent may gather, sort, or draft; permissions, prompts, and data access remain part of the mechanism to inspect.",
+        "fieldNote": "They test representative cases, awkward edges, and important failures. Logs and checks show what ran and where it stopped; every spell has a manual path home. After watching real use, the Artificer leaves recovery steps, clear instructions, and a named maintenance owner. A dependable tool keeps helping after its maker leaves.",
+        "defaultSkills": [
+          "Workflow mapping",
+          "Automation design",
+          "Agent evaluation",
+          "Observability",
+          "Operational handoff"
+        ],
+        "signatureMoves": [
+          {
+            "title": "Clockwork Pact",
+            "text": "Agree on the trigger, output, human checkpoint, and recovery path before the first gear turns."
+          },
+          {
+            "title": "Familiar Audit",
+            "text": "Test an agent on known examples and edge cases, then inspect its actions before widening access."
+          }
+        ],
+        "gear": "A Workbench of Triggers (workflow map), test examples, permission ledger, run logs, manual fallback, and a repair guide.",
+        "stats": {
+          "STR": 10,
+          "DEX": 15,
+          "CON": 14,
+          "INT": 18,
+          "WIS": 16,
+          "CHA": 12
+        },
+        "paths": [
+          {
+            "id": "automations",
+            "title": "Automations",
+            "text": "Turn a recurring task into a dependable workflow with visible triggers, checks, and recovery moves."
+          },
+          {
+            "id": "agents",
+            "title": "Agents",
+            "text": "Give AI helpers bounded work, examples, evaluation, and human checkpoints before they touch real decisions."
+          },
+          {
+            "id": "toolmaking",
+            "title": "Toolmaking",
+            "text": "Build small reusable instruments that fit existing systems and can be maintained by the next party."
+          }
+        ]
+      },
+      "sourceIds": [],
+      "provenance": "Field Guide editorial addition; not part of the supplied twelve-class Portal role export."
+    },
+    {
+      "id": "brood",
+      "label": "11",
+      "title": "RaidBrood: a side quest from the Guild",
+      "subtitle": "Tavern notice · one offshoot, many kinds of craft",
+      "layout": "sidequest-story",
+      "kicker": "QUEST POSTED / THE BREWING TABLE",
+      "sections": [
+        {
+          "title": "A party takes a different road",
+          "paragraphs": [
+            "Some Guild quests begin with a client brief. This one began with a shared taste for making things together. Sasquatch (Ian Boucher) started RaidBrood as an offshoot of RaidGuild: a beer club DAO where a community could gather around a brew and help shape what came next.",
+            "RaidBrood carried the Guild’s habit of bringing different crafts to one table. Brewers, designers, developers, and writers could each contribute to the same experiment. The work was a bottle, a story, a gathering, and a set of tools for choosing future releases."
+          ]
+        },
+        {
+          "title": "Blood of Moloch",
+          "paragraphs": [
+            "Its Blood of Moloch imperial stout appeared at ETHDenver in 2022. The name puts a familiar Guild foe on the label: Moloch, the pull toward outcomes nobody chose together. Here the counterspell is delightfully practical—make something people want to share, then invite them to decide what to brew next.",
+            "A RaidBrood share gave members a say in future brews. It turned a playful side project into a small exercise in collective ownership."
+          ]
+        }
+      ],
+      "party": [
+        "Brewer · makes the drink",
+        "Designer · gives the vessel and label a face",
+        "Developer · builds the club tools",
+        "Writer · carries the tale"
+      ],
+      "closing": "Side quests show what a Guild can make when a member brings another passion into the party.",
+      "sourceIds": [
+        "raidbrood",
+        "sasquatch"
+      ]
+    },
+    {
+      "id": "branches",
+      "layout": "guild-offshoots",
+      "title": "Different quests. The same builder instinct.",
+      "subtitle": "Supplementary field notes · RaidGuild AI & RaidGuild Forge",
+      "intro": "A Guild is a place to assemble a party, not a limit on where that party can travel. Alongside client Raids, members keep finding new settings for the same impulse: learn something difficult, make it useful, and invite others to build on it.",
+      "projects": [
+        {
+          "title": "RaidGuild AI",
+          "kicker": "TAKE THE MAGIC TO WORK",
+          "lead": "Practical AI help for owner-led businesses and small teams.",
+          "paragraphs": [
+            "RaidGuild AI starts with familiar work: research, email, follow-up, scheduling, reports, and the repeated computer tasks that consume a week. Builders help owners and teams spot useful opportunities, practice on real tasks, and turn the patterns that work into workflows they can own.",
+            "The path is deliberately hands-on. A readiness conversation identifies a starting point; a working session introduces tools and prompts; weekly practice helps the team learn what deserves trust and where human judgment still matters. A handoff guide keeps the learning in the business."
+          ],
+          "steps": [
+            "Find a repeated task.",
+            "Try a small workflow with its users.",
+            "Review what happened, improve, and hand it over."
+          ],
+          "url": "https://raidguild.ai/",
+          "linkLabel": "Explore RaidGuild AI"
+        },
+        {
+          "title": "RaidGuild Forge",
+          "kicker": "BUILD WORLDS THAT PUSH BACK",
+          "lead": "A meeting place for games, makerspaces, and useful machines.",
+          "paragraphs": [
+            "Forge brings engineering into play. People design components, assemble machines, and test them through games, challenges, and physical constraints. A creation earns its story through what it can actually do: handle a corner, hold together, solve a problem, or survive an encounter.",
+            "Its experiments include Titan Racers, a sci-fi RC racing game in development, and DAO: The Game, a playable management demo about an impromptu studio of autonomous agents. Forge is also building toward a marketplace for components, machines, and physical kits tested through play."
+          ],
+          "steps": [
+            "Engineers design parts under real constraints.",
+            "Assemblers combine parts into machines.",
+            "Players test the results and reveal what works."
+          ],
+          "url": "https://forge.raidguild.org/",
+          "linkLabel": "Explore RaidGuild Forge"
+        }
+      ],
+      "closingTitle": "The common thread",
+      "closing": "These projects take different routes: one enters everyday business, another builds worlds for experimentation. Both make room for a useful first prototype, people with complementary skills, and knowledge that survives the original party. Your side quest can start just as small.",
+      "sourceIds": [
+        "raidguildAI",
+        "forge"
+      ],
+      "label": "12"
+    },
+    {
+      "id": "worksheet",
+      "label": "13",
+      "title": "Make your character",
+      "subtitle": "Blank party sheet · a practical page to carry forward",
+      "layout": "character-sheet",
+      "intro": "Use this page to name what you can offer, what you want to learn, and the people you hope to build with. Keep it for yourself or bring it to a Guild conversation.",
+      "footer": "",
+      "statKey": {
+        "STR": "Shipping",
+        "DEX": "Adaptation",
+        "CON": "Follow-through",
+        "INT": "Systems",
+        "WIS": "Judgment",
+        "CHA": "Connection"
+      },
+      "statsNote": "Suggested archetype stats. Redistribute freely.",
+      "identityFields": [
+        "Name / handle",
+        "Class / craft",
+        "Path / specialization",
+        "Current focus",
+        "Background",
+        "Party / guild space"
+      ],
+      "abilityFields": [
+        "STR",
+        "DEX",
+        "CON",
+        "INT",
+        "WIS",
+        "CHA"
+      ],
+      "skillChecks": [
+        "Build",
+        "Design",
+        "Research",
+        "Facilitation",
+        "Communication",
+        "Stewardship"
+      ],
+      "sections": [
+        {
+          "id": "role",
+          "title": "Party role and work style",
+          "lines": 2
+        },
+        {
+          "id": "equipment",
+          "title": "Equipment · tools and resources",
+          "lines": 2
+        },
+        {
+          "id": "quest",
+          "title": "Quest · a problem worth solving",
+          "lines": 2
+        },
+        {
+          "id": "bonds",
+          "title": "Bonds · people I build with",
+          "lines": 2
+        },
+        {
+          "id": "next",
+          "title": "Next action and completion",
+          "lines": 2
+        },
+        {
+          "id": "xp",
+          "title": "XP · contributions and notes",
+          "lines": 3
+        }
+      ]
+    },
+    {
+      "id": "sidequest",
+      "label": "14",
+      "title": "Your side quest",
+      "subtitle": "Quest journal · give an unexpected idea a first gathering",
+      "layout": "quest-journal",
+      "intro": "What would you make if you brought a nonwork obsession to the Guild table? Start small. A side quest needs a first party and an experiment, not a complete campaign.",
+      "prompts": [
+        {
+          "id": "spark",
+          "title": "The spark",
+          "hint": "A craft, curiosity, problem, place, or object you keep returning to."
+        },
+        {
+          "id": "party",
+          "title": "The party",
+          "hint": "Whose complementary skills would make the idea more interesting?"
+        },
+        {
+          "id": "experiment",
+          "title": "First experiment",
+          "hint": "What could the party make, test, or share in one short outing?"
+        },
+        {
+          "id": "gathering",
+          "title": "Next gathering",
+          "hint": "Where will you invite people, and what will you ask them to bring?"
+        }
+      ],
+      "footer": "A good side quest leaves a trail others can pick up.",
+      "sourceIds": []
+    },
+    {
+      "id": "mmd",
+      "label": "15",
+      "title": "MMD · Meme Driven Development",
+      "subtitle": "Workshop · follow the joke until it becomes a useful experiment",
+      "layout": "mmd-workshop",
+      "intro": "MMD (Meme Driven Development) is a playful name for building something because a meme or running joke creates interest and momentum.",
+      "loop": [
+        "Meme",
+        "Community excitement",
+        "Prototype",
+        "Feedback",
+        "Useful product—or a better meme"
+      ],
+      "example": "A community jokes about needing a “proof of touching grass” app, and someone builds it.",
+      "reality": "It is an informal approach, not a standardized methodology. Memes can spark ideas and attract early users; the real test is whether people keep using what you build.",
+      "prompts": [
+        {
+          "id": "spark",
+          "title": "The meme",
+          "hint": "What joke, image, phrase, or shared frustration keeps resurfacing?"
+        },
+        {
+          "id": "crowd",
+          "title": "The people",
+          "hint": "Who is laughing, joining in, or asking for it to exist?"
+        },
+        {
+          "id": "prototype",
+          "title": "The smallest build",
+          "hint": "What could the party make in one short sprint?"
+        },
+        {
+          "id": "feedback",
+          "title": "The signal",
+          "hint": "What would people do after the joke wears off?"
+        }
+      ],
+      "closing": "If it works, make it useful. If it doesn’t, improve the meme."
+    },
+    {
+      "id": "membership",
+      "label": "16",
+      "title": "Request to join the Guild",
+      "subtitle": "Character record · bring your work and your champion",
+      "layout": "membership-request",
+      "intro": "Bring your cohort, work, and champion into one record.",
+      "fields": [
+        {
+          "label": "Name / handle",
+          "size": "wide"
+        },
+        {
+          "label": "Cohort number",
+          "size": "half"
+        },
+        {
+          "label": "Demo Day / date",
+          "size": "half"
+        },
+        {
+          "label": "Member champion",
+          "size": "wide"
+        },
+        {
+          "label": "Portal profile URL",
+          "size": "wide"
+        },
+        {
+          "label": "Cited works / links",
+          "size": "tall"
+        },
+        {
+          "label": "Contribution / party role",
+          "size": "wide"
+        },
+        {
+          "label": "Demo summary / what you made",
+          "size": "tall"
+        },
+        {
+          "label": "Next step / who to follow up with",
+          "size": "wide"
+        }
+      ],
+      "footer": "Bring evidence of work, questions, and people who can speak to building with you."
+    },
+    {
+      "id": "backstory",
+      "label": "17",
+      "title": "Backstory journal",
+      "subtitle": "Field notes · the character you bring into the Guild",
+      "layout": "backstory-journal",
+      "intro": "Everyone arrives carrying a few quests already. Sketch yours here.",
+      "prompts": [
+        {
+          "id": "before",
+          "title": "Before the Guild",
+          "hint": "What work, place, or problem shaped you?"
+        },
+        {
+          "id": "obsession",
+          "title": "Strange obsession",
+          "hint": "What rabbit hole will you happily explain for an hour?"
+        },
+        {
+          "id": "lesson",
+          "title": "A hard won lesson",
+          "hint": "What did a past party teach you?"
+        },
+        {
+          "id": "chapter",
+          "title": "The next chapter",
+          "hint": "What would you like to build or learn with others?"
+        }
+      ]
+    },
+    {
+      "id": "mapgrid",
+      "label": "18",
+      "title": "Draw the next map",
+      "subtitle": "Cartographer’s sheet · sketch a place, project, or process",
+      "layout": "map-grid",
+      "intro": "A blank territory for the next quest. Give your map a scale and a legend.",
+      "fields": [
+        "Place / project",
+        "Scale / time",
+        "Legend / symbols"
+      ],
+      "footer": "Paths are made by walking them. Draw the first line."
+    },
+    {
+      "id": "credits1",
+      "label": "19",
+      "title": "The Guild roll",
+      "subtitle": "Member credits · built by the people who make the Guild",
+      "layout": "member-credits",
+      "intro": "With thanks to the members who make RaidGuild possible.",
+      "members": [
+        "$uns",
+        "Aaron Bendersky",
+        "Aaron Foster",
+        "Aaron Osterby",
+        "Aaron Soskin",
+        "Adam Kerpelman",
+        "Aidan Musnitzky",
+        "Alexander Keating",
+        "Alex Hoff",
+        "Amos Goh",
+        "ApeironCreations",
+        "Benedictus Biedermayer",
+        "Bennisan",
+        "Ben.oxmo",
+        "Beyondr",
+        "bingo the designer",
+        "Brandon Pao",
+        "Brian Rossetti",
+        "Bruce Kroeze",
+        "Callum Gladstone",
+        "Carl Farterson",
+        "Chiali Tsai",
+        "Christina, BorrowLucid",
+        "Coffee-Crusher",
+        "Cooper Turley",
+        "Cristopher Ortega",
+        "cupojoseph",
+        "dan13ram",
+        "DAO Jones",
+        "Dapplion",
+        "Darren Mills",
+        "David Nellis",
+        "degeneroach",
+        "Dekan",
+        "Derrek",
+        "Drew Harding",
+        "dtolsen",
+        "earth2travis",
+        "Ed Zynda",
+        "Elco",
+        "Elijah befitsandpiper",
+        "Elliott Conway",
+        "E-ratic",
+        "Eric Arsenault",
+        "Garett \"Kinchasa\" Laugavitz",
+        "Gaye \"Gaia\"",
+        "georgeh",
+        "Guillaume Palayer",
+        "Gus",
+        "Hammad Jutt",
+        "HanValen",
+        "Harsh Maur",
+        "HHH",
+        "Hunter (daopunk)",
+        "Isaac Patka",
+        "Jaclyn Lenee Junger",
+        "Jacob Homanics",
+        "James Duncan",
+        "James Young",
+        "jarryingnaut",
+        "Jeff Krantz",
+        "Jip Stavenuiter",
+        "John (launchninja)",
+        "Jonathan Dunlap",
+        "Jordan",
+        "Jordan Greenberg",
+        "Jordan Lesich",
+        "joshsdoug",
+        "Joshua Lapidus",
+        "jp",
+        "Kames Geraghty",
+        "Ken Beckers",
+        "Kevin Monahan",
+        "Kevin Siegler",
+        "Kirch",
+        "Konrad Gnat",
+        "Kyle Stargarden",
+        "Lahcen KHADDAOUI",
+        "Lili Feyerabend",
+        "Loren Speer",
+        "Lou",
+        "Louis Giraux",
+        "Lucas Campbell",
+        "Lucas Cerro",
+        "Luke Kim",
+        "Luxumbra.eth",
+        "Manuel Fernandez",
+        "Marco (mprime)",
+        "Marko Prljic",
+        "Mark Pascall",
+        "Matthew Carano",
+        "Matthew O'Connell",
+        "mkdir",
+        "Mr Deadce11",
+        "🐙Musashi13#5579",
+        "Nick Rishwain",
+        "nintynick",
+        "nitegeist",
+        "Omni Analytics Group (Lawrence Mosley, Yogesh Bansal, and Eric Hare)",
+        "Patrick Gallagher",
+        "Penguin",
+        "Peter (pmp)",
+        "peth",
+        "plor",
+        "Polina Aladina",
+        "pupcakes",
+        "Rahul S",
+        "Ross Campbell",
+        "Rowdy",
+        "Ryan (Autocrat)",
+        "Saimano",
+        "Samuel Baurle",
+        "Santiago",
+        "Sascha",
+        "Sasquatch",
+        "sayonara",
+        "Scottrepreneur",
+        "Sergey Ukustov",
+        "Sero",
+        "Shatner",
+        "Simona Pop",
+        "skuhl",
+        "Sourav Kumar Nanda",
+        "Spencer Graham",
+        "Stephen Diesel",
+        "Suede",
+        "Sydney Lai",
+        "taekekz",
+        "Tarun Bansal",
+        "Tim Ultreia",
+        "Tolu",
+        "Tom Eaton",
+        "Tom French",
+        "Tommy Cox",
+        "Travis Wyche",
+        "Tufnel_Enterprises",
+        "vani11a",
+        "Ven Gist",
+        "Victor (YKW)",
+        "vid",
+        "Will Griffith",
+        "Will Krol-Sinclair",
+        "Yalor",
+        "Zach Herring",
+        "Zefram Lou"
+      ],
+      "snapshotNote": "Portal member roll · November 2026",
+      "sourceIds": [
+        "portalMembers"
+      ]
+    }
+  ],
+  "statKey": {
+    "STR": "Shipping",
+    "DEX": "Adaptation",
+    "CON": "Follow-through",
+    "INT": "Systems",
+    "WIS": "Judgment",
+    "CHA": "Connection"
+  },
+  "statsNote": "Suggested archetype stats. Redistribute freely.",
+  "pathsIntro": "Choose, combine, and change paths freely. They name useful directions, not levels or gates."
+}

@@ -1,0 +1,588 @@
+{
+  "source": "Portal-CMS / profiles",
+  "exportedAt": "2026-11-01T19:48:51.059Z",
+  "selection": "Public profiles from the legacy member import, plus public profiles whose account has the member role. Excludes contributor-only, unverified, private, and agent accounts.",
+  "count": 145,
+  "members": [
+    {
+      "displayName": "$uns",
+      "handle": "sunsakis"
+    },
+    {
+      "displayName": "Aaron Bendersky",
+      "handle": "chair28980"
+    },
+    {
+      "displayName": "Aaron Foster",
+      "handle": "pythonpete32"
+    },
+    {
+      "displayName": "Aaron Osterby",
+      "handle": "osterby"
+    },
+    {
+      "displayName": "Aaron Soskin",
+      "handle": "amsos"
+    },
+    {
+      "displayName": "Adam Kerpelman",
+      "handle": "thekerp"
+    },
+    {
+      "displayName": "Aidan Musnitzky",
+      "handle": "musnit"
+    },
+    {
+      "displayName": "Alexander Keating",
+      "handle": "alexkeating"
+    },
+    {
+      "displayName": "Alex Hoff",
+      "handle": "ajhoff"
+    },
+    {
+      "displayName": "Amos Goh",
+      "handle": "amosgoh"
+    },
+    {
+      "displayName": "ApeironCreations",
+      "handle": "apeironcreations"
+    },
+    {
+      "displayName": "Benedictus Biedermayer",
+      "handle": "benedictvs"
+    },
+    {
+      "displayName": "Bennisan",
+      "handle": "bennisan86"
+    },
+    {
+      "displayName": "Ben.oxmo",
+      "handle": "benoxmo"
+    },
+    {
+      "displayName": "Beyondr",
+      "handle": "thebeyondr"
+    },
+    {
+      "displayName": "bingo the designer",
+      "handle": "registerbiscuit-7919"
+    },
+    {
+      "displayName": "Brandon Pao",
+      "handle": "bcpao"
+    },
+    {
+      "displayName": "Brian Rossetti",
+      "handle": "brossetti1"
+    },
+    {
+      "displayName": "Bruce Kroeze",
+      "handle": "bkroeze"
+    },
+    {
+      "displayName": "Callum Gladstone",
+      "handle": "axia-callum"
+    },
+    {
+      "displayName": "Carl Farterson",
+      "handle": "carlfarterson"
+    },
+    {
+      "displayName": "Chiali Tsai",
+      "handle": "chialitsai"
+    },
+    {
+      "displayName": "Christina, BorrowLucid",
+      "handle": "3036"
+    },
+    {
+      "displayName": "Coffee-Crusher",
+      "handle": "n-a"
+    },
+    {
+      "displayName": "Cooper Turley",
+      "handle": "coopahtroopanew"
+    },
+    {
+      "displayName": "Cristopher Ortega",
+      "handle": "crisog"
+    },
+    {
+      "displayName": "cupojoseph",
+      "handle": "jschiarizzi"
+    },
+    {
+      "displayName": "dan13ram",
+      "handle": "dan13ram"
+    },
+    {
+      "displayName": "DAO Jones",
+      "handle": "tropical-wilson"
+    },
+    {
+      "displayName": "Dapplion",
+      "handle": "dapplion"
+    },
+    {
+      "displayName": "Darren Mills",
+      "handle": "darrenrm"
+    },
+    {
+      "displayName": "David Nellis",
+      "handle": "dnellis74"
+    },
+    {
+      "displayName": "degeneroach",
+      "handle": "degeneroach"
+    },
+    {
+      "displayName": "Dekan",
+      "handle": "duckanbro"
+    },
+    {
+      "displayName": "Derrek",
+      "handle": "derrekcoleman"
+    },
+    {
+      "displayName": "Drew Harding",
+      "handle": "burningfiat"
+    },
+    {
+      "displayName": "dtolsen",
+      "handle": "dtolsen"
+    },
+    {
+      "displayName": "earth2travis",
+      "handle": "earth2travis"
+    },
+    {
+      "displayName": "Ed Zynda",
+      "handle": "ezynda3"
+    },
+    {
+      "displayName": "Elco",
+      "handle": "elementcomplex"
+    },
+    {
+      "displayName": "Elijah befitsandpiper",
+      "handle": "befitsandpiper"
+    },
+    {
+      "displayName": "Elliott Conway",
+      "handle": "ecwireless"
+    },
+    {
+      "displayName": "E-ratic",
+      "handle": "eye-ults"
+    },
+    {
+      "displayName": "Eric Arsenault",
+      "handle": "eric_rsno"
+    },
+    {
+      "displayName": "Garett \"Kinchasa\" Laugavitz",
+      "handle": "kinchasa"
+    },
+    {
+      "displayName": "Gaye \"Gaia\"",
+      "handle": "gaye-soykok"
+    },
+    {
+      "displayName": "georgeh",
+      "handle": "geovgy"
+    },
+    {
+      "displayName": "Guillaume Palayer",
+      "handle": "guillaumepalayer"
+    },
+    {
+      "displayName": "Gus",
+      "handle": "kisgus"
+    },
+    {
+      "displayName": "Hammad Jutt",
+      "handle": "meta_dreamer"
+    },
+    {
+      "displayName": "HanValen",
+      "handle": "mackbowes"
+    },
+    {
+      "displayName": "Harsh Maur",
+      "handle": "harshmaur"
+    },
+    {
+      "displayName": "HHH",
+      "handle": "hhh-gh"
+    },
+    {
+      "displayName": "Hunter (daopunk)",
+      "handle": "daopunk"
+    },
+    {
+      "displayName": "Isaac Patka",
+      "handle": "ipatka"
+    },
+    {
+      "displayName": "Jaclyn Lenee Junger",
+      "handle": "jaclynlenee"
+    },
+    {
+      "displayName": "Jacob Homanics",
+      "handle": "jacobhomanics"
+    },
+    {
+      "displayName": "James Duncan",
+      "handle": "okduncan"
+    },
+    {
+      "displayName": "James Young",
+      "handle": "jamesyoung"
+    },
+    {
+      "displayName": "jarryingnaut",
+      "handle": "growindiedev"
+    },
+    {
+      "displayName": "Jeff Krantz",
+      "handle": "ztnark"
+    },
+    {
+      "displayName": "Jip Stavenuiter",
+      "handle": "jipperism"
+    },
+    {
+      "displayName": "John (launchninja)",
+      "handle": "launchninja"
+    },
+    {
+      "displayName": "Jonathan Dunlap",
+      "handle": "jadbox"
+    },
+    {
+      "displayName": "Jordan",
+      "handle": "jordanlovesred-9467"
+    },
+    {
+      "displayName": "Jordan Greenberg",
+      "handle": "jordang7"
+    },
+    {
+      "displayName": "Jordan Lesich",
+      "handle": "jordanlesich"
+    },
+    {
+      "displayName": "joshsdoug",
+      "handle": "joshsdoug"
+    },
+    {
+      "displayName": "Joshua Lapidus",
+      "handle": "joshuasl"
+    },
+    {
+      "displayName": "jp",
+      "handle": "jonathanprozzi"
+    },
+    {
+      "displayName": "Kames Geraghty",
+      "handle": "kamescg"
+    },
+    {
+      "displayName": "Ken Beckers",
+      "handle": "bitbeckers"
+    },
+    {
+      "displayName": "Kevin Monahan",
+      "handle": "kevinmonahan"
+    },
+    {
+      "displayName": "Kevin Siegler",
+      "handle": "topocount"
+    },
+    {
+      "displayName": "Kirch",
+      "handle": "n-a-2"
+    },
+    {
+      "displayName": "Konrad Gnat",
+      "handle": "https-github-com-kon-rad"
+    },
+    {
+      "displayName": "Kyle Stargarden",
+      "handle": "st4rgarden"
+    },
+    {
+      "displayName": "Lahcen KHADDAOUI",
+      "handle": "l-kh"
+    },
+    {
+      "displayName": "Lili Feyerabend",
+      "handle": "lililashka"
+    },
+    {
+      "displayName": "Loren Speer",
+      "handle": "lolo-9084"
+    },
+    {
+      "displayName": "Lou",
+      "handle": "louchi"
+    },
+    {
+      "displayName": "Louis Giraux",
+      "handle": "louisgrx"
+    },
+    {
+      "displayName": "Lucas Campbell",
+      "handle": "0xlucas-3124"
+    },
+    {
+      "displayName": "Lucas Cerro",
+      "handle": "lucascerro"
+    },
+    {
+      "displayName": "Luke Kim",
+      "handle": "n-a-3"
+    },
+    {
+      "displayName": "Luxumbra.eth",
+      "handle": "luxumbra"
+    },
+    {
+      "displayName": "Manuel Fernandez",
+      "handle": "manu"
+    },
+    {
+      "displayName": "Marco (mprime)",
+      "handle": "mprimi"
+    },
+    {
+      "displayName": "Marko Prljic",
+      "handle": "markoprljic"
+    },
+    {
+      "displayName": "Mark Pascall",
+      "handle": "mark_pascall"
+    },
+    {
+      "displayName": "Matthew Carano",
+      "handle": "matthewcarano"
+    },
+    {
+      "displayName": "Matthew O'Connell",
+      "handle": "moconnell"
+    },
+    {
+      "displayName": "mkdir",
+      "handle": "themkdir"
+    },
+    {
+      "displayName": "Mr Deadce11",
+      "handle": "https-github-com-mrdeadce11"
+    },
+    {
+      "displayName": "🐙Musashi13#5579",
+      "handle": "https-github-com-musashi13"
+    },
+    {
+      "displayName": "Nick Rishwain",
+      "handle": "nickjrishwain"
+    },
+    {
+      "displayName": "nintynick",
+      "handle": "nintynick-4570"
+    },
+    {
+      "displayName": "nitegeist",
+      "handle": "nitegeist"
+    },
+    {
+      "displayName": "Omni Analytics Group (Lawrence Mosley, Yogesh Bansal, and Eric Hare)",
+      "handle": "https-github-com-omni-analytics-group"
+    },
+    {
+      "displayName": "Patrick Gallagher",
+      "handle": "pi0neerpat"
+    },
+    {
+      "displayName": "Penguin",
+      "handle": "c0mput3rxz"
+    },
+    {
+      "displayName": "Peter (pmp)",
+      "handle": "petermphillips"
+    },
+    {
+      "displayName": "peth",
+      "handle": "peth-yursick"
+    },
+    {
+      "displayName": "plor",
+      "handle": "plor"
+    },
+    {
+      "displayName": "Polina Aladina",
+      "handle": "polycarpik"
+    },
+    {
+      "displayName": "pupcakes",
+      "handle": "fluffy9"
+    },
+    {
+      "displayName": "Rahul S",
+      "handle": "rhlstrm"
+    },
+    {
+      "displayName": "Ross Campbell",
+      "handle": "ro5s"
+    },
+    {
+      "displayName": "Rowdy",
+      "handle": "0xrowdy"
+    },
+    {
+      "displayName": "Ryan (Autocrat)",
+      "handle": "ryansea"
+    },
+    {
+      "displayName": "Saimano",
+      "handle": "manolingam"
+    },
+    {
+      "displayName": "Samuel Baurle",
+      "handle": "burleebau"
+    },
+    {
+      "displayName": "Santiago",
+      "handle": "santteegt"
+    },
+    {
+      "displayName": "Sascha",
+      "handle": "smombartz"
+    },
+    {
+      "displayName": "Sasquatch",
+      "handle": "sasquatchtru"
+    },
+    {
+      "displayName": "sayonara",
+      "handle": "wtfsayo"
+    },
+    {
+      "displayName": "Scottrepreneur",
+      "handle": "scottrepreneur"
+    },
+    {
+      "displayName": "Sergey Ukustov",
+      "handle": "ukstv"
+    },
+    {
+      "displayName": "Sero",
+      "handle": "seroxdesign"
+    },
+    {
+      "displayName": "Shatner",
+      "handle": "Shatner"
+    },
+    {
+      "displayName": "Simona Pop",
+      "handle": "simona-pop"
+    },
+    {
+      "displayName": "skuhl",
+      "handle": "skuhlmann"
+    },
+    {
+      "displayName": "Sourav Kumar Nanda",
+      "handle": "sourav-kumar-nanda"
+    },
+    {
+      "displayName": "Spencer Graham",
+      "handle": "slgraham"
+    },
+    {
+      "displayName": "Stephen Diesel",
+      "handle": "stephenpdiesel"
+    },
+    {
+      "displayName": "Suede",
+      "handle": "suede0619"
+    },
+    {
+      "displayName": "Sydney Lai",
+      "handle": "sydneylai"
+    },
+    {
+      "displayName": "taekekz",
+      "handle": "takekz"
+    },
+    {
+      "displayName": "Tarun Bansal",
+      "handle": "tarunbhm"
+    },
+    {
+      "displayName": "Tim Ultreia",
+      "handle": "tkernell"
+    },
+    {
+      "displayName": "Tolu",
+      "handle": "tn-5913"
+    },
+    {
+      "displayName": "Tom Eaton",
+      "handle": "integral-studio"
+    },
+    {
+      "displayName": "Tom French",
+      "handle": "tomafrench"
+    },
+    {
+      "displayName": "Tommy Cox",
+      "handle": "proofoftom"
+    },
+    {
+      "displayName": "Travis Wyche",
+      "handle": "traviswyche"
+    },
+    {
+      "displayName": "Tufnel_Enterprises",
+      "handle": "psparacino"
+    },
+    {
+      "displayName": "vani11a",
+      "handle": "vani11aa"
+    },
+    {
+      "displayName": "Ven Gist",
+      "handle": "vengist"
+    },
+    {
+      "displayName": "Victor (YKW)",
+      "handle": "youngkidwarrior"
+    },
+    {
+      "displayName": "vid",
+      "handle": "vidvidvid"
+    },
+    {
+      "displayName": "Will Griffith",
+      "handle": "willdrogriff-9995"
+    },
+    {
+      "displayName": "Will Krol-Sinclair",
+      "handle": "damagedgoods-5437"
+    },
+    {
+      "displayName": "Yalor",
+      "handle": "yalormewn"
+    },
+    {
+      "displayName": "Zach Herring",
+      "handle": "zherring"
+    },
+    {
+      "displayName": "Zefram Lou",
+      "handle": "zeframl"
+    }
+  ]
+}
