@@ -57,8 +57,8 @@ const html = `<!doctype html>
   <meta name="description" content="Explore RaidGuild's lore, people, classes, projects, and field notes in an illustrated longform guide.">
   <link rel="canonical" href="${guide.canonical}">
   <meta property="og:type" content="website"><meta property="og:site_name" content="RaidGuild Artifacts"><meta property="og:title" content="RaidGuild Field Guide · Illustrated atlas"><meta property="og:description" content="Read ${publication.pages.length} illustrated pages of Guild maps, history, classes, resources, and paths forward.">
-  <meta property="og:url" content="${guide.canonical}"><meta property="og:image" content="${guide.canonical}field-guide-social-v2.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Crossed swords and a Field Guide title over the Guild's illustrated Moloch kingdom, in the Louchi palette.">
-  <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="RaidGuild Field Guide · Illustrated atlas"><meta name="twitter:description" content="Read ${publication.pages.length} illustrated pages and explore two interactive Guild maps."><meta name="twitter:image" content="${guide.canonical}field-guide-social-v2.png"><meta name="twitter:image:alt" content="Crossed swords and a Field Guide title over the Guild's illustrated Moloch kingdom, in the Louchi palette.">
+  <meta property="og:url" content="${guide.canonical}"><meta property="og:image" content="${guide.canonical}field-guide-social-v3.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Crossed swords and a Field Guide title over the Guild's illustrated Moloch kingdom, in the Louchi palette.">
+  <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="RaidGuild Field Guide · Illustrated atlas"><meta name="twitter:description" content="Read ${publication.pages.length} illustrated pages and explore two interactive Guild maps."><meta name="twitter:image" content="${guide.canonical}field-guide-social-v3.png"><meta name="twitter:image:alt" content="Crossed swords and a Field Guide title over the Guild's illustrated Moloch kingdom, in the Louchi palette.">
   <link rel="stylesheet" href="./content-studies.css"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./publication.css"><link rel="stylesheet" href="./book-workbook.css"><link rel="stylesheet" href="./web.css"><link rel="stylesheet" href="./louchi-theme.css"><script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js"}}</script><script type="module" src="./app.js"></script><script type="module" src="./blood-of-moloch-activate.js"></script>
 </head>
 <body>
@@ -84,7 +84,7 @@ const assets = [
   ['art/raidguild-crossed-swords.svg', 'raidguild-crossed-swords.svg'],
   ['styles.css', 'styles.css'], ['app.js', 'app.js'], ['publication.css', 'publication.css'], ['publication.js', 'publication.js'], ['book-workbook.css', 'book-workbook.css'], ['web.css', 'web.css'], ['web.js', 'web.js'], ['louchi-theme.css', 'louchi-theme.css'], ['content-studies.css', 'content-studies.css'], ['content-studies.json', 'content-studies.json'], ['content/guide.mjs', 'guide.mjs'], ['content/kingdom.mjs', 'kingdom.mjs'],
   ['art/joining-map-concept-v1.png', 'joining-map-concept-v1.png'], ['art/guild-kingdom-concept-v2.png', 'guild-kingdom-concept-v2.png'],
-  ['art/style-landscape-reference.png', 'style-landscape-reference.png'], ['art/field-guide-social-v2.png', 'field-guide-social-v2.png'],
+  ['art/style-landscape-reference.png', 'style-landscape-reference.png'], ['art/field-guide-social-v3.png', 'field-guide-social-v3.png'],
   ['art/blood-of-moloch-tallboy-print.png', 'blood-of-moloch-tallboy-print.png'], ['art/blood-of-moloch-label.png', 'blood-of-moloch-label.png'], ['art/raidbrood-axes.png', 'raidbrood-axes.png'], ['art/blood-of-moloch-tallboy.glb', 'blood-of-moloch-tallboy.glb'],
   ['blood-of-moloch-activate.js', 'blood-of-moloch-activate.js'], ['blood-of-moloch-viewer.js', 'blood-of-moloch-viewer.js'],
 ];
@@ -93,7 +93,7 @@ for (const asset of Object.values(publication.assets)) {
   assets.push([asset.path, path.basename(asset.path)]);
 }
 for (const [target, input] of new Map(assets.map(([input, target]) => [target, input]))) await copyFile(path.join(source, input), path.join(output, target));
-for (const font of ['Grinder-Refined-Regular.woff2','Grinder-Refined-Italic.woff2','Grinder-Refined-Retalic.woff2','Ubuntu-Variable.ttf','UbuntuMono-Regular.ttf','UbuntuMono-Bold.ttf','UbuntuMono-UFL.txt','README.md']) {
+for (const font of ['LastDuel-Ex2.woff2','LastDuel-BoldEx2.woff2','LastDuel-Oblique.woff2','LastDuel-BoldOblique.woff2','LastDuel-Ex2Retalic.woff2','LastDuel-BoldEx2Retalic.woff2','Ubuntu-Variable.ttf','Ubuntu-Italic-Variable.ttf','UbuntuMono-Regular.ttf','UbuntuMono-Bold.ttf','UbuntuMono-UFL.txt','README.md']) {
   await mkdir(path.join(output, 'fonts'), { recursive: true });
   await copyFile(path.join(source, 'fonts', font), path.join(output, 'fonts', font));
 }

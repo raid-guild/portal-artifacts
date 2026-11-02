@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../../public/raidguild-field-guide');
 const origin = 'https://guide.test/raidguild-field-guide/';
 const shotDir = process.env.FIELD_GUIDE_SCREENSHOTS;
-const mime = { '.html':'text/html','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.png':'image/png','.json':'application/json','.glb':'model/gltf-binary' };
+const mime = { '.html':'text/html','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.png':'image/png','.json':'application/json','.glb':'model/gltf-binary','.woff2':'font/woff2','.ttf':'font/ttf' };
 async function serve(context) {
   await context.route('https://guide.test/**', async (route) => {
     const relative = new URL(route.request().url()).pathname.replace('/raidguild-field-guide/','') || 'index.html';
@@ -24,6 +24,23 @@ async function screenshot(page,name) { if (shotDir) { await fs.mkdir(shotDir,{re
     assert.equal(await page.locator('html').getAttribute('data-route'),'web');
     assert.equal(await page.locator('#web-guide').isVisible(),true);
     assert.equal(await page.locator('#book').isVisible(),false);
+    await page.evaluate(()=>document.fonts.ready);
+    const displayFace = await page.evaluate(() => {
+      const heading = document.querySelector('.web-hero h1');
+      return {
+        family: getComputedStyle(heading).fontFamily,
+        loaded: [...document.fonts].some((face) => face.family === 'Last Duel' && face.status === 'loaded'),
+        accent: getComputedStyle(heading.querySelector('em')).fontFamily,
+      };
+    });
+    assert.match(displayFace.family,/Last Duel/);
+    assert.match(displayFace.accent,/Last Duel Retalic/);
+    assert.equal(displayFace.loaded,true,'native Last Duel font loaded');
+    const ubuntuItalic = await page.evaluate(async () => {
+      await document.fonts.load('italic 400 16px Ubuntu');
+      return [...document.fonts].some((face) => face.family === 'Ubuntu' && face.style === 'italic' && face.status === 'loaded');
+    });
+    assert.equal(ubuntuItalic,true,'native Ubuntu italic font loaded');
     await screenshot(page,'raidguild-web-hero-v19.png');
     assert.equal(await page.locator('#web-guide .web-class-roster a').count(),14);
     assert.equal(await page.locator('#web-guide .web-path-list>div').count(),42);

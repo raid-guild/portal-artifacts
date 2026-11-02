@@ -58,7 +58,10 @@ them into `raidguild-field-guide-review.pdf`, then creates
 `raidguild-field-guide-ledger-booklet.pdf`. The proof folder also gets a page
 map and print instructions. The font TTFs required by ReportLab are checked
 into the study alongside the web WOFF2 files. `design/prepare-print-fonts.py`
-documents how they were prepared; it is not needed for a normal rebuild.
+documents how they were prepared; it is not needed for a normal rebuild. To
+regenerate the font derivatives, install the pinned packages in
+`design/requirements-fonts.txt` into a separate Python environment and run
+`python design/prepare-print-fonts.py` from the study directory.
 
 For the 11 × 17 booklet, print the imposed PDF in landscape at **100%**,
 double-sided, **flip on short edge**, one PDF page per paper side. Disable the

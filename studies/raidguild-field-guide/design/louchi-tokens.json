@@ -1,5 +1,5 @@
 {
   "source": "@raidguild/brand-system/dist/tokens.css [data-brand-reign=\"louchi\"]",
-  "fonts": {"display": "Grinder Refined", "emphasis": "Grinder Refined Retalic", "body": "Ubuntu", "label": "Ubuntu Mono"},
+  "fonts": {"display": "Last Duel", "emphasis": "Last Duel Retalic", "body": "Ubuntu", "label": "Ubuntu Mono"},
   "colors": {"field": "#b8e0df", "cyan": "#78c5c3", "paper": "#efe9d7", "ink": "#102d2c", "deep": "#0a292b", "coral": "#ee3c78", "lime": "#d7e34d", "night": "#191e4e", "nightCyan": "#8fe3ef"}
 }

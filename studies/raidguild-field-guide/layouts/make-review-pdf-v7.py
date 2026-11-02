@@ -13,7 +13,8 @@ import sys
 OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'layouts'
 OUT.mkdir(parents=True,exist_ok=True)
 D=json.loads((ROOT/'../../public/raidguild-field-guide/publication.json').resolve().read_text())
-for name,file in [('Serif',ROOT/'fonts/Grinder-Refined-Regular.ttf'),('Sans',ROOT/'fonts/Ubuntu-Regular.ttf'),('Bold',ROOT/'fonts/Ubuntu-Bold.ttf')]:pdfmetrics.registerFont(TTFont(name,str(file)))
+for name,file in [('Serif',ROOT/'fonts/LastDuel-Ex2.ttf'),('Sans',ROOT/'fonts/Ubuntu-Regular.ttf'),('Bold',ROOT/'fonts/Ubuntu-Bold.ttf'),('SansItalic',ROOT/'fonts/Ubuntu-Italic.ttf'),('BoldItalic',ROOT/'fonts/Ubuntu-BoldItalic.ttf')]:pdfmetrics.registerFont(TTFont(name,str(file)))
+pdfmetrics.registerFontFamily('Sans',normal='Sans',bold='Bold',italic='SansItalic',boldItalic='BoldItalic')
 W,H=504,720; M=35; CW=W-2*M
 tokens=json.loads((ROOT/'design/louchi-tokens.json').read_text())['colors']
 CREAM=tokens['paper'];INK=tokens['ink'];TEAL=tokens['deep'];CORAL=tokens['coral'];LINE=tokens['cyan'];MUTED=tokens['ink']
@@ -228,7 +229,8 @@ for p in D['pages']:
  if p['layout']=='closing-quote':
   image(p['art']['assetId'],0,0,W,H,[0,0,1,1])
   C.setFillColor(color('#fcf3e3'));C.setStrokeColor(color('#d8baa0'));C.setLineWidth(1.5)
-  C.roundRect(47,214,410,250,5,fill=1,stroke=1)
+  # Last Duel's wider letterforms wrap the quote onto one additional line.
+  C.roundRect(47,180,410,284,5,fill=1,stroke=1)
   para(p['eyebrow'],70,270,364,8,'Bold',TEAL)
   para(p['title'],70,289,364,21,'Serif',INK,25)
   para(p['quote'],70,333,364,28,'Serif',INK,36)

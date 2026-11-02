@@ -1,15 +1,19 @@
 /* Field Guide adaptation of @raidguild/brand-system's Louchi reign.
-   Grinder files come from the first-party Louchi handbook; see fonts/README.md. */
-@font-face{font-family:"Grinder Refined";src:url("./fonts/Grinder-Refined-Regular.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
-@font-face{font-family:"Grinder Refined";src:url("./fonts/Grinder-Refined-Italic.woff2") format("woff2");font-style:italic;font-weight:400;font-display:swap}
-@font-face{font-family:"Grinder Refined Retalic";src:url("./fonts/Grinder-Refined-Retalic.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
+   Last Duel files were supplied by Louchi; see fonts/README.md. */
+@font-face{font-family:"Last Duel";src:url("./fonts/LastDuel-Ex2.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:"Last Duel";src:url("./fonts/LastDuel-BoldEx2.woff2") format("woff2");font-style:normal;font-weight:700;font-display:swap}
+@font-face{font-family:"Last Duel";src:url("./fonts/LastDuel-Oblique.woff2") format("woff2");font-style:italic;font-weight:400;font-display:swap}
+@font-face{font-family:"Last Duel";src:url("./fonts/LastDuel-BoldOblique.woff2") format("woff2");font-style:italic;font-weight:700;font-display:swap}
+@font-face{font-family:"Last Duel Retalic";src:url("./fonts/LastDuel-Ex2Retalic.woff2") format("woff2");font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:"Last Duel Retalic";src:url("./fonts/LastDuel-BoldEx2Retalic.woff2") format("woff2");font-style:normal;font-weight:700;font-display:swap}
 @font-face{font-family:Ubuntu;src:url("./fonts/Ubuntu-Variable.ttf") format("truetype");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:Ubuntu;src:url("./fonts/Ubuntu-Italic-Variable.ttf") format("truetype");font-weight:100 900;font-style:italic;font-display:swap}
 @font-face{font-family:"Ubuntu Mono";src:url("./fonts/UbuntuMono-Regular.ttf") format("truetype");font-weight:400;font-display:swap}
 @font-face{font-family:"Ubuntu Mono";src:url("./fonts/UbuntuMono-Bold.ttf") format("truetype");font-weight:700;font-display:swap}
-:root{--louch-field:#b8e0df;--louch-cyan:#78c5c3;--louch-paper:#efe9d7;--louch-ink:#102d2c;--louch-deep:#0a292b;--louch-coral:#ee3c78;--louch-lime:#d7e34d;--louch-night:#191e4e;--louch-night-cyan:#8fe3ef;--louch-display:"Grinder Refined","Afacad Flux",sans-serif;--louch-retalic:"Grinder Refined Retalic","Grinder Refined",sans-serif;--louch-body:Ubuntu,Arial,sans-serif;--louch-label:"Ubuntu Mono",monospace}
+:root{--louch-field:#b8e0df;--louch-cyan:#78c5c3;--louch-paper:#efe9d7;--louch-ink:#102d2c;--louch-deep:#0a292b;--louch-coral:#ee3c78;--louch-lime:#d7e34d;--louch-night:#191e4e;--louch-night-cyan:#8fe3ef;--louch-display:"Last Duel","Afacad Flux",sans-serif;--louch-retalic:"Last Duel Retalic","Last Duel",sans-serif;--louch-body:Ubuntu,Arial,sans-serif;--louch-label:"Ubuntu Mono",monospace}
 /* The browser story and the bound reader share the same source and visual grammar. */
 .web-experience{--web-navy:var(--louch-night);--web-ink:var(--louch-ink);--web-cream:var(--louch-paper);--web-coral:var(--louch-coral);--web-teal:var(--louch-cyan);--web-line:var(--louch-cyan);background:var(--louch-paper);color:var(--louch-ink);font-family:var(--louch-body)}
-.web-experience h1,.web-experience h2,.web-experience h3,.web-experience h4{font-family:var(--louch-display);letter-spacing:-.025em}
+.web-experience h1,.web-experience h2,.web-experience h3,.web-experience h4{font-family:var(--louch-display);font-synthesis:none;letter-spacing:-.025em}
 .web-experience .web-kicker,.web-experience .web-note-number,.web-experience .web-panel-count,.web-experience .web-hero-scroll,.web-experience .web-brand,.web-experience .web-nav nav a,.web-experience .web-book-link,.web-experience .web-hero-actions a,.web-experience .web-choice-list a,.web-experience .web-class-roster a,.web-experience .web-class-skills li,.web-experience .web-stat-line span,.web-experience .web-sidequest-grid a,.web-experience .web-footer a{font-family:var(--louch-label)}
 .web-hero{background:var(--louch-night)}
 .web-hero::after{background:linear-gradient(90deg,#191e4efa 0%,#191e4ee9 41%,#191e4e66 70%,transparent 100%)}
@@ -32,7 +36,7 @@
 /* Print book and workbook pages retain their page geometry and use the same reign. */
 .publication,.workbook-page,.book-page{--navy:var(--louch-night);--ink:var(--louch-ink);--paper:var(--louch-paper);--teal:var(--louch-deep);--coral:var(--louch-coral);--line:var(--louch-cyan);font-family:var(--louch-body)}
 .book-page,.book-workbook.workbook-page,.workbook-page{background:var(--louch-paper);color:var(--louch-ink)}
-.book-page h2,.book-page h3,.book-page h4,.workbook-page h2,.workbook-page h3,.workbook-page h4,.book-reader-head h1{font-family:var(--louch-display);letter-spacing:-.018em}
+.book-page h2,.book-page h3,.book-page h4,.workbook-page h2,.workbook-page h3,.workbook-page h4,.book-reader-head h1{font-family:var(--louch-display);font-synthesis:none;letter-spacing:-.018em}
 .book-page-body,.book-page-header p,.workbook-page p,.class-profile,.workbook-lore-columns,.culture-columns,.member-credit-list li{font-family:var(--louch-body)}
 .book-eyebrow,.book-folio,.workbook-page .eyebrow,.workbook-page-foot,.class-skill,.class-moves h4,.class-paths h4{font-family:var(--louch-label)}
 .class-profile .workbook-portrait,.role-portrait{background:var(--louch-field)}
@@ -48,5 +52,5 @@
   .layout-sidequest-story .sidequest-columns p{margin-bottom:6px}
   .mmd-prompts section{min-height:180pt}
   .mmd-prompts .rule-lines span{height:20pt}
-  .layout-guild-offshoots .offshoot-common{margin-top:10pt}
+  .layout-guild-offshoots .offshoot-common{margin-top:4pt}
 }
