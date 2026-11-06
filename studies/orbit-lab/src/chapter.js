@@ -4,12 +4,14 @@ export const CHAPTER_ONE_IDS = CAMPAIGN_LEVELS.filter(level => level.chapter ===
 export const CHAPTER_TWO_IDS = CAMPAIGN_LEVELS.filter(level => level.chapter === 2).map(level => level.id);
 export const CHAPTER_THREE_IDS = CAMPAIGN_LEVELS.filter(level => level.chapter === 3).map(level => level.id);
 export const CHAPTER_FOUR_IDS = CAMPAIGN_LEVELS.filter(level => level.chapter === 4).map(level => level.id);
+export const CHAPTER_FIVE_IDS = CAMPAIGN_LEVELS.filter(level => level.chapter === 5).map(level => level.id);
 export const ALL_CAMPAIGN_IDS = CAMPAIGN_LEVELS.map(level => level.id);
 export const CHAPTERS = [
   { id: 1, label: 'CHAPTER ONE', name: 'THE FIRST SIGNAL', levelIds: CHAPTER_ONE_IDS, duration: 18, heading: 'CHAPTER ONE / TRANSMISSION', caption: 'A CALL INTO THE DARK', description: 'A small light sends a five-note call into the dark. After a silence, a sound answers from beyond the screen. Press Escape or Skip to return to the levels.' },
   { id: 2, label: 'CHAPTER TWO', name: 'FINDING THE FREQUENCY', levelIds: CHAPTER_TWO_IDS, duration: 22, heading: 'CHAPTER TWO / TRANSMISSION', caption: 'FINDING THE FREQUENCY', description: 'The light sends a new call. An answer arrives in three pulses, and the light replies in the same rhythm. Press Escape or Skip to return to the levels.' },
   { id: 3, label: 'CHAPTER THREE', name: 'THROUGH THE SILENCE', levelIds: CHAPTER_THREE_IDS, duration: 24, heading: 'CHAPTER THREE / TRANSMISSION', caption: 'A SIGNAL THROUGH THE DARK', description: 'The light sends its gathered notes, waits through a long quiet passage, and hears an answer moving toward it. Press Escape or Skip to return to the levels.' },
   { id: 4, label: 'CHAPTER FOUR', name: 'ACROSS THE DIVIDE', levelIds: CHAPTER_FOUR_IDS, duration: 20, heading: 'CHAPTER FOUR / TRANSMISSION', caption: 'ACROSS THE DIVIDE', description: 'The two lights send their calls across the divide, answer each other, and find a shared note. Press Escape or Skip to return to the levels.' },
+  { id: 5, label: 'CHAPTER FIVE', name: 'SOMETHING HEARD US', levelIds: CHAPTER_FIVE_IDS, duration: 22, heading: 'CHAPTER FIVE / TRANSMISSION', caption: 'SOMETHING HEARD US', description: 'The light calls toward its distant friend. An unsettling echo follows from the dark, then the familiar answering melody emerges beneath it. Press Escape or Skip to return to the levels.' },
 ];
 export const getChapter = id => CHAPTERS.find(chapter => chapter.id === Number(id)) || CHAPTERS[0];
 export const qualifiedGateFinish = mask => Number.isInteger(mask) && mask >= 1 && mask <= 7;
@@ -42,6 +44,31 @@ export function campaignContinuation(id, bestGates = {}) {
 
 export const TRANSMISSION_DURATION = 18;
 export function transmissionEvents(notes = [], chapterId = 1) {
+  if (Number(chapterId) === 5) {
+    const events = [
+      { at: 2, type: 'call', note: 0 },
+      { at: 6, type: 'call', note: 4 },
+      { at: 8.4, type: 'uneasyEcho', frequency: 246.942 },
+      { at: 8.65, type: 'uneasyPulse' },
+      { at: 9.25, type: 'uneasyEcho', frequency: 220 },
+      { at: 9.5, type: 'uneasyPulse' },
+      { at: 11.3, type: 'answerNote', frequency: 392 },
+      { at: 11.65, type: 'answerPulse' },
+      { at: 12.1, type: 'answerNote', frequency: 440 },
+      { at: 12.45, type: 'answerPulse' },
+      { at: 13.15, type: 'replyNote', frequency: 392 },
+      { at: 14.0, type: 'answerNote', frequency: 493.883 },
+      { at: 14.7, type: 'replyNote', frequency: 493.883 },
+      { at: 16.4, type: 'uneasyEcho', frequency: 196 },
+      { at: 16.7, type: 'uneasyPulse' },
+      { at: 18.1, type: 'answerNote', frequency: 523.251 },
+      { at: 18.25, type: 'replyNote', frequency: 523.251 },
+      { at: 18.45, type: 'answerPulse' },
+      { at: 22, type: 'end' },
+    ];
+    [1, 2, 3].forEach((slot, index) => { if (notes[index]) events.push({ at: 2 + slot, type: 'call', note: slot }); });
+    return events.sort((a, b) => a.at - b.at);
+  }
   if (Number(chapterId) === 4) {
     const events = [
       { at: 2, type: 'call', note: 0 },

@@ -32,3 +32,12 @@ test('campaign prediction releases a held dot only in its clone', () => {
   assert.ok(result.points.at(-1).y > 0);
   assert.equal(runtime.held.id, 'hold');
 });
+
+test('campaign prediction follows chaser walls without moving the live pursuer', () => {
+  const room = { ...level, walls: [{ id: 'divider', x: 0, y: 0, w: 1, h: 14 }] };
+  const entities = [{ id: 'pursuer', type: 'ember', x: -4, y: 0, radius: .5, lethal: true, motion: 'chaser', speed: 2.3, gravity: 0 }];
+  const runtime = createEntityRuntime(entities), snapshot = structuredClone(runtime);
+  const path = predictCampaignPath({ x: 4, y: 0, vx: 0, vy: 0 }, [], 0, room, entities, runtime);
+  assert.ok(path.points.length > 1);
+  assert.deepEqual(runtime, snapshot);
+});

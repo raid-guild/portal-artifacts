@@ -277,6 +277,16 @@
       "radius": 1.15,
       "direction": 0,
       "speed": 5
+    },
+    {
+      "id": "phrase-light",
+      "type": "lightPickup",
+      "x": 70,
+      "y": -36,
+      "radius": 0.65,
+      "amount": 0.18,
+      "reusable": false,
+      "cooldown": 0
     }
   ]
 }

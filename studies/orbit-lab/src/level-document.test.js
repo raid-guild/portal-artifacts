@@ -12,7 +12,7 @@ test('both campaign documents normalize and round-trip through the shared compil
     assert.equal(checked.ok, true, checked.errors.join('\n'));
     assert.deepEqual(parseLevelDocument(JSON.stringify(checked.document)).document, checked.document);
     const compiled = compileLevelDocument(doc);
-    assert.equal(compiled.level.walls.length, 4);
+    assert.equal(compiled.level.walls.length, doc === one ? 6 : 4);
     assert.equal(compiled.level.goal.gravity, 5);
   }
 });
@@ -60,7 +60,7 @@ test('document settings compile without losing budget, resource, or exit gravity
 
 test('optional wallPaths round-trip and compile into rotated collision pieces', () => {
   const d=copy(one);
-  assert.deepEqual(validateLevelDocument(d).document.wallPaths,[]);
+  assert.equal(validateLevelDocument(d).document.wallPaths.length, 2);
   d.wallPaths=[{id:'bend',thickness:.6,points:[{x:3,y:-8},{x:5,y:-6},{x:7,y:-7}]}];
   const checked=validateLevelDocument(d);
   assert.equal(checked.ok,true,checked.errors.join('\n'));
@@ -85,6 +85,28 @@ test('wall path IDs, points, bounds, start, exit, and portal ejection are valida
   const portal=copy(base);portal.entities.push({id:'a',type:'portal',pairId:'pair',x:-4,y:10,radius:1,exitDirection:0},{id:'b',type:'portal',pairId:'pair',x:0,y:10,radius:1,exitDirection:0});
   portal.wallPaths[0].points=[{x:1.5,y:9},{x:1.5,y:11}];
   assert.equal(validateLevelDocument(portal).ok,false);
+});
+
+test('chaser starts must clear axis, rotated, and perimeter walls', () => {
+  const chaser = { id: 'pursuer', type: 'ember', x: 10, y: 10, radius: .7, gravity: 3, lethal: true,
+    motion: 'chaser', speed: 2.3, orbitRadius: 0, phase: 0 };
+  const axis = copy(one);
+  axis.walls.push({ id: 'post', x: 10, y: 10, width: 2, height: 2 });
+  axis.entities.push(copy(chaser));
+  assert.match(validateLevelDocument(axis).errors.join(' '), /chaser pursuer overlaps a wall/);
+  const rotated = copy(one);
+  rotated.wallPaths = [{ id: 'diagonal', thickness: .8, points: [{ x: 20, y: 6 }, { x: 24, y: 10 }] }];
+  rotated.entities.push({ ...chaser, x: 22, y: 8 });
+  assert.match(validateLevelDocument(rotated).errors.join(' '), /chaser pursuer overlaps a wall/);
+  const perimeter = copy(one);
+  perimeter.entities.push({ ...chaser, x: -19.3, y: 10 });
+  assert.match(validateLevelDocument(perimeter).errors.join(' '), /chaser pursuer overlaps a wall/);
+  const clear = copy(axis);
+  clear.entities.at(-1).x = 12.1;
+  assert.equal(validateLevelDocument(clear).ok, true);
+  const legacy = copy(axis);
+  legacy.entities.at(-1).motion = 'fixed';
+  assert.equal(validateLevelDocument(legacy).ok, true, 'fixed ember placement retains its existing behavior');
 });
 
 test('orbit direction is optional for older JSON and round-trips when clockwise',()=>{

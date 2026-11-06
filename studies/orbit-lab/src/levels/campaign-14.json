@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "id": "campaign-14",
+  "title": "A borrowed opening",
+  "bounds": {
+    "minX": -18,
+    "maxX": 112,
+    "minY": -32,
+    "maxY": 32
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": -12,
+    "y": -14,
+    "direction": 0,
+    "speed": 4.3
+  },
+  "exit": {
+    "x": 104,
+    "y": -6,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "near-divider",
+      "x": 30,
+      "y": -17,
+      "width": 1.5,
+      "height": 26
+    },
+    {
+      "id": "far-divider",
+      "x": 65,
+      "y": 13,
+      "width": 1.5,
+      "height": 38
+    },
+    {
+      "id": "loop-top",
+      "x": 47,
+      "y": 27,
+      "width": 24,
+      "height": 2
+    },
+    {
+      "id": "loop-bottom",
+      "x": 45,
+      "y": -27,
+      "width": 23,
+      "height": 2
+    }
+  ],
+  "entities": [
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 7,
+      "y": -14,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "rise",
+      "type": "impulse",
+      "x": 12,
+      "y": -14,
+      "radius": 1.15,
+      "direction": 36,
+      "speed": 10
+    },
+    {
+      "id": "pursuer",
+      "type": "ember",
+      "x": 23,
+      "y": 7,
+      "radius": 0.7,
+      "gravity": 3,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "chaser",
+      "speed": 2.4,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 41,
+      "y": 18,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "turn",
+      "type": "stillness",
+      "x": 44,
+      "y": 9.2,
+      "radius": 1.1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "escape-in",
+      "type": "portal",
+      "x": 55,
+      "y": 9.2,
+      "radius": 1,
+      "pairId": "escape",
+      "exitDirection": 180
+    },
+    {
+      "id": "escape-out",
+      "type": "portal",
+      "x": 77,
+      "y": -14,
+      "radius": 1,
+      "pairId": "escape",
+      "exitDirection": 0
+    },
+    {
+      "id": "far-pursuer",
+      "type": "ember",
+      "x": 88,
+      "y": 0,
+      "radius": 0.68,
+      "gravity": 2.5,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "chaser",
+      "speed": 2.2,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 89,
+      "y": -4,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "first-light",
+      "type": "lightPickup",
+      "x": 9,
+      "y": -14,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "turn-light",
+      "type": "lightPickup",
+      "x": 47,
+      "y": 9.2,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "far-light",
+      "type": "lightPickup",
+      "x": 90,
+      "y": -14,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "phrase-entry",
+      "type": "impulse",
+      "x": -10,
+      "y": 19,
+      "radius": 1.15,
+      "direction": 0,
+      "speed": 7.5
+    },
+    {
+      "id": "phrase-light",
+      "type": "lightPickup",
+      "x": 15,
+      "y": 19,
+      "radius": 0.65,
+      "amount": 0.2,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "phrase-turn",
+      "type": "impulse",
+      "x": 11,
+      "y": 19,
+      "radius": 1.15,
+      "direction": 270,
+      "speed": 7.5
+    }
+  ]
+}

@@ -49,6 +49,18 @@ test('third transmission has a distinct five-note call and keeps scene voices ca
  assert.ok(notes.at(-2)[2] > notes.at(-1)[2]);
 });
 
+test('fifth transmission sets a low, wavering echo beneath the familiar call', () => {
+ const audio = new OrbitAudio(), notes = [];
+ audio.tone = (...args) => notes.push(args);
+ for (let i = 0; i < 5; i++) audio.sceneCall(i, 5);
+ assert.deepEqual(notes.map(note => note[0]), [329.628, 392, 440, 493.883, 523.251]);
+ notes.length = 0;
+ audio.sceneUneasyEcho(220);
+ assert.equal(notes.length, 2);
+ assert.ok(notes.every(note => note[5] === true));
+ assert.ok(notes[0][4] < notes[0][0]);
+});
+
 test('effects, music, and master mute use independent gains', async () => {
  const audio = new OrbitAudio(), effects = [], music = [], master = [];
  const gain = sink => ({ setTargetAtTime(value) { sink.push(value); } });
@@ -68,4 +80,32 @@ test('effects, music, and master mute use independent gains', async () => {
  assert.equal(audio.effectsVolume, .7);
  audio.setMusic(false, .2);
  assert.equal(audio.musicVolume, .2);
+});
+
+test('phrase alone uses a damped stereo room and mute cuts its tail', () => {
+ const audio = new OrbitAudio(), links = [], stopped = [], nodes = [];
+ const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} });
+ const node = kind => { const item = { kind, connect(other) { links.push([kind, other.kind]); }, disconnect() { item.disconnected = true; } }; nodes.push(item); return item; };
+ audio.unlock = () => {};
+ audio.effectsBus = node('effects');
+ audio.master = { gain: param() }; audio.musicBus = { gain: param() };
+ audio.context = { currentTime: 1, sampleRate: 8000,
+   createBuffer(channels, length) { assert.equal(channels, 2); return { getChannelData: () => new Float32Array(length) }; },
+   createGain() { return Object.assign(node('gain'), { gain: param() }); },
+   createDelay() { return Object.assign(node('delay'), { delayTime: param() }); },
+   createConvolver() { return node('convolver'); },
+   createBiquadFilter() { return Object.assign(node('filter'), { frequency: param() }); },
+   createOscillator() { return Object.assign(node('voice'), { frequency: param(), start() {}, stop() { stopped.push(true); } }); },
+ };
+ audio.phraseNote(440);
+ assert.equal(audio.phraseVoices.size, 2);
+ assert.ok(links.some(([a,b]) => a === 'delay' && b === 'convolver'));
+ assert.ok(links.some(([a,b]) => a === 'filter' && b === 'gain'));
+ assert.ok(links.some(([a,b]) => a === 'gain' && b === 'effects'));
+ assert.ok(audio.phraseImpulse);
+ audio.setEnabled(false);
+ assert.equal(audio.phraseVoices.size, 0);
+ assert.equal(audio.phraseRoom, null);
+ assert.ok(stopped.length >= 2);
+ assert.ok(nodes.some(item => item.kind === 'convolver' && item.disconnected));
 });

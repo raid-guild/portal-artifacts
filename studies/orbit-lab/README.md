@@ -4,6 +4,9 @@ A campaign crossing and a gallery of gravity, light, and sound experiments built
 with Three.js and cannon-es. Place temporary gravity wells to bend the glowing
 dot's flight toward the exit. The deployed route is `/orbit-lab/`.
 
+For development history, lessons, story angles and media references, see the
+[content handoff](docs/CONTENT-HANDOFF.md).
+
 ## Develop, test, and publish
 
 Requires Node.js 20.19 or newer.
@@ -38,17 +41,68 @@ injects its site-wide analytics and outbound-link scripts.
 - Right-click a well or use its list button in Settings to remove it.
 - Keyboard: Space performs the primary action (Start, Resume, Release, or remove oldest well); P pauses/resumes; R restarts the current mode; E removes the oldest well or releases a capture.
 
+The first visit to the opening level of each campaign chapter (1, 4, 7, 10,
+and 13) pauses on a short illustrated field guide. Chapter One demonstrates
+the two-well rotation. **Got it** or Escape dismisses and remembers each
+guide on this device. **Chapter guide** in the level selector replays any
+unlocked chapter guide without starting a level. Guides never appear in
+studies, Infinite Play, or editor playtests.
+
+**Light duel** is a separate 32 × 18 encounter study. Both lights start at
+60%, burn slowly, and enter an eight-second last-embers grace period at zero.
+Both actors collect from one shared pool of recharge embers. Rams cost both
+lights 12%. Hold on empty playfield for half a second to drop a cyan mine at
+your light for 8%; a quick tap still places a well. Space or the thumb button
+keeps its usual Start, Resume, Release, and remove-oldest-well action. The M
+key is a keyboard shortcut for a mine while flying.
+The opponent lays orange mines with the same cost and can pursue, flee, or seek
+light. Warning rings mark the full footprint before a long sizzling burst
+damages only the opponent of the mine's owner. The duel ends when either light
+expires; the opponent's loss leads to a brief resolution and trail result.
+Its behavior can be set to Adaptive, Chase, or Flee in study settings. Well lifetime starts
+at 16 seconds here and returns to its prior value when leaving. This arena has
+no exit portal and does not change campaign rules.
+
+Each chapter has an optional encounter beside its transmission replay button.
+The encounter unlocks after completing that chapter's third crossing with at
+least one gate. The first arena is small and forgiving; later arenas grow and
+reuse the chapter's walls and movement elements. Both lights spend energy on
+rams and mines and draw from the same recharge pool. Defeating the ember saves
+a separate achievement, while losing or skipping never blocks the next chapter.
+The five wins appear below the phrase achievements. Direct links use
+`?encounter=1` through `?encounter=5` and enforce the same unlock check.
+
 The root route opens Home, with Campaign, Infinite Play, World Studies, and the
 Level editor. Campaign
-opens a grouped selector that reveals three levels per chapter as you progress through four chapters.
-`?campaign=1` through `?campaign=12` open levels
+opens a grouped selector that reveals three levels per chapter as you progress through five chapters.
+`?campaign=1` through `?campaign=15` open levels
 directly, while `?demo=<id>` keeps a study deep link. Campaign
+shows a small edge guide for the next uncollected sound gate when it is off
+screen; after all three gates, it points toward the exit portal. It follows
+the current camera and disappears during menus, results, and cutscenes.
+Campaign
 starts with 60% light, burns 1.8 percentage points per simulation second,
 and receives 30 points from each pale ember. Darkness gives eight seconds to
 collect another ember before the run ends, marked by an accelerating heartbeat.
 Levels 1–7 use bounded 96 × 54 chambers. Level 8 expands to 144 × 80, and
 level 9 to 176 × 96. Levels 1–4 place the portal 50 world units from
-the start. Level 1 has an empty interior. Level 2 adds a giant orange ember
+the start. Level 1 keeps the open starting route and adds a narrow optional
+passage above it. Curated optional eight-note phrases appear once per chapter,
+in levels 1, 4, 7, 11, and 14. Their routes use an impulse chain, bent turns,
+a portal side room, and a loop above a pursuing ember. The next note lights up
+after the previous one. Completing a phrase briefly freezes the simulation
+while a light pulse returns to the start and plays the melody forward. Portal
+jumps split the captured trail, so the pulse does not draw a beam across rooms.
+Discovery saves immediately for each level, even if the later flight ends in
+death. **Achievements** on Home and the campaign selector shows five hidden
+achievements without revealing their source levels; discovered melodies gain a
+name and Listen control. The level selector keeps its discovered badge and
+**Replay phrase** link. Phrase notes use a short dry attack and a damped stereo
+room tail, while each acquired note sends a local light pulse through its gate.
+Replay remains open after the last note so the echo can decay, with Replay and
+Close controls. Muting sound effects or leaving the scene stops the phrase tail.
+These curated phrases are authored in game code, outside the level editor.
+Level 2 adds a giant orange ember
 at the center; its gravity bends the dot and contact is lethal. Wells and
 recharge embers cannot appear inside it. Level 3, **An opening in the dark**,
 adds offset walls, two orbiting embers, and three collectible moons. Chapter Two

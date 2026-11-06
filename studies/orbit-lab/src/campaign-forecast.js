@@ -23,7 +23,7 @@ export function predictCampaignPath(state, wells, time, level, entities, runtime
     body.position.y += body.velocity.y * STEP;
     const hit = firstImpact(before, body.position, level);
     if (simulated) {
-      const interaction = stepEntityRuntime(simulated, entities, before, body, at, STEP, level.bounds);
+      const interaction = stepEntityRuntime(simulated, entities, before, body, at, STEP, level.bounds, { walls: level.walls });
       if (interaction.died || interaction.teleported || interaction.tones.length || simulated.held || interaction.energyDelta || interaction.companions.length) {
         points.push({ x: body.position.x, y: body.position.y });
         return { points, impact: interaction.died ? 'ember' : 'interaction' };
