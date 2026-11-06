@@ -1,6 +1,6 @@
 // Procedural game sounds plus a quiet, optional local soundtrack.
 export class OrbitAudio {
-  constructor() { this.enabled = true; this.effectsEnabled = true; this.effectsVolume = 1; this.musicEnabled = true; this.musicVolume = .15; this.musicActive = false; this.musicDuck = 1; this.step = 0; this.profile = 'default'; this.sceneVoices = new Set(); }
+  constructor() { this.enabled = true; this.effectsEnabled = true; this.effectsVolume = 1; this.musicEnabled = true; this.musicVolume = .15; this.musicActive = false; this.musicDuck = 1; this.step = 0; this.profile = 'default'; this.sceneVoices = new Set(); this.phraseVoices = new Set(); }
   unlock() {
     if (!this.enabled) return;
     const Audio = window.AudioContext || window.webkitAudioContext;
@@ -38,12 +38,14 @@ export class OrbitAudio {
   }
   setEnabled(enabled) {
     this.enabled = !!enabled;
+    if (!this.enabled) this.stopPhraseSound();
     if (enabled) this.unlock();
     if (this.context) this.master.gain.setTargetAtTime(this.enabled ? .32 : 0, this.context.currentTime, .04);
     this.syncMusic();
   }
   setEffects(enabled, volume = this.effectsVolume) {
     this.effectsEnabled = !!enabled; this.effectsVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+    if (!this.effectsEnabled || !this.effectsVolume) this.stopPhraseSound();
     if (this.context) this.effectsBus.gain.setTargetAtTime(this.effectsEnabled ? this.effectsVolume : 0, this.context.currentTime, .04);
   }
   setMusic(enabled, volume = this.musicVolume) {
@@ -96,13 +98,62 @@ export class OrbitAudio {
   setProfile(profile) { this.profile = profile; this.step = 0; }
   startScene() { this.unlock(); this.stopScene(); }
   stopScene() {
+    this.stopPhraseSound();
     for (const voice of this.sceneVoices) { try { voice.stop(); } catch {} }
     this.sceneVoices.clear();
   }
-  sceneCall(note, chapterId = 1) { const pitches = chapterId === 4 ? [329.628, 392, 440, 493.883, 523.251] : chapterId === 3 ? [261.626, 349.228, 391.995, 440, 523.251] : chapterId === 2 ? [293.665, 329.628, 391.995, 440, 587.33] : [293.665, 440, 329.628, 523.251, 391.995]; const pitch = pitches[note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
+  sceneCall(note, chapterId = 1) { const pitches = chapterId === 5 ? [329.628, 392, 440, 493.883, 523.251] : chapterId === 4 ? [329.628, 392, 440, 493.883, 523.251] : chapterId === 3 ? [261.626, 349.228, 391.995, 440, 523.251] : chapterId === 2 ? [293.665, 329.628, 391.995, 440, 587.33] : [293.665, 440, 329.628, 523.251, 391.995]; const pitch = pitches[note]; this.tone(pitch, 0, 1.15, .14, pitch, true); }
   sceneNote(frequency, answer = false) { this.tone(frequency, 0, answer ? 1.55 : 1.1, answer ? .11 : .13, frequency, true); }
+  sceneUneasyEcho(frequency) { this.tone(frequency, 0, 1.65, .075, frequency * .93, true); this.tone(frequency * 1.027, .09, 1.3, .035, frequency * .96, true); }
   sceneEarned(note) { const pitch = [369.994, 493.883, 587.33][note - 1]; this.tone(pitch, 0, .75, .07, pitch, true); }
   sceneAnswer() { [220, 277.183, 369.994].forEach((note, i) => this.tone(note, i * .12, 1.8, .09, note, true)); }
+  phraseNote(frequency, replay = false) {
+    this.unlock();
+    if (!this.enabled || !this.effectsEnabled || !this.effectsVolume || !this.context) return;
+    const c = this.context, now = c.currentTime;
+    if (!this.phraseImpulse) {
+      const length = Math.floor(c.sampleRate * 2.4);
+      this.phraseImpulse = c.createBuffer(2, length, c.sampleRate);
+      // Diffuse, damped stereo room response. The opening stays dry and precise.
+      for (let channel = 0; channel < 2; channel++) {
+        const samples = this.phraseImpulse.getChannelData(channel);
+        let noise = 0, seed = channel ? 0x73af2901 : 0x1f85a49b;
+        for (let i = 0; i < length; i++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          noise = noise * .74 + (((seed / 0xffffffff) * 2 - 1) * .26);
+          samples[i] = noise * Math.exp(-4.9 * i / length) * (i < c.sampleRate * .035 ? 0 : 1);
+        }
+      }
+    }
+    if (!this.phraseRoom) {
+      const input = c.createGain(), delay = c.createDelay(.1), convolver = c.createConvolver();
+      const filter = c.createBiquadFilter(), wet = c.createGain();
+      delay.delayTime.value = .035; convolver.buffer = this.phraseImpulse;
+      filter.type = 'lowpass'; filter.frequency.value = 4500; wet.gain.value = .3;
+      input.connect(delay); delay.connect(convolver); convolver.connect(filter); filter.connect(wet); wet.connect(this.effectsBus);
+      this.phraseRoom = { input, delay, convolver, filter, wet };
+    }
+    const duration = replay ? .86 : .78;
+    for (const [pitch, level] of [[frequency, replay ? .14 : .115], [frequency * 2, .018]]) {
+      const voice = c.createOscillator(), gain = c.createGain();
+      voice.type = 'sine'; voice.frequency.value = pitch;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(level, now + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      voice.connect(gain); gain.connect(this.effectsBus); gain.connect(this.phraseRoom.input);
+      this.phraseVoices.add(voice);
+      voice.start(now); voice.stop(now + duration + .02);
+      voice.onended = () => { this.phraseVoices.delete(voice); voice.disconnect(); gain.disconnect(); };
+    }
+  }
+  stopPhraseSound() {
+    for (const voice of this.phraseVoices) { try { voice.stop(); } catch {} }
+    this.phraseVoices.clear();
+    if (this.phraseRoom) {
+      for (const node of Object.values(this.phraseRoom)) node.disconnect();
+      this.phraseRoom = null;
+    }
+  }
   placement() {
     this.unlock();
     // A repeating, spacious five-note call, composed for this experiment.
@@ -173,21 +224,22 @@ export class OrbitAudio {
   stopHeartbeat() {
     if (this.context && this.heartbeatBus) this.heartbeatBus.gain.setTargetAtTime(0, this.context.currentTime, .015);
   }
-  noise(duration, frequency, volume) {
+  noise(duration, frequency, volume, sceneVoice = false) {
     if (!this.enabled || !this.effectsEnabled || !this.context) return;
     const c = this.context, time = c.currentTime;
     const source = c.createBufferSource(), filter = c.createBiquadFilter(), gain = c.createGain();
     source.buffer = this.noiseBuffer; filter.type = 'lowpass'; filter.frequency.setValueAtTime(frequency, time);
     filter.frequency.exponentialRampToValueAtTime(80, time + duration);
     gain.gain.setValueAtTime(volume, time); gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
-    source.connect(filter); filter.connect(gain); gain.connect(this.effectsBus);
+    source.connect(filter); filter.connect(gain); gain.connect(sceneVoice ? this.sceneBus : this.effectsBus);
+    if (sceneVoice) this.sceneVoices.add(source);
     source.start(); source.stop(time + duration);
-    source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+    source.onended = () => { this.sceneVoices.delete(source); source.disconnect(); filter.disconnect(); gain.disconnect(); };
   }
   death() { this.noise(.45, 1800, .17); this.tone(150, 0, .4, .17, 42); }
   portal() {
     [261.626, 329.628, 391.995, 523.251].forEach((note, i) => this.tone(note, i * .11, 2.6, .1));
     this.noise(.8, 4200, .035);
   }
-  reset() { this.step = 0; this.stopHeartbeat(); this.trail(false, 0, 0); this.orb(false, 0); }
+  reset() { this.step = 0; this.stopPhraseSound(); this.stopHeartbeat(); this.trail(false, 0, 0); this.orb(false, 0); }
 }

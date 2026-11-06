@@ -55,6 +55,108 @@
       "y": -5,
       "radius": 0.9,
       "slot": 2
+    },
+    {
+      "id": "impulse-1",
+      "type": "impulse",
+      "x": -10,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-2",
+      "type": "impulse",
+      "x": 0,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-3",
+      "type": "impulse",
+      "x": 10,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-4",
+      "type": "impulse",
+      "x": 20,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-5",
+      "type": "impulse",
+      "x": 30,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-6",
+      "type": "impulse",
+      "x": 40,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-7",
+      "type": "impulse",
+      "x": 50,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    },
+    {
+      "id": "impulse-8",
+      "type": "impulse",
+      "x": 60,
+      "y": 22,
+      "radius": 0.9,
+      "direction": 0,
+      "speed": 12
+    }
+  ],
+  "wallPaths": [
+    {
+      "id": "path-1",
+      "thickness": 1,
+      "points": [
+        {
+          "x": 65,
+          "y": 20
+        },
+        {
+          "x": -10,
+          "y": 20
+        }
+      ]
+    },
+    {
+      "id": "path-2",
+      "thickness": 1,
+      "points": [
+        {
+          "x": -11,
+          "y": 24
+        },
+        {
+          "x": 68,
+          "y": 24
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "id": "campaign-13",
+  "title": "Something follows",
+  "bounds": {
+    "minX": -18,
+    "maxX": 78,
+    "minY": -25,
+    "maxY": 25
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": -12,
+    "y": 0,
+    "direction": 0,
+    "speed": 4.3
+  },
+  "exit": {
+    "x": 71,
+    "y": 0,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "island",
+      "x": 27,
+      "y": 12,
+      "width": 5,
+      "height": 18
+    },
+    {
+      "id": "shadow-post",
+      "x": 50,
+      "y": -17,
+      "width": 3,
+      "height": 14
+    }
+  ],
+  "entities": [
+    {
+      "id": "first-follower",
+      "type": "ember",
+      "x": 23,
+      "y": -9,
+      "radius": 0.7,
+      "gravity": 3,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "chaser",
+      "speed": 2.15,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 9,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 31,
+      "y": -7,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 55,
+      "y": 7,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "first-light",
+      "type": "lightPickup",
+      "x": 17,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "second-light",
+      "type": "lightPickup",
+      "x": 45,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "last-light",
+      "type": "lightPickup",
+      "x": 62,
+      "y": 0,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    }
+  ]
+}

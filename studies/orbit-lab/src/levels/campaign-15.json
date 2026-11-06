@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "id": "campaign-15",
+  "title": "Close behind",
+  "bounds": {
+    "minX": -18,
+    "maxX": 155,
+    "minY": -42,
+    "maxY": 42
+  },
+  "settings": {
+    "startLight": 0.6,
+    "burnRate": 0.018,
+    "graceSeconds": 8,
+    "wellStrength": 70,
+    "wellLifetime": 8,
+    "maxActiveWells": 2,
+    "maxTotalWells": null,
+    "randomRecharge": true
+  },
+  "start": {
+    "x": -12,
+    "y": 0,
+    "direction": 0,
+    "speed": 4.5
+  },
+  "exit": {
+    "x": 146,
+    "y": -6,
+    "radius": 1.5,
+    "gravity": 5
+  },
+  "walls": [
+    {
+      "id": "first-divide",
+      "x": 35,
+      "y": -19,
+      "width": 1.5,
+      "height": 46
+    },
+    {
+      "id": "second-divide",
+      "x": 84,
+      "y": 0,
+      "width": 1.5,
+      "height": 84
+    },
+    {
+      "id": "upper-shoulder",
+      "x": 101,
+      "y": 27,
+      "width": 4,
+      "height": 27
+    },
+    {
+      "id": "last-post",
+      "x": 130,
+      "y": 17,
+      "width": 3,
+      "height": 22
+    }
+  ],
+  "entities": [
+    {
+      "id": "gate-0",
+      "type": "soundGate",
+      "x": 5,
+      "y": 0,
+      "radius": 0.9,
+      "slot": 0
+    },
+    {
+      "id": "rise",
+      "type": "impulse",
+      "x": 10,
+      "y": 0,
+      "radius": 1.15,
+      "direction": 25,
+      "speed": 11
+    },
+    {
+      "id": "first-chaser",
+      "type": "ember",
+      "x": 26,
+      "y": 19,
+      "radius": 0.72,
+      "gravity": 3,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "chaser",
+      "speed": 2.65,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "timing-pocket",
+      "type": "stillness",
+      "x": 45,
+      "y": 16.3,
+      "radius": 1.1,
+      "captureTime": 2,
+      "manualRelease": true,
+      "releaseDirection": 0
+    },
+    {
+      "id": "orbital-a",
+      "type": "ember",
+      "x": 56,
+      "y": 16.3,
+      "radius": 0.65,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.2,
+      "orbitRadius": 3.1,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "orbital-b",
+      "type": "ember",
+      "x": 56,
+      "y": 16.3,
+      "radius": 0.65,
+      "gravity": 0,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "orbit",
+      "speed": 1.2,
+      "orbitRadius": 3.1,
+      "phase": 180,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-1",
+      "type": "soundGate",
+      "x": 66,
+      "y": 23,
+      "radius": 0.9,
+      "slot": 1
+    },
+    {
+      "id": "cross-in",
+      "type": "portal",
+      "x": 75,
+      "y": 16.3,
+      "radius": 1,
+      "pairId": "cross",
+      "exitDirection": 180
+    },
+    {
+      "id": "cross-out",
+      "type": "portal",
+      "x": 96,
+      "y": -12,
+      "radius": 1,
+      "pairId": "cross",
+      "exitDirection": 0
+    },
+    {
+      "id": "last-chaser",
+      "type": "ember",
+      "x": 115,
+      "y": -1,
+      "radius": 0.75,
+      "gravity": 4,
+      "lethal": true,
+      "burnsCompanions": false,
+      "motion": "chaser",
+      "speed": 2.8,
+      "orbitRadius": 0,
+      "phase": 0,
+      "orbitDirection": "counterclockwise"
+    },
+    {
+      "id": "gate-2",
+      "type": "soundGate",
+      "x": 136,
+      "y": 8,
+      "radius": 0.9,
+      "slot": 2
+    },
+    {
+      "id": "first-light",
+      "type": "lightPickup",
+      "x": 20,
+      "y": 4,
+      "radius": 0.7,
+      "amount": 0.3,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "middle-light",
+      "type": "lightPickup",
+      "x": 68,
+      "y": 16.3,
+      "radius": 0.7,
+      "amount": 0.32,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "last-light",
+      "type": "lightPickup",
+      "x": 111,
+      "y": -12,
+      "radius": 0.7,
+      "amount": 0.34,
+      "reusable": false,
+      "cooldown": 0
+    },
+    {
+      "id": "exit-light",
+      "type": "lightPickup",
+      "x": 136,
+      "y": -1,
+      "radius": 0.7,
+      "amount": 0.28,
+      "reusable": false,
+      "cooldown": 0
+    }
+  ]
+}

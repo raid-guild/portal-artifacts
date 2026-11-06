@@ -20,6 +20,15 @@ const point = (value, name, errors) => {
   return { x: number(value.x, `${name}.x`, errors, -1000, 1000), y: number(value.y, `${name}.y`, errors, -1000, 1000) };
 };
 const within = (p, bounds, radius = 0) => p.x - radius >= bounds.minX && p.x + radius <= bounds.maxX && p.y - radius >= bounds.minY && p.y + radius <= bounds.maxY;
+const perimeterWalls = b => {
+  const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2, width = b.maxX - b.minX, height = b.maxY - b.minY;
+  return [
+    { id: '__west', x: b.minX - .25, y: cy, w: .5, h: height + .5 },
+    { id: '__east', x: b.maxX + .25, y: cy, w: .5, h: height + .5 },
+    { id: '__north', x: cx, y: b.maxY + .25, w: width + .5, h: .5 },
+    { id: '__south', x: cx, y: b.minY - .25, w: width + .5, h: .5 },
+  ];
+};
 
 export function validateLevelDocument(input) {
   const errors = [];
@@ -157,6 +166,11 @@ export function validateLevelDocument(input) {
     const sweep = entity.type === 'ember' && entity.motion === 'orbit' ? entity.orbitRadius : 0;
     if (!within(entity, bounds, entity.type === 'companion' ? entity.captureRadius : entity.radius + sweep)) errors.push(`entity ${entity.id} must fit inside bounds`);
   }
+  if (compiledWalls.length || !errors.length) for (const chaser of entities.filter(e => e.type === 'ember' && e.motion === 'chaser')) {
+    if ([...compiledWalls, ...perimeterWalls(bounds)].some(wall => circleHitsRect(chaser, chaser.radius, wall))) {
+      errors.push(`chaser ${chaser.id} overlaps a wall at its starting position`);
+    }
+  }
   for (const ember of entities.filter(e => e.type === 'ember' && e.lethal)) {
     const initial = ember.motion === 'orbit' ? orbitPosition(ember, 0) : ember;
     if (Math.hypot(start.x - initial.x, start.y - initial.y) <= ember.radius + BLOB_RADIUS) errors.push(`start overlaps lethal ember ${ember.id}`);
@@ -181,13 +195,8 @@ export function compileLevelDocument(input) {
   if (!checked.ok) throw new Error(checked.errors.join('; '));
   const doc = checked.document;
   const direction = doc.start.direction * Math.PI / 180;
-  const b = doc.bounds, cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2, width = b.maxX - b.minX, height = b.maxY - b.minY;
-  const perimeter = [
-    { id: '__west', x: b.minX - .25, y: cy, w: .5, h: height + .5 },
-    { id: '__east', x: b.maxX + .25, y: cy, w: .5, h: height + .5 },
-    { id: '__north', x: cx, y: b.maxY + .25, w: width + .5, h: .5 },
-    { id: '__south', x: cx, y: b.minY - .25, w: width + .5, h: .5 },
-  ];
+  const b = doc.bounds;
+  const perimeter = perimeterWalls(b);
   const level = {
     bounds: clone(doc.bounds), spawn: { x: doc.start.x, y: doc.start.y, vx: Math.cos(direction) * doc.start.speed, vy: Math.sin(direction) * doc.start.speed },
     goal: clone(doc.exit), walls: [...perimeter, ...compiledWallGeometry(doc.walls, doc.wallPaths)],

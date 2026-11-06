@@ -89,7 +89,7 @@ test('bounded chamber has an empty interior and pickup retries stay inside at co
   const level = CAMPAIGN_DEMO.level;
   assert.equal(level.bounds.maxX - level.bounds.minX, 96);
   assert.equal(level.bounds.maxY - level.bounds.minY, 54);
-  assert.equal(level.walls.length, 4);
+  assert.equal(level.walls.length, 6); // perimeter plus the optional phrase passage
   for (const x of [-19, 75]) for (const y of [-26, 26]) {
     for (const seed of [1, 2, 3, 11, 428]) {
       const result = spawnCampaignPickup({ x, y }, { ...createCampaign(seed), pickups: [] }, level);
@@ -99,8 +99,8 @@ test('bounded chamber has an empty interior and pickup retries stay inside at co
   }
 });
 
-test('twelve levels span four chapters', () => {
-  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+test('fifteen levels span five chapters', () => {
+  assert.deepEqual(CAMPAIGN_LEVELS.map(level => level.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   assert.equal(getCampaignLevel(2).level.goal.x, 50);
   assert.equal(getCampaignLevel(2).level.bounds.maxX - getCampaignLevel(2).level.bounds.minX, 96);
   assert.equal(getCampaignLevel(2).giant.radius, 4);
@@ -116,7 +116,10 @@ test('twelve levels span four chapters', () => {
   assert.equal(nextCampaignLevel(9).id, 10);
   assert.equal(nextCampaignLevel(10).id, 11);
   assert.equal(nextCampaignLevel(11).id, 12);
-  assert.equal(nextCampaignLevel(12), null);
+  assert.equal(nextCampaignLevel(12).id, 13);
+  assert.equal(nextCampaignLevel(13).id, 14);
+  assert.equal(nextCampaignLevel(14).id, 15);
+  assert.equal(nextCampaignLevel(15), null);
   const third = getCampaignLevel(3);
   assert.equal(third.title, 'An opening in the dark');
   assert.equal(third.level.bounds.maxX - third.level.bounds.minX, 96);
@@ -162,7 +165,7 @@ test('fourth authored room compiles with a manual waiting place and opposite twe
   assert.ok(Math.abs(first.y + second.y) < .001);
   assert.deepEqual(entities.filter(entity => entity.type === 'soundGate').map(entity => entity.slot), [0, 1, 2]);
   assert.equal(entities.filter(entity => entity.type === 'companion').length, 2);
-  assert.equal(entities.filter(entity => entity.type === 'lightPickup').length, 3);
+  assert.equal(entities.filter(entity => entity.type === 'lightPickup').length, 4);
   assert.equal(level.walls.length, 6);
 });
 

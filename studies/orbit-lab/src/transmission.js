@@ -54,11 +54,11 @@ export function createTransmission({ overlay, canvas, caption, audio, onFinish }
       const py = pulse.answer ? h * (.32 + Math.sin(age * 1.7) * (reduced ? 0 : .025)) : pulse.y;
       const radius = (pulse.answer ? 45 + age * 125 : 12 + age * 55) * scale;
       context.beginPath(); context.arc(px, py, radius, 0, Math.PI * 2);
-      context.strokeStyle = pulse.answer ? `rgba(199,172,255,${.7 * (1-age/duration)})` : `rgba(126,244,229,${.8 * (1-age/duration)})`;
+      context.strokeStyle = pulse.uneasy ? `rgba(248,145,102,${.55 * (1-age/duration)})` : pulse.answer ? `rgba(199,172,255,${.7 * (1-age/duration)})` : `rgba(126,244,229,${.8 * (1-age/duration)})`;
       context.lineWidth = Math.max(2, scale * (pulse.answer ? 5 : 3)); context.stroke();
       if (pulse.answer) {
         const haze = context.createRadialGradient(px, py, radius * .25, px, py, radius * 1.2);
-        haze.addColorStop(0, 'rgba(189,161,255,0)'); haze.addColorStop(.7, `rgba(163,134,239,${.12 * (1-age/duration)})`); haze.addColorStop(1, 'rgba(163,134,239,0)');
+        haze.addColorStop(0, 'rgba(189,161,255,0)'); haze.addColorStop(.7, pulse.uneasy ? `rgba(235,98,66,${.11 * (1-age/duration)})` : `rgba(163,134,239,${.12 * (1-age/duration)})`); haze.addColorStop(1, 'rgba(163,134,239,0)');
         context.fillStyle = haze; context.beginPath(); context.arc(px, py, radius * 1.2, 0, Math.PI * 2); context.fill();
       }
     }
@@ -80,9 +80,11 @@ export function createTransmission({ overlay, canvas, caption, audio, onFinish }
         if (event.type === 'call') { audio.sceneCall(event.note, chapter.id); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); }
         if (event.type === 'earned') audio.sceneEarned(event.note);
         if (event.type === 'answerSound') audio.sceneAnswer();
+        if (event.type === 'uneasyEcho') audio.sceneUneasyEcho(event.frequency);
+        if (event.type === 'uneasyPulse') { pulses.push({ at: event.at, answer: true, uneasy: true }); caption.textContent = 'SOMETHING ELSE HEARD US'; }
         if (event.type === 'answerNote') audio.sceneNote(event.frequency, true);
-        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'AN ANSWER ACROSS THE DIVIDE' : chapter.id === 3 ? event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'A SIGNAL FINDS US' : chapter.id === 2 ? 'A RHYTHM ANSWERS' : 'SOMETHING ANSWERED'; }
-        if (event.type === 'replyNote') { audio.sceneNote(event.frequency); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); caption.textContent = chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'WE ANSWER TOGETHER' : chapter.id === 3 && event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'THE SAME RHYTHM'; }
+        if (event.type === 'answerPulse') { pulses.push({ at: event.at, answer: true }); caption.textContent = chapter.id === 5 ? event.at >= 18 ? 'THE FAMILIAR ANSWER' : 'A MELODY BENEATH THE ECHO' : chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'AN ANSWER ACROSS THE DIVIDE' : chapter.id === 3 ? event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'A SIGNAL FINDS US' : chapter.id === 2 ? 'A RHYTHM ANSWERS' : 'SOMETHING ANSWERED'; }
+        if (event.type === 'replyNote') { audio.sceneNote(event.frequency); const at = dotAt(event.at, canvas.width, canvas.height); pulses.push({ at: event.at, answer: false, x: at.x, y: at.y }); caption.textContent = chapter.id === 5 ? 'THE CALL FINDS ITS FRIEND' : chapter.id === 4 ? event.at >= 15 ? 'ONE NOTE BETWEEN US' : 'WE ANSWER TOGETHER' : chapter.id === 3 && event.at >= 21 ? 'TWO LIGHTS, ONE NOTE' : 'THE SAME RHYTHM'; }
         if (event.type === 'end') { finish(); return; }
       }
       draw();

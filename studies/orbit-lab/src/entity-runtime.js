@@ -3,6 +3,7 @@ import { SOFTENING } from './physics.js';
 import { segmentDistance } from './studies.js';
 import { orbitPosition } from './orbit.js';
 import { stepEclipseExposure } from './eclipse.js';
+import { stepChaser } from './chaser.js';
 
 const radians = degrees => degrees * Math.PI / 180;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -77,7 +78,7 @@ export function entityAcceleration(position, entities, runtime) {
 
 // Fixed-step state. The caller applies energyDelta before resource expiry and splits the trail on teleport.
 export function stepEntityRuntime(runtime, entities, before, body, time, dt, bounds = null, options = {}) {
-  const result = { died: false, fatalEmber: null, teleported: false, energyDelta: 0, tones: [], companions: [] };
+  const result = { died: false, fatalEmber: null, teleported: false, energyDelta: 0, emberExposureSeconds: 0, tones: [], companions: [] };
   let captured = false;
   if (runtime.held) {
     const held = runtime.held;
@@ -96,17 +97,11 @@ export function stepEntityRuntime(runtime, entities, before, body, time, dt, bou
     const prior = { x: item.x, y: item.y };
     if (entity.type === 'ember') {
       if (entity.motion === 'orbit') Object.assign(item, orbitPosition(entity, time));
-      if (entity.motion === 'chaser') {
-        const dx = body.position.x - item.x, dy = body.position.y - item.y, len = Math.hypot(dx, dy) || 1;
-        item.vx = (item.vx + dx / len * dt * 2) * .995;
-        item.vy = (item.vy + dy / len * dt * 2) * .995;
-        const velocity = Math.hypot(item.vx, item.vy);
-        if (velocity > entity.speed) { item.vx *= entity.speed / velocity; item.vy *= entity.speed / velocity; }
-        item.x += item.vx * dt; item.y += item.vy * dt;
-        if (bounds) {
-          item.x = Math.max(bounds.minX + entity.radius, Math.min(bounds.maxX - entity.radius, item.x));
-          item.y = Math.max(bounds.minY + entity.radius, Math.min(bounds.maxY - entity.radius, item.y));
-        }
+      if (entity.motion === 'chaser') stepChaser(item, entity, body.position, dt, bounds, options.walls || []);
+      if (!entity.lethal && options.duel) {
+        const relativeFrom = { x: before.x - prior.x, y: before.y - prior.y };
+        const relativeTo = { x: body.position.x - item.x, y: body.position.y - item.y };
+        if (segmentDistance(relativeFrom, relativeTo, { x: 0, y: 0 }) <= entity.radius + BLOB_RADIUS) result.emberExposureSeconds = dt;
       }
       if (entity.lethal && !options.emberImmune) {
         const relativeFrom = { x: before.x - prior.x, y: before.y - prior.y };

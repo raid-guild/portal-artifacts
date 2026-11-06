@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ALL_CAMPAIGN_IDS, CHAPTER_ONE_IDS, CHAPTER_TWO_IDS, CHAPTER_THREE_IDS, CHAPTER_FOUR_IDS, availableCampaignIds, campaignContinuation, campaignLevelAvailable, chapterUnlocked, qualifiedCampaignPrefix, qualifiedGateFinish, crossedEvents, earnedNotes, getChapter, transmissionEvents, TRANSMISSION_DURATION } from './chapter.js';
+import { ALL_CAMPAIGN_IDS, CHAPTER_ONE_IDS, CHAPTER_TWO_IDS, CHAPTER_THREE_IDS, CHAPTER_FOUR_IDS, CHAPTER_FIVE_IDS, availableCampaignIds, campaignContinuation, campaignLevelAvailable, chapterUnlocked, qualifiedCampaignPrefix, qualifiedGateFinish, crossedEvents, earnedNotes, getChapter, transmissionEvents, TRANSMISSION_DURATION } from './chapter.js';
 
 test('finishing level three unlocks the scene; only single-run perfect masks earn notes', () => {
   assert.equal(chapterUnlocked({ 1: 1, 2: 1 }), false);
@@ -14,8 +14,9 @@ test('finishing level three unlocks the scene; only single-run perfect masks ear
   assert.deepEqual(CHAPTER_TWO_IDS, [4, 5, 6]);
   assert.deepEqual(CHAPTER_THREE_IDS, [7, 8, 9]);
   assert.deepEqual(CHAPTER_FOUR_IDS, [10, 11, 12]);
-  assert.deepEqual(ALL_CAMPAIGN_IDS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(id => campaignContinuation(id, Object.fromEntries(ALL_CAMPAIGN_IDS.map(levelId => [levelId, 1])))), [{ type: 'level', id: 2 }, { type: 'level', id: 3 }, { type: 'transmission', chapterId: 1 }, { type: 'level', id: 5 }, { type: 'level', id: 6 }, { type: 'transmission', chapterId: 2 }, { type: 'level', id: 8 }, { type: 'level', id: 9 }, { type: 'transmission', chapterId: 3 }, { type: 'level', id: 11 }, { type: 'level', id: 12 }, { type: 'transmission', chapterId: 4 }]);
+  assert.deepEqual(CHAPTER_FIVE_IDS, [13, 14, 15]);
+  assert.deepEqual(ALL_CAMPAIGN_IDS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+  assert.deepEqual(ALL_CAMPAIGN_IDS.map(id => campaignContinuation(id, Object.fromEntries(ALL_CAMPAIGN_IDS.map(levelId => [levelId, 1])))), [{ type: 'level', id: 2 }, { type: 'level', id: 3 }, { type: 'transmission', chapterId: 1 }, { type: 'level', id: 5 }, { type: 'level', id: 6 }, { type: 'transmission', chapterId: 2 }, { type: 'level', id: 8 }, { type: 'level', id: 9 }, { type: 'transmission', chapterId: 3 }, { type: 'level', id: 11 }, { type: 'level', id: 12 }, { type: 'transmission', chapterId: 4 }, { type: 'level', id: 14 }, { type: 'level', id: 15 }, { type: 'transmission', chapterId: 5 }]);
   assert.deepEqual(getChapter(2).levelIds, [4, 5, 6]);
   assert.equal(getChapter(2).duration, 22);
 });
@@ -77,6 +78,18 @@ test('fourth transmission carries earned notes into an answering duet', () => {
   assert.equal(full.at(-1).at, getChapter(4).duration);
 });
 
+test('fifth transmission lets an uneasy echo give way to the familiar answer', () => {
+  assert.equal(chapterUnlocked(Object.fromEntries(ALL_CAMPAIGN_IDS.slice(0, 14).map(id => [id, 1])), 5), false);
+  assert.equal(chapterUnlocked(Object.fromEntries(ALL_CAMPAIGN_IDS.map(id => [id, 1])), 5), true);
+  assert.deepEqual(earnedNotes({ 13: 7, 14: 6, 15: 7 }, 5), [true, false, true]);
+  const events = transmissionEvents([true, true, true], 5);
+  assert.deepEqual(events.filter(event => event.type === 'call').map(event => event.note), [0, 1, 2, 3, 4]);
+  assert.ok(events.find(event => event.type === 'uneasyEcho' && event.at < 11));
+  assert.ok(events.find(event => event.type === 'answerNote' && event.at > 11));
+  assert.ok(events.find(event => event.type === 'replyNote' && event.at > 13));
+  assert.equal(events.at(-1).at, getChapter(5).duration);
+});
+
 test('a successful one-gate prefix reveals exactly the next crossing', () => {
   assert.deepEqual(availableCampaignIds({}), [1]);
   for (const bit of [1, 2, 4]) {
@@ -96,7 +109,7 @@ test('a successful one-gate prefix reveals exactly the next crossing', () => {
 });
 
 test('each chapter boundary needs the full qualifying prefix', () => {
-  for (const [end, chapterId] of [[3, 1], [6, 2], [9, 3], [12, 4]]) {
+  for (const [end, chapterId] of [[3, 1], [6, 2], [9, 3], [12, 4], [15, 5]]) {
     const best = Object.fromEntries(ALL_CAMPAIGN_IDS.slice(0, end).map(id => [id, 1]));
     assert.equal(qualifiedCampaignPrefix(best), end);
     assert.equal(chapterUnlocked(best, chapterId), true);
