@@ -6,7 +6,10 @@ import { Experiment } from './experiment.js';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { STEP, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
+import { STEP, MAX_WELLS, acceleration, addWell, predict, remaining, wellPower } from './physics.js';
+import { burnStep } from './burn.js';
+import { createBurnInput } from './burn-input.js';
+import { createMineGesture, MINE_HOLD_MS } from './mine-gesture.js';
 import { BLOB_RADIUS, SPEED_CAP, canPlaceWell, capVelocity, firstImpact, predictToImpact, mazeAcceleration } from './level.js';
 import './style.css';
 import { OrbitAudio } from './audio.js';
@@ -24,7 +27,7 @@ import { followFrame, followPosition } from './follow-camera.js';
 import { CAMPAIGN, CAMPAIGN_LEVELS, campaignPointAllowed, canPlaceCampaignWell, createCampaign, getCampaignLevel, stepCampaign } from './campaign.js';
 import { createEncounterVitality, stepEncounterVitality } from './encounter-vitality.js';
 import { getChapterEncounter, chapterEncounterAvailable, readEncounterWins, saveEncounterWin, publicEncounterAchievements } from './chapter-encounters.js';
-import { createMineGesture, MINE_HOLD_MS } from './mine-gesture.js';
+import { createEncounterFeedback, recordEncounterFeedback, stepEncounterFeedback } from './encounter-feedback.js';
 import { BEST_GATES_KEY, SOUND_GATE_COLORS, betterGateMask, createSoundGates, gateCount, gatePattern, stepSoundGates, validateBestGates } from './sound-gates.js';
 import { campaignGuideTarget, projectCampaignGuide } from './campaign-guide.js';
 import { collectCompanionLight, commitCompanionCaptures, createEntityRuntime, entityAcceleration, holdsCampaignLight, releaseEntityHold, stepEntityRuntime } from './entity-runtime.js';
@@ -74,13 +77,13 @@ let lastSoundWellTime = 0;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
-  <div class="scene" id="scene"><canvas id="minimap" width="360" height="203" role="img" aria-label="Map showing walls, the portal, wells, the glowing dot, and the current view"></canvas><div id="bossDirection" class="boss-direction hidden" aria-label="Ember is off screen"><b>➤</b><span>EMBER</span></div><div id="campaignDirection" class="campaign-direction hidden" role="img" aria-label="Next gate is off screen"><b>➤</b><span>GATE 1</span></div></div>
+  <div class="scene" id="scene"><canvas id="minimap" width="360" height="203" role="img" aria-label="Map showing walls, the portal, wells, the glowing dot, and the current view"></canvas><div id="mineHoldCharge" class="mine-hold-charge hidden" aria-hidden="true"></div><div id="encounterDamage" class="encounter-damage" aria-hidden="true"></div><div id="bossDirection" class="boss-direction hidden" aria-label="Ember is off screen"><b>➤</b><span>EMBER</span></div><div id="campaignDirection" class="campaign-direction hidden" role="img" aria-label="Next gate is off screen"><b>➤</b><span>GATE 1</span></div></div>
   <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="pause" class="quiet-button" type="button" aria-label="Pause" title="Pause (P)" disabled>Ⅱ</button><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="muteAll" class="quiet-button" type="button" aria-label="Mute all audio" title="Mute all audio" aria-pressed="false">🔊</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
-  <div class="play-control"><button id="dropMine" class="mine-thumb hidden" type="button" aria-label="Drop mine" title="Drop mine · costs 8% light">Drop<br>mine</button><button id="primaryAction" class="primary-button" type="button" title="Primary action (Space)">Start</button></div><div id="mineHoldRing" class="mine-hold-ring hidden" aria-hidden="true"></div>
+  <div class="play-control"><button id="dropMine" class="mine-thumb hidden" type="button" aria-label="Drop mine" title="Drop mine · costs 8% light">Mine<small class="control-key" aria-hidden="true">(M)</small></button><button id="burnAction" class="burn-thumb" type="button" aria-label="Hold to Burn" title="Hold to Burn (Shift)">Burn<small class="control-key" aria-hidden="true">(Shift)</small></button><button id="primaryAction" class="primary-button" type="button" title="Primary action (Space)">Start</button></div>
   <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
   <dialog id="chapterGuide" class="chapter-guide" aria-labelledby="chapterGuideTitle" aria-describedby="chapterGuideDescription chapterGuideDetail chapterGuideGoal"><div class="chapter-guide-card"><span class="eyebrow" id="chapterGuideEyebrow"></span><h2 id="chapterGuideTitle"></h2><div id="chapterGuideIllustration" class="chapter-guide-illustration"></div><p id="chapterGuideDescription"></p><p id="chapterGuideDetail"></p><p class="chapter-guide-goal" id="chapterGuideGoal">Collect at least one sound gate, then reach the exit portal.</p><button id="chapterGuideDone" class="primary-button" type="button">Got it</button></div></dialog>
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
-    <p class="settings-intro">Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.</p>
+    <p class="settings-intro">Place one temporary well to bend the light. Hold Burn to accelerate along its path.</p>
     <div class="game-modes experiment-setting"><button id="homeFromSettings" type="button">Home</button><button id="browseDemos" type="button">Browse studies</button></div><p id="activeDemoLabel" class="microcopy experiment-setting"></p>
     <div class="control-group experiment-setting"><div class="control-heading"><label for="strength">Gravity strength</label><output id="strengthValue">70</output></div><input id="strength" type="range" min="35" max="180" step="1" value="70"></div>
     <div class="control-group experiment-setting"><div class="control-heading"><label for="heroGravity">Dot gravity</label><output id="heroGravityValue">0</output></div><input id="heroGravity" type="range" min="0" max="30" step="1" value="0"><p id="heroGravityHelp" class="microcopy">Attracts loose moons, with a small reaction on the dot.</p></div>
@@ -93,8 +96,8 @@ app.innerHTML = `
     <label class="toggle-row"><span>Show predicted path</span><input id="showForecast" type="checkbox"></label><p id="forecastHelp" class="microcopy"></p>
     <div id="encounterBehaviorRow" class="control-group experiment-setting hidden"><div class="control-heading"><label for="encounterBehavior">Ember behavior</label></div><select id="encounterBehavior"><option value="adaptive">Adaptive</option><option value="chase">Chase</option><option value="flee">Flee</option></select></div>
     <div class="settings-stats experiment-setting"><div>State <strong id="stateLabel">READY</strong></div><div>Attempts <strong id="attempts">1</strong></div><div>Time <strong id="runTime">0.0s</strong></div><div>Speed <strong id="speed">0.00 u/s</strong></div></div>
-    <div class="active-heading experiment-setting"><span>Active wells</span><small id="wellCount">0 / 2</small></div><div class="well-list experiment-setting" id="wellList"></div><button id="release" class="release-button experiment-setting" type="button">Release all wells</button>
-    <p class="settings-help">Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R restarts · E removes oldest / releases capture · 1 / 2 remove a specific well.</p>
+    <div class="active-heading experiment-setting"><span>Active wells</span><small id="wellCount">0 / 1</small></div><div class="well-list experiment-setting" id="wellList"></div><button id="release" class="release-button experiment-setting" type="button">Remove well</button>
+    <p class="settings-help">Tap anywhere to place or replace the single well. Hold Shift or Burn to accelerate. Space or Remove clears the well. Right-click the scene to coast.</p>
   </dialog>
   <div class="demo-note" id="demoNote"><strong id="demoTitle"></strong><span id="demoObjective"></span><div id="companionHud" class="companion-hud hidden" aria-live="polite"></div><div id="duelMeters" class="duel-meters hidden"><div id="resourceHud" class="resource-hud hidden"><div class="resource-top"><span id="resourceLabel">LIGHT</span><span id="resourceValue">60%</span><span id="gateStatus">GATE OPEN</span></div><div class="resource-track"><i id="resourceFill"></i><b></b><b></b></div></div><div id="bossResourceHud" class="resource-hud boss-resource hidden"><div class="resource-top"><span>EMBER LIGHT</span><span id="bossResourceValue">60%</span><span id="bossIntent">RETREATING</span></div><div class="resource-track"><i id="bossResourceFill"></i><b></b><b></b></div></div></div><div id="campaignGateHud" class="campaign-gate-hud hidden" aria-live="polite"><span id="campaignGateCount">0/3 gates</span><span id="campaignGateIcons"></span></div></div>
   <dialog id="gallery" class="gallery"><div class="gallery-heading"><div><span class="eyebrow">ORBIT LAB / MECHANICS GALLERY</span><h1>World studies.</h1><p>One new rule at a time. Experiments in gravity, light, and sound.</p></div><div class="gallery-actions"><button id="homeFromGallery" class="quiet-button" aria-label="Home" title="Home">⌂</button><button id="closeGallery" class="quiet-button" aria-label="Close gallery"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div></div><nav id="demoCategories" class="demo-categories" aria-label="Study categories"></nav><div class="demo-grid" id="demoGrid"></div><p class="gallery-footer">Every study starts paused. Place a well, then Start. Wells now begin at strength 70; settings let you compare.</p></dialog>
@@ -348,6 +351,7 @@ scene.add(deathRipple);
 // A bounded ember pool; particles drift behind the fireball without affecting physics.
 const SPARK_COUNT = 128;
 const sparks = Array.from({ length: SPARK_COUNT }, () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, duration: 1 }));
+let burnVisualActive = false;
 const sparkPositions = new Float32Array(SPARK_COUNT * 3);
 const sparkHeat = new Float32Array(SPARK_COUNT);
 const sparkGeometry = new THREE.BufferGeometry();
@@ -362,7 +366,7 @@ const sparkPoints = new THREE.Points(sparkGeometry, sparkMaterial); sparkPoints.
 let sparkIndex = 0, sparkAccumulator = 0;
 function clearSparks() { for (const spark of sparks) spark.life = 0; sparkHeat.fill(0); sparkGeometry.attributes.heat.needsUpdate = true; sparkAccumulator = 0; }
 function updateSparks(dt) {
-  sparkAccumulator += dt * 36;
+  sparkAccumulator += dt * (burnVisualActive ? 55 : 36);
   while (sparkAccumulator >= 1) {
     sparkAccumulator--;
     const spark = sparks[sparkIndex++ % SPARK_COUNT];
@@ -567,6 +571,16 @@ encounterGlow.position.z = 1.2; encounterGlow.scale.set(4.2, 4.2, 1); encounterG
 const encounterLight = new THREE.PointLight(0xff8a32, 9, 8, 2); encounterLight.position.z = 1.1; encounterGroup.add(encounterLight);
 const encounterRim = ring(ENCOUNTER.bossRadius + .16, new THREE.LineBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: .9 }));
 encounterRim.position.z = 1.55; encounterGroup.add(encounterRim);
+const encounterDefeatRing = ring(1, new THREE.LineBasicMaterial({ color: 0xffe6b7, transparent: true, opacity: 0 }));
+encounterDefeatRing.position.z = 1.7; encounterDefeatRing.visible = false; encounterGroup.add(encounterDefeatRing);
+const encounterSparkPositions = new Float32Array(18 * 3), encounterSparkHeat = new Float32Array(18);
+const encounterSparkGeometry = new THREE.BufferGeometry();
+encounterSparkGeometry.setAttribute('position', new THREE.BufferAttribute(encounterSparkPositions, 3).setUsage(THREE.DynamicDrawUsage));
+encounterSparkGeometry.setAttribute('heat', new THREE.BufferAttribute(encounterSparkHeat, 1).setUsage(THREE.DynamicDrawUsage));
+const encounterSparkMaterial = portalSparkMaterial.clone();
+encounterSparkMaterial.fragmentShader = 'uniform float fade; varying float vHeat; void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;gl_FragColor=vec4(mix(vec3(1.,.3,.1.),vec3(1.,.88,.52),vHeat),pow(1.-r,2.)*vHeat*fade);}';
+const encounterSparkPoints = new THREE.Points(encounterSparkGeometry, encounterSparkMaterial);
+encounterSparkPoints.frustumCulled = false; encounterSparkPoints.visible = false; encounterGroup.add(encounterSparkPoints);
 const encounterHazards = Array.from({ length: ENCOUNTER.maxMinesPerOwner * 2 }, () => {
   const group = new THREE.Group(); scene.add(group); group.visible = false;
   const disk = new THREE.Mesh(new THREE.CircleGeometry(ENCOUNTER.burstRadius, 40),
@@ -615,13 +629,30 @@ function updateEncounterVisual(now) {
   }
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   const burst = Math.max(0, 1 - encounterFlashAge / .55);
+  const feedback = encounterFeedbackVisual;
   encounterCore.material.color.setHex(state.phase === 'resolved' ? 0xc5ffee : 0xff8c39);
   encounterLight.color.setHex(state.phase === 'resolved' ? 0xaaffde : 0xff8a32);
   const bossEnergy = encounterVitality?.boss.energy ?? 1;
-  encounterCore.material.opacity = .08 + bossEnergy * .92;
-  encounterGlow.material.opacity = Math.min(1, (state.phase === 'resolved' ? 1 : .18 + bossEnergy * .55) + burst * .25);
-  encounterGlow.scale.setScalar(reduced ? 4.2 : 4.2 + burst * 1.6);
-  encounterLight.intensity = Math.min(18, (state.phase === 'resolved' ? 17 : 2 + bossEnergy * 10) + burst * 7);
+  encounterCore.material.opacity = (.08 + bossEnergy * .92) * feedback.bossOpacity;
+  encounterCore.scale.setScalar(feedback.bossScale);
+  encounterGlow.material.opacity = Math.min(1, (state.phase === 'resolved' ? 1 : .18 + bossEnergy * .55) + burst * .25 + feedback.bossBloom * .35) * feedback.bossOpacity;
+  encounterGlow.scale.setScalar((reduced ? 4.2 : 4.2 + burst * 1.6 + feedback.bossBloom * 1.1) * feedback.bossScale);
+  encounterLight.intensity = Math.min(18, (state.phase === 'resolved' ? 17 : 2 + bossEnergy * 10) + burst * 7 + feedback.bossBloom * 5) * feedback.bossOpacity;
+  encounterDefeatRing.visible = feedback.ringOpacity > 0;
+  encounterDefeatRing.material.opacity = feedback.ringOpacity;
+  encounterDefeatRing.scale.setScalar(feedback.ringScale);
+  encounterSparkPoints.visible = feedback.spark > 0;
+  if (encounterSparkPoints.visible) {
+    encounterSparkMaterial.uniforms.pixelRatio.value = renderer.getPixelRatio();
+    encounterSparkMaterial.uniforms.fade.value = feedback.spark;
+    for (let i = 0; i < 18; i++) {
+      const angle = i * 2.39996, distance = .9 + (1 - feedback.spark) * (1.4 + i % 4 * .3);
+      encounterSparkPositions.set([Math.cos(angle) * distance, Math.sin(angle) * distance, 1.7], i * 3);
+      encounterSparkHeat[i] = feedback.spark;
+    }
+    encounterSparkGeometry.attributes.position.needsUpdate = true;
+    encounterSparkGeometry.attributes.heat.needsUpdate = true;
+  }
   const arrow = $('#bossDirection');
   if (!chapterEncounterId || state.phase === 'resolved' || won || drifted || deathTransition || winOverlay.classList.contains('hidden') === false) { arrow.classList.add('hidden'); return; }
   const dx = state.boss.x - camera.position.x, dy = state.boss.y - camera.position.y;
@@ -663,17 +694,32 @@ let resumeAfterSettings = false;
 let drifted = false;
 let frameCount = 0;
 let pointer = null;
-let pointerDownAt = 0;
 const mineGesture = createMineGesture();
 let mineHoldTimer = null;
+const burnInput = createBurnInput();
+let primaryPointerId = null;
+let burnPointerId = null;
+let suppressPrimaryClickUntil = 0;
+let suppressKeyboardPrimaryClickUntil = 0;
+function cancelCanvasGesture() {
+  if (mineHoldTimer !== null) clearTimeout(mineHoldTimer);
+  mineHoldTimer = null;
+  mineGesture.cancel();
+  releaseCanvasPointer(pointer?.id);
+  pointer = null;
+  $('#mineHoldCharge').classList.add('hidden');
+}
 function releaseCanvasPointer(id) {
   if (id !== undefined && renderer.domElement.hasPointerCapture?.(id)) renderer.domElement.releasePointerCapture(id);
 }
-function cancelMineHold() {
-  clearTimeout(mineHoldTimer); mineHoldTimer = null; mineGesture.cancel();
-  releaseCanvasPointer(pointer?.id);
-  pointer = null;
-  $('#mineHoldRing').classList.add('hidden');
+function cancelActiveInput() {
+  cancelCanvasGesture();
+  burnInput.clear();
+  burnVisualActive = false;
+  if (primaryPointerId !== null && $('#primaryAction').hasPointerCapture?.(primaryPointerId)) $('#primaryAction').releasePointerCapture(primaryPointerId);
+  primaryPointerId = null;
+  if (burnPointerId !== null && $('#burnAction').hasPointerCapture?.(burnPointerId)) $('#burnAction').releasePointerCapture(burnPointerId);
+  burnPointerId = null;
 }
 let gameMode = activeDemo.sandbox ? 'sandbox' : 'maze';
 let attempts = 0;
@@ -688,9 +734,15 @@ let burnout = null;
 let encounter = null;
 let encounterFlashAge = Infinity;
 let encounterVitality = null;
+let encounterFeedback = createEncounterFeedback();
+let encounterFeedbackVisual = stepEncounterFeedback(encounterFeedback, 0).visual;
+function resetEncounterFeedback() {
+  encounterFeedback = createEncounterFeedback();
+  encounterFeedbackVisual = stepEncounterFeedback(encounterFeedback, 0).visual;
+  $('#encounterDamage').style.opacity = '0';
+}
 let encounterMineQueued = false;
 let encounterSizzleUntil = -1;
-let lastEncounterSizzleTime = -1;
 let encounterPreviousLifetime = null;
 let campaign = null;
 let editorPlaytest = false;
@@ -745,7 +797,7 @@ function openChapterGuide(levelId, focusTarget = document.activeElement) {
   $('#chapterGuideDescription').textContent = guide.instruction;
   $('#chapterGuideDetail').textContent = guide.detail;
   $('#chapterGuideIllustration').innerHTML = chapterGuideGraphic(guide.illustration);
-  pointer = null;
+  cancelActiveInput();
   chapterGuide.showModal();
   $('#chapterGuideDone').focus();
   return true;
@@ -996,6 +1048,7 @@ function cancelPhraseReward() {
 }
 function clearPhraseAcquireVisual() { phraseAcquireAge.fill(Infinity); phraseAcquireLight.intensity = 0; }
 function startPhraseReward() {
+  cancelActiveInput();
   const storage = safeBrowserStorage(window, 'localStorage');
   saveDiscoveredPhrase(storage, campaignLevelId);
   discoveredPhrases = { ...discoveredPhrases, [campaignLevelId]: true };
@@ -1038,7 +1091,7 @@ function disposeWell(well) {
 }
 
 function redrawWellList() {
-  $('#wellCount').textContent = `${wells.length} / ${challengeMode() ? activeDemo.settings.maxActiveWells : 2}`;
+  $('#wellCount').textContent = `${wells.length} / ${MAX_WELLS}`;
   wellList.innerHTML = wells.length ? wells.map((well) => `
     <div class="well-item" style="--well-color:${well.id % 2 ? '#66e9f2' : '#9b90ff'}">
       <span class="well-glyph">✳</span><span class="well-name">WELL ${String(well.id).padStart(2, '0')}</span>
@@ -1064,12 +1117,10 @@ function placeWell(x, y) {
   const well = makeWell(x, y, effectiveStrength(), effectiveLifetime(), simTime);
   if (challengeMode()) wellsUsed++;
   audio.placement(); lastSoundWellTime = simTime;
-  const maxActive = challengeMode() ? activeDemo.settings.maxActiveWells : 2;
+  const maxActive = MAX_WELLS;
   const old = wells.length >= maxActive ? wells[0] : null;
   wells = addWell(wells, well, maxActive);
   if (old) disposeWell(old);
-  redrawWellList(); updateForecast();
-  if (old && !wells.includes(old)) disposeWell(old);
   redrawWellList();
   updateForecast();
   if (runState === 'ready') caption.textContent = 'TAP START TO RELEASE';
@@ -1082,7 +1133,7 @@ function releaseAll(refresh = true) {
 }
 
 function reset() {
-  cancelMineHold();
+  cancelActiveInput();
   cancelPhraseReward();
   phraseState = createPhraseState();
   clearPhraseAcquireVisual();
@@ -1134,9 +1185,11 @@ function reset() {
 }
 
 function failRun(reason = 'darkness') {
-  cancelMineHold();
+  cancelActiveInput();
   if (drifted || won) return;
+  resetEncounterFeedback();
   cancelPhraseReward();
+  if (encounter) audio.stopScene();
   audio.death();
   audio.stopHeartbeat();
   encounterSizzleUntil = -1;
@@ -1152,6 +1205,7 @@ function failRun(reason = 'darkness') {
 }
 
 function showRunArt(success, reason = 'darkness') {
+  resetEncounterFeedback();
   const artworkGeneration = ++resultArtworkGeneration;
   if (campaignMode && success && !editorPlaytest) saveBestGates(campaignLevelId, soundGates?.mask || 0);
   presentRunResult({
@@ -1208,11 +1262,13 @@ function showRunArt(success, reason = 'darkness') {
 
 function winRun() {
   if (won) return;
+  cancelActiveInput();
   cancelPhraseReward();
   cancelDeathTransition();
-  audio.portal();
+  if (!encounter) audio.portal();
   audio.stopHeartbeat();
   won = true;
+  resetEncounterFeedback();
   paused = true; runState = 'won';
   if (campaignMode && !editorPlaytest) markLevelComplete(campaignLevelId);
   if (chapterEncounterId) encounterWins = saveEncounterWin(safeBrowserStorage(window, 'localStorage'), encounterWins, chapterEncounterId);
@@ -1221,12 +1277,12 @@ function winRun() {
 }
 
 function selectDemo(id) {
-  cancelMineHold();
+  cancelActiveInput();
   if (transmission.active) transmission.stop(false);
   audio.setProfile('default');
   campaignMode = false; infiniteMode = false; editorPlaytest = false; chapterEncounterId = null; setHomeOpen(false);
   settings.classList.remove('campaign-settings');
-  $('.settings-intro').textContent = id === 'encounter' ? 'Both lights burn down. Hold the empty field to drop a mine while flying (8% light); each ram costs both sides 12%. Catch shared recharge embers.' : 'Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.';
+  $('.settings-intro').textContent = id === 'encounter' ? 'Both lights burn down. Hold Burn to accelerate; use the mine button or M to drop a mine (8% light). Each ram costs both sides 12%.' : 'Place one temporary well to bend the light. Hold Burn to accelerate along its path.';
   $('#encounterBehaviorRow').classList.toggle('hidden', id !== 'encounter');
   const enteringEncounter = id === 'encounter' && encounterPreviousLifetime === null;
   const leavingEncounter = id !== 'encounter' && encounterPreviousLifetime !== null;
@@ -1248,7 +1304,7 @@ function selectChapterEncounter(id) {
     showLevelSelect('Finish the third crossing of that chapter with at least one gate to unlock its encounter.');
     return false;
   }
-  cancelMineHold();
+  cancelActiveInput();
   if (transmission.active) transmission.stop(false);
   audio.setProfile('chapter');
   chapterEncounterId = Number(id); campaignMode = false; infiniteMode = false; editorPlaytest = false; setHomeOpen(false);
@@ -1265,7 +1321,7 @@ function selectChapterEncounter(id) {
 }
 
 function selectCampaign(levelId = 1, { suppressGuide = false } = {}) {
-  cancelMineHold();
+  cancelActiveInput();
   if (!campaignLevelAvailable(levelId, bestGates)) { showLevelSelect('That crossing is locked. Reach the portal with at least one gate to reveal the next level.'); return false; }
   if (transmission.active) transmission.stop(false);
   audio.setProfile('chapter');
@@ -1285,14 +1341,14 @@ function selectCampaign(levelId = 1, { suppressGuide = false } = {}) {
 }
 
 function selectInfinite(seed, stage = 1) {
-  cancelMineHold();
+  cancelActiveInput();
   if (transmission.active) transmission.stop(false);
   audio.setProfile('default');
   infiniteSeed = normalizeInfiniteSeed(seed) || randomInfiniteSeed();
   infiniteStage = normalizeInfiniteStage(stage);
   infiniteMode = true; campaignMode = false; editorPlaytest = false; chapterEncounterId = null; setHomeOpen(false);
   settings.classList.remove('campaign-settings');
-  $('.settings-intro').textContent = 'Place temporary wells to bend the glowing particle toward the portal. Two wells can exist at once.';
+  $('.settings-intro').textContent = 'Place one temporary well to bend the light. Hold Burn to accelerate along its path.';
   activeDemo = infiniteDemo(infiniteSeed, infiniteStage); gameMode = 'maze'; heroGravity = 0;
   strengthInput.min = Math.min(35, activeDemo.settings.wellStrength); strengthInput.max = Math.max(180, activeDemo.settings.wellStrength);
   lifetimeInput.min = Math.min(2, activeDemo.settings.wellLifetime); lifetimeInput.max = Math.max(16, activeDemo.settings.wellLifetime);
@@ -1304,7 +1360,7 @@ function selectInfinite(seed, stage = 1) {
 }
 
 function selectEditorPlaytest(document) {
-  cancelMineHold();
+  cancelActiveInput();
   if (transmission.active) transmission.stop(false);
   audio.setProfile('default');
   const compiled = compileLevelDocument(structuredClone(document));
@@ -1406,7 +1462,7 @@ function updateResourceHud() {
     $('#resourceValue').textContent = `${Math.ceil(graceResource.graceLeft)}s`;
     hud.style.setProperty('--warning-period', `${.55 + graceResource.graceLeft / (graceResource.graceDuration || CAMPAIGN.graceSeconds) * .65}s`);
   }
-  $('#gateStatus').textContent = campaign ? lightHeld ? 'LIGHT HELD' : energy > 0 ? `${wellsUsed} WELL${wellsUsed === 1 ? '' : 'S'}` : 'LAST EMBERS' : encounterVitality ? energy <= 0 ? 'LAST EMBERS' : simTime < encounterSizzleUntil ? 'SIZZLING' : `HOLD: ${mineStatusCopy(encounterMineStatus())}` : burnout.pendingClose ? 'GATE CLOSING' : burnout.gateOpen ? 'GATE OPEN' : 'GATE CLOSED';
+  $('#gateStatus').textContent = campaign ? lightHeld ? 'LIGHT HELD' : energy > 0 ? `${wellsUsed} PLACED · SPACE REMOVES · SHIFT BURNS` : 'LAST EMBERS' : encounterVitality ? energy <= 0 ? 'LAST EMBERS' : simTime < encounterSizzleUntil ? 'SIZZLING' : 'SPACE REMOVES · SHIFT BURNS' : burnout.pendingClose ? 'GATE CLOSING' : burnout.gateOpen ? 'GATE OPEN' : 'GATE CLOSED';
   if (encounterVitality) {
     const boss = encounterVitality.boss;
     const bossHud = $('#bossResourceHud');
@@ -1427,6 +1483,7 @@ function updateResourceHud() {
 }
 function rebuildExperiment() {
   activeLevel = structuredClone(activeDemo.level); gateOpen = false;
+  resetEncounterFeedback();
   $('#campaignDirection').classList.add('hidden');
   campaignDirectionTarget = null;
   app.classList.toggle('encounter-mode', activeDemo.mechanic === 'encounter');
@@ -1437,7 +1494,6 @@ function rebuildExperiment() {
   encounterMineQueued = false;
   encounterFlashAge = Infinity;
   encounterSizzleUntil = -1;
-  lastEncounterSizzleTime = -1;
   campaign = campaignMode || infiniteMode ? createCampaign(infiniteMode ? infiniteRunSeed(infiniteSeed, infiniteStage) : 428, activeDemo.settings) : null;
   soundGates = campaignMode || infiniteMode ? createSoundGates() : null;
   rebuildCampaignGates();
@@ -1492,7 +1548,7 @@ function rebuildExperiment() {
   showForecast.disabled = !fixedCampaignControls() && moving; forecast.visible = showForecast.checked && (fixedCampaignControls() || !moving);
   $('#forecastHelp').textContent = fixedCampaignControls() ? 'A short preview; ends at the next interaction.' : moving ? 'Prediction is off for interactive studies. Watch the rule unfold in motion.' : 'Preview stops at the next wall, ember, or portal contact.';
   $('#activeDemoLabel').textContent = activeDemo.title;
-  $('.settings-help').textContent = encounter ? 'Tap open space to place a well. Hold on empty space for half a second to spend 8% light on a mine. Drop mine also has its own thumb button. Space or the primary thumb button starts, releases, and removes wells. E also removes the oldest well; P pauses.' : `Tap open space to place a well. On desktop, right-click a well to remove it. Space starts / resumes / releases capture / removes oldest well · P pauses · R ${challengeMode() ? 'ends the attempt' : 'restarts'} · E removes oldest / releases capture · 1 / 2 remove a specific well.`;
+  $('.settings-help').textContent = `Tap anywhere in the scene to place or replace the single well. Hold Shift or the Burn circle to accelerate along your current direction (5% light per second). Space or Remove clears the well; right-click or E also coasts. ${encounter ? 'Use Mine, M, or hold the field for half a second to spend 8% light on a mine. ' : ''}P pauses · R ${challengeMode() ? 'ends the attempt' : 'restarts'}.`;
   $('#demoTitle').textContent = activeDemo.title;
   $('#demoObjective').textContent = activeDemo.objective;
   $('#demoNote').style.setProperty('--demo-color', activeDemo.color);
@@ -1713,7 +1769,8 @@ function openGallery() {
   settings.close(); gallery.showModal();
 }
 function showHome() {
-  cancelMineHold();
+  cancelActiveInput();
+  resetEncounterFeedback(); audio.stopScene();
   encounterMineQueued = false;
   cancelPhraseReward();
   clearPhraseAcquireVisual();
@@ -1736,7 +1793,8 @@ function showHome() {
   updateControls();
 }
 function showEditor() {
-  cancelMineHold();
+  cancelActiveInput();
+  resetEncounterFeedback(); audio.stopScene();
   cancelPhraseReward();
   clearPhraseAcquireVisual();
   closePhraseReplay();
@@ -1764,7 +1822,7 @@ editor = createEditor({
 });
 function renderCampaignCards() {
   const available = new Set(availableCampaignIds(bestGates));
-  $('#levelCards').innerHTML = CHAPTERS.filter(chapter => chapter.levelIds.some(id => available.has(id))).map(chapter => `<section class="chapter-group"><div class="chapter-group-heading"><h2>${chapter.label} <span>${chapter.name}</span></h2><button class="chapter-guide-replay home-secondary" data-guide-level="${chapter.levelIds[0]}" type="button" aria-label="Chapter ${chapter.id} guide">Chapter guide ◇</button></div><div class="level-cards">${CAMPAIGN_LEVELS.filter(level => level.chapter === chapter.id && available.has(level.id)).map(level => `<div class="level-card-wrap"><button class="level-card" data-campaign-level="${level.id}" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C42 39 65 53 100 34 S132 30 147 30" fill="none" stroke="${level.color}" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="80" cy="40" r="10" fill="none" stroke="${level.color}"/></svg><span>${String(level.id).padStart(2, '0')} / ${level.kicker}</span><strong>${level.title}</strong><small>${level.summary}</small><em data-complete="${level.id}"></em><span data-gate-best="${level.id}"></span><span data-earned-note="${level.id}"></span></button>${phraseForLevel(level.id) && discoveredPhrases[level.id] ? `<div class="phrase-discovery"><span>PHRASE DISCOVERED ♪</span><button type="button" data-replay-phrase="${level.id}">Replay phrase ♫</button></div>` : ''}</div>`).join('')}</div><div class="chapter-footer"><button class="home-secondary ${chapterUnlocked(bestGates, chapter.id) ? '' : 'hidden'}" data-replay-chapter="${chapter.id}" type="button">Replay ${chapter.label.toLowerCase()} transmission ◇</button><button class="home-secondary ${chapterEncounterAvailable(chapter.id, bestGates) ? '' : 'hidden'}" data-chapter-encounter="${chapter.id}" type="button">${encounterWins.has(chapter.id) ? 'Encounter complete ✓' : 'Chapter encounter ✦'}</button></div></section>`).join('');
+  $('#levelCards').innerHTML = CHAPTERS.filter(chapter => chapter.levelIds.some(id => available.has(id))).map(chapter => `<section class="chapter-group"><div class="chapter-group-heading"><h2>${chapter.label} <span>${chapter.name}</span></h2><button class="chapter-guide-replay home-secondary" data-guide-level="${chapter.levelIds[0]}" type="button" aria-label="Chapter ${chapter.id} guide">Chapter guide ◇</button></div><div class="level-cards">${CAMPAIGN_LEVELS.filter(level => level.chapter === chapter.id && available.has(level.id)).map(level => `<div class="level-card-wrap"><button class="level-card" data-campaign-level="${level.id}" type="button"><svg viewBox="0 0 160 68" aria-hidden="true"><path d="M8 39 C42 39 65 53 100 34 S132 30 147 30" fill="none" stroke="${level.color}" stroke-width="2"/><circle cx="18" cy="39" r="4" fill="#dffff7"/><circle cx="143" cy="30" r="11" fill="none" stroke="#ae9dff" stroke-width="2"/><circle cx="80" cy="40" r="10" fill="none" stroke="${level.color}"/></svg><span>${String(level.id).padStart(2, '0')} / ${level.kicker}</span><strong>${level.title}</strong><small>${level.summary}</small><em data-complete="${level.id}"></em><span data-gate-best="${level.id}"></span><span data-earned-note="${level.id}"></span></button>${phraseForLevel(level.id) && discoveredPhrases[level.id] ? `<div class="phrase-discovery"><span>PHRASE DISCOVERED ♪</span><button type="button" data-replay-phrase="${level.id}">Replay phrase ♫</button></div>` : ''}</div>`).join('')}</div><div class="chapter-footer"><button class="home-secondary ${chapterUnlocked(bestGates, chapter.id) ? '' : 'hidden'}" data-replay-chapter="${chapter.id}" type="button">Replay ${chapter.label.toLowerCase()} transmission ◇</button><button class="home-secondary chapter-encounter ${encounterWins.has(chapter.id) ? 'encounter-complete' : ''} ${chapterEncounterAvailable(chapter.id, bestGates) ? '' : 'hidden'}" data-chapter-encounter="${chapter.id}" type="button">${encounterWins.has(chapter.id) ? 'Encounter complete ✓' : 'Chapter encounter ✦'}</button></div></section>`).join('');
 }
 function renderAchievements() {
   const entries = publicPhraseAchievements(discoveredPhrases);
@@ -2127,60 +2185,60 @@ function eventWorld(event) {
   return { x: camera.position.x + x * camera.right, y: camera.position.y + y * camera.top };
 }
 
-function closestWell(point) {
-  return wells.find((well) => Math.hypot(well.x - point.x, well.y - point.y) < 0.9);
+function closestWell(point, pixels = 28) {
+  const width = renderer.domElement.getBoundingClientRect().width || 1;
+  const radius = Math.max(.9, pixels * camera.right * 2 / width);
+  return wells.find((well) => Math.hypot(well.x - point.x, well.y - point.y) <= radius);
 }
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
   if (chapterGuide.open) return;
   if (event.button !== 0) return;
-  if (pointer) { cancelMineHold(); return; }
-  pointerDownAt = performance.now();
+  if (pointer) { cancelCanvasGesture(); return; }
   pointer = { id: event.pointerId, clientX: event.clientX, clientY: event.clientY };
-  renderer.domElement.setPointerCapture?.(event.pointerId);
-  const empty = !closestWell(eventWorld(event));
-  const eligible = !!encounter && runState === 'running' && empty && !settings.open && !gallery.open && !homeOpen && !editor?.open && !won && !drifted;
-  mineGesture.begin(event.pointerId, event.clientX, event.clientY, pointerDownAt, eligible);
-  if (eligible) {
-    const ring = $('#mineHoldRing'); ring.style.left = `${event.clientX}px`; ring.style.top = `${event.clientY}px`;
-    ring.classList.remove('hidden'); ring.classList.remove('charging'); void ring.offsetWidth; ring.classList.add('charging');
+  const canHoldMine = !!encounter && runState === 'running' && !encounterResolving() && !phraseReward && !won && !drifted && !settings.open && !gallery.open && !homeOpen && !editor?.open;
+  mineGesture.begin(event.pointerId, event.clientX, event.clientY, performance.now(), canHoldMine);
+  if (canHoldMine) {
+    const rect = sceneElement.getBoundingClientRect(), ring = $('#mineHoldCharge');
+    ring.style.left = `${event.clientX - rect.left}px`; ring.style.top = `${event.clientY - rect.top}px`;
+    ring.classList.remove('hidden');
+    ring.classList.remove('charging'); void ring.offsetWidth; ring.classList.add('charging');
     mineHoldTimer = setTimeout(() => {
-      if (mineGesture.hold(event.pointerId, performance.now()) && !paused && !document.hidden) queueHeroMine();
+      mineHoldTimer = null;
+      if (pointer?.id === event.pointerId && mineGesture.hold(event.pointerId, performance.now())) queueHeroMine();
       ring.classList.add('hidden');
     }, MINE_HOLD_MS);
   }
+  renderer.domElement.setPointerCapture?.(event.pointerId);
 });
 renderer.domElement.addEventListener('pointermove', (event) => {
   if (pointer?.id !== event.pointerId) return;
   const rect = renderer.domElement.getBoundingClientRect();
   if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
-    cancelMineHold();
+    cancelCanvasGesture();
     return;
   }
-  if (mineGesture.move(event.pointerId, event.clientX, event.clientY)) {
-    clearTimeout(mineHoldTimer); mineHoldTimer = null; $('#mineHoldRing').classList.add('hidden');
-  }
+  if (mineGesture.move(event.pointerId, event.clientX, event.clientY)) { if (mineHoldTimer !== null) clearTimeout(mineHoldTimer); mineHoldTimer = null; $('#mineHoldCharge').classList.add('hidden'); }
 });
-renderer.domElement.addEventListener('pointercancel', (event) => { if (pointer?.id === event.pointerId) cancelMineHold(); });
-renderer.domElement.addEventListener('lostpointercapture', (event) => { if (pointer?.id === event.pointerId) cancelMineHold(); });
-window.addEventListener('blur', cancelMineHold);
+renderer.domElement.addEventListener('pointercancel', (event) => { if (pointer?.id === event.pointerId) cancelCanvasGesture(); });
+renderer.domElement.addEventListener('lostpointercapture', (event) => { if (pointer?.id === event.pointerId) cancelCanvasGesture(); });
+window.addEventListener('blur', cancelActiveInput);
 renderer.domElement.addEventListener('pointerup', (event) => {
   if (pointer?.id !== event.pointerId) return;
-  if (chapterGuide.open || event.button !== 0) { cancelMineHold(); return; }
-  const down = pointer; pointer = null;
+  if (chapterGuide.open || event.button !== 0) { cancelCanvasGesture(); return; }
+  mineGesture.move(event.pointerId, event.clientX, event.clientY);
+  if (mineGesture.hold(event.pointerId, performance.now())) queueHeroMine();
+  const gesture = mineGesture.end(event.pointerId, event.clientX, event.clientY, performance.now());
+  if (mineHoldTimer !== null) clearTimeout(mineHoldTimer);
+  mineHoldTimer = null; pointer = null; $('#mineHoldCharge').classList.add('hidden');
   releaseCanvasPointer(event.pointerId);
-  clearTimeout(mineHoldTimer); mineHoldTimer = null; $('#mineHoldRing').classList.add('hidden');
-  if (mineGesture.hold(event.pointerId, performance.now()) && !paused && !document.hidden) queueHeroMine();
-  const action = mineGesture.end(event.pointerId, event.clientX, event.clientY, performance.now());
-  if (action !== 'tap') return;
-  if (Math.hypot(event.clientX - down.clientX, event.clientY - down.clientY) > 15) return;
-  const point = eventWorld(event); placeWell(point.x, point.y);
+  if (gesture === 'hold') return;
+  if (gesture === 'tap') { const point = eventWorld(event); placeWell(point.x, point.y); }
 });
 renderer.domElement.addEventListener('contextmenu', (event) => {
   event.preventDefault();
   if (encounterResolving() || phraseReward || chapterGuide.open) return;
-  const well = closestWell(eventWorld(event));
-  if (well) removeWell(well.id);
+  contextAction();
 });
 
 wellList.addEventListener('click', (event) => {
@@ -2228,21 +2286,28 @@ $('#musicVolume').addEventListener('input', (event) => { audioPreferences.musicV
 $('#muteAll').addEventListener('click', () => { audioPreferences.muted = !audioPreferences.muted; audio.setEnabled(!audioPreferences.muted); persistAudioPreferences(); syncMuteControl(); });
 document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { $('#campaignDirection').classList.add('hidden'); cancelMineHold(); closePhraseReplay({ restoreFocus: false }); audio.stopHeartbeat(); audio.stopScene(); encounterSizzleUntil = -1; encounterMineQueued = false; audio.context?.suspend().catch(() => {}); } else if (audio.enabled) audio.context?.resume().catch(() => {}); lastFrame = performance.now(); accumulator = 0; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { $('#campaignDirection').classList.add('hidden'); resetEncounterFeedback(); cancelActiveInput(); closePhraseReplay({ restoreFocus: false }); audio.stopHeartbeat(); audio.stopScene(); encounterSizzleUntil = -1; encounterMineQueued = false; audio.context?.suspend().catch(() => {}); } else if (audio.enabled) audio.context?.resume().catch(() => {}); lastFrame = performance.now(); accumulator = 0; });
 function contextAction() {
   if (encounterResolving() || phraseReward || transmission.active || settings.open || gallery.open || homeOpen || editor?.open || won || drifted) return;
-  if (entityRuntime?.held) releaseEntityHold(entityRuntime, body, simTime);
-  else if (experiment.held) experiment.release(body);
+  if (entityRuntime?.held) { burnInput.clear(); releaseEntityHold(entityRuntime, body, simTime); }
+  else if (experiment.held) { burnInput.clear(); experiment.release(body); }
   else if (wells.length) removeWell(wells[0].id);
 }
 function encounterResolving() { return encounter?.phase === 'resolved' && !won && !drifted; }
+function canBurn() { return runState === 'running' && !paused && !experiment.held && !entityRuntime?.held && !encounterResolving() && !phraseReward && !chapterGuide.open && !transmission.active && !settings.open && !gallery.open && !homeOpen && !editor?.open && !won && !drifted; }
 function updateControls() {
   const control = primaryControl({state:runState,held:!!(experiment.held || entityRuntime?.held),wellCount:wells.length});
   const button = $('#primaryAction');
-  button.textContent = control.label;
-  button.title = 'Primary action (Space)';
+  if (button.dataset.controlLabel !== control.label) {
+    button.innerHTML = `${control.label}<small class="control-key" aria-hidden="true">(Space)</small>`;
+    button.dataset.controlLabel = control.label;
+  }
+  button.title = `${control.label} (Space)`;
   button.setAttribute('aria-label', control.label);
   button.disabled = encounterResolving() || !!phraseReward || control.disabled || settings.open || gallery.open || homeOpen || editor?.open;
+  const burnButton = $('#burnAction');
+  burnButton.disabled = !canBurn();
+  burnButton.classList.toggle('burning', burnVisualActive);
   const mineButton = $('#dropMine');
   mineButton.classList.toggle('hidden', !encounter);
   const mineStatus = encounterMineStatus();
@@ -2266,43 +2331,88 @@ function updateControls() {
   pauseButton.title = canResume ? 'Resume (P)' : 'Pause (P)';
 }
 function primaryAction() {
-  if (encounterResolving() || phraseReward || chapterGuide.open || transmission.active || settings.open || gallery.open || homeOpen || editor?.open || won || drifted) return;
+  if (encounterResolving() || phraseReward || chapterGuide.open || transmission.active || settings.open || gallery.open || homeOpen || editor?.open || won || drifted) return null;
   const control = primaryControl({state:runState,held:!!(experiment.held || entityRuntime?.held),wellCount:wells.length});
+  if (control.disabled) return null;
   if (control.action === 'start' || control.action === 'resume') togglePause();
-  else if (control.action === 'release') { if (!releaseEntityHold(entityRuntime, body, simTime)) experiment.release(body); }
-  else if (control.action === 'remove') removeWell(wells[0].id);
+  else if (control.action === 'release') { burnInput.clear(); if (!releaseEntityHold(entityRuntime, body, simTime)) experiment.release(body); }
+  else if (control.action === 'remove' && wells[0]) removeWell(wells[0].id);
+  updateControls();
+  return control.action;
+}
+$('#primaryAction').addEventListener('pointerdown', event => {
+  if (event.button !== 0 || primaryPointerId !== null) return;
+  event.preventDefault();
+  primaryPointerId = event.pointerId;
+  suppressPrimaryClickUntil = performance.now() + 750;
+  $('#primaryAction').setPointerCapture?.(event.pointerId);
+  primaryAction();
+});
+function endPrimaryPointer(event) {
+  if (primaryPointerId !== event.pointerId) return;
+  primaryPointerId = null;
+  suppressPrimaryClickUntil = performance.now() + 750;
+  if ($('#primaryAction').hasPointerCapture?.(event.pointerId)) $('#primaryAction').releasePointerCapture(event.pointerId);
+}
+$('#primaryAction').addEventListener('pointerup', endPrimaryPointer);
+$('#primaryAction').addEventListener('pointercancel', endPrimaryPointer);
+$('#primaryAction').addEventListener('lostpointercapture', endPrimaryPointer);
+$('#primaryAction').addEventListener('click', event => {
+  if (event.detail > 0 && performance.now() < suppressPrimaryClickUntil) return;
+  if (event.detail === 0 && performance.now() < suppressKeyboardPrimaryClickUntil) return;
+  primaryAction();
+});
+$('#burnAction').addEventListener('pointerdown', event => {
+  if (event.button !== 0 || burnPointerId !== null) return;
+  event.preventDefault();
+  burnPointerId = event.pointerId;
+  $('#burnAction').setPointerCapture?.(event.pointerId);
+  burnInput.press('burnPointer', canBurn() ? 'burn' : null);
+  updateControls();
+});
+function endBurnPointer(event) {
+  if (burnPointerId !== event.pointerId) return;
+  burnPointerId = null;
+  burnInput.release('burnPointer');
+  if ($('#burnAction').hasPointerCapture?.(event.pointerId)) $('#burnAction').releasePointerCapture(event.pointerId);
   updateControls();
 }
-$('#primaryAction').addEventListener('click', primaryAction);
+$('#burnAction').addEventListener('pointerup', endBurnPointer);
+$('#burnAction').addEventListener('pointercancel', endBurnPointer);
+$('#burnAction').addEventListener('lostpointercapture', endBurnPointer);
 $('#dropMine').addEventListener('click', () => {
-  cancelMineHold();
   queueHeroMine();
   updateControls();
 });
 function togglePause() {
-  cancelMineHold();
+  cancelActiveInput();
   if (encounterResolving() || chapterGuide.open || drifted || won || homeOpen || editor?.open || settings.open || gallery.open) return;
   paused = !paused;
-  if (paused) { audio.stopHeartbeat(); if (encounterVitality) { audio.stopScene(); encounterSizzleUntil = -1; encounterMineQueued = false; } }
+  if (paused) { audio.stopHeartbeat(); if (encounterVitality) { resetEncounterFeedback(); audio.stopScene(); encounterSizzleUntil = -1; encounterMineQueued = false; } }
   runState = paused ? 'paused' : 'running';
   updateControls();
   caption.textContent = paused ? 'PAUSED' : '';
   lastFrame = performance.now(); updateStatus();
 }
 window.addEventListener('keydown', (event) => {
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+    if (!event.repeat) burnInput.press(event.code, canBurn() ? 'burn' : null);
+    if (burnInput.active) event.preventDefault();
+    return;
+  }
   if (encounterResolving() || chapterGuide.open) return;
   if (transmission.active) { if (event.key === 'Escape') { event.preventDefault(); transmission.stop(); } return; }
   if (settings.open || gallery.open || homeOpen || editor?.open || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
   const key = event.key.toLowerCase();
-  if (key === ' ' && !won && !drifted) { event.preventDefault(); if (!event.repeat) primaryAction(); return; }
+  if (key === ' ') { event.preventDefault(); if (!event.repeat) { suppressKeyboardPrimaryClickUntil = performance.now() + 750; primaryAction(); } return; }
   if (event.repeat) return;
   if (key === 'p' && runState !== 'ready') { event.preventDefault(); togglePause(); }
   if (key === 'm' && encounter && runState === 'running') { event.preventDefault(); queueHeroMine(); }
   if (key === 'r' && !phraseReward) { if (challengeMode()) { if (runState === 'running' || runState === 'paused') failRun('manual'); } else reset(); }
   if (key === 'e') contextAction();
   if (key === '1' && wells[0]) removeWell(wells[0].id);
-  if (key === '2' && wells[1]) removeWell(wells[1].id);
 });
+window.addEventListener('keyup', event => { if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') burnInput.release(event.code); if (event.code === 'Space') suppressKeyboardPrimaryClickUntil = performance.now() + 750; });
 window.addEventListener('resize', resize);
 new ResizeObserver(resize).observe(sceneElement);
 window.visualViewport?.addEventListener('resize', resize);
@@ -2372,7 +2482,15 @@ function frame(now) {
       const before = { x: body.position.x, y: body.position.y };
       const a = gameMode === 'maze' ? mazeAcceleration(body.position, wells, simTime, effectiveMode(), activeLevel) : acceleration(body.position, wells, simTime, effectiveMode());
       body.applyForce(new CANNON.Vec3(a.x * body.mass, a.y * body.mass, 0));
-      const heroActualAcceleration = { ...a };
+      const availableBurnEnergy = campaign?.energy ?? encounterVitality?.hero.energy ??
+        (burnout ? Math.max(0, burnout.energy - .06) : Infinity);
+      const burn = burnInput.active && !experiment.held && !entityRuntime?.held
+        ? burnStep({ vx: body.velocity.x, vy: body.velocity.y, dt: STEP, availableEnergy: availableBurnEnergy })
+        : { ax: 0, ay: 0, cost: 0, active: false };
+      burnVisualActive = burn.active;
+      if (burn.active) body.applyForce(new CANNON.Vec3(burn.ax * body.mass, burn.ay * body.mass, 0));
+      // Owned moons inherit every real hero force, including player Burn.
+      const heroActualAcceleration = { x: a.x + burn.ax, y: a.y + burn.ay };
       if (entityRuntime) { const pull = entityAcceleration(body.position, activeDemo.entities, entityRuntime); body.applyForce(new CANNON.Vec3(pull.x * body.mass, pull.y * body.mass, 0)); heroActualAcceleration.x += pull.x; heroActualAcceleration.y += pull.y; }
       applyMoonGravity(heroActualAcceleration);
       world.step(STEP);
@@ -2428,35 +2546,40 @@ function frame(now) {
               capVelocity(body.velocity, SPEED_CAP);
             }
             encounterFlashAge = 0;
-            const note = [329.628, 440, 523.251][(encounter.hits - 1) % 3];
-            audio.tone(note, 0, .8, .15, note, true);
           }
           if (outcome.events.includes('heroDrop') || outcome.events.includes('bossDrop')) audio.tone(246.94, 0, .16, .035, 220, true);
           if (outcome.events.some(event => event.startsWith('heroDropRejected:'))) caption.textContent = `MINE: ${outcome.events.find(event => event.startsWith('heroDropRejected:')).split(':')[1].toUpperCase()}`;
           if (outcome.events.includes('burst')) { audio.tone(110, 0, .4, .1, 82.41, true); caption.textContent = 'DODGE THE EMBER BURST'; }
           if (encounterVitality && encounter.phase !== 'resolved') {
+            const heroExposureSeconds = outcome.heroExposureSeconds + (entityStep?.emberExposureSeconds || 0);
             const result = stepEncounterVitality(encounterVitality, { heroBefore: before, hero: duelHeroEnd, arrival: entityStep?.teleported ? body.position : null,
               bossBefore, boss: encounter.boss, dt: STEP, time: simTime, level: activeLevel,
-              hazards: encounter.hazards, heroExposureSeconds: outcome.heroExposureSeconds + (entityStep?.emberExposureSeconds || 0),
-              bossExposureSeconds: outcome.bossExposureSeconds, costs: outcome.costs, duel: activeDemo.duel,
+              hazards: encounter.hazards, heroExposureSeconds,
+              bossExposureSeconds: outcome.bossExposureSeconds, costs: outcome.costs, heroBurnCost: burn.cost, duel: activeDemo.duel,
               heroLightPaused: holdsCampaignLight(entityRuntime) });
             encounterVitality = result.state;
             experiment.brightness = encounterVitality.hero.energy;
-            if (result.collected.hero || result.collected.boss) { audio.stopHeartbeat(); audio.tone(587.33, 0, .35, .08); }
-            for (const beat of result.heartbeat) audio.heartbeat(beat.part, beat.urgency);
-            if (outcome.heroExposureSeconds + (entityStep?.emberExposureSeconds || 0) > 0) {
+            const feedback = recordEncounterFeedback(encounterFeedback, { ram: outcome.events.includes('hit'), heroExposureSeconds,
+              bossExposureSeconds: outcome.bossExposureSeconds, bossDefeated: result.result === 'boss', time: simTime });
+            encounterFeedback = feedback.state;
+            if (feedback.cues.includes('bossDefeat')) {
+              encounter.hazards = [];
+              encounterMineQueued = false; encounterSizzleUntil = -1;
+              audio.stopHeartbeat(); audio.stopScene(); audio.encounterImpact(); audio.encounterDefeat();
+            } else {
+              if (feedback.cues.includes('ram')) audio.encounterImpact();
+              if (feedback.cues.includes('heroSizzle')) audio.encounterDamage('hero');
+              if (feedback.cues.includes('bossSizzle')) audio.encounterDamage('boss');
+            }
+            if (result.result !== 'boss' && (result.collected.hero || result.collected.boss)) { audio.stopHeartbeat(); audio.tone(587.33, 0, .35, .08); }
+            if (result.result !== 'boss') for (const beat of result.heartbeat) audio.heartbeat(beat.part, beat.urgency);
+            if (result.result !== 'boss' && heroExposureSeconds > 0) {
               encounterSizzleUntil = simTime + .18;
-              if (simTime - lastEncounterSizzleTime >= .18) {
-                audio.noise(.13, 1900, .025, true);
-                audio.tone(164.81, 0, .12, .025, 123.47, true);
-                lastEncounterSizzleTime = simTime;
-              }
             }
             if (result.result === 'draw' || result.result === 'hero') { failRun(result.result === 'draw' ? 'draw' : 'darkness'); break; }
             if (result.result === 'boss') {
               encounter.phase = 'resolved'; encounter.phaseTime = 0;
               body.velocity.set(0, 0, 0);
-              audio.tone(659.255, 0, 1.5, .16, 659.255, true);
               caption.textContent = 'THE ANSWER HOLDS';
             }
           }
@@ -2487,7 +2610,7 @@ function frame(now) {
         }
         if (campaign) {
           const lightPaused = holdsCampaignLight(entityRuntime);
-          const result = stepCampaign(campaign, { before, hero: body.position, collectors: moonCollectors, dt: STEP, time: simTime, level: activeLevel, config: activeDemo.settings || CAMPAIGN, extraEnergy: entityStep?.energyDelta || 0, availableCompanions: moonEntries.filter(entry => entry.companionState?.owned && !entry.heat?.burned).length, lightPaused });
+          const result = stepCampaign(campaign, { before, hero: body.position, collectors: moonCollectors, dt: STEP, time: simTime, level: activeLevel, config: activeDemo.settings || CAMPAIGN, extraEnergy: (entityStep?.energyDelta || 0) - burn.cost, availableCompanions: moonEntries.filter(entry => entry.companionState?.owned && !entry.heat?.burned).length, lightPaused });
           if (lightPaused) audio.stopHeartbeat();
           campaign = result.state;
           if (result.consumedCompanion) {
@@ -2508,7 +2631,7 @@ function frame(now) {
           if (result.failed) { failRun(); break; }
         }
         if (burnout) {
-          const result = stepBurnout(burnout, { before, hero: body.position, collectors: moonCollectors, level: activeDemo.level, dt: STEP, time: simTime });
+          const result = stepBurnout(burnout, { before, hero: body.position, collectors: moonCollectors, level: activeDemo.level, dt: STEP, time: simTime, extraEnergy: -burn.cost });
           burnout = result.state;
           experiment.brightness = burnout.energy;
           if (result.collected) audio.tone(587.33, 0, .35, .08);
@@ -2545,11 +2668,11 @@ function frame(now) {
   const eclipseExposure = entityRuntime?.eclipseMultiplier ?? experiment.eclipseExposure;
   const orbPulse = audio.orb(!homeOpen && !editor?.open && !gallery.open && !settings.open && !drifted && !won && !document.hidden, now / 1000, experiment.brightness);
   updateControls();
-  blobLight.intensity = 85 * experiment.brightness;
+  blobLight.intensity = 85 * experiment.brightness * (burnVisualActive ? 1.12 : 1);
   blob.material.transparent = !!campaign || !!encounterVitality || eclipseExposure < 1;
   blob.material.opacity = (campaign || encounterVitality ? .08 + (campaign || encounterVitality.hero).energy * .92 : 1) * eclipseExposure;
   blob.scale.setScalar(1 + orbPulse * .055);
-  heroGlow.scale.setScalar(2.3 + orbPulse * .25);
+  heroGlow.scale.setScalar(2.3 + orbPulse * .25 + (burnVisualActive ? .35 : 0));
   if (simTime < emberImmuneUntil) {
     heroGlow.scale.setScalar(3.1 + orbPulse * .3);
     heroGlow.material.color.setHex(0xcdb7ff);
@@ -2587,8 +2710,14 @@ function frame(now) {
   if (gameMode === 'maze') updatePortalSparks();
   portal.rotation.z += elapsed * 0.35; portalAura.material.opacity = 0.35 + Math.sin(now * 0.002) * 0.1;
   if (encounterFlashAge < .55) encounterFlashAge = Math.min(.55, encounterFlashAge + elapsed);
+  if (encounter && !paused && !drifted && !won) {
+    const feedback = stepEncounterFeedback(encounterFeedback, elapsed, window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+    encounterFeedback = feedback.state;
+    encounterFeedbackVisual = feedback.visual;
+  }
+  $('#encounterDamage').style.opacity = encounter && !drifted && !won ? String(encounterFeedbackVisual.heroEdge) : '0';
   updateEncounterVisual(now);
-  if (encounter && !won && !drifted) $('#demoObjective').textContent = encounter.phase === 'resolved' ? 'THE ANSWER HOLDS' : 'Ram · hold for mine · collect shared light';
+  if (encounter && !won && !drifted) $('#demoObjective').textContent = encounter.phase === 'resolved' ? 'THE ANSWER HOLDS' : 'Ram · hold field for mine · collect shared light';
   experiment.updateVisuals(body.position, simTime, experiment.brightness, renderer.getPixelRatio(), eclipseExposure);
   updateEntityVisuals();
   if (soundGates) updateCampaignGates();
@@ -2603,6 +2732,14 @@ function frame(now) {
   updateMoonVisuals();
   updateWellVisuals();
   updateCamera(deathTransition ? 0 : elapsed);
+  if (encounterResolving()) {
+    const boss = encounter.boss;
+    if (Math.abs(boss.x - camera.position.x) > camera.right - 2 || Math.abs(boss.y - camera.position.y) > camera.top - 2) {
+      const follow = Math.min(1, elapsed * 3.5);
+      camera.position.x += (boss.x - camera.position.x) * follow;
+      camera.position.y += (boss.y - camera.position.y) * follow;
+    }
+  }
   if (phraseReward) {
     const aspect = Math.max(.4, sceneElement.clientWidth / Math.max(1, sceneElement.clientHeight));
     const route = phraseState.path;
@@ -2618,9 +2755,19 @@ function frame(now) {
   drawMinimap();
   audio.trail(!phraseReward && !homeOpen && !editor?.open && !paused && !drifted && !won && !document.hidden, Math.hypot(body.velocity.x, body.velocity.y), simTime - lastSoundWellTime);
   audio.syncMusic(fixedCampaignControls() && !homeOpen && !editor?.open && !gallery.open && !settings.open && !paused && !drifted && !won,
-    phraseReward ? .13 : campaign?.energy <= 0 ? .16 : (soundGates?.mask || 0) ? .45 : 1);
+    encounterResolving() ? .08 : phraseReward ? .13 : campaign?.energy <= 0 ? .16 : (soundGates?.mask || 0) ? .45 : 1);
   if (frameCount % 12 === 0 || paused || drifted) updateStatus();
-  renderer.render(scene, camera);
+  // Camera shake is visual only. Restore before pointer projection, follow-camera
+  // updates, or minimap work can observe this temporary render offset.
+  const cameraX = camera.position.x, cameraY = camera.position.y;
+  const shake = encounterFeedbackVisual.shakePx;
+  try {
+    if (encounter && shake && !paused && !drifted && !won) {
+      camera.position.x += Math.sin(now * .079) * shake * (camera.right - camera.left) / Math.max(1, sceneElement.clientWidth);
+      camera.position.y += Math.cos(now * .103) * shake * (camera.top - camera.bottom) / Math.max(1, sceneElement.clientHeight);
+    }
+    renderer.render(scene, camera);
+  } finally { camera.position.x = cameraX; camera.position.y = cameraY; }
   if (deathFinished) {
     const reason = deathTransition.reason;
     deathTransition = null;

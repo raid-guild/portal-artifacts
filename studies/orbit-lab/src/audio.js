@@ -38,14 +38,14 @@ export class OrbitAudio {
   }
   setEnabled(enabled) {
     this.enabled = !!enabled;
-    if (!this.enabled) this.stopPhraseSound();
+    if (!this.enabled) this.stopScene();
     if (enabled) this.unlock();
     if (this.context) this.master.gain.setTargetAtTime(this.enabled ? .32 : 0, this.context.currentTime, .04);
     this.syncMusic();
   }
   setEffects(enabled, volume = this.effectsVolume) {
     this.effectsEnabled = !!enabled; this.effectsVolume = Math.max(0, Math.min(1, Number(volume) || 0));
-    if (!this.effectsEnabled || !this.effectsVolume) this.stopPhraseSound();
+    if (!this.effectsEnabled || !this.effectsVolume) this.stopScene();
     if (this.context) this.effectsBus.gain.setTargetAtTime(this.effectsEnabled ? this.effectsVolume : 0, this.context.currentTime, .04);
   }
   setMusic(enabled, volume = this.musicVolume) {
@@ -107,6 +107,19 @@ export class OrbitAudio {
   sceneUneasyEcho(frequency) { this.tone(frequency, 0, 1.65, .075, frequency * .93, true); this.tone(frequency * 1.027, .09, 1.3, .035, frequency * .96, true); }
   sceneEarned(note) { const pitch = [369.994, 493.883, 587.33][note - 1]; this.tone(pitch, 0, .75, .07, pitch, true); }
   sceneAnswer() { [220, 277.183, 369.994].forEach((note, i) => this.tone(note, i * .12, 1.8, .09, note, true)); }
+  encounterImpact() {
+    this.noise(.28, 1700, .085, true);
+    this.tone(164.81, 0, .34, .11, 92.5, true);
+    this.tone(329.63, .025, .42, .06, 220, true);
+  }
+  encounterDamage(owner) {
+    this.noise(.12, owner === 'hero' ? 1100 : 2200, owner === 'hero' ? .025 : .035, true);
+    this.tone(owner === 'hero' ? 123.47 : 392, 0, .16, .025, owner === 'hero' ? 92.5 : 329.63, true);
+  }
+  encounterDefeat() {
+    this.noise(.42, 1200, .045, true);
+    [220, 277.183, 329.628, 440].forEach((pitch, index) => this.tone(pitch, index * .1, 1.45 - index * .1, index === 0 ? .085 : .06, pitch, true));
+  }
   phraseNote(frequency, replay = false) {
     this.unlock();
     if (!this.enabled || !this.effectsEnabled || !this.effectsVolume || !this.context) return;
@@ -241,5 +254,5 @@ export class OrbitAudio {
     [261.626, 329.628, 391.995, 523.251].forEach((note, i) => this.tone(note, i * .11, 2.6, .1));
     this.noise(.8, 4200, .035);
   }
-  reset() { this.step = 0; this.stopPhraseSound(); this.stopHeartbeat(); this.trail(false, 0, 0); this.orb(false, 0); }
+  reset() { this.step = 0; this.stopScene(); this.stopHeartbeat(); this.trail(false, 0, 0); this.orb(false, 0); }
 }

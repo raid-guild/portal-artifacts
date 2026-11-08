@@ -26,3 +26,17 @@ test('acknowledgement persists and corrupt preferences do not count as seen', ()
 test('each illustration has an accessible static description', () => {
     for (const kind of ['wells','stillness','shadows','portals','chasers']) assert.match(chapterGuideGraphic(kind), /role="img"/);
 });
+test('opening guide has synchronized one-well, Burn, and straight-coast artwork', () => {
+    const art=chapterGuideGraphic('wells');
+    for(const name of ['guide-burn-stage-one','guide-burn-stage-two','guide-burn-stage-three','guide-burn-first-well','guide-burn-replacement-well','guide-burn-thrust','guide-burn-coast','guide-wells-static'])assert.match(art,new RegExp(name));
+    assert.match(art,/3 SPACE \/ REMOVE/);
+    assert.match(art,/M175 51 L305 51/);
+});
+test('old guide acknowledgements migrate while the changed first guide is shown again', () => {
+    const store=storage();store.setItem('orbit-lab-chapter-guides-v2',JSON.stringify([1,4,7,13]));
+    const seen=readChapterGuides(store);
+    assert.deepEqual([...seen],[4,7,13]);
+    assert.equal(shouldShowChapterGuide({levelId:1,campaignMode:true,editorPlaytest:false,seen}),true);
+    assert.equal(shouldShowChapterGuide({levelId:4,campaignMode:true,editorPlaytest:false,seen}),false);
+    assert.equal(store.getItem(CHAPTER_GUIDE_KEY),JSON.stringify([4,7,13]));
+});

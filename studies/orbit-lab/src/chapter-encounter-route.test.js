@@ -15,7 +15,7 @@ function run(chapter,policy,mode='flee') {
  let encounter=createEncounterState(demo.duel.boss),vitality=createEncounterVitality(2819,demo.duel),wells=[],hits=0,collections={hero:0,boss:0},result='time',placements=0;
  for(let tick=0;tick<100/STEP;tick++){
   const time=tick*STEP;
-  if(tick%120===0){const point=policy(encounter,body.position,time,level);if(point&&canPlaceWell(point,level)){wells=[...wells,{...point,strength:70,lifetime:16,createdAt:time}].slice(-2);placements++}}
+  if(tick%120===0){const point=policy(encounter,body.position,time,level);if(point&&canPlaceWell(point,level)){wells=[...wells,{...point,strength:70,lifetime:16,createdAt:time}].slice(-1);placements++}}
   const before={x:body.position.x,y:body.position.y};const a=mazeAcceleration(body.position,wells,time,'fade',level);body.applyForce(new CANNON.Vec3(a.x,a.y,0));world.step(STEP);capVelocity(body.velocity,SPEED_CAP);
   const bb={x:encounter.boss.x,y:encounter.boss.y};const resultStep=stepEncounter(encounter,{before,hero:body.position,heroVelocity:body.velocity,dt:STEP,time,bounds:level.bounds,walls:level.walls,heroEnergy:vitality.hero.energy,bossEnergy:vitality.boss.energy,pickups:vitality.pickups,behavior:mode,config:conf});encounter=resultStep.state;if(resultStep.events.includes('hit'))hits++;
   const resultLight=stepEncounterVitality(vitality,{heroBefore:before,hero:body.position,bossBefore:bb,boss:encounter.boss,dt:STEP,time,level,hazards:encounter.hazards,heroExposureSeconds:resultStep.heroExposureSeconds,bossExposureSeconds:resultStep.bossExposureSeconds,costs:resultStep.costs,duel:demo.duel});vitality=resultLight.state;collections.hero+=resultLight.collected.hero;collections.boss+=resultLight.collected.boss;

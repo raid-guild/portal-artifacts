@@ -26,8 +26,12 @@ injects its site-wide analytics and outbound-link scripts.
 
 ## Controls
 
-- Click or tap open space to place a well. Two may exist at once; a third
-  replaces the oldest. Tap **Start** to release the particle; the primary button then removes the oldest well or releases a capture. Pause is in the top toolbar.
+- Click or tap anywhere in the field to place one well. A new placement
+  replaces it. Tap **Start** to release the particle. While moving, hold
+  **Shift** or the separate **Burn** circle to accelerate along the current
+  velocity. Burn adds up to 4 units/s², stops at 10 units/s, and costs 5% light
+  per second only while accelerating. It cannot launch a motionless light.
+  Pause is in the top toolbar.
 - In the official campaign, gravity strength, lifetime, fade behavior, and dot
   gravity are fixed by the level. The gear offers independent sound effects and
   music switches and volumes, plus a short predicted path. The top toolbar has
@@ -38,12 +42,17 @@ injects its site-wide analytics and outbound-link scripts.
   Three-gate melodies and transmission tones remain part of the sound effects.
   Studies, infinite play, and editor playtests keep the experimental controls.
   Opening Settings pauses a running simulation; closing it resumes that run.
-- Right-click a well or use its list button in Settings to remove it.
-- Keyboard: Space performs the primary action (Start, Resume, Release, or remove oldest well); P pauses/resumes; R restarts the current mode; E removes the oldest well or releases a capture.
+- Press **Space** or tap **Remove** to clear the active well. Right-click
+  anywhere in the scene also coasts: release a capture or remove the well. The well can also be removed from Settings.
+- Keyboard: Space starts, resumes, releases a capture, or removes a well;
+  hold Shift to Burn in flight; P pauses/resumes; R restarts the current mode; E coasts; M drops a
+  mine in encounters. The encounter mine thumb button is also available; a 500 ms field hold
+  drops a mine at the light and consumes that gesture, even if the mine cannot be
+  afforded.
 
 The first visit to the opening level of each campaign chapter (1, 4, 7, 10,
 and 13) pauses on a short illustrated field guide. Chapter One demonstrates
-the two-well rotation. **Got it** or Escape dismisses and remembers each
+placing/replacing one well, Burning, and coasting. **Got it** or Escape dismisses and remembers each
 guide on this device. **Chapter guide** in the level selector replays any
 unlocked chapter guide without starting a level. Guides never appear in
 studies, Infinite Play, or editor playtests.
@@ -51,10 +60,10 @@ studies, Infinite Play, or editor playtests.
 **Light duel** is a separate 32 × 18 encounter study. Both lights start at
 60%, burn slowly, and enter an eight-second last-embers grace period at zero.
 Both actors collect from one shared pool of recharge embers. Rams cost both
-lights 12%. Hold on empty playfield for half a second to drop a cyan mine at
-your light for 8%; a quick tap still places a well. Space or the thumb button
-keeps its usual Start, Resume, Release, and remove-oldest-well action. The M
-key is a keyboard shortcut for a mine while flying.
+lights 12%. The mine thumb button or M drops a cyan mine at your light for 8%.
+Space or the primary thumb button starts, resumes, releases a capture, then
+removes the active well. Shift or the Burn circle accelerates while held. A
+tap anywhere on the playfield places or replaces the well.
 The opponent lays orange mines with the same cost and can pursue, flee, or seek
 light. Warning rings mark the full footprint before a long sizzling burst
 damages only the opponent of the mine's owner. The duel ends when either light
@@ -71,6 +80,10 @@ rams and mines and draw from the same recharge pool. Defeating the ember saves
 a separate achievement, while losing or skipping never blocks the next chapter.
 The five wins appear below the phrase achievements. Direct links use
 `?encounter=1` through `?encounter=5` and enforce the same unlock check.
+Rams and mine contact have separate visual and sound cues for each light.
+Defeating the ember briefly focuses its position, extinguishes it in a light
+ring, and sounds a short chord before the result appears. These cues respond
+to actual contact and exposure; normal light drain does not trigger them.
 
 The root route opens Home, with Campaign, Infinite Play, World Studies, and the
 Level editor. Campaign
@@ -320,10 +333,9 @@ The gallery now includes thirteen isolated mechanic studies (`?demo=release`,
 `clock`, `sound`, `hidden`, and `portals`). Existing six studies remain available.
 Each adds one mechanic to basic well steering; these are tuning experiments.
 
-The single primary button and Space start/resume the run, then remove the oldest
-well or release a captured dot with its
-incoming velocity. E removes/releases without starting or resuming; 1 / 2 remove the corresponding active
-well. The settings still offer release-all. Portals preserve speed and rotate
+The primary button and Space start/resume the run, release a captured dot,
+then remove the active well. Shift or the Burn circle accelerates while held. E removes the single well or releases a capture
+without starting or resuming. The settings also offer removal. Portals preserve speed and rotate
 momentum by a quarter turn, with a cooldown. Teleports split the trail without
 clearing its permanent drawing. Hidden bodies reveal near the orb only with an
 unobstructed line of sight, fully invisible otherwise. Light pickups/drains

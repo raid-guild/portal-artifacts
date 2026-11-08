@@ -10,7 +10,7 @@ import { STEP } from './physics.js';
 import { segmentDistance } from './studies.js';
 
 test('campaign placement budget supports unlimited total replacements and a finite later rule', () => {
-  assert.equal(CAMPAIGN.maxActiveWells, 2);
+  assert.equal(CAMPAIGN.maxActiveWells, 1);
   assert.equal(canPlaceCampaignWell(100), true);
   assert.equal(canPlaceCampaignWell(2, 2), false);
 });

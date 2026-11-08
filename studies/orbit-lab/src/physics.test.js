@@ -26,6 +26,6 @@ test('prediction uses the same stepping rule and is finite close to a well', () 
   assert.ok(points.length > 1);
 });
 
-test('a third well replaces the oldest', () => {
-  assert.deepEqual(addWell([{ id: 1 }, { id: 2 }], { id: 3 }).map((w) => w.id), [2, 3]);
+test('a new well replaces the only active well even with a legacy maximum', () => {
+  assert.deepEqual(addWell([{ id: 1 }, { id: 2 }], { id: 3 }, 2).map((w) => w.id), [3]);
 });

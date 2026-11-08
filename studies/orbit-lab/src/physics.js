@@ -1,6 +1,6 @@
 export const STEP = 1 / 120;
 export const SOFTENING = 0.75;
-export const MAX_WELLS = 2;
+export const MAX_WELLS = 1;
 
 export function remaining(well, time) {
   return Math.max(0, well.createdAt + well.lifetime - time);
@@ -49,5 +49,5 @@ export function predict(state, wells, time, seconds = 5, mode = 'fade', sampleEv
 }
 
 export function addWell(wells, well, maxActive = MAX_WELLS) {
-  return [...wells, well].slice(-maxActive);
+  return [...wells, well].slice(-Math.min(MAX_WELLS, Math.max(1, maxActive)));
 }

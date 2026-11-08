@@ -57,7 +57,7 @@ function spawnShared(state, hero, boss, level, hazards, time) {
 // One shared pickup pool is adjudicated by first swept contact. Each actor's
 // private campaign timer then receives exactly one energy delta for the tick.
 export function stepEncounterVitality(state, { heroBefore, hero, arrival = null, bossBefore, boss, dt, time, level,
-  hazards = [], heroExposureSeconds = 0, bossExposureSeconds = 0, costs = { hero: 0, boss: 0 }, lightPaused = false,
+  hazards = [], heroExposureSeconds = 0, bossExposureSeconds = 0, costs = { hero: 0, boss: 0 }, heroBurnCost = 0, lightPaused = false,
   heroLightPaused = lightPaused, bossLightPaused = lightPaused, duel = null }) {
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < CAMPAIGN.pickupLife) };
   const collected = { hero: 0, boss: 0 };
@@ -82,7 +82,7 @@ export function stepEncounterVitality(state, { heroBefore, hero, arrival = null,
   const emptyLevel = { ...level, dangers: [...(level.dangers || []),
     ...hazards.map(hazard => ({ x: hazard.x, y: hazard.y, radius: ENCOUNTER.burstRadius }))] };
   const heroStep = stepCampaign(state.hero, { before: heroBefore, hero, dt, time, level: emptyLevel,
-    config: { ...ENCOUNTER_VITALITY, burnRate: duel?.burnRate ?? ENCOUNTER_VITALITY.burnRate }, extraEnergy: collected.hero * CAMPAIGN.pickupGain - costs.hero - Math.min(dt, heroExposureSeconds) * MINE_BURN_RATE, lightPaused: heroLightPaused });
+    config: { ...ENCOUNTER_VITALITY, burnRate: duel?.burnRate ?? ENCOUNTER_VITALITY.burnRate }, extraEnergy: collected.hero * CAMPAIGN.pickupGain - costs.hero - heroBurnCost - Math.min(dt, heroExposureSeconds) * MINE_BURN_RATE, lightPaused: heroLightPaused });
   const bossStep = stepCampaign(state.boss, { before: bossBefore, hero: boss, dt, time, level: emptyLevel,
     config: { ...ENCOUNTER_VITALITY, burnRate: duel?.bossBurnRate ?? duel?.burnRate ?? ENCOUNTER_VITALITY.burnRate }, extraEnergy: collected.boss * CAMPAIGN.pickupGain - costs.boss - Math.min(dt, bossExposureSeconds) * MINE_BURN_RATE, lightPaused: bossLightPaused });
   next.hero = heroStep.state; next.boss = bossStep.state;
