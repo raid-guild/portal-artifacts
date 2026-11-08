@@ -72,7 +72,7 @@ DEMOS.push({
   rule: 'A living opponent', color: '#ffa65a',
   description: 'Both lights burn down. Ram the ember, drop your own mines, and race it for shared recharge embers.',
   question: 'Can you extinguish it before your light runs out?',
-  objective: 'Outlast the ember. Space drops a cyan mine while flying; both lights spend energy.',
+  objective: 'Outlast the ember. Hold Shift to Burn; M or a field long press drops a cyan mine. Both lights spend energy.',
   mechanic: 'encounter', heroGravity: 0, moons: [],
   level: makeLevel({ x: -5, y: 0, vx: 3.2, vy: .3 }, { x: 14, y: 8, radius: 0, gravity: 0 }, [], [], { minX: -16, maxX: 16, minY: -9, maxY: 9 }),
 });

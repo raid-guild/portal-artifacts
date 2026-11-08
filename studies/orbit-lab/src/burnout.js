@@ -24,9 +24,9 @@ export function spawnPickup(hero, level, pickups, gateOpen, rng = Math.random) {
   return null;
 }
 
-export function stepBurnout(state, { before, hero, collectors = [], level, dt, time, rng = Math.random }) {
+export function stepBurnout(state, { before, hero, collectors = [], level, dt, time, rng = Math.random, extraEnergy = 0 }) {
   const next = { ...state, pickups: state.pickups.filter(pickup => time - pickup.createdAt < PICKUP_LIFE) };
-  next.energy = Math.max(0.06, Math.min(1, state.energy - BURN_RATE * dt));
+  next.energy = Math.max(0.06, Math.min(1, state.energy - BURN_RATE * dt + extraEnergy));
   let collected = 0;
   next.pickups = next.pickups.filter(pickup => {
     if (segmentDistance(before, hero, pickup) <= PICKUP_RADIUS + BLOB_RADIUS ||

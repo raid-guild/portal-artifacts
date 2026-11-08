@@ -24,7 +24,7 @@ export function createMineGesture() {
       this.move(id, x, y);
       const finished = pointer; pointer = null;
       if (finished.moved) return 'none';
-      if (finished.held || at - finished.at >= MINE_HOLD_MS) return 'hold';
+      if (finished.held || (finished.eligible && at - finished.at >= MINE_HOLD_MS)) return 'hold';
       return 'tap';
     },
     cancel() { pointer = null; },

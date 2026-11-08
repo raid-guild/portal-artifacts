@@ -107,7 +107,7 @@ function makeDocument(seed, stage, attempt, fallback = false) {
   const slope = fallback ? 0 : (random() - .5) * 4;
   const start = routePoint(-38, amplitude, phase, slope), exit = routePoint(38, amplitude, phase, slope);
   const settings = { startLight: .65, burnRate: .016 + difficulty * .006, graceSeconds: 8, wellStrength: 66, wellLifetime: 8,
-    maxActiveWells: 2, maxTotalWells: null, randomRecharge: false };
+    maxActiveWells: 1, maxTotalWells: null, randomRecharge: false };
   const document = { version: 1, id: `infinite-${infiniteHash(seed).toString(36)}-${stage}`, title: `Infinite crossing ${stage}`, bounds: { ...INFINITE_BOUNDS },
     settings, start: { ...start, direction: 0, speed: 2.4 }, exit: { ...exit, radius: 1.4, gravity: 3 }, walls: [], entities: [] };
   const put = entity => document.entities.push(entity);

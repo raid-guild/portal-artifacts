@@ -26,6 +26,29 @@ test('chapter gate profile changes only campaign rhythm, and scene stop cancels 
  assert.ok(notes.some(note => note[0] === 261.63));
 });
 
+test('encounter cues route through cancellable scene voices and respect effects mute', () => {
+ const audio = new OrbitAudio(), notes = [], noises = [];
+ audio.tone = (...args) => notes.push(args);
+ audio.noise = (...args) => noises.push(args);
+ audio.encounterImpact(); audio.encounterDamage('hero'); audio.encounterDamage('boss'); audio.encounterDefeat();
+ assert.ok(notes.length >= 8);
+ assert.ok(notes.every(note => note[5] === true));
+ assert.ok(noises.every(noise => noise[3] === true));
+ assert.ok(notes.every(note => note[3] <= .11));
+ const stopped = [];
+ audio.sceneVoices.add({ stop() { stopped.push(true); } });
+ audio.context = { currentTime: 0 };
+ audio.effectsBus = { gain: { setTargetAtTime() {} } };
+ audio.setEffects(false, 0);
+ assert.equal(stopped.length, 1);
+ assert.equal(audio.sceneVoices.size, 0);
+ audio.sceneVoices.add({ stop() { stopped.push(true); } });
+ audio.master = { gain: { setTargetAtTime() {} } };
+ audio.musicBus = { gain: { setTargetAtTime() {} } };
+ audio.setEnabled(false);
+ assert.equal(stopped.length, 2);
+});
+
 test('second transmission has a related call and cancellable answer and reply voices', () => {
  const audio = new OrbitAudio(), notes = [];
  audio.tone = (...args) => notes.push(args);

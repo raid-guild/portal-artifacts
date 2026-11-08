@@ -19,7 +19,7 @@ import { compileLevelDocument } from './level-document.js';
 
 export const CAMPAIGN = {
   startLight: .6, burnRate: .018, pickupGain: .3, graceSeconds: 8,
-  maxActiveWells: 2, maxTotalWells: null, pickupLife: 18, pickupRadius: .65,
+  maxActiveWells: 1, maxTotalWells: null, pickupLife: 18, pickupRadius: .65,
 };
 
 const compiled = [levelOne, levelTwo, levelThree, levelFour, levelFive, levelSix, levelSeven, levelEight, levelNine, levelTen, levelEleven, levelTwelve, levelThirteen, levelFourteen, levelFifteen].map(compileLevelDocument);

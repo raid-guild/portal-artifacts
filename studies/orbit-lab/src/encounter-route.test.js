@@ -29,7 +29,7 @@ function flyEncounter(policy, duration = 150, behavior = 'adaptive', mineEvery =
     if (tick % 120 === 0) {
       const point = policy(encounter, body.position, time);
       if (point && canPlaceWell(point, level)) {
-        wells = [...wells, { ...point, strength: 70, lifetime: 16, createdAt: time }].slice(-2);
+        wells = [...wells, { ...point, strength: 70, lifetime: 16, createdAt: time }].slice(-1);
         placements++;
       }
     }

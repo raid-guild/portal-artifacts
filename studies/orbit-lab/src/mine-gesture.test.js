@@ -14,7 +14,7 @@ test('quick release places a well; a completed hold drops one mine and consumes 
   assert.equal(hold.end(2, 10, 10, MINE_HOLD_MS + 1), 'hold');
 });
 
-test('movement, cancellation, second pointer, and long hold over a well cannot create a mine', () => {
+test('movement, cancellation, second pointer, and ineligible hold cannot create a mine', () => {
   const gesture = createMineGesture();
   gesture.begin(1, 10, 10, 0, true);
   assert.equal(gesture.begin(2, 10, 10, 0, true), false);
@@ -23,7 +23,7 @@ test('movement, cancellation, second pointer, and long hold over a well cannot c
   assert.equal(gesture.end(1, 28, 10, MINE_HOLD_MS), 'none');
   gesture.begin(3, 10, 10, 0, false);
   assert.equal(gesture.hold(3, MINE_HOLD_MS), false);
-  assert.equal(gesture.end(3, 10, 10, MINE_HOLD_MS + 1), 'hold');
+  assert.equal(gesture.end(3, 10, 10, MINE_HOLD_MS + 1), 'tap');
   gesture.begin(4, 10, 10, 0, true);
   gesture.cancel();
   assert.equal(gesture.end(4, 10, 10, 100), 'none');

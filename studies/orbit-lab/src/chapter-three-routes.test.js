@@ -90,7 +90,7 @@ function physicalFlight(id, { steer = true, firstWait = 0, maxSeconds = 70 } = {
       if (action === 'clear') wells = [];
       else {
         assert.ok(campaignPointAllowed({ x, y }, demo.level), `level ${id} has an illegal well at ${x},${y}`);
-        wells = [...wells, { id: ++nextWellId, x, y, strength: demo.settings.wellStrength, lifetime: demo.settings.wellLifetime, createdAt: time }].slice(-demo.settings.maxActiveWells);
+        wells = [...wells, { id: ++nextWellId, x, y, strength: demo.settings.wellStrength, lifetime: demo.settings.wellLifetime, createdAt: time }].slice(-1);
       }
     }
     if (runtime.held && !released.has(runtime.held.id)) {

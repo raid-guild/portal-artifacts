@@ -16,7 +16,7 @@ export function makeBlankLevelDocument() {
   return {
     version: 1, id: 'untitled-level', title: 'Untitled crossing',
     bounds: { minX: -20, maxX: 76, minY: -27, maxY: 27 },
-    settings: { startLight: .6, burnRate: .018, graceSeconds: 8, wellStrength: 70, wellLifetime: 8, maxActiveWells: 2, maxTotalWells: null, randomRecharge: true },
+    settings: { startLight: .6, burnRate: .018, graceSeconds: 8, wellStrength: 70, wellLifetime: 8, maxActiveWells: 1, maxTotalWells: null, randomRecharge: true },
     start: { x: 0, y: 0, direction: 0, speed: 1.8 },
     exit: { x: 50, y: 0, radius: 1.5, gravity: 5 },
     walls: [], wallPaths: [], entities: [],

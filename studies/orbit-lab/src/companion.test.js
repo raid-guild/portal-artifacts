@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COMPANION_OWNED_COUNT, createCompanionState, stepCompanion } from './companion.js';
+import { burnStep } from './burn.js';
 
 const dt=1/120;
 const length=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -80,4 +81,19 @@ test('two owned companions keep independent orbit phases and both return after a
   assert.equal(borrowedFirst,true);assert.equal(followedSecond,true);assert.equal(returnedFirst,true);
   assert.equal(states.filter(state=>state.owned).length,2);
   assert.ok(moons.every(moon=>length(hero,moon)<5));
+});
+
+test('an owned moon inherits sustained player Burn and stays near the accelerating hero',()=>{
+  const hero={x:0,y:0,vx:3,vy:0},moon={x:2.15,y:0,vx:3,vy:1.35};
+  let state=createCompanionState(),maxDistance=0,energy=.8,burnTicks=0;
+  for(let i=0;i<720;i++){
+    const burn=burnStep({vx:hero.vx,vy:hero.vy,dt,availableEnergy:energy});
+    energy-=burn.cost;burnTicks+=Number(burn.active);
+    const result=tick(state,hero,moon,{heroA:{x:burn.ax,y:burn.ay},time:i*dt});
+    state=result.state;maxDistance=Math.max(maxDistance,length(hero,moon));
+  }
+  assert.ok(burnTicks>100,`Burn lasted only ${burnTicks} ticks`);
+  assert.ok(hero.vx>9.9,`hero speed ${hero.vx}`);
+  assert.ok(maxDistance<4,`moon lost orbit during Burn: ${maxDistance}`);
+  assert.ok(length(hero,moon)<3.5);
 });

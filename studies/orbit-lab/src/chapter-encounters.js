@@ -60,7 +60,7 @@ export function getChapterEncounter(id) {
       walls: [...perimeter, ...spec.walls.map(item => ({ x: item.x, y: item.y, w: item.width, h: item.height, id: item.id }))], spikes: [], dangers: [] },
     entities: structuredClone(spec.entities), soundGates: [],
     settings: { startLight: spec.heroLight, burnRate: spec.burnRate, graceSeconds: 8,
-      wellStrength: 70, wellLifetime: 16, maxActiveWells: 2, maxTotalWells: null, randomRecharge: false },
+      wellStrength: 70, wellLifetime: 16, maxActiveWells: 1, maxTotalWells: null, randomRecharge: false },
     duel: { boss: { x: spec.boss[0], y: spec.boss[1] }, bossSpeed: spec.bossSpeed,
       bossMines: spec.bossMines, bossSeeksLight: spec.bossSeeksLight !== false,
       rechargeThreshold: spec.rechargeThreshold,
