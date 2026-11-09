@@ -168,3 +168,6 @@
 .chapter-footer .chapter-encounter{border:1px solid #ffc17b;background:linear-gradient(135deg,#603623,#382530);color:#ffe0b4;font-weight:700;box-shadow:0 0 22px #ff9c402b;padding:14px 24px}
 .chapter-footer .chapter-encounter:hover,.chapter-footer .chapter-encounter:focus-visible{background:#75452b;border-color:#ffe1af;box-shadow:0 0 28px #ffad5055;outline:2px solid #ffe0b4;outline-offset:3px}
 .chapter-footer .chapter-encounter.encounter-complete{border-color:#d5b582;background:linear-gradient(135deg,#423526,#292a30);color:#ffe5b8}
+
+/* Holding game controls is an action, never a browser text selection. */
+button,.scene,.chrome,.play-control,.demo-note,.scene-caption{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
