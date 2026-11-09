@@ -2380,6 +2380,11 @@ $('#primaryAction').addEventListener('click', event => {
   if (event.detail === 0 && performance.now() < suppressKeyboardPrimaryClickUntil) return;
   primaryAction();
 });
+// Android Chrome can open text selection/search menus during a sustained hold.
+for (const surface of document.querySelectorAll('.play-control,.chrome,.demo-note,.scene-caption')) {
+  surface.addEventListener('selectstart', event => event.preventDefault());
+  surface.addEventListener('contextmenu', event => event.preventDefault());
+}
 $('#burnAction').addEventListener('pointerdown', event => {
   if (event.button !== 0 || burnPointerId !== null) return;
   event.preventDefault();
