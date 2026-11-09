@@ -41,7 +41,7 @@ import { createCompanionState, stepCompanion } from './companion.js';
 import { createMoonHeat, moonEmberContact, stepMoonHeat } from './moon-heat.js';
 import { EMBER_IMMUNITY, oldestOwnedMoon, rescuePosition, rescueVelocity, safeHeroPoint } from './moon-benefits.js';
 import { ALL_CAMPAIGN_IDS, CHAPTERS, availableCampaignIds, campaignContinuation, campaignLevelAvailable, chapterUnlocked, earnedNotes, getChapter } from './chapter.js';
-import { CHAPTER_GUIDES, readChapterGuides, acknowledgeChapterGuide, shouldShowChapterGuide, chapterGuideGraphic } from './chapter-tutorial.js';
+import { CHAPTER_GUIDES, chapterGuidePages, chapterGuideStep, chapterGuideNext, readChapterGuides, acknowledgeChapterGuide, shouldShowChapterGuide, chapterGuideGraphic } from './chapter-tutorial.js';
 import { createTransmission } from './transmission.js';
 import { phraseForLevel, createPhraseState, stepPhrase, phraseRewardAt, phrasePulsePoint, phraseAcquireEnvelope, readDiscoveredPhrases, saveDiscoveredPhrase, publicPhraseAchievements, phraseAchievementById } from './phrase.js';
 const route = new URLSearchParams(location.search);
@@ -81,7 +81,7 @@ app.innerHTML = `
   <header class="chrome"><div class="brand"><span class="brand-orbit" aria-hidden="true">◎</span> ORBIT LAB</div><div class="actions"><button id="pause" class="quiet-button" type="button" aria-label="Pause" title="Pause (P)" disabled>Ⅱ</button><button id="galleryButton" class="quiet-button" type="button" aria-label="Demo gallery" title="Demo gallery">⊞</button><button id="restart" class="quiet-button" type="button" aria-label="Restart" title="Restart (R)">↺</button><button id="muteAll" class="quiet-button" type="button" aria-label="Mute all audio" title="Mute all audio" aria-pressed="false">🔊</button><button id="settingsButton" class="quiet-button" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" title="Settings">⚙</button></div></header>
   <div class="play-control"><button id="dropMine" class="mine-thumb hidden" type="button" aria-label="Drop mine" title="Drop mine · costs 8% light">Mine<small class="control-key" aria-hidden="true">(M)</small></button><button id="burnAction" class="burn-thumb" type="button" aria-label="Hold to Burn" title="Hold to Burn (Shift)">Burn<small class="control-key" aria-hidden="true">(Shift)</small></button><button id="primaryAction" class="primary-button" type="button" title="Primary action (Space)">Start</button></div>
   <div class="scene-caption" id="sceneCaption">PLACE A WELL · THEN START</div>
-  <dialog id="chapterGuide" class="chapter-guide" aria-labelledby="chapterGuideTitle" aria-describedby="chapterGuideDescription chapterGuideDetail chapterGuideGoal"><div class="chapter-guide-card"><span class="eyebrow" id="chapterGuideEyebrow"></span><h2 id="chapterGuideTitle"></h2><div id="chapterGuideIllustration" class="chapter-guide-illustration"></div><p id="chapterGuideDescription"></p><p id="chapterGuideDetail"></p><p class="chapter-guide-goal" id="chapterGuideGoal">Collect at least one sound gate, then reach the exit portal.</p><button id="chapterGuideDone" class="primary-button" type="button">Got it</button></div></dialog>
+  <dialog id="chapterGuide" class="chapter-guide" aria-labelledby="chapterGuideTitle" aria-describedby="chapterGuideDescription chapterGuideDetail chapterGuideGoal"><div class="chapter-guide-card"><span class="eyebrow" id="chapterGuideEyebrow"></span><span id="chapterGuideCounter" class="chapter-guide-counter" aria-live="polite"></span><h2 id="chapterGuideTitle" tabindex="-1" aria-describedby="chapterGuideCounter chapterGuideDescription chapterGuideDetail chapterGuideGoal"></h2><div id="chapterGuideIllustration" class="chapter-guide-illustration"></div><p id="chapterGuideDescription"></p><p id="chapterGuideDetail"></p><p class="chapter-guide-goal" id="chapterGuideGoal">Collect at least one sound gate, then reach the exit portal.</p><div class="chapter-guide-actions"><button id="chapterGuideBack" class="home-secondary hidden" type="button">← Back</button><button id="chapterGuideDone" class="primary-button" type="button">Got it</button></div></div></dialog>
   <dialog id="settings" class="settings"><div class="settings-head"><div><span class="eyebrow">ORBIT LAB</span><h1>Settings</h1></div><button id="closeSettings" class="quiet-button" type="button" aria-label="Close settings">×</button></div>
     <p class="settings-intro">Place one temporary well to bend the light. Hold Burn to accelerate along its path.</p>
     <div class="game-modes experiment-setting"><button id="homeFromSettings" type="button">Home</button><button id="browseDemos" type="button">Browse studies</button></div><p id="activeDemoLabel" class="microcopy experiment-setting"></p>
@@ -777,11 +777,26 @@ let seenChapterGuides = readChapterGuides(chapterGuideStorage);
 const chapterGuide = $('#chapterGuide');
 let chapterGuideFocus = null;
 let chapterGuideLevelId = null;
+let chapterGuideIndex = 0;
+function renderChapterGuideStep() {
+  const pages = chapterGuidePages(chapterGuideLevelId);
+  const step = chapterGuideStep(chapterGuideLevelId, chapterGuideIndex);
+  if (!step) return;
+  $('#chapterGuideTitle').textContent = step.title;
+  $('#chapterGuideDescription').textContent = step.instruction;
+  $('#chapterGuideDetail').textContent = step.detail;
+  $('#chapterGuideIllustration').innerHTML = chapterGuideGraphic(step.illustration);
+  $('#chapterGuideGoal').textContent = step.goal || 'Collect at least one sound gate, then reach the exit portal.';
+  $('#chapterGuideCounter').textContent = pages.length > 1 ? `${chapterGuideIndex + 1} / ${pages.length}` : '';
+  $('#chapterGuideBack').classList.toggle('hidden', chapterGuideIndex === 0 || pages.length === 1);
+  $('#chapterGuideDone').textContent = chapterGuideNext(chapterGuideLevelId, chapterGuideIndex) === null ? 'Got it' : 'Next →';
+}
 function closeChapterGuide({ acknowledge = false, restoreFocus = true } = {}) {
   if (!chapterGuide.open) return;
   if (acknowledge && chapterGuideLevelId) seenChapterGuides = acknowledgeChapterGuide(chapterGuideStorage, seenChapterGuides, chapterGuideLevelId);
   chapterGuide.close();
   chapterGuideLevelId = null;
+  chapterGuideIndex = 0;
   const focus = chapterGuideFocus;
   chapterGuideFocus = null;
   if (restoreFocus && focus?.isConnected && !focus.closest('.hidden')) focus.focus();
@@ -792,18 +807,21 @@ function openChapterGuide(levelId, focusTarget = document.activeElement) {
   if (!guide || chapterGuide.open || settings.open || gallery.open || transmission.active || editor?.open) return false;
   chapterGuideFocus = focusTarget;
   chapterGuideLevelId = levelId;
+  chapterGuideIndex = 0;
   $('#chapterGuideEyebrow').textContent = `CHAPTER ${guide.chapter} / FIELD GUIDE`;
-  $('#chapterGuideTitle').textContent = guide.title;
-  $('#chapterGuideDescription').textContent = guide.instruction;
-  $('#chapterGuideDetail').textContent = guide.detail;
-  $('#chapterGuideIllustration').innerHTML = chapterGuideGraphic(guide.illustration);
+  renderChapterGuideStep();
   cancelActiveInput();
   chapterGuide.showModal();
   $('#chapterGuideDone').focus();
   return true;
 }
-$('#chapterGuideDone').addEventListener('click', () => closeChapterGuide({ acknowledge: true }));
-chapterGuide.addEventListener('cancel', event => { event.preventDefault(); closeChapterGuide({ acknowledge: true }); });
+$('#chapterGuideBack').addEventListener('click', () => { if (chapterGuideIndex > 0) { chapterGuideIndex--; renderChapterGuideStep(); $('#chapterGuideTitle').focus({ preventScroll: true }); } });
+$('#chapterGuideDone').addEventListener('click', () => {
+  const next = chapterGuideNext(chapterGuideLevelId, chapterGuideIndex);
+  if (next !== null) { chapterGuideIndex = next; renderChapterGuideStep(); $('#chapterGuideTitle').focus({ preventScroll: true }); }
+  else closeChapterGuide({ acknowledge: true });
+});
+chapterGuide.addEventListener('cancel', event => { event.preventDefault(); closeChapterGuide({ acknowledge: chapterGuideLevelId !== 1 }); });
 const trailGalleryStore = createTrailGalleryStore({ persistent: safeBrowserStorage(window, 'localStorage'), session: safeBrowserStorage(window, 'sessionStorage'), levelIds: ALL_CAMPAIGN_IDS });
 let trailGalleryReturnFocus = null;
 let trailDetailLevelId = null;
