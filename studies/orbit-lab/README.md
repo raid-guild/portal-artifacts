@@ -51,10 +51,12 @@ injects its site-wide analytics and outbound-link scripts.
   afforded.
 
 The first visit to the opening level of each campaign chapter (1, 4, 7, 10,
-and 13) pauses on a short illustrated field guide. Chapter One demonstrates
-placing/replacing one well, Burning, and coasting. **Got it** or Escape dismisses and remembers each
-guide on this device. **Chapter guide** in the level selector replays any
-unlocked chapter guide without starting a level. Guides never appear in
+and 13) pauses on an illustrated field guide. Chapter One has five Back/Next
+pages covering wells and Burn, the light meter, sound gates, the exit, and
+dangerous embers versus paired travel portals. Only **Got it** on the final
+page remembers this guide; Escape closes it without marking it complete. Later
+chapter guides remain single-page. **Chapter guide** in the level selector
+replays any unlocked guide without starting a level. Guides never appear in
 studies, Infinite Play, or editor playtests.
 
 **Light duel** is a separate 32 × 18 encounter study. Both lights start at
