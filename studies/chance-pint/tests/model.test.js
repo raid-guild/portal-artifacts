@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bandEdges, innerVolume, makeLayout, originalLayout, readTrack } from '../src/model.js';
+import { BRAND_FACE_INDEX, NUMBERED_TRACK_INDICES, bandEdges, innerVolume, makeLayout, normalizeTrackIndex, originalLayout, readTrack, trackName } from '../src/model.js';
 
 test('original layout has two complete permutations of each die', () => {
   assert.deepEqual(makeLayout(7319), originalLayout);
@@ -44,4 +44,15 @@ test('new seeds are deterministic and remain valid permutations', () => {
     assert.equal(new Set(track.bottom_to_top).size, track.die);
   }
   assert.throws(() => makeLayout(-1));
+});
+
+test('RaidGuild brand face reserves B/d4 and d4 selection resolves to A', () => {
+  assert.equal(BRAND_FACE_INDEX, 6);
+  assert.equal(NUMBERED_TRACK_INDICES.length, 11);
+  assert.ok(!NUMBERED_TRACK_INDICES.includes(BRAND_FACE_INDEX));
+  assert.equal(normalizeTrackIndex(6), 0);
+  assert.equal(normalizeTrackIndex(0), 0);
+  for (const index of NUMBERED_TRACK_INDICES) assert.equal(normalizeTrackIndex(index), index);
+  assert.equal(trackName(6), 'RaidGuild brand face');
+  assert.deepEqual(new Set(NUMBERED_TRACK_INDICES.map(i => originalLayout.tracks[i].die)), new Set([4,6,8,10,12,20]));
 });
