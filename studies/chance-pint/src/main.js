@@ -35,12 +35,12 @@ function syncTrackControls(index) {
   document.querySelector('[data-repeat="0"]').textContent = dieIndex === 4 ? 'PARTY' : dieIndex === 2 ? 'SIGILS' : 'SIDE A';
   sideB.textContent = dieIndex === 4 ? 'COMPASS' : dieIndex === 2 ? 'POUR METER' : 'SIDE B';
   sideB.disabled = dieIndex === 0;
-  sideB.title = dieIndex === 0 ? 'The reverse of d4 carries the RaidGuild mark' : '';
+  sideB.title = dieIndex === 0 ? 'The reverse of d8 carries the RaidGuild mark' : '';
 }
 function showTrackReading(level) {
   const track = layout.tracks[selected];
   const isMeter = selected === POUR_METER_INDEX;
-  const value = isMeter ? readPourMeter(level) : readTrack(printTrack(track), level);
+  const value = isMeter ? readPourMeter(level) : readTrack(printTrack(track, layout.seed), level);
   const party = selected === PARTY_INDEX ? PARTY_MARKS[value - 1] : null;
   const compass = selected === COMPASS_INDEX;
   result.style.color = party?.color ?? '';
@@ -221,7 +221,7 @@ function drawPrint() {
       ctx.fillText('METER', x, py(139), sector * .86);
       continue;
     }
-    const track=printTrack(layout.tracks[k]);
+    const track=printTrack(layout.tracks[k], layout.seed);
     if (k === BRAND_FACE_INDEX) {
       ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.save();
@@ -273,7 +273,7 @@ function drawPrint() {
   printTexture.needsUpdate=true;
 }
 const printGeo=surfaceGeometry(0,150,.95,-Math.PI/2-Math.PI/12,-Math.PI/2-Math.PI/12+Math.PI*2);
-// The canvas starts with the A/d4 sector at angle -90°, matching the original Blender layout.
+// The canvas starts with the numbered d8 sector at angle -90°, in the original A/d4 position.
 printSleeve = new THREE.Mesh(printGeo,new THREE.MeshBasicMaterial({map:printTexture,transparent:true,side:THREE.FrontSide,depthWrite:false,alphaTest:.08}));
 printSleeve.renderOrder=5;
 stage.add(printSleeve);

@@ -38,11 +38,21 @@ export function bandEdges(sides) {
 export const SIGILS = ['✦', '◇', '☾', '△', '⊕', '✶', '⬡', '☀'];
 
 export function laneLabel(die) {
-  return die === 12 ? 'PARTY / COMPASS' : die === 8 ? 'SIGILS' : `D${die}`;
+  return die === 4 ? 'D8' : die === 12 ? 'PARTY / COMPASS' : die === 8 ? 'SIGILS' : `D${die}`;
 }
 
-export function printTrack(track) {
-  const faces = track.die === 12 ? track.bottom_to_top.filter(face => face <= 4) : track.bottom_to_top;
+export function printTrack(track, seed = 7319) {
+  let d8Faces;
+  if (track.die === 4) {
+    let state = (seed ^ 0x1985a7c3) >>> 0;
+    d8Faces = [1, 2, 3, 4, 5, 6, 7, 8];
+    for (let i = d8Faces.length - 1; i > 0; i--) {
+      state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+      const j = Math.floor(state / 4294967296 * (i + 1));
+      [d8Faces[i], d8Faces[j]] = [d8Faces[j], d8Faces[i]];
+    }
+  }
+  const faces = d8Faces ?? ( track.die === 12 ? track.bottom_to_top.filter(face => face <= 4) : track.bottom_to_top);
   const repeats = Math.round(20 / faces.length);
   return { ...track, bottom_to_top: Array.from({ length: repeats * faces.length }, (_, i) => faces[i % faces.length]) };
 }

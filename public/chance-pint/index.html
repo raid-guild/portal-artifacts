@@ -23,8 +23,8 @@
   <meta name="twitter:image:alt" content="Chance Pint title in teal and pink beside a pint glass with RaidGuild markings" />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <title>Chance Pint — Product Study</title>
-  <script type="module" crossorigin src="/chance-pint/assets/index-DsnO3DGT.js"></script>
-  <link rel="stylesheet" crossorigin href="/chance-pint/assets/index-D-AprvjD.css">
+  <script type="module" crossorigin src="/chance-pint/assets/index-Dln1MULl.js"></script>
+  <link rel="stylesheet" crossorigin href="/chance-pint/assets/index-BZAkv2f8.css">
 </head>
 <body>
   <div id="app">
@@ -53,7 +53,7 @@
         </div>
         <aside class="control-panel" aria-label="Glass controls">
           <div class="panel-head"><span>01 — CONFIGURE</span><span class="panel-asterisk">✳</span></div>
-          <div class="panel-section"><div class="section-label"><span>CHOOSE YOUR TRACK</span><span>01 / 03</span></div><p class="section-copy">Choose a track before the pour. D4 has one numbered side; the opposite face carries the RaidGuild mark. The other dice have two shuffled sides. Select Sigils to switch between the sigil lane and the vertical Pour Meter. Choose Party / Compass for patterned colors or directions.</p><div id="dice-grid" class="dice-grid" role="group" aria-label="Choose die and track"></div><div class="track-switch" role="group" aria-label="Track version"><button type="button" data-repeat="0" aria-pressed="true">SIDE A</button><button type="button" data-repeat="1" aria-pressed="false">SIDE B</button></div></div>
+          <div class="panel-section"><div class="section-label"><span>CHOOSE YOUR TRACK</span><span>01 / 03</span></div><p class="section-copy">Choose a track before the pour. D8 has one numbered side; the opposite face carries the RaidGuild mark. The other dice have two shuffled sides. Select Sigils to switch between the sigil lane and the vertical Pour Meter. Choose Party / Compass for patterned colors or directions.</p><div id="dice-grid" class="dice-grid" role="group" aria-label="Choose die and track"></div><div class="track-switch" role="group" aria-label="Track version"><button type="button" data-repeat="0" aria-pressed="true">SIDE A</button><button type="button" data-repeat="1" aria-pressed="false">SIDE B</button></div></div>
           <div class="panel-section"><div class="section-label"><span>SET THE POUR</span><span>02 / 03</span></div><label class="pour-label" for="pour"><span>LIQUID LEVEL</span><strong id="pour-value">—</strong></label><input id="pour" type="range" min="0" max="150" step="0.1" value="75" /><div class="range-label"><span>EMPTY</span><span>FULL</span></div><p class="reading-note">Numbers are readable from 15–128 mm.</p><div class="reading"><span>TRACK READING</span><strong id="result">—</strong><small id="reading-track">D10 / SIDE A</small></div></div>
           <div class="panel-section seed-section"><div class="section-label"><span>CHANGE THE PRINT</span><span>03 / 03</span></div><p class="section-copy">Try another shuffle. The original Blender design is seed 7319.</p><form id="seed-form" class="seed-form"><label for="seed">LAYOUT SEED</label><div><input id="seed" inputmode="numeric" type="number" min="0" max="4294967295" step="1" value="7319" /><button type="submit">APPLY ↗</button></div></form><button id="reset-layout" class="text-button" type="button">↶ RESET TO ORIGINAL</button><p id="seed-error" class="seed-error" role="alert" hidden></p></div>
         </aside>
@@ -64,7 +64,7 @@
         <h2 id="games-title">One glass. Three games.</h2>
         <p class="games-intro">Play with water or use the preview’s pour slider. Pick a new level before each turn, then keep it fixed while you read the tracks.</p>
         <div class="game-grid">
-          <article><p class="games-kicker">01 / COMPASS + D4</p><h3>Dungeon Dash</h3><p>Draw a 5 × 5 grid. Start in the center and mark two corners as exits. On your turn, read Compass for direction and d4 for distance. Stop at the grid edge. The first player to land on an exit wins.</p></article>
+          <article><p class="games-kicker">01 / COMPASS + D8</p><h3>Dungeon Dash</h3><p>Draw a 9 × 9 grid. Start in the center and mark two corners as exits. On your turn, read Compass for direction and d8 for distance. Stop at the grid edge. The first player to land on an exit wins.</p></article>
           <article><p class="games-kicker">02 / PARTY + SIGILS + D6</p><h3>Guild Raid</h3><p>Give each Party pattern a team score. Before play, assign four sigils to “gain” and four to “lose.” Read Party for the team, Sigils for gain or loss, and d6 for the points. First team to 15 wins.</p></article>
           <article><p class="games-kicker">03 / POUR METER + TURN METER</p><h3>Dial In</h3><p>Read the Pour Meter to set a target between 0% and 99% (play 100% as 99%). Cover the Turn Meter readout, rotate once, then reveal your result. Closest to the target wins the round. Count distance across the seam: 99% is one point from 0%.</p></article>
         </div>
@@ -77,6 +77,43 @@
           <article><p class="games-kicker">01 / SHARED GAME GLASS</p><h3>Taproom Tales</h3><p>Put one Chance Pint in the middle as the game piece; drink from your own cups. Pick a d6 side and use it all game. On each turn, pour a little from the pitcher, read Sigils, and give a one-sentence toast inspired by the symbol. If the table can guess the symbol in one try, score the d6 reading. Play three turns each; highest score wins.</p></article>
           <article><p class="games-kicker">02 / ONE PINT PER PLAYER</p><h3>High or Low</h3><p>Agree on one d10 side. Before checking their own glass, each player calls low (0–4) or high (5–9). Read the current level and score one point for a correct call. Once a player has checked a level, they can only score again after it naturally changes or they choose to top up. Play five rounds; a player can pass any round.</p></article>
           <article><p class="games-kicker">03 / PITCHER + POUR METER</p><h3>Last Call Calibration</h3><p>Call a target from 30% to 70%. Take turns pouring from the pitcher into a shared game glass, stopping once and reading the level after the foam settles. Closest to the target scores a point. Use a separate catch jug to reset the game glass between attempts. First to three points wins.</p></article>
+        </div>
+      </section>
+      <section class="games coaster-study" aria-labelledby="coaster-title">
+        <p class="games-kicker">[ COMPANION OBJECT / 002 ]</p>
+        <h2 id="coaster-title">The Dial Coaster</h2>
+        <p class="games-intro">One reversible coaster, two ways to play. Put it under the shared glass to read the foot meter, or flip it over to give the whole table a compass.</p>
+        <div class="coaster-faces">
+          <figure>
+            <svg viewBox="0 0 260 260" role="img" aria-label="Teal dial face with a pink pointer aimed at the centering ring">
+              <circle cx="130" cy="130" r="126" fill="#102d2c"/>
+              <circle cx="130" cy="130" r="112" fill="none" stroke="#8ea5a0"/>
+              <circle cx="130" cy="130" r="68" fill="none" stroke="#f9f7e7" stroke-width="2" stroke-dasharray="3 6"/>
+              <path d="M130 60 112 32h36Z" fill="#ee3c78"/>
+              <text x="130" y="137" text-anchor="middle" fill="#f9f7e7" font-size="14">CENTER GLASS</text>
+              <text x="130" y="222" text-anchor="middle" fill="#f9f7e7" font-size="13">CHANCE / PINT</text>
+            </svg>
+            <figcaption><strong>01 / Dial face</strong>Center the glass and rotate it in place. Read the foot meter where it lines up with the pink pointer.</figcaption>
+          </figure>
+          <figure>
+            <svg viewBox="0 0 260 260" role="img" aria-label="Cream game face with north, east, south and west and four colored Party patterns between them">
+              <circle cx="130" cy="130" r="125" fill="#efe9d7" stroke="#102d2c" stroke-width="2"/>
+              <circle cx="130" cy="130" r="109" fill="none" stroke="#102d2c"/>
+              <circle cx="130" cy="130" r="68" fill="none" stroke="#102d2c" stroke-dasharray="3 6"/>
+              <g text-anchor="middle" fill="#102d2c" font-size="21" font-weight="700">
+                <text x="130" y="49">N</text><text x="219" y="137">E</text>
+                <text x="130" y="229">S</text><text x="41" y="137">W</text>
+              </g>
+              <g text-anchor="middle" fill="#102d2c" font-size="20">
+                <circle cx="193" cy="67" r="15" fill="#ff82ab"/><text x="193" y="74">▤</text>
+                <circle cx="193" cy="193" r="15" fill="#f8dc76"/><text x="193" y="200">⠿</text>
+                <circle cx="67" cy="193" r="15" fill="#72e1d0"/><text x="67" y="200">▦</text>
+                <circle cx="67" cy="67" r="15" fill="#c9b7ff"/><text x="67" y="74">≋</text>
+              </g>
+              <text x="130" y="137" text-anchor="middle" fill="#102d2c" font-size="14">RAIDGUILD</text>
+            </svg>
+            <figcaption><strong>02 / Game face</strong>Point north toward the top of the board. Use the four patterns to match teams or zones to the glass’s Party lane.</figcaption>
+          </figure>
         </div>
       </section>
       <footer><span>RAIDGUILD / CHANCE PINT</span><span>PROTOTYPE STUDY · 2026</span><span>POUR RESPONSIBLY. ROLL CURIOUSLY.</span></footer>
