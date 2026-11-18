@@ -1,3 +1,7 @@
 The first fallback social card came from the original Blender product render in `art/original-preview.png`. The final 1200 × 630 social card is composed from an actual browser screenshot of the interactive Three.js glass view, with Chance Pint title treatment. It is served locally as `/chance-pint/chance-pint-social-v1.png` and referenced by the page's Open Graph and Twitter metadata. The source product study remains the editable Three.js scene and the original Blender model in `model-source/`.
 
 V2: 1200 × 630 cream, teal, and pink card, composed from the in-browser RaidGuild edition product view and the licensed Last Duel typeface. V1 is retained for existing shared links.
+
+V3: Updated the title lettering to Archivo. V2 remains available for existing shared links.
+
+V4: Used a reverse slant on upright Archivo for the PINT accent. V3 remains available for existing shared links.

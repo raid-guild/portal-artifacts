@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { BRAND_FACE_INDEX, PARTY_INDEX, COMPASS_INDEX, PARTY_MARKS, COMPASS_MARKS, POUR_METER_INDEX, READ_BOTTOM, readPourMeter, DICE, READ_TOP, bandEdges, faceLabel, laneLabel, printTrack, makeLayout, normalizeTrackIndex, readTrack } from './model.js';
+import { BRAND_FACE_INDEX, COMPASS_MARKS, LANES, PARTY_MARKS, POUR_METER_INDEX, READ_BOTTOM, READ_TOP, bandEdges, coasterLookup, playedFace, printedMarks, readPourMeter, readTrack } from './model.js';
 import './style.css';
 
 const viewer = document.getElementById('viewer');
@@ -9,48 +9,100 @@ const pourValue = document.getElementById('pour-value');
 const result = document.getElementById('result');
 const readingTrack = document.getElementById('reading-track');
 const diceGrid = document.getElementById('dice-grid');
-const seedField = document.getElementById('seed');
-const seedError = document.getElementById('seed-error');
+const offsetInput = document.getElementById('coaster-offset');
+const offsetValue = document.getElementById('offset-value');
+const lookup = document.getElementById('coaster-lookup');
+const lookupDie = document.getElementById('lookup-die');
 const spinButton = document.getElementById('spin');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const colors = ['#ee3c78', '#f9f7e7', '#ee3c78', '#f9f7e7', '#ee3c78', '#f9f7e7'];
-
-let layout = makeLayout(7319);
-let dieIndex = 3;
-let repeat = 0;
 let selected = 3;
+let activeDie = 10;
+let offset = 0;
+let printInk = 'plum';
+let studio = 'cream';
 let height = Number(pour.value);
-let liquid;
-let printSleeve;
-let selectedBand;
+let liquid, printSleeve, selectedBand;
 let spinning = false;
 let focusedAngle = 0;
-function syncTrackControls(index) {
-  selected = normalizeTrackIndex(index);
-  dieIndex = selected % 6;
-  repeat = Math.floor(selected / 6);
-  for (const button of diceGrid.querySelectorAll('button')) button.setAttribute('aria-pressed', String(Number(button.dataset.die) === dieIndex));
-  for (const button of document.querySelectorAll('[data-repeat]')) button.setAttribute('aria-pressed', String(Number(button.dataset.repeat) === repeat));
-  const sideB = document.querySelector('[data-repeat="1"]');
-  document.querySelector('[data-repeat="0"]').textContent = dieIndex === 4 ? 'PARTY' : dieIndex === 2 ? 'SIGILS' : 'SIDE A';
-  sideB.textContent = dieIndex === 4 ? 'COMPASS' : dieIndex === 2 ? 'POUR METER' : 'SIDE B';
-  sideB.disabled = dieIndex === 0;
-  sideB.title = dieIndex === 0 ? 'The reverse of d8 carries the RaidGuild mark' : '';
+const FACE_COUNT = LANES.length;
+const FACE_STEP = 2 * Math.PI / FACE_COUNT;
+const faceAngle = index => (index - 3) * FACE_STEP;
+const inkColor = () => printInk === 'plum' ? '#51243f' : '#f9f7e7';
+
+function refreshLookup() {
+  offsetInput.max = String(activeDie - 1);
+  if (offset >= activeDie) offset = 0;
+  offsetInput.value = String(offset);
+  offsetValue.textContent = `+${offset}`;
+  lookupDie.textContent = `D${activeDie} · PRINTED → PLAYED`;
+  lookup.replaceChildren(...coasterLookup(activeDie, offset).map(({ printed, played }) => {
+    const cell = document.createElement('span');
+    cell.className = 'lookup-cell';
+    cell.textContent = `${printed} → ${played}`;
+    return cell;
+  }));
 }
 function showTrackReading(level) {
-  const track = layout.tracks[selected];
-  const isMeter = selected === POUR_METER_INDEX;
-  const value = isMeter ? readPourMeter(level) : readTrack(printTrack(track, layout.seed), level);
-  const party = selected === PARTY_INDEX ? PARTY_MARKS[value - 1] : null;
-  const compass = selected === COMPASS_INDEX;
-  result.style.color = party?.color ?? '';
-  result.textContent = value == null ? '—' : party ? party.glyph : compass ? COMPASS_MARKS[value - 1] :
-    isMeter ? `${value}%` : faceLabel(track.die, value);
-  readingTrack.textContent = value == null ? 'OUTSIDE READ ZONE' : isMeter ? 'POUR METER' :
-    party ? `PARTY / ${party.name}` : compass ? 'COMPASS' : track.die === 8 ? 'SIGILS' : `${laneLabel(track.die)} / SIDE ${repeat ? 'B' : 'A'}`;
+  const lane = LANES[selected];
+  const value = lane.kind === 'meter' ? readPourMeter(level) : readTrack(printedMarks(lane), level);
+  result.style.color = '';
+  if (lane.kind === 'brand') {
+    result.textContent = '✦';
+    readingTrack.textContent = 'RAIDGUILD / BRAND FACE';
+  } else if (value == null) {
+    result.textContent = '—';
+    readingTrack.textContent = 'OUTSIDE READ ZONE';
+  } else if (lane.kind === 'die') {
+    result.textContent = playedFace(lane.die, value, offset);
+    readingTrack.textContent = `D${lane.die} · PRINT ${value} → PLAY ${result.textContent}`;
+  } else if (lane.kind === 'party') {
+    result.textContent = value;
+    readingTrack.textContent = `PARTY / ${PARTY_MARKS[lane.marks.indexOf(value)].name}`;
+  } else if (lane.kind === 'meter') {
+    result.textContent = `${value}%`;
+    readingTrack.textContent = 'METER · FILL LEVEL';
+  } else {
+    result.textContent = value;
+    readingTrack.textContent = lane.label;
+  }
 }
+function selectLaneState(index) {
+  selected = index;
+  const lane = LANES[index];
+  if (lane.kind === 'die') activeDie = lane.die;
+  for (const button of diceGrid.querySelectorAll('button')) button.setAttribute('aria-pressed', String(Number(button.dataset.lane) === selected));
+  refreshLookup();
+  showTrackReading(Number(pour.value));
+}
+for (let i = 0; i < LANES.length; i++) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = LANES[i].label;
+  button.dataset.lane = String(i);
+  button.setAttribute('aria-pressed', 'false');
+  diceGrid.appendChild(button);
+}
+offsetInput.addEventListener('input', () => {
+  offset = Number(offsetInput.value);
+  refreshLookup();
+  showTrackReading(Number(pour.value));
+});
+for (const input of document.querySelectorAll('input[name="print-ink"]')) input.addEventListener('change', () => {
+  printInk = input.value;
+  document.documentElement.dataset.printInk = printInk;
+  if (typeof redrawPrint === 'function') redrawPrint();
+});
+for (const input of document.querySelectorAll('input[name="studio"]')) input.addEventListener('change', () => {
+  studio = input.value;
+  document.documentElement.dataset.studio = studio;
+  if (typeof setSceneStudio === 'function') setSceneStudio();
+});
+let redrawPrint, setSceneStudio;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#102d2c');
+scene.background = new THREE.Color(studio === 'teal' ? '#102d2c' : '#efe9d7');
+setSceneStudio = () => { scene.background.set(studio === 'teal' ? '#102d2c' : '#efe9d7'); redrawPrint?.(); };
+document.documentElement.dataset.studio = studio;
+document.documentElement.dataset.printInk = printInk;
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 1500);
 camera.position.set(125, 172, 340);
 let renderer;
@@ -152,21 +204,35 @@ const meterCanvas = document.createElement('canvas');
 meterCanvas.width = 1024;
 meterCanvas.height = 64;
 const meterInk = meterCanvas.getContext('2d');
-const ramp = meterInk.createLinearGradient(0, 0, 1024, 0);
-for (const [stop, color] of [[0, '#45d4be'], [.48, '#f8dc76'], [1, '#ff427f']]) ramp.addColorStop(stop, color);
-meterInk.fillStyle = ramp;
-meterInk.fillRect(0, 0, 1024, 64);
-meterInk.fillStyle = '#102d2c';
-for (let i = 0; i < 20; i++) {
-  meterInk.fillRect(i * 1024 / 20, 0, i === 0 ? 12 : 4, i % 5 === 0 ? 42 : 22);
-}
 const meterTexture = new THREE.CanvasTexture(meterCanvas);
 meterTexture.colorSpace = THREE.SRGBColorSpace;
+function meterGradient(context, x0, y0, x1, y1) {
+  const ramp = context.createLinearGradient(x0, y0, x1, y1);
+  ramp.addColorStop(0, '#45d4be');
+  ramp.addColorStop(.48, '#f8dc76');
+  ramp.addColorStop(1, '#ff427f');
+  return ramp;
+}
+const meterGradientOpacity = .8;
+function drawFootInk() {
+  meterInk.clearRect(0, 0, 1024, 64);
+  meterInk.save();
+  meterInk.globalAlpha = meterGradientOpacity;
+  meterInk.fillStyle = meterGradient(meterInk, 0, 0, 1024, 0);
+  meterInk.fillRect(0, 0, 1024, 64);
+  meterInk.restore();
+  meterInk.fillStyle = '#102d2c';
+  for (let i = 0; i < 20; i++) {
+    meterInk.fillRect(i * 1024 / 20, 0, i === 0 ? 12 : 4, i % 5 === 0 ? 44 : 24);
+  }
+  meterTexture.needsUpdate = true;
+}
+drawFootInk();
 const meterStart = -Math.PI / 2;
 const fullTurn = 2 * Math.PI;
 const meterBand = new THREE.Mesh(
   surfaceGeometry(4, 12, .65, meterStart, meterStart + fullTurn),
-  new THREE.MeshBasicMaterial({ map: meterTexture, toneMapped: false }),
+  new THREE.MeshBasicMaterial({ map: meterTexture, transparent: true, depthWrite: false, toneMapped: false }),
 );
 stage.add(meterBand);
 const meterPointer = new THREE.Mesh(
@@ -190,100 +256,95 @@ function updateTurnMeter() {
 }
 
 const canvas = document.createElement('canvas');
-canvas.width=4096; canvas.height=2048;
-const ctx=canvas.getContext('2d');
+canvas.width = 4096; canvas.height = 2048;
+const ctx = canvas.getContext('2d');
 const brandStamp = new Image();
 brandStamp.onload = () => drawPrint();
 brandStamp.src = `${import.meta.env.BASE_URL}raidguild-sigil.svg`;
 const printTexture = new THREE.CanvasTexture(canvas);
-printTexture.colorSpace=THREE.SRGBColorSpace;
-printTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
+printTexture.colorSpace = THREE.SRGBColorSpace;
+printTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 function drawPrint() {
-  const w=canvas.width,h=canvas.height,sector=w/12;
-  ctx.clearRect(0,0,w,h);
-  const py=(y)=>h*(1-y/150);
-  for(let k=0;k<12;k++) {
-    const x=(k+.5)*sector;
-    if (k === POUR_METER_INDEX) {
-      const edges = bandEdges(20);
-      const gradient = ctx.createLinearGradient(0, py(READ_BOTTOM), 0, py(READ_TOP));
-      gradient.addColorStop(0, '#45d4be');
-      gradient.addColorStop(.48, '#f8dc76');
-      gradient.addColorStop(1, '#ff427f');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x - 70, py(READ_TOP), 140, py(READ_BOTTOM) - py(READ_TOP));
-      ctx.fillStyle = '#102d2c';
-      edges.forEach((edge, i) => ctx.fillRect(x - 70, py(edge) - 2, i % 5 === 0 ? 92 : 40, 4));
-      ctx.fillStyle = '#f9f7e7';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '700 60px Arial,sans-serif';
-      ctx.fillText('METER', x, py(139), sector * .86);
-      continue;
-    }
-    const track=printTrack(layout.tracks[k], layout.seed);
-    if (k === BRAND_FACE_INDEX) {
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.save();
-      ctx.translate(x, py(38));
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle='#f9f7e7';
-      ctx.font='800 96px "Last Duel", "DM Sans", Arial, sans-serif';
-      ctx.fillText('RAIDGUILD', 0, 0, h * 40 / 150);
-      ctx.restore();
+  const w = canvas.width, h = canvas.height, sector = w / FACE_COUNT;
+  const py = y => h * (1 - y / 150);
+  const ink = inkColor();
+  ctx.clearRect(0, 0, w, h);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  function lettering(mark, x, y, size, maxWidth) {
+    ctx.font = `800 ${size}px Archivo, DM Sans, Arial, sans-serif`;
+    ctx.strokeStyle = printInk === 'plum' ? '#f9f7e7' : '#51243f';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeText(String(mark), x, y, maxWidth);
+    ctx.fillStyle = ink;
+    ctx.fillText(String(mark), x, y, maxWidth);
+  }
+  function text(mark, x, y, size, maxWidth = sector * .9) {
+    lettering(mark, x, py(y), size, maxWidth);
+  }
+  function line(x, y, width) {
+    ctx.fillStyle = ink;
+    ctx.fillRect(x - width / 2, py(y) - 1.4, width, 2.8);
+  }
+  for (let k = 0; k < FACE_COUNT; k++) {
+    const lane = LANES[k];
+    const x = (k + .5) * sector;
+    if (lane.kind === 'brand') {
+      text('CHANCE', x, 118, 78);
+      text('PINT', x, 110, 78);
       if (brandStamp.complete && brandStamp.naturalWidth) {
         ctx.save();
-        ctx.translate(x, py(75));
+        ctx.translate(x, py(24));
         ctx.rotate(-Math.PI / 2);
-        ctx.drawImage(brandStamp, -120, -112.5, 240, 225);
+        ctx.drawImage(brandStamp, -91, -91, 182, 182);
         ctx.restore();
       }
-      ctx.fillStyle='#f9f7e7';ctx.font='800 72px "Last Duel", "DM Sans", Arial, sans-serif';
-      ctx.fillText('CHANCE', x, py(119), sector * .86);
-      ctx.fillText('PINT', x, py(112), sector * .86);
+      ctx.save();
+      ctx.translate(x, py(53));
+      ctx.rotate(-Math.PI / 2);
+      lettering('RAIDGUILD', 0, 0, 96, h * 40 / 150);
+      ctx.restore();
       continue;
     }
-    const accent=colors[k%6];
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillStyle=accent;
-    ctx.font='700 68px Arial,sans-serif';
-    ctx.fillText(k === PARTY_INDEX ? 'PARTY' : k === COMPASS_INDEX ? 'COMPASS' : laneLabel(track.die),x,py(139),sector*.86);
-    ctx.font='500 20px Arial,sans-serif';
-    ctx.fillText(k<6?'A':'B',x,py(131.5));
-    const count=track.bottom_to_top.length;
-    const edges=bandEdges(count);
-    for(let i=0;i<count;i++) {
-      const lo=edges[i],hi=edges[i+1];
-      ctx.strokeStyle=accent;
-      ctx.globalAlpha=.82;
-      ctx.lineWidth=2.6;
-      ctx.beginPath();ctx.moveTo(x-sector*.37,py(lo));ctx.lineTo(x+sector*.37,py(lo));ctx.stroke();
-      ctx.globalAlpha=1;
-      ctx.fillStyle='#f9f7e7';
-      ctx.font=`600 ${count>=24?29:34}px Arial,sans-serif`;
-      const face = track.bottom_to_top[i];
-      if (k === PARTY_INDEX) ctx.fillStyle = PARTY_MARKS[face - 1].color;
-      const mark = k === PARTY_INDEX ? PARTY_MARKS[face - 1].glyph :
-        k === COMPASS_INDEX ? COMPASS_MARKS[face - 1] : faceLabel(track.die, face);
-      ctx.fillText(String(mark),x,py((lo+hi)/2));
+    text(lane.label, x, 139, lane.kind === 'meter' ? 51 : 65);
+    if (lane.kind === 'meter') {
+      const edges = bandEdges(20);
+      ctx.fillStyle = meterGradient(ctx, 0, py(READ_BOTTOM), 0, py(READ_TOP));
+      const barWidth = 174;
+      const top = py(READ_TOP);
+      const bottom = py(READ_BOTTOM);
+      ctx.save();
+      ctx.globalAlpha = meterGradientOpacity;
+      ctx.fillRect(x - barWidth / 2, top - 4, barWidth, bottom - top + 8);
+      ctx.restore();
+      edges.forEach((edge, i) => line(x, edge, i % 5 === 0 ? barWidth : 100));
+      continue;
     }
-    ctx.strokeStyle=accent;ctx.lineWidth=2.6;
-    ctx.beginPath();ctx.moveTo(x-sector*.37,py(READ_TOP));ctx.lineTo(x+sector*.37,py(READ_TOP));ctx.stroke();
+    const marks = printedMarks(lane);
+    const edges = bandEdges(marks.length);
+    for (let i = 0; i < marks.length; i++) {
+      const lo = edges[i], hi = edges[i + 1];
+      line(x, lo, sector * .65);
+      text(marks[i], x, (lo + hi) / 2, marks.length >= 20 ? 36 : 42);
+    }
+    line(x, READ_TOP, sector * .65);
   }
-  printTexture.needsUpdate=true;
+  printTexture.needsUpdate = true;
 }
-const printGeo=surfaceGeometry(0,150,.95,-Math.PI/2-Math.PI/12,-Math.PI/2-Math.PI/12+Math.PI*2);
-// The canvas starts with the numbered d8 sector at angle -90°, in the original A/d4 position.
+redrawPrint = () => { drawPrint(); drawFootInk(); };
+const printStart = faceAngle(0) - FACE_STEP / 2;
+const printGeo = surfaceGeometry(0, 150, .95, printStart, printStart + Math.PI * 2);
+// One permanent lane per face; the coaster changes the played value, never the ink.
 printSleeve = new THREE.Mesh(printGeo,new THREE.MeshBasicMaterial({map:printTexture,transparent:true,side:THREE.FrontSide,depthWrite:false,alphaTest:.08}));
 printSleeve.renderOrder=5;
 stage.add(printSleeve);
 drawPrint();
-document.fonts.load('800 72px "Last Duel"').then(drawPrint).catch(() => {});
+document.fonts.load('800 72px "Archivo"').then(drawPrint).catch(() => {});
 
 function makeSelectedBand() {
   if(selectedBand){stage.remove(selectedBand);selectedBand.geometry.dispose();selectedBand.material.dispose();}
-  const a=-Math.PI/2+selected*Math.PI/6;
-  selectedBand=new THREE.Mesh(surfaceGeometry(10,144,.56,a-.21,a+.21),new THREE.MeshBasicMaterial({color:colors[selected%6],transparent:true,opacity:.12,side:THREE.FrontSide,depthWrite:false}));
+  const a=faceAngle(selected);
+  selectedBand=new THREE.Mesh(surfaceGeometry(10,144,.56,a-FACE_STEP*.4,a+FACE_STEP*.4),new THREE.MeshBasicMaterial({color:'#ee3c78',transparent:true,opacity:.1,side:THREE.FrontSide,depthWrite:false}));
   selectedBand.renderOrder=4;
   stage.add(selectedBand);
 }
@@ -313,16 +374,16 @@ function setLiquid(y) {
   stage.add(liquid);
 }
 function updateReading(){
-  height=Number(pour.value);
-  pourValue.textContent=`${Math.round(height)} MM`;
+  height = Number(pour.value);
+  pourValue.textContent = `${Math.round(height)} MM`;
   showTrackReading(height);
   setLiquid(height);
 }
-function setSelected(index,moveCamera=true){
-  syncTrackControls(index);
+function setSelected(index, moveCamera = true){
+  selectLaneState(index);
   makeSelectedBand();
   updateReading();
-  if(moveCamera)focusTrack(selected);
+  if (moveCamera) focusTrack(selected);
 }
 function lookFrom(azimuth,polar=1.34,distance=360){
   const target=controls.target;
@@ -330,22 +391,11 @@ function lookFrom(azimuth,polar=1.34,distance=360){
   camera.lookAt(target);controls.update();
 }
 function focusTrack(index) {
-  focusedAngle=-Math.PI/2+index*Math.PI/6;
+  focusedAngle=faceAngle(index);
   lookFrom(focusedAngle,1.35,330);
 }
-for(let i=0;i<DICE.length;i++){
-  const button=document.createElement('button');button.type='button';button.textContent=laneLabel(DICE[i]);button.dataset.die=String(i);button.setAttribute('aria-pressed','false');
-  button.addEventListener('click',()=>setSelected(i+repeat*6));diceGrid.appendChild(button);
-}
-for(const button of document.querySelectorAll('[data-repeat]'))button.addEventListener('click',()=>setSelected(dieIndex+Number(button.dataset.repeat)*6));
-pour.addEventListener('input',updateReading);
-document.getElementById('seed-form').addEventListener('submit',event=>{
-  event.preventDefault();
-  const value=Number(seedField.value);
-  try{layout=makeLayout(value);drawPrint();updateReading();seedError.hidden=true;}
-  catch(error){seedError.textContent=error.message;seedError.hidden=false;}
-});
-document.getElementById('reset-layout').addEventListener('click',()=>{seedField.value='7319';layout=makeLayout(7319);drawPrint();updateReading();seedError.hidden=true;});
+for (const button of diceGrid.querySelectorAll('button')) button.addEventListener('click', () => setSelected(Number(button.dataset.lane)));
+pour.addEventListener('input', updateReading);
 spinButton.addEventListener('click',()=>{spinning=!spinning;spinButton.setAttribute('aria-pressed',String(spinning));});
 renderer.domElement.addEventListener('pointerdown',()=>{if(spinning){spinning=false;spinButton.setAttribute('aria-pressed','false');}});
 for(const button of document.querySelectorAll('[data-view]'))button.addEventListener('click',()=>{
@@ -354,11 +404,22 @@ for(const button of document.querySelectorAll('[data-view]'))button.addEventList
   if(view==='back')lookFrom(Math.PI,1.3);
   if(view==='top')lookFrom(focusedAngle,.03,355);
   if(view==='bottom')lookFrom(focusedAngle,Math.PI-.03,355);
-  if(view==='brand'){focusedAngle=Math.PI/2;lookFrom(focusedAngle,1.35,330);}
+  if(view==='brand'){focusedAngle=faceAngle(BRAND_FACE_INDEX);lookFrom(focusedAngle,1.35,330);}
   if(view==='reset')focusTrack(selected);
 });
 reducedMotion.addEventListener('change',()=>{controls.enableDamping=!reducedMotion.matches;if(reducedMotion.matches&&spinning){spinning=false;spinButton.setAttribute('aria-pressed','false');}});
-function resize(){const width=viewer.clientWidth,height=viewer.clientHeight;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
+let renderedWidth = 0;
+let renderedHeight = 0;
+function resize() {
+  const width = viewer.clientWidth;
+  const height = viewer.clientHeight;
+  if (!width || !height || (width === renderedWidth && height === renderedHeight)) return;
+  renderedWidth = width;
+  renderedHeight = height;
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
 new ResizeObserver(resize).observe(viewer);resize();
 setSelected(3,true);
 const clock=new THREE.Clock();
@@ -372,6 +433,11 @@ animate();
   document.querySelector('.view-count').textContent = 'STATIC PREVIEW';
   viewer.innerHTML = `<div class="fallback-content"><img src="./prototype-preview.jpg" alt="Three views of the original Chance Pint Blender prototype"/><p>Interactive 3D is unavailable on this device. Explore the original prototype above and use the controls to preview its printed readings.</p></div>`;
   spinButton.hidden = true;
+  for (const input of document.querySelectorAll('input[name="print-ink"]')) input.disabled = true;
+  const inkNote = document.createElement('p');
+  inkNote.className = 'palette-fallback-note';
+  inkNote.textContent = 'Print ink preview needs the 3D view. Studio color still changes the backdrop.';
+  document.querySelector('.palette-section').appendChild(inkNote);
   document.querySelector('.presets').hidden = true;
   document.querySelector('.viewer-instruction').textContent = 'ORIGINAL BLENDER PROTOTYPE';
   function updateFallback() {
@@ -380,20 +446,10 @@ animate();
     showTrackReading(level);
   }
   function selectFallback(index) {
-    syncTrackControls(index);
+    selectLaneState(index);
     updateFallback();
   }
-  for(let i=0;i<DICE.length;i++){
-    const button=document.createElement('button');button.type='button';button.textContent=laneLabel(DICE[i]);button.dataset.die=String(i);button.setAttribute('aria-pressed','false');
-    button.addEventListener('click',()=>selectFallback(i+repeat*6));diceGrid.appendChild(button);
-  }
-  for(const button of document.querySelectorAll('[data-repeat]'))button.addEventListener('click',()=>selectFallback(dieIndex+Number(button.dataset.repeat)*6));
-  pour.addEventListener('input',updateFallback);
-  document.getElementById('seed-form').addEventListener('submit',event=>{
-    event.preventDefault();
-    try{layout=makeLayout(Number(seedField.value));updateFallback();seedError.hidden=true;}
-    catch(error){seedError.textContent=error.message;seedError.hidden=false;}
-  });
-  document.getElementById('reset-layout').addEventListener('click',()=>{seedField.value='7319';layout=makeLayout(7319);updateFallback();seedError.hidden=true;});
+  for (const button of diceGrid.querySelectorAll('button')) button.addEventListener('click', () => selectFallback(Number(button.dataset.lane)));
+  pour.addEventListener('input', updateFallback);
   selectFallback(3);
 }

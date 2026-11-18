@@ -1,6 +1,6 @@
 # Chance Pint
 
-An interactive Three.js product study for the Blender pint-glass prototype. The published static site lives at `/chance-pint/` in `public/chance-pint/`.
+An interactive Three.js product study for a pint glass with six ordered die lanes, four play lanes, and a RaidGuild brand face. The static build is published from `public/chance-pint/` at `/chance-pint/`.
 
 ## Run
 
@@ -14,20 +14,22 @@ npm run dev
 npm run build
 ```
 
-`npm run build` writes the production bundle to `../../public/chance-pint/`. The site has no runtime service, external assets, or third-party requests.
+`npm run build` writes to `../../public/chance-pint/`. All runtime assets are local.
 
-## Interaction
+## Glass and coaster
 
-Drag the glass to orbit through a full turn in either direction and above or below it; scroll to zoom. The camera preset buttons give front, back, top, bottom, and track-focused reset views. The die controls choose d8, d6, sigils, d10, Party / Compass, or d20. D8 uses side A only; its opposite side is a RaidGuild brand face. The other dice have A and B print tracks. The pour slider changes the visible liquid and reading. A numeric seed redraws the shuffled result tracks; 7319 restores the exact shuffle in the Blender original. The Brand camera preset frames the live RaidGuild sigil without changing the selected die or reading. Auto spin stops on manual drag and respects the operating system's reduced-motion preference. If WebGL is unavailable, the page shows a local preview of the original Blender model and keeps the die, pour, and seed reading controls usable.
+The glass has one fixed ordered lane each for d4, d6, d8, d10, d12, and d20. D10 is printed 0–9. Sigils, Party patterns, Compass directions, and a vertical Meter occupy four more faces; the last face carries the RaidGuild sigil. Shorter sequences repeat in full cycles for consistent density. Both meters retain their teal–gold–pink gradients in either ink finish. Each numbered lane uses equal interior-volume bands from 15–128 mm on a 150 mm glass. The foot has a separate turn meter read at the coaster pointer.
 
-## Model and interpretation
+The coaster offset is a separate control from camera orbit and the foot meter. Choose a die and offset from 0 to `die − 1`. A printed value becomes a played value by modular addition: for d6, printed 6 with offset +1 plays 1; for d10, printed 9 with offset +1 plays 0. The lookup shows every printed-to-played pair for the active die, including while viewing a non-die face. The coaster never changes the printed glass.
 
-The glass dimensions and print placement follow `model-source/build_glass.py`: 150 mm high, 54 mm foot diameter, 86 mm rim diameter, reading zone 15–128 mm. Band heights are derived from equal *interior volume* increments, then numbers are printed bottom to top. The original Blender file, render, generator, and exact JSON layout (including the archived B/d4 permutation now hidden behind the brand face) are preserved in `model-source/` and `art/` for provenance. The web glass is a procedural Three.js reconstruction so all labels and the interior pour remain interactive.
+Drag to orbit above or below the glass, scroll to zoom, use camera presets, or enable auto spin. The liquid slider previews a reading. Print ink (plum or cream) and studio (teal or cream) are independent visual choices. If WebGL is unavailable, the original Blender preview appears and the lane, pour, coaster, and studio backdrop controls still work; print ink preview is disabled because the static image cannot change ink.
 
-This is a concept study. A fixed printed shuffle can be memorized, and the liquid level is controlled here by a slider. No claim of cryptographic randomness or physical fairness is made. A physical version would need calibration and play testing for repeatable readings, liquid dynamics, and print legibility.
+## Source and limits
 
-## Assets and license
+The original Blender `.blend`, render, generator, and layout JSON remain in `model-source/` and `art/` as an archive of the first prototype. The web study reconstructs the glass procedurally and uses a revised eleven-face print. The original shuffled layout is preserved for provenance but is no longer used in the web print.
 
-Three.js is bundled locally under its MIT license (see `LICENSES.md`). DM Sans is served locally under its SIL Open Font License. The original Blender model and preview came from the user's prototype. The sigil path was fetched from the live RaidGuild site at `https://www.raidguild.org/images/icons/venture/ico-logo.svg`; the original bytes are archived in `art/raidguild-sigil-source.svg`, and the runtime copy changes only its fill to the live hot pink. The visual study uses the observed cream (`#efe9d7`, `#f9f7e7`), teal (`#102d2c`), and hot pink (`#ee3c78`) identity. Display headings and the branded print lane use Last Duel under RaidGuild’s license; interface copy uses DM Sans and system fallbacks.
+A fixed liquid level and printed marks do not establish fair randomness. Physical band calibration, headspace, foam, and legibility need play testing. The coaster offset is a transparent mapping, not a source of randomness.
 
-Printed sequences repeat to keep the column densities close: d8 has 24 bands, d10 has 20, d6 has 18, Party and Compass each have 20, sigils have 24, and d20 has 20. The sigil lane uses one original d8 shuffle slot with icons in place of numbers. The other slot is a fixed teal–gold–pink Pour Meter that reads 0–100% across the usable liquid volume and is unaffected by the shuffle seed. Each column repeats whole cycles, preserving equal numbers of bands per outcome.
+## Assets
+
+Three.js is bundled under MIT and DM Sans/Archivo under their accompanying licenses (see `LICENSES.md`). The sigil path was fetched from `https://www.raidguild.org/images/icons/venture/ico-logo.svg`; the original bytes are archived in `art/raidguild-sigil-source.svg` and the runtime copy changes only its fill to the observed hot pink. The source design uses cream (`#efe9d7`, `#f9f7e7`), teal (`#102d2c`), and hot pink (`#ee3c78`).
