@@ -1,30 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-studio="cream">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#102d2c" />
-  <meta name="description" content="A hands-on product study of a pint glass printed with eleven dice tracks and a RaidGuild brand face. Rotate freely, set the pour level, and explore a seeded layout." />
+  <meta name="description" content="A hands-on product study of a pint glass printed with six ordered dice lanes and five play or brand faces. Rotate freely, set the pour level, and use the independent coaster offset." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Portal Artifacts" />
   <meta property="og:title" content="Chance Pint — One Glass, Many Games" />
-  <meta property="og:description" content="An interactive RaidGuild pint glass with dice, sigils, pour and rotation meters, and six games for the table." />
+  <meta property="og:description" content="An interactive RaidGuild pint glass with six ordered dice lanes, a separate coaster offset, and six games for the table." />
   <link rel="canonical" href="https://portal-artifacts-production.up.railway.app/chance-pint/" />
   <meta property="og:url" content="https://portal-artifacts-production.up.railway.app/chance-pint/" />
-  <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v2.png" />
+  <meta property="og:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v4.png" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Chance Pint title in teal and pink beside a pint glass with RaidGuild markings" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Chance Pint — One Glass, Many Games" />
-  <meta name="twitter:description" content="An interactive RaidGuild pint glass with dice, sigils, pour and rotation meters, and six games for the table." />
-  <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v2.png" />
+  <meta name="twitter:description" content="An interactive RaidGuild pint glass with six ordered dice lanes, a separate coaster offset, and six games for the table." />
+  <meta name="twitter:image" content="https://portal-artifacts-production.up.railway.app/chance-pint/chance-pint-social-v4.png" />
   <meta name="twitter:image:alt" content="Chance Pint title in teal and pink beside a pint glass with RaidGuild markings" />
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <title>Chance Pint — Product Study</title>
-  <script type="module" crossorigin src="/chance-pint/assets/index-Dln1MULl.js"></script>
-  <link rel="stylesheet" crossorigin href="/chance-pint/assets/index-BZAkv2f8.css">
+  <script type="module" crossorigin src="/chance-pint/assets/index-BDvle4Vk.js"></script>
+  <link rel="stylesheet" crossorigin href="/chance-pint/assets/index-Bcbnx-fS.css">
 </head>
 <body>
   <div id="app">
@@ -37,7 +37,7 @@
         <div class="intro">
           <p class="eyebrow"><img class="spark" src="./raidguild-sigil.svg" alt="" /> RAIDGUILD OBJECT STUDY</p>
           <h1 id="hero-title">Chance<br/><em>/ Pint</em></h1>
-          <p class="deck">A pint glass that turns the last sip into a roll of the dice. Seven numbered tracks, plus Sigils, Party, Compass, a Pour Meter, and one RaidGuild brand lane.</p>
+          <p class="deck">A pint glass that turns the last sip into a roll of the dice. Six ordered dice lanes, five play and brand lanes, and a coaster that changes the played result without changing the print.</p>
           <div class="intro-rule"><span>CONCEPT 01 / 03</span><span>INTERACTIVE OBJECT STUDY</span></div>
         </div>
         <div class="viewer-shell">
@@ -53,20 +53,21 @@
         </div>
         <aside class="control-panel" aria-label="Glass controls">
           <div class="panel-head"><span>01 — CONFIGURE</span><span class="panel-asterisk">✳</span></div>
-          <div class="panel-section"><div class="section-label"><span>CHOOSE YOUR TRACK</span><span>01 / 03</span></div><p class="section-copy">Choose a track before the pour. D8 has one numbered side; the opposite face carries the RaidGuild mark. The other dice have two shuffled sides. Select Sigils to switch between the sigil lane and the vertical Pour Meter. Choose Party / Compass for patterned colors or directions.</p><div id="dice-grid" class="dice-grid" role="group" aria-label="Choose die and track"></div><div class="track-switch" role="group" aria-label="Track version"><button type="button" data-repeat="0" aria-pressed="true">SIDE A</button><button type="button" data-repeat="1" aria-pressed="false">SIDE B</button></div></div>
-          <div class="panel-section"><div class="section-label"><span>SET THE POUR</span><span>02 / 03</span></div><label class="pour-label" for="pour"><span>LIQUID LEVEL</span><strong id="pour-value">—</strong></label><input id="pour" type="range" min="0" max="150" step="0.1" value="75" /><div class="range-label"><span>EMPTY</span><span>FULL</span></div><p class="reading-note">Numbers are readable from 15–128 mm.</p><div class="reading"><span>TRACK READING</span><strong id="result">—</strong><small id="reading-track">D10 / SIDE A</small></div></div>
-          <div class="panel-section seed-section"><div class="section-label"><span>CHANGE THE PRINT</span><span>03 / 03</span></div><p class="section-copy">Try another shuffle. The original Blender design is seed 7319.</p><form id="seed-form" class="seed-form"><label for="seed">LAYOUT SEED</label><div><input id="seed" inputmode="numeric" type="number" min="0" max="4294967295" step="1" value="7319" /><button type="submit">APPLY ↗</button></div></form><button id="reset-layout" class="text-button" type="button">↶ RESET TO ORIGINAL</button><p id="seed-error" class="seed-error" role="alert" hidden></p></div>
+          <div class="panel-section"><div class="section-label"><span>CHOOSE A LANE</span><span>01 / 04</span></div><p class="section-copy">Each die has one ordered lane: d4, d6, d8, d10, d12, and d20. The other faces carry Sigils, Party, Compass, Meter, and the RaidGuild mark.</p><div id="dice-grid" class="dice-grid" role="group" aria-label="Choose a printed glass lane"></div></div>
+          <div class="panel-section"><div class="section-label"><span>SET THE POUR</span><span>02 / 04</span></div><label class="pour-label" for="pour"><span>LIQUID LEVEL</span><strong id="pour-value">—</strong></label><input id="pour" type="range" min="0" max="150" step="0.1" value="75" /><div class="range-label"><span>EMPTY</span><span>FULL</span></div><p class="reading-note">Read the printed band at 15–128 mm.</p><div class="reading"><span>LANE READING</span><strong id="result">—</strong><small id="reading-track">D10 · PRINT → PLAY</small></div></div>
+          <div class="panel-section"><div class="section-label"><span>TURN THE COASTER</span><span>03 / 04</span></div><p class="section-copy">Choose an offset separately from the camera orbit. Add it to the printed die face, wrapping after the highest number. D10 wraps from 9 to 0.</p><label class="pour-label" for="coaster-offset"><span>COASTER OFFSET</span><strong id="offset-value">+0</strong></label><input id="coaster-offset" type="range" min="0" max="9" step="1" value="0" /><div class="range-label"><span>+0</span><span>WRAP</span></div><p id="lookup-die" class="lookup-title">D10 · PRINTED → PLAYED</p><div id="coaster-lookup" class="coaster-lookup" role="group" aria-labelledby="lookup-die"></div></div>
+          <div class="panel-section palette-section"><div class="section-label"><span>CHOOSE A FINISH</span><span>04 / 04</span></div><p class="section-copy">Print ink and studio color are independent previews.</p><fieldset class="choice-group"><legend>PRINT INK</legend><label><input type="radio" name="print-ink" value="plum" checked /> DARK</label><label><input type="radio" name="print-ink" value="cream" /> LIGHT</label></fieldset><fieldset class="choice-group"><legend>STUDIO</legend><label><input type="radio" name="studio" value="teal" /> DARK</label><label><input type="radio" name="studio" value="cream" checked /> LIGHT</label></fieldset></div>
         </aside>
       </section>
-      <section id="concept" class="concept" aria-labelledby="concept-title"><div class="concept-kicker">HOW THE OBJECT WORKS <span>↙</span></div><div><h2 id="concept-title">A little uncertainty<br/>at the bottom of a pint.</h2><p>Choose a die and track before drinking. When the liquid settles, read the number in the band at the fill line. Each band represents an equal volume of liquid, and shorter sequences repeat down the glass. Use sigils as prompts or outcomes. The vertical Pour Meter measures fill within the reading zone; the foot meter measures rotation.</p><div class="concept-specs"><span>150 MM HEIGHT</span><span>86 MM RIM</span><span>≈473 ML TO BRIM</span></div><p class="concept-caveat">Fixed markings and controllable liquid levels do not establish a fair RNG. Headspace and physical pour behavior still need testing.</p></div><div class="concept-stat"><strong>11<span class="stat-plus">+1</span></strong><span>RESULT TRACKS<br/>+ RAIDGUILD BRAND FACE</span></div></section>
+      <section id="concept" class="concept" aria-labelledby="concept-title"><div class="concept-kicker">HOW THE OBJECT WORKS <span>↙</span></div><div><h2 id="concept-title">A little uncertainty<br/>at the bottom of a pint.</h2><p>Choose a die and track before drinking. When the liquid settles, read the number in the band at the fill line. Each band represents an equal volume of liquid. The six die lanes are ordered, with shorter sequences repeating in full cycles. Use sigils as prompts or outcomes. The vertical Meter measures fill within the reading zone; the foot meter measures rotation.</p><div class="concept-specs"><span>150 MM HEIGHT</span><span>86 MM RIM</span><span>≈473 ML TO BRIM</span></div><p class="concept-caveat">Fixed markings and controllable liquid levels do not establish a fair RNG. Headspace and physical pour behavior still need testing.</p></div><div class="concept-stat"><strong>6<span class="stat-plus">+5</span></strong><span>DICE LANES<br/>+ PLAY AND BRAND FACES</span></div></section>
       <section class="games" aria-labelledby="games-title">
         <p class="games-kicker">[ FIELD GUIDE / 03 GAMES ]</p>
         <h2 id="games-title">One glass. Three games.</h2>
-        <p class="games-intro">Play with water or use the preview’s pour slider. Pick a new level before each turn, then keep it fixed while you read the tracks.</p>
+        <p class="games-intro">Play with water or use the preview’s pour slider. Pick a new level before each turn, then keep it fixed while you read the tracks. For dice, use the coaster lookup to turn the printed face into the played result.</p>
         <div class="game-grid">
           <article><p class="games-kicker">01 / COMPASS + D8</p><h3>Dungeon Dash</h3><p>Draw a 9 × 9 grid. Start in the center and mark two corners as exits. On your turn, read Compass for direction and d8 for distance. Stop at the grid edge. The first player to land on an exit wins.</p></article>
           <article><p class="games-kicker">02 / PARTY + SIGILS + D6</p><h3>Guild Raid</h3><p>Give each Party pattern a team score. Before play, assign four sigils to “gain” and four to “lose.” Read Party for the team, Sigils for gain or loss, and d6 for the points. First team to 15 wins.</p></article>
-          <article><p class="games-kicker">03 / POUR METER + TURN METER</p><h3>Dial In</h3><p>Read the Pour Meter to set a target between 0% and 99% (play 100% as 99%). Cover the Turn Meter readout, rotate once, then reveal your result. Closest to the target wins the round. Count distance across the seam: 99% is one point from 0%.</p></article>
+          <article><p class="games-kicker">03 / METER + TURN METER</p><h3>Dial In</h3><p>Read the Meter to set a target between 0% and 99% (play 100% as 99%). Cover the Turn Meter readout, rotate once, then reveal your result. Closest to the target wins the round. Count distance across the seam: 99% is one point from 0%.</p></article>
         </div>
       </section>
       <section class="games games-pub" aria-labelledby="pub-games-title">
@@ -74,15 +75,15 @@
         <h2 id="pub-games-title">A round for the table.</h2>
         <p class="games-intro">Beer sets the scene; points decide the game. Keep a pitcher for topping up or resetting the level, and read below the foam. Drink at your own pace. These rules also work with alcohol-free beer.</p>
         <div class="game-grid">
-          <article><p class="games-kicker">01 / SHARED GAME GLASS</p><h3>Taproom Tales</h3><p>Put one Chance Pint in the middle as the game piece; drink from your own cups. Pick a d6 side and use it all game. On each turn, pour a little from the pitcher, read Sigils, and give a one-sentence toast inspired by the symbol. If the table can guess the symbol in one try, score the d6 reading. Play three turns each; highest score wins.</p></article>
-          <article><p class="games-kicker">02 / ONE PINT PER PLAYER</p><h3>High or Low</h3><p>Agree on one d10 side. Before checking their own glass, each player calls low (0–4) or high (5–9). Read the current level and score one point for a correct call. Once a player has checked a level, they can only score again after it naturally changes or they choose to top up. Play five rounds; a player can pass any round.</p></article>
-          <article><p class="games-kicker">03 / PITCHER + POUR METER</p><h3>Last Call Calibration</h3><p>Call a target from 30% to 70%. Take turns pouring from the pitcher into a shared game glass, stopping once and reading the level after the foam settles. Closest to the target scores a point. Use a separate catch jug to reset the game glass between attempts. First to three points wins.</p></article>
+          <article><p class="games-kicker">01 / SHARED GAME GLASS</p><h3>Taproom Tales</h3><p>Put one Chance Pint in the middle as the game piece; drink from your own cups. Use the d6 lane all game. On each turn, pour a little from the pitcher, read Sigils, and give a one-sentence toast inspired by the symbol. If the table can guess the symbol in one try, score the d6 reading. Play three turns each; highest score wins.</p></article>
+          <article><p class="games-kicker">02 / ONE PINT PER PLAYER</p><h3>High or Low</h3><p>Use the d10 lane. Before checking their own glass, each player calls low (0–4) or high (5–9). Read the current level and score one point for a correct call. Once a player has checked a level, they can only score again after it naturally changes or they choose to top up. Play five rounds; a player can pass any round.</p></article>
+          <article><p class="games-kicker">03 / PITCHER + METER</p><h3>Last Call Calibration</h3><p>Call a target from 30% to 70%. Take turns pouring from the pitcher into a shared game glass, stopping once and reading the level after the foam settles. Closest to the target scores a point. Use a separate catch jug to reset the game glass between attempts. First to three points wins.</p></article>
         </div>
       </section>
       <section class="games coaster-study" aria-labelledby="coaster-title">
         <p class="games-kicker">[ COMPANION OBJECT / 002 ]</p>
         <h2 id="coaster-title">The Dial Coaster</h2>
-        <p class="games-intro">One reversible coaster, two ways to play. Put it under the shared glass to read the foot meter, or flip it over to give the whole table a compass.</p>
+        <p class="games-intro">One reversible coaster, a separate dice offset, and two ways to play. The dial face and game face are physical concepts. The separate offset selector shown below is a proposed indexed ring; the working printed-to-played lookup is in the controls above. Its setting never follows camera orbit.</p>
         <div class="coaster-faces">
           <figure>
             <svg viewBox="0 0 260 260" role="img" aria-label="Teal dial face with a pink pointer aimed at the centering ring">
@@ -93,7 +94,7 @@
               <text x="130" y="137" text-anchor="middle" fill="#f9f7e7" font-size="14">CENTER GLASS</text>
               <text x="130" y="222" text-anchor="middle" fill="#f9f7e7" font-size="13">CHANCE / PINT</text>
             </svg>
-            <figcaption><strong>01 / Dial face</strong>Center the glass and rotate it in place. Read the foot meter where it lines up with the pink pointer.</figcaption>
+            <figcaption><strong>01 / Dial face</strong>Center the glass and rotate it in place. Read the foot meter at the pink pointer; set the dice offset independently in the study controls.</figcaption>
           </figure>
           <figure>
             <svg viewBox="0 0 260 260" role="img" aria-label="Cream game face with north, east, south and west and four colored Party patterns between them">
@@ -113,6 +114,22 @@
               <text x="130" y="137" text-anchor="middle" fill="#102d2c" font-size="14">RAIDGUILD</text>
             </svg>
             <figcaption><strong>02 / Game face</strong>Point north toward the top of the board. Use the four patterns to match teams or zones to the glass’s Party lane.</figcaption>
+          </figure>
+          <figure>
+            <svg viewBox="0 0 260 260" role="img" aria-label="Concept sketch of an indexed coaster offset ring set to plus three for d10, with printed nine mapping to played two">
+              <circle cx="130" cy="130" r="125" fill="#efe9d7" stroke="#102d2c" stroke-width="2"/>
+              <circle cx="130" cy="130" r="106" fill="none" stroke="#102d2c" stroke-width="17"/>
+              <g stroke="#f9f7e7" stroke-width="3">
+                <path d="M130 16v21 M130 223v21 M16 130h21 M223 130h21"/>
+                <path d="M49 49l15 15 M196 196l15 15 M49 211l15-15 M196 64l15-15"/>
+              </g>
+              <path d="M130 12l-11 25h22Z" fill="#ee3c78"/>
+              <circle cx="130" cy="130" r="71" fill="#f9f7e7" stroke="#102d2c" stroke-width="2"/>
+              <text x="130" y="108" text-anchor="middle" fill="#102d2c" font-size="14" font-weight="700">D10 / OFFSET</text>
+              <text x="130" y="148" text-anchor="middle" fill="#ee3c78" font-size="40" font-weight="700">+3</text>
+              <text x="130" y="174" text-anchor="middle" fill="#102d2c" font-size="13">PRINT 9 → PLAY 2</text>
+            </svg>
+            <figcaption><strong>03 / Offset ring concept</strong>A future coaster could index an offset for the chosen die. The site’s slider and lookup demonstrate the mapping today; the ring’s physical mechanism still needs prototyping.</figcaption>
           </figure>
         </div>
       </section>

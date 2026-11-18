@@ -1,12 +1,25 @@
-import original from '../model-source/original-layout.json' with { type: 'json' };
-
 export const DICE = [4, 6, 8, 10, 12, 20];
-export const BRAND_FACE_INDEX = 6;
-export const NUMBERED_TRACK_INDICES = Array.from({ length: 12 }, (_, i) => i).filter(i => i !== BRAND_FACE_INDEX);
-export function normalizeTrackIndex(index) { return index === BRAND_FACE_INDEX ? 0 : index; }
+export const SIGILS = ['✦', '◇', '☾', '△', '⊕', '✶', '⬡', '☀'];
+export const PARTY_MARKS = [
+  { glyph: '▤', name: 'Stripes', color: '#ff82ab' },
+  { glyph: '⠿', name: 'Dots', color: '#f8dc76' },
+  { glyph: '▦', name: 'Checks', color: '#72e1d0' },
+  { glyph: '≋', name: 'Waves', color: '#c9b7ff' },
+];
+export const COMPASS_MARKS = ['↑', '→', '↓', '←'];
+export const LANES = [
+  ...DICE.map(die => ({ id: `d${die}`, label: `D${die}`, kind: 'die', die,
+    marks: Array.from({ length: die }, (_, i) => die === 10 ? i : i + 1) })),
+  { id: 'sigils', label: 'SIGILS', kind: 'sigils', marks: SIGILS },
+  { id: 'party', label: 'PARTY', kind: 'party', marks: PARTY_MARKS.map(mark => mark.glyph) },
+  { id: 'compass', label: 'COMPASS', kind: 'compass', marks: COMPASS_MARKS },
+  { id: 'pour-meter', label: 'METER', kind: 'meter', marks: [] },
+  { id: 'brand', label: 'RAIDGUILD', kind: 'brand', marks: [] },
+];
+export const POUR_METER_INDEX = LANES.findIndex(lane => lane.kind === 'meter');
+export const BRAND_FACE_INDEX = LANES.findIndex(lane => lane.kind === 'brand');
 export const READ_BOTTOM = 15;
 export const READ_TOP = 128;
-export const originalLayout = original;
 
 export function innerVolume(z) {
   const t = Math.max(0, z - 6);
@@ -15,8 +28,7 @@ export function innerVolume(z) {
 }
 
 export function heightAtVolume(volume) {
-  let lo = 6;
-  let hi = 150;
+  let lo = 6, hi = 150;
   for (let i = 0; i < 48; i += 1) {
     const mid = (lo + hi) / 2;
     if (innerVolume(mid) < volume) lo = mid;
@@ -25,83 +37,30 @@ export function heightAtVolume(volume) {
   return (lo + hi) / 2;
 }
 
-export function bandEdges(sides) {
+export function bandEdges(count) {
   const start = innerVolume(READ_BOTTOM);
   const amount = innerVolume(READ_TOP) - start;
-  return Array.from({ length: sides + 1 }, (_, i) => {
+  return Array.from({ length: count + 1 }, (_, i) => {
     if (i === 0) return READ_BOTTOM;
-    if (i === sides) return READ_TOP;
-    return heightAtVolume(start + (amount * i) / sides);
+    if (i === count) return READ_TOP;
+    return heightAtVolume(start + amount * i / count);
   });
 }
 
-export const SIGILS = ['✦', '◇', '☾', '△', '⊕', '✶', '⬡', '☀'];
-
-export function laneLabel(die) {
-  return die === 4 ? 'D8' : die === 12 ? 'PARTY / COMPASS' : die === 8 ? 'SIGILS' : `D${die}`;
+export function printedMarks(lane) {
+  const { marks } = lane;
+  if (!marks.length) return marks;
+  const count = marks.length * Math.round(20 / marks.length);
+  return Array.from({ length: count }, (_, i) => marks[i % marks.length]);
 }
 
-export function printTrack(track, seed = 7319) {
-  let d8Faces;
-  if (track.die === 4) {
-    let state = (seed ^ 0x1985a7c3) >>> 0;
-    d8Faces = [1, 2, 3, 4, 5, 6, 7, 8];
-    for (let i = d8Faces.length - 1; i > 0; i--) {
-      state = (Math.imul(1664525, state) + 1013904223) >>> 0;
-      const j = Math.floor(state / 4294967296 * (i + 1));
-      [d8Faces[i], d8Faces[j]] = [d8Faces[j], d8Faces[i]];
-    }
-  }
-  const faces = d8Faces ?? ( track.die === 12 ? track.bottom_to_top.filter(face => face <= 4) : track.bottom_to_top);
-  const repeats = Math.round(20 / faces.length);
-  return { ...track, bottom_to_top: Array.from({ length: repeats * faces.length }, (_, i) => faces[i % faces.length]) };
+export function readTrack(marks, height) {
+  if (!Number.isFinite(height) || height < READ_BOTTOM || height > READ_TOP || !marks.length) return null;
+  const edges = bandEdges(marks.length);
+  const index = height === READ_TOP ? marks.length - 1 :
+    edges.findIndex((edge, i) => i < marks.length && height >= edge && height < edges[i + 1]);
+  return marks[index];
 }
-
-export function faceLabel(die, value) {
-  if (die === 8 && value != null) return SIGILS[value - 1];
-  return die === 10 && value === 10 ? 0 : value;
-}
-
-export function readTrack(track, height) {
-  if (!Number.isFinite(height) || height < READ_BOTTOM || height > READ_TOP) return null;
-  const count = track.bottom_to_top.length;
-  const edges = bandEdges(count);
-  const index = height === READ_TOP ? count - 1 :
-    edges.findIndex((edge, i) => i < count && height >= edge && height < edges[i + 1]);
-  return track.bottom_to_top[index];
-}
-
-export function makeLayout(seed) {
-  if (!Number.isSafeInteger(seed) || seed < 0 || seed > 4294967295) {
-    throw new RangeError('Seed must be an unsigned 32-bit integer.');
-  }
-  if (seed === 7319) return structuredClone(originalLayout);
-  let state = seed >>> 0;
-  function random() {
-    state = (Math.imul(1664525, state) + 1013904223) >>> 0;
-    return state / 4294967296;
-  }
-  const tracks = [];
-  for (let repeat = 0; repeat < 2; repeat += 1) {
-    for (const die of DICE) {
-      const bottom_to_top = Array.from({ length: die }, (_, i) => i + 1);
-      for (let i = die - 1; i > 0; i -= 1) {
-        const j = Math.floor(random() * (i + 1));
-        [bottom_to_top[i], bottom_to_top[j]] = [bottom_to_top[j], bottom_to_top[i]];
-      }
-      tracks.push({ die, bottom_to_top });
-    }
-  }
-  return { seed, tracks };
-}
-
-export function trackName(index) {
-  if (index === POUR_METER_INDEX) return 'Pour meter';
-  if (index === BRAND_FACE_INDEX) return 'RaidGuild brand face';
-  return `${laneLabel(DICE[index % DICE.length])} · ${index < DICE.length ? 'A' : 'B'}`;
-}
-
-export const POUR_METER_INDEX = 8;
 
 export function readPourMeter(height) {
   if (!Number.isFinite(height) || height < READ_BOTTOM || height > READ_TOP) return null;
@@ -109,12 +68,14 @@ export function readPourMeter(height) {
   return Math.round(100 * (innerVolume(height) - start) / (innerVolume(READ_TOP) - start));
 }
 
-export const PARTY_INDEX = 4;
-export const COMPASS_INDEX = 10;
-export const PARTY_MARKS = [
-  { glyph: '▤', name: 'Stripes', color: '#ff82ab' },
-  { glyph: '⠿', name: 'Dots', color: '#f8dc76' },
-  { glyph: '▦', name: 'Checks', color: '#72e1d0' },
-  { glyph: '≋', name: 'Waves', color: '#c9b7ff' },
-];
-export const COMPASS_MARKS = ['↑', '→', '↓', '←'];
+export function playedFace(die, printed, offset) {
+  if (!DICE.includes(die) || !Number.isInteger(offset) || offset < 0 || offset >= die) throw new RangeError('Invalid die or coaster offset.');
+  if (!Number.isInteger(printed) || printed < (die === 10 ? 0 : 1) || printed > (die === 10 ? 9 : die)) throw new RangeError('Invalid printed face.');
+  return die === 10 ? (printed + offset) % 10 : ((printed - 1 + offset) % die) + 1;
+}
+
+export function coasterLookup(die, offset) {
+  const lane = LANES.find(item => item.kind === 'die' && item.die === die);
+  if (!lane) throw new RangeError('Invalid die.');
+  return lane.marks.map(printed => ({ printed, played: playedFace(die, printed, offset) }));
+}
