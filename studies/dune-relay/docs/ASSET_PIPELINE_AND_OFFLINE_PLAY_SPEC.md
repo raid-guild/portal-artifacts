@@ -1,7 +1,7 @@
 # Dune Relay asset loading and offline play
 
-**Status:** Future feature draft  
-**Date:** November 19, 2026  
+**Status:** Future feature draft
+**Date:** November 19, 2026
 **Scope:** Asset preparation, loading recovery, chapter downloads, offline play, and release updates.
 
 ## Purpose
