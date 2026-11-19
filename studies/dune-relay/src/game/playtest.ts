@@ -3,6 +3,20 @@ import type { LevelDefinition, LevelId } from "./levels";
 import type { BoosterKind } from "./boosters";
 
 export const PLAYTEST_KEY = "dune-relay-playtest-v1";
+export const PLAYTEST_WALLET_KEY = "dune-relay-playtest-wallet-v1";
+export type PlaytestWallet = { version: 1; coins: number };
+export function normalizePlaytestWallet(value: unknown): PlaytestWallet {
+  const candidate = value as Partial<PlaytestWallet> | null;
+  return { version: 1, coins: candidate?.version === 1 && typeof candidate.coins === "number" && Number.isSafeInteger(candidate.coins) && candidate.coins >= 0 ? candidate.coins : 0 };
+}
+export function readPlaytestWallet(storage?: Pick<Storage, "getItem">): PlaytestWallet {
+  try { return normalizePlaytestWallet(JSON.parse((storage ?? localStorage).getItem(PLAYTEST_WALLET_KEY) ?? "null")); }
+  catch { return normalizePlaytestWallet(null); }
+}
+export function writePlaytestWallet(wallet: PlaytestWallet, storage?: Pick<Storage, "setItem">): boolean {
+  try { (storage ?? localStorage).setItem(PLAYTEST_WALLET_KEY, JSON.stringify(normalizePlaytestWallet(wallet))); return true; }
+  catch { return false; }
+}
 export const PLAYTEST_SCHEMA = 1;
 export const MAX_ATTEMPTS = 200;
 export type MoveRecord = { index: number; action: "swap" | "directPower"; from: Cell; to: Cell; at: string; movesRemaining: number; goalsRemaining: Goals; cleared: TurnStats["symbolsCleared"]; powersCreated: TurnStats["powersCreated"]; powersActivated: TurnStats["powersActivated"]; combinations: TurnStats["combinations"]; companionGrants: number; saltHits: number; saltBlocksBroken: number; reshuffles: number; tilesCleared: number };

@@ -14,6 +14,7 @@ import { planFinale, type FinalePlan } from "./finale";
 import { reserveGame, enqueueGameWork } from "./gameLifecycle";
 import { logDiagnostic } from "./diagnostics";
 import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
+import type { BoosterPlacement } from "./boosters";
 
 export type GameEvent =
   | { type: "keeper"; position: { x: number; y: number } }
@@ -41,6 +42,7 @@ type Props = {
   keeperMet: boolean;
   level: LevelDefinition;
   puzzle: Puzzle | null;
+  startingBoosters: BoosterPlacement[];
   audio: GameAudio | null;
   reducedMotion: boolean;
   transitioning: boolean;
@@ -576,6 +578,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     revealSkipped = false;
     finaleDone = false;
     pendingReveal = new Set<() => void>();
+    introActive = true;
+    introPending = new Set<() => void>();
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
@@ -665,6 +669,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("pointercancel", cancel);
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.introActive = false;
+        for (const cancelIntro of this.introPending) cancelIntro();
+        this.introPending.clear();
         canvas.removeEventListener("pointerdown", down);
         canvas.removeEventListener("pointermove", move);
         canvas.removeEventListener("pointerup", up);
@@ -672,20 +679,94 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         canvas.removeEventListener("lostpointercapture", cancel);
         delete canvas.dataset.revealPhase;
         delete canvas.dataset.playReady;
+        delete canvas.dataset.introPhase;
         props.skipReveal.current = null;
       });
       props.skipReveal.current = () => this.skipWinningReveal();
       this.syncTiles(this.puzzle.board, 0, "refill");
+      for (const placement of props.startingBoosters) this.pieces.get(placement.tileId)?.graphic.setAlpha(0);
       this.renderHud();
       this.busy = true;
-      if (props.onReady()) void this.revealGoals().then(() => this.showLessonHint());
+      if (props.onReady()) void this.revealGoals();
     }
     async revealGoals() {
       this.busy = true;
+      this.game.canvas.dataset.introPhase = "curtain";
+      while (this.introActive && props.transitioning) await this.introWait(40);
+      if (!this.introActive) return;
+      this.game.canvas.dataset.introPhase = "goals";
       await this.showGoalBanner(false);
+      if (!this.introActive) return;
+      if (props.startingBoosters.length) {
+        this.game.canvas.dataset.introPhase = "boosters";
+        this.setMessage("Starting boosters incoming…");
+        await this.deliverStartingBoosters();
+      }
+      if (!this.introActive) return;
+      this.showLessonHint();
+      if (!this.puzzle.opening) this.setMessage("Drag or tap adjacent symbols to swap");
       this.busy = false;
+      this.game.canvas.dataset.introPhase = "ready";
       this.game.canvas.dataset.playReady = "true";
       props.onEvent({ type: "playReady" });
+    }
+    introWait(ms: number): Promise<void> {
+      if (!this.introActive) return Promise.resolve();
+      return new Promise(resolve => {
+        const done = () => { this.introPending.delete(cancel); resolve(); };
+        const timer = this.time.delayedCall(ms, done);
+        const cancel = () => { timer.remove(false); done(); };
+        this.introPending.add(cancel);
+      });
+    }
+    introTween(target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">): Promise<void> {
+      if (!this.introActive) return Promise.resolve();
+      return new Promise(resolve => {
+        const done = () => { this.introPending.delete(cancel); resolve(); };
+        const tween = this.tweens.add({ targets: target, ...config, onComplete: done });
+        const cancel = () => { tween.stop(); done(); };
+        this.introPending.add(cancel);
+      });
+    }
+    async deliverStartingBoosters() {
+      const avatar = this.keeperPortrait;
+      if (avatar && !props.reducedMotion) {
+        props.audio?.play("keeper");
+        void this.introTween(avatar, { angle: 9, y: 386, yoyo: true, repeat: 2, duration: 85 }).then(() => {
+          if (this.introActive) avatar.setPosition(75, 392).setAngle(0);
+        });
+      }
+      await Promise.all(props.startingBoosters.map(async (placement, index) => {
+        if (index) await this.introWait(props.reducedMotion ? index * 20 : index * 90);
+        if (!this.introActive) return;
+        const tile = this.puzzle.board[placement.cell.row]?.[placement.cell.col];
+        const destination = this.pieces.get(placement.tileId)?.graphic;
+        if (!tile || !destination) return;
+        const p = this.center(placement.cell);
+        const ring = this.add.circle(p.x, p.y, 19, 0xffdf92, 0).setStrokeStyle(3, 0xffd77d, 0.95).setDepth(35);
+        if (props.reducedMotion) {
+          destination.setAlpha(1);
+          ring.setAlpha(0.7);
+          await this.introTween(ring, { alpha: 0, scale: 1.25, duration: 90 });
+        } else {
+          const flight = drawPiece(this, 75, 392, tile.kind, tile.jet, false, tile.power).setDepth(42);
+          const motion = { t: 0 };
+          await this.introTween(motion, { t: 1, duration: 480, ease: "Cubic.easeInOut", onUpdate: () => {
+            const t = motion.t;
+            flight.setPosition(75 + (p.x - 75) * t, 392 + (p.y - 392) * t - Math.sin(Math.PI * t) * 80);
+            flight.setScale(0.7 + 0.3 * t);
+          } });
+          flight.destroy();
+          if (!this.introActive) { ring.destroy(); return; }
+          destination.setAlpha(1);
+          props.audio?.play("land");
+          await Promise.all([
+            this.introTween(destination, { scaleX: 1.13, scaleY: 1.13, yoyo: true, duration: 75 }),
+            this.introTween(ring, { scale: 1.6, alpha: 0, duration: 150 }),
+          ]);
+        }
+        ring.destroy();
+      }));
     }
     async showGoalBanner(completed: boolean) {
       const background = this.add.graphics();
@@ -704,17 +785,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         });
       }
       const banner = this.add.container(WIDTH / 2, -160, contents).setDepth(40);
+      const animate = (target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) => completed ? this.tween(target, config) : this.introTween(target, config);
       if (props.reducedMotion) {
         banner.setY(115).setAlpha(0);
-        await this.tween(banner, { alpha: 1, duration: 120 });
+        await animate(banner, { alpha: 1, duration: 120 });
       } else {
-        await this.tween(banner, { y: 115, duration: 480, ease: "Back.easeOut" });
+        await animate(banner, { y: 115, duration: 480, ease: "Back.easeOut" });
       }
+      if (!completed && !this.introActive) return;
       if (completed && this.revealSkipped) { banner.destroy(); return; }
       props.audio?.play("banner");
-      await this.wait(completed ? 1000 : 1300);
+      await (completed ? this.wait(1000) : this.introWait(1300));
+      if (!completed && !this.introActive) return;
       if (completed && this.revealSkipped) { banner.destroy(); return; }
-      await this.tween(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
+      await animate(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
       banner.destroy();
     }
     showLessonHint() {

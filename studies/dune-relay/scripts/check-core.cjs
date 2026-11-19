@@ -15,8 +15,8 @@ const { beamTravelDelay } = require('../src/game/timing.ts');
 const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
 const priorBoards = require('./pre-gatehouse-board-baseline.json');
-const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archiveCsv, archiveJson, readArchive, PLAYTEST_KEY, MAX_ATTEMPTS } = require('../src/game/playtest.ts');
-const { applyStartingBoosters, boosterCost } = require('../src/game/boosters.ts');
+const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archiveCsv, archiveJson, readArchive, readPlaytestWallet, writePlaytestWallet, PLAYTEST_WALLET_KEY, PLAYTEST_KEY, MAX_ATTEMPTS } = require('../src/game/playtest.ts');
+const { applyStartingBoosters, prepareStartingBoosters, boosterCost } = require('../src/game/boosters.ts');
 
 for (const [index, id] of LEVEL_ORDER.entries()) {
   const level = LEVELS[id];
@@ -612,10 +612,28 @@ assert.equal(arrivalDone.gatehouseReady,true);assert.equal(arrivalDone.transitio
 assert.equal(advanceChapterTransition(arrivalDone,'arrival','ready'),arrivalDone,'arrival checkpoint idempotent');
 assert.equal(boosterCost(['jet','flywheel','prism']), 1100);
 assert.throws(() => boosterCost(['jet','jet']));
+const walletStore = new Map([['dune-relay-campaign-v5', '{"sentinel":777}']]);
+const testStorage = { getItem:key=>walletStore.get(key)??null, setItem:(key,value)=>walletStore.set(key,value) };
+assert.equal(readPlaytestWallet(testStorage).coins,0);
+walletStore.set(PLAYTEST_WALLET_KEY,JSON.stringify({version:1,coins:1100}));
+assert.equal(readPlaytestWallet(testStorage).coins,1100);
+assert.ok(writePlaytestWallet({version:1,coins:readPlaytestWallet(testStorage).coins-boosterCost(['jet','flywheel','prism'])},testStorage));
+assert.equal(readPlaytestWallet(testStorage).coins,0,'test wallet survives reload after buying all three');
+assert.equal(walletStore.get('dune-relay-campaign-v5'),'{"sentinel":777}','test spending never touches campaign save');
+for(const value of ['{','{"version":1,"coins":-2}','{"version":1,"coins":1.5}','{"version":1,"coins":1e100}','{"version":2,"coins":55}']) { walletStore.set(PLAYTEST_WALLET_KEY,value); assert.equal(readPlaytestWallet(testStorage).coins,0,`invalid wallet ${value}`); }
+assert.equal(writePlaytestWallet({version:1,coins:300},{setItem(){throw Error('full')}}),false,'purchase write failure is detectable');
 for (const id of LEVEL_ORDER) {
   const plain = createPuzzle(LEVELS[id]); const frozen = JSON.stringify(plain);
   for (const loadout of [[],['jet'],['flywheel'],['prism'],['jet','flywheel','prism']]) {
     const boosted = applyStartingBoosters(plain,loadout);
+    const prepared = prepareStartingBoosters(plain,loadout);
+    assert.deepEqual(prepared.puzzle,boosted,`${id} ${loadout}: metadata matches prepared board`);
+    assert.deepEqual(prepared.placements.map(({kind})=>kind),loadout);
+    for (const {tileId,cell,kind} of prepared.placements) {
+      const tile = prepared.puzzle.board[cell.row][cell.col];
+      assert.equal(tile?.id,tileId);
+      assert.equal(kind==='jet'?tile?.jet:tile?.power,kind==='jet'?'row':kind);
+    }
     assert.equal(JSON.stringify(plain),frozen,`${id} ${loadout}: source is immutable`);
     assert.equal(boosted.seed,plain.seed); assert.equal(boosted.nextId,plain.nextId);
     assert.deepEqual(boosted.goals,plain.goals); assert.deepEqual(boosted.crust,plain.crust);

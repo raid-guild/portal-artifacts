@@ -9,15 +9,15 @@ import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
-import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, startAttempt, writeArchive, type AttemptRecord, type PlaytestArchive } from "./playtest";
+import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
-import { applyStartingBoosters, boosterCost, BOOSTERS, type BoosterKind } from "./boosters";
+import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | null;
-type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; status: "prepared" | "committed" | "failed" };
+type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
 export default function GameShell() {
@@ -106,7 +106,7 @@ export default function GameShell() {
     window.addEventListener("pageshow", fullscreenSync);
     document.addEventListener("visibilitychange", fullscreenSync);
     setPlaytest(testing);
-    if (testing) { archive.current = readArchive(); writeArchive(archive.current); }
+    if (testing) { archive.current = readArchive(); writeArchive(archive.current); const wallet = readPlaytestWallet(); const loaded = normalizeSave({ ...saveRef.current, coins: wallet.coins }); saveRef.current = loaded; setSave(loaded); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
     setReady(true);
     const mixer = new GameAudio();
@@ -210,7 +210,8 @@ export default function GameShell() {
   function persist(next: Save) {
     if (next === saveRef.current) return;
     saveRef.current = next; setSave(next);
-    if (!playtest) writeSave(next);
+    if (playtest) writePlaytestWallet({ version: 1, coins: next.coins });
+    else writeSave(next);
   }
   function checkpoint(from: Save["oasisTransition"], to: Save["oasisTransition"]) {
     persist(advanceTransition(saveRef.current, from, to));
@@ -254,11 +255,11 @@ export default function GameShell() {
       changeScene();
       const status = await readyScene;
       logDiagnostic("transition-scene", { generation, status });
-      if (status !== "ready") setSceneIssue(status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
+      if (status !== "ready") setSceneIssue(previous => previous?.includes("purchase") ? previous : status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
       await delay(reducedMotion ? 30 : 70);
     } catch (error) {
       logDiagnostic("transition-error", { generation, message: String(error).slice(0, 160) });
-      setSceneIssue("The scene could not load.");
+      setSceneIssue(previous => previous?.includes("purchase") ? previous : "The scene could not load.");
     } finally {
       if (sceneReady.current?.generation === generation) sceneReady.current.settle("failed");
       if (transitionGeneration.current === generation) {
@@ -351,18 +352,18 @@ export default function GameShell() {
   function launchLevel() {
     if (transitioning.current) return;
     const id = shopLevel;
-    const cost = playtest ? 0 : boosterCost(shopSelected);
+    const cost = boosterCost(shopSelected);
     if (cost > saveRef.current.coins) { setShopError("Not enough coins for this loadout."); return; }
-    let prepared: Puzzle;
-    try { prepared = applyStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
+    let prepared: ReturnType<typeof prepareStartingBoosters>;
+    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
-    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared, status: "prepared" };
+    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
     setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
     void transitionTo(() => {
-      setActiveLevel(id); setPuzzle(prepared); setMode("puzzle");
+      setActiveLevel(id); setPuzzle(prepared.puzzle); setMode("puzzle");
       setAttempt(value => value + 1); setOverlay(null);
     });
   }
@@ -386,7 +387,7 @@ export default function GameShell() {
     if (current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
     if (current.cost > 0) {
       const next = { ...saveRef.current, coins: saveRef.current.coins - current.cost };
-      if (!writeSave(next)) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
+      if (!(playtest ? writePlaytestWallet({ version: 1, coins: next.coins }) : writeSave(next))) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
       saveRef.current = next; setSave(next);
     }
     current.status = "committed";
@@ -509,7 +510,8 @@ export default function GameShell() {
     void transitionTo(() => {
       const fresh: Save = { ...EMPTY_SAVE, completed: [], companions: [] };
       saveRef.current = fresh; setSave(fresh);
-      if (!playtest) writeSave(fresh);
+      if (playtest) writePlaytestWallet({ version: 1, coins: 0 });
+      else writeSave(fresh);
       setMode("map"); mapPositions.current = { oasis: null, caravan: null, gatehouse: null }; setKeeperMet(false);
       setPuzzle(null); setSettings(false); setOverlay("start"); setAttempt(value => value + 1);
     });
@@ -528,7 +530,7 @@ export default function GameShell() {
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -566,12 +568,12 @@ export default function GameShell() {
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · STARTING BOOSTERS</span>
         <p>Choose up to one of each. Boosters start on the board and are used for this attempt.</p>
-        <div className="shop-balance">{playtest ? "Playtest loadout · free test use (reference prices shown)" : `${save.coins.toLocaleString("en-US")} coins available`}</div>
+        <div className="shop-balance">{save.coins.toLocaleString("en-US")} coins available{playtest && <small>Test wallet · campaign coins stay untouched</small>}</div>
         <div className="booster-options">{BOOSTERS.map(item => <button key={item.kind} className={`booster-option${shopSelected.includes(item.kind) ? " selected" : ""}`} aria-pressed={shopSelected.includes(item.kind)} onClick={() => { setShopError(null); setShopSelected(current => current.includes(item.kind) ? current.filter(kind => kind !== item.kind) : [...current, item.kind]); }}>
           <img src={assetUrl(item.image as `/${string}`)} alt="" />
           <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>
         </button>)}</div>
-        <div className="shop-total">{playtest ? "Test cost: 0 coins" : `Total: ${boosterCost(shopSelected).toLocaleString("en-US")} coins`}</div>
+        <div className="shop-total">Total: {boosterCost(shopSelected).toLocaleString("en-US")} coins</div>
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Cancel</button><button className="primary" onClick={launchLevel}>Start level <span>→</span></button></div>
       </div></div>}
