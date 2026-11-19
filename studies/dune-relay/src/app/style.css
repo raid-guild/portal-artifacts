@@ -61,7 +61,17 @@ button { font: inherit; cursor: pointer; }
 .shop-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 7px; }
 .shop-actions .primary { font-size: clamp(17px, 3cqh, 24px); padding: 6px 13px; }
 .booster-shop .shop-error { color: #ffd1b4; margin: 4px 0; }
-.demo-thanks { text-align: center; }
+.demo-ending { overflow: hidden; }
+.demo-thanks { position: relative; z-index: 1; text-align: center; max-height: 94%; overflow-y: auto; padding: clamp(14px, 3.5cqh, 30px); }
+.demo-thanks h2 { font-size: clamp(30px, 7.5cqh, 46px); }
+.demo-thanks p { font-size: clamp(14px, 3.8cqh, 19px); margin: 10px 0 14px; }
+.demo-thanks .demo-story { color: #78dfca; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(21px, 5.4cqh, 30px); font-weight: 700; margin: 8px 0 16px; }
+.demo-confetti { position: absolute; inset: 0; pointer-events: none; }
+.demo-confetti span { position: absolute; top: -16px; left: var(--x); width: clamp(5px, 1.3cqh, 9px); height: clamp(8px, 2cqh, 14px); border-radius: 2px; opacity: 0; animation: demo-confetti-fall var(--duration) var(--delay) cubic-bezier(.18,.55,.5,1) both; }
+.demo-confetti[data-paused="true"] span { animation-play-state: paused; }
+@keyframes demo-confetti-fall { 0% { opacity: 0; transform: translate3d(0, -10px, 0) rotate(0); } 8%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate3d(var(--drift), 110cqh, 0) rotate(var(--spin)); } }
+.frame[data-reduced-motion="true"] .demo-confetti { display: none; }
+@media (prefers-reduced-motion: reduce) { .demo-confetti { display: none; } }
 .quiet { display: inline-block; border: 0; background: transparent; color: #cfebe1; font-weight: 700; padding: 14px 16px; }
 .quiet:hover, .reset:hover { text-decoration: underline; }
 .settings-card { display: flex; flex-direction: column; align-items: stretch; gap: 9px; max-height: calc(100% - 28px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }

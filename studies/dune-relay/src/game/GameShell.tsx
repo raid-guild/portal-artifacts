@@ -3,7 +3,7 @@
 import { assetUrl } from "./assetUrl";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { coinReward, createPuzzle, type Puzzle } from "./core";
 import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
@@ -628,9 +628,17 @@ export default function GameShell() {
         <button className="primary" onClick={() => setOverlay("kingdom")}>View the kingdom map <span>→</span></button>
         <button className="quiet" onClick={() => setOverlay(null)}>Return to the gatehouse</button>
       </div></div>}
-      {overlay === "demoThanks" && <div className="scrim"><div className="dialog-card demo-thanks">
-        <span className="speaker">THE ROAD CONTINUES</span><h2>Thanks for playing the demo.</h2>
-        <p>Stay tuned for 70 new levels soon.</p>
+      {overlay === "demoThanks" && <div className="scrim demo-ending">
+        <div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({ length: 36 }, (_, index) => <span key={index} style={{
+          "--x": `${(index * 37 + 3) % 100}%`, "--drift": `${(index * 17 % 25) - 12}cqw`,
+          "--spin": `${(index % 2 ? -1 : 1) * (360 + index * 31)}deg`,
+          "--delay": `${index % 7 * 80}ms`, "--duration": `${2600 + index % 5 * 180}ms`,
+          backgroundColor: ["#ffd77d", "#78dfca", "#e8ad59", "#df8b73", "#a8d8cc", "#b39bd5"][index % 6],
+        } as CSSProperties} />)}</div>
+        <div className="dialog-card demo-thanks">
+        <span className="speaker">YOUR RAID IS JUST BEGINNING</span><h2>Thanks for playing the demo.</h2>
+        <p>70 new levels are coming soon, with tons of new characters, tiles, and power-ups.</p>
+        <p className="demo-story">The story continues…</p>
         <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
         <button className="quiet" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); window.location.assign("?playtest=1"); }}>Playtest levels →</button>
       </div></div>}
