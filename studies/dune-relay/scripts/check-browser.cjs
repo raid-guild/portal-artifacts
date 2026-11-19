@@ -21,12 +21,13 @@ const url = (playtest = false) => { const target = new URL(baseUrl); if (playtes
 async function boardPosition(page, cell) {
   const box = await page.locator('canvas').first().boundingBox();
   assert(box, 'Phaser canvas has a box');
-  return { x: box.x + (330 + (cell.col + .5) * 50) * box.width / 960,
+  return { x: box.x + box.width / 2 + (330 + (cell.col + .5) * 50 - 480) * box.height / 540,
     y: box.y + (45 + (cell.row + .5) * 50) * box.height / 540 };
 }
 async function tapMap(page, x, y) {
   const box = await page.locator('canvas').first().boundingBox();
-  await page.mouse.click(box.x + x / 960 * box.width, box.y + y / 540 * box.height);
+  const scale = box.width / 960, top = 540 - box.height / scale;
+  await page.mouse.click(box.x + x * scale, box.y + (y - top) * scale);
 }
 async function move(page, from, to) {
   const a = await boardPosition(page, from), b = await boardPosition(page, to);
@@ -252,8 +253,8 @@ async function checkRevealCase(browser, phase) {
     await page.locator('.result-overlay').evaluate(element => { element.style.visibility = 'hidden'; });
     const box = await page.locator('canvas').first().boundingBox();
     const board = await page.screenshot({ clip: {
-      x: box.x + 330 / 960 * box.width, y: box.y + 45 / 540 * box.height,
-      width: 450 / 960 * box.width, height: 450 / 540 * box.height,
+      x: box.x + box.width / 2 + (330 - 480) * box.height / 540, y: box.y + 45 / 540 * box.height,
+      width: 450 / 540 * box.height, height: 450 / 540 * box.height,
     } });
     await page.locator('.result-overlay').evaluate(element => { element.style.visibility = ''; });
     await page.getByRole('button', { name: /Follow the water/ }).click();
@@ -358,10 +359,10 @@ async function checkDemo(browser) {
       await endingPage.waitForFunction(() => document.querySelector('video')?.currentSrc.includes('gatehouse-crossing.mp4') && !document.querySelector('canvas'));
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'film');
       await endingPage.getByRole('button',{name:/Skip scene/}).click();
-      await endingPage.getByText('Stay tuned for 70 new levels soon.').waitFor();
+      await endingPage.getByText('70 new levels are coming soon, with tons of new characters, tiles, and power-ups.').waitFor();
       await endingPage.reload();
       await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
-      await endingPage.getByText('Stay tuned for 70 new levels soon.').waitFor();
+      await endingPage.getByText('70 new levels are coming soon, with tons of new characters, tiles, and power-ups.').waitFor();
       await endingPage.getByRole('button',{name:/Explore the kingdom/}).click();
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'done');
       await endingPage.getByRole('button',{name:/Return to the path/}).click();
@@ -433,6 +434,70 @@ async function checkFullscreen(browser) {
   await rejectedPage.getByRole('button', { name: /Full screen/ }).tap();
   await rejectedPage.waitForFunction(() => Boolean(document.fullscreenElement));
   await rejected.close();
+
+  const stalled = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const stalledPage = await stalled.newPage();
+  await stalledPage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (first) { first = false; window.__settleFirstFullscreen = () => {}; return new Promise(resolve => { window.__settleFirstFullscreen = resolve; }); }
+      return original.apply(this, options);
+    };
+  });
+  await stalledPage.goto(url());
+  await stalledPage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await stalledPage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await stalledPage.getByRole('status').getByText(/Opening fullscreen/).waitFor();
+  await stalledPage.getByRole('status').getByText(/didn't open/).waitFor({ timeout: 10_000 });
+  assert.equal(await stalledPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-diagnostics-v1')).some(entry => entry.event === 'fullscreen-timeout')), true);
+  await stalledPage.getByRole('button', { name: /Full screen/ }).tap();
+  await stalledPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await stalledPage.evaluate(() => window.__settleFirstFullscreen());
+  await stalledPage.evaluate(() => document.exitFullscreen());
+  await stalledPage.getByRole('button', { name: /Full screen/ }).waitFor();
+  await stalled.close();
+
+  const falseSuccess = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const falseSuccessPage = await falseSuccess.newPage();
+  await falseSuccessPage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (first) { first = false; return Promise.resolve(); }
+      return original.apply(this, options);
+    };
+  });
+  await falseSuccessPage.goto(url());
+  await falseSuccessPage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await falseSuccessPage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await falseSuccessPage.getByRole('status').getByText(/didn't open/).waitFor();
+  assert.equal(await falseSuccessPage.evaluate(() => Boolean(document.fullscreenElement)), false);
+  await falseSuccessPage.getByRole('button', { name: /Full screen/ }).tap();
+  await falseSuccessPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await falseSuccess.close();
+
+  const lateSuccess = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const latePage = await lateSuccess.newPage();
+  await latePage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (!first) return original.apply(this, options);
+      first = false;
+      const entered = original.apply(this, options);
+      return entered.then(() => new Promise(resolve => { window.__settleLateFullscreen = resolve; }));
+    };
+  });
+  await latePage.goto(url());
+  await latePage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await latePage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await latePage.evaluate(() => document.exitFullscreen());
+  await latePage.getByRole('button', { name: /Full screen/ }).waitFor();
+  await latePage.evaluate(() => window.__settleLateFullscreen());
+  await latePage.waitForTimeout(100);
+  assert.equal(await latePage.getByRole('button', { name: /Full screen/ }).isVisible(), true, 'late success cannot hide the retry button after exit');
+  await lateSuccess.close();
   console.log('Fullscreen desktop/manual, mobile/reentry, fine-input, and rejected-request checks passed');
 }
 

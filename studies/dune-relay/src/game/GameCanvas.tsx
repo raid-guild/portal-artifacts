@@ -14,6 +14,7 @@ import { planFinale, type FinalePlan } from "./finale";
 import { reserveGame, enqueueGameWork } from "./gameLifecycle";
 import { logDiagnostic } from "./diagnostics";
 import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
+import type { BoosterPlacement } from "./boosters";
 
 export type GameEvent =
   | { type: "keeper"; position: { x: number; y: number } }
@@ -41,6 +42,7 @@ type Props = {
   keeperMet: boolean;
   level: LevelDefinition;
   puzzle: Puzzle | null;
+  startingBoosters: BoosterPlacement[];
   audio: GameAudio | null;
   reducedMotion: boolean;
   transitioning: boolean;
@@ -57,6 +59,38 @@ const GREEN = 0x8bd39a;
 const GRID_X = 330;
 const GRID_Y = 45;
 const CELL = 50;
+
+type SceneLayout = { mode: "map" | "puzzle"; hud?: Phaser.GameObjects.Container; backdrop?: Phaser.GameObjects.Image; veil?: Phaser.GameObjects.Graphics };
+const sceneLayouts = new WeakMap<Phaser.Scene, SceneLayout>();
+
+function layoutScene(scene: Phaser.Scene, width: number, height: number) {
+  const layout = sceneLayouts.get(scene);
+  if (!layout) return;
+  const main = scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0);
+  if (layout.mode === "map") {
+    const zoom = width / WIDTH;
+    const top = HEIGHT - height / zoom;
+    main.setZoom(zoom).setScroll(0, top);
+    // HUD content stays in the safe, height-fitted view while map landmarks
+    // and their hit areas use one shared world transform.
+    layout.hud?.setPosition(0, top).setScale(height / zoom / HEIGHT);
+    return;
+  }
+  const zoom = height / HEIGHT;
+  const logicalWidth = width / zoom;
+  main.setZoom(zoom).setScroll(-(logicalWidth - WIDTH) / 2, 0);
+  // Only the decorative art grows; the 9×9 board and HUD retain their authored scale.
+  layout.backdrop?.setDisplaySize(Math.max(WIDTH, logicalWidth), Math.max(HEIGHT, HEIGHT * logicalWidth / WIDTH));
+  if (layout.veil) {
+    layout.veil.clear().fillStyle(0x082c39, 0.54).fillRect(WIDTH / 2 - logicalWidth / 2, 0, logicalWidth, HEIGHT);
+  }
+}
+
+function mapHud(scene: Phaser.Scene, parts: Phaser.GameObjects.GameObject[]) {
+  const hud = scene.add.container(0, 0, parts).setDepth(50);
+  sceneLayouts.set(scene, { mode: "map", hud });
+  layoutScene(scene, Number(scene.game.config.width), Number(scene.game.config.height));
+}
 
 function label(scene: Phaser.Scene, x: number, y: number, text: string, size = 20, color = "#fff0d0") {
   return scene.add.text(x, y, text, { fontFamily: "Arial, sans-serif", fontSize: `${size}px`, color, fontStyle: "bold", stroke: "#173440", strokeThickness: 3 });
@@ -177,7 +211,6 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       this.load.image("keeper", assetUrl("/sprites/keeper.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic");
       registerFrames(this, "keeper");
       characterAnimation(this, "mechanic", "left");
@@ -185,9 +218,11 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       characterAnimation(this, "keeper", "left");
       characterAnimation(this, "keeper", "right");
       this.add.image(480, 270, "oasis").setDisplaySize(WIDTH, HEIGHT);
-      panel(this, 22, 83, 303, 66, 0.92);
-      label(this, 40, 94, "DUNE RELAY", 28);
-      label(this, 40, 124, props.nextLevel && props.nextLevel !== "pumpHouse" ? "THE NEXT STATION AWAITS" : props.repaired ? "THE WATER RUNS AGAIN" : "THE OASIS NEEDS WATER", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 83, 303, 66, 0.92),
+        label(this, 40, 94, "DUNE RELAY", 28),
+        label(this, 40, 124, props.nextLevel && props.nextLevel !== "pumpHouse" ? "THE NEXT STATION AWAITS" : props.repaired ? "THE WATER RUNS AGAIN" : "THE OASIS NEEDS WATER", 13, "#9de4d4"),
+      ];
       this.add.ellipse(447, 409, 42, 11, 0x132c31, 0.3);
       const keeper = this.add.sprite(447, 408, "keeper", "4").setOrigin(0.5, 1).setScale(82 / 420);
       characterPosition(keeper, "keeper", 447, 408);
@@ -231,8 +266,9 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
         this.target = { x: Phaser.Math.Clamp(x, 85, 855), y: Phaser.Math.Clamp(y, 379, 486) };
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this, 26, 469, 326, 46, 0.84);
-      label(this, 44, 480, props.nextLevel && props.nextLevel !== "pumpHouse" ? "Walk to the glowing marker →" : props.nextLevel === null ? "Oasis chapter complete" : props.keeperMet ? "Walk to the Pump House →" : "Talk to the Keeper →", 14);
+      hudParts.push(panel(this, 26, 469, 326, 46, 0.84));
+      hudParts.push(label(this, 44, 480, props.nextLevel && props.nextLevel !== "pumpHouse" ? "Walk to the glowing marker →" : props.nextLevel === null ? "Oasis chapter complete" : props.keeperMet ? "Walk to the Pump House →" : "Talk to the Keeper →", 14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     walkThen(done: () => void) {
@@ -300,7 +336,6 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       this.load.image("routeBeacon", assetUrl("/sprites/route-beacon.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic");
       registerFrames(this, "wayfinder");
       for (const direction of ["left", "right"] as const) {
@@ -314,9 +349,11 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         if (!props.reducedMotion) this.tweens.add({ targets: light, alpha: 0.15, scale: 2.3, duration: 1100, yoyo: true, repeat: -1 });
         beacon.setTint(0xfff5cf);
       }
-      panel(this, 22, 91, 302, 66, 0.92);
-      label(this, 40, 100, "OPEN DESERT", 26);
-      label(this, 40, 132, "THE WALKER TRAIN", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, 0.92),
+        label(this, 40, 100, "OPEN DESERT", 26),
+        label(this, 40, 132, "THE WALKER TRAIN", 13, "#9de4d4"),
+      ];
       const person = this.add.sprite(677, 433, "wayfinder", "4").setOrigin(0.5, 1).setScale(91 / 430);
       characterPosition(person, "wayfinder", 677, 433);
       person.setDepth(2);
@@ -368,8 +405,9 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         this.target = { x: Phaser.Math.Clamp(x, 72, 869), y: Phaser.Math.Clamp(y, 389, 482) };
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this, 26, 469, 328, 46, 0.84);
-      label(this, 44, 480, actionAvailable ? "Walk to the Wayfinder →" : routeLevel ? `Walk to ${routeLevel.title} →` : props.caravanComplete ? "The route beacon is lit ✓" : "The route beacon waits ahead", 14);
+      hudParts.push(panel(this, 26, 469, 328, 46, 0.84));
+      hudParts.push(label(this, 44, 480, actionAvailable ? "Walk to the Wayfinder →" : routeLevel ? `Walk to ${routeLevel.title} →` : props.caravanComplete ? "The route beacon is lit ✓" : "The route beacon waits ahead", 14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     update(_: number, delta: number) {
@@ -429,7 +467,6 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       this.load.image("bridgeGate", assetUrl("/sprites/bridge-gate.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic"); registerFrames(this, "gatewright");
       for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "gatewright", direction); }
       this.add.image(480, 270, "gatehouse").setDisplaySize(WIDTH, HEIGHT);
@@ -446,9 +483,11 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         const light = this.add.ellipse(704, 330, 104, 137, 0xffe1a1, .13).setDepth(1);
         if (!props.reducedMotion) this.tweens.add({ targets: light, alpha: .32, duration: 1100, yoyo: true, repeat: -1 });
       }
-      panel(this, 22, 91, 302, 66, .92);
-      label(this, 40, 100, "RIVER GATEHOUSE", 26);
-      label(this, 40, 132, "THE BRIDGE INTO FARMLAND", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "RIVER GATEHOUSE", 26),
+        label(this, 40, 132, "THE BRIDGE INTO FARMLAND", 13, "#9de4d4"),
+      ];
       const person = this.add.sprite(520, 452, "gatewright", "4").setOrigin(.5, 1).setScale(93 / 430).setDepth(2);
       characterPosition(person, "gatewright", 520, 452); this.gatewrightGraphic = person;
       for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
@@ -485,8 +524,9 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         this.target = {x:Phaser.Math.Clamp(x,68,882),y:Phaser.Math.Clamp(y,420,491)};
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this,26,469,328,46,.84);
-      label(this,44,480,arriving?"Walk to the Gatewright →":route?`Walk to ${route.title} →`:"The crossing is open ✓",14);
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Gatewright →":route?`Walk to ${route.title} →`:"The crossing is open ✓",14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     update(_:number,delta:number) {
@@ -538,6 +578,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     revealSkipped = false;
     finaleDone = false;
     pendingReveal = new Set<() => void>();
+    introActive = true;
+    introPending = new Set<() => void>();
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
@@ -553,10 +595,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("saltCrust2", assetUrl("/sprites/salt-crust-2.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "tiles");
-      this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
-      const veil = this.add.graphics(); veil.fillStyle(0x082c39, 0.54).fillRect(0, 0, WIDTH, HEIGHT);
+      const backdrop = this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
+      const veil = this.add.graphics();
+      sceneLayouts.set(this, { mode: "puzzle", backdrop, veil });
+      layoutScene(this, Number(this.game.config.width), Number(this.game.config.height));
       panel(this, 24, 92, 271, 424, 0.96);
       panel(this, 318, 20, 474, 500, 0.98);
       label(this, 50, 106, props.level.title, props.level.title.length > 15 ? 19 : props.level.title.length > 13 ? 21 : 24);
@@ -577,7 +620,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       let gesture: { id: number; from: Cell; x: number; y: number; committed: boolean } | null = null;
       const logical = (event: PointerEvent) => {
         const rect = canvas.getBoundingClientRect();
-        return { x: (event.clientX - rect.left) * WIDTH / rect.width, y: (event.clientY - rect.top) * HEIGHT / rect.height };
+        return this.cameras.main.getWorldPoint(
+          (event.clientX - rect.left) * canvas.width / rect.width,
+          (event.clientY - rect.top) * canvas.height / rect.height,
+        );
       };
       const cellAtPoint = (x: number, y: number): Cell | null => {
         const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
@@ -623,6 +669,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("pointercancel", cancel);
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.introActive = false;
+        for (const cancelIntro of this.introPending) cancelIntro();
+        this.introPending.clear();
         canvas.removeEventListener("pointerdown", down);
         canvas.removeEventListener("pointermove", move);
         canvas.removeEventListener("pointerup", up);
@@ -630,20 +679,94 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         canvas.removeEventListener("lostpointercapture", cancel);
         delete canvas.dataset.revealPhase;
         delete canvas.dataset.playReady;
+        delete canvas.dataset.introPhase;
         props.skipReveal.current = null;
       });
       props.skipReveal.current = () => this.skipWinningReveal();
       this.syncTiles(this.puzzle.board, 0, "refill");
+      for (const placement of props.startingBoosters) this.pieces.get(placement.tileId)?.graphic.setAlpha(0);
       this.renderHud();
       this.busy = true;
-      if (props.onReady()) void this.revealGoals().then(() => this.showLessonHint());
+      if (props.onReady()) void this.revealGoals();
     }
     async revealGoals() {
       this.busy = true;
+      this.game.canvas.dataset.introPhase = "curtain";
+      while (this.introActive && props.transitioning) await this.introWait(40);
+      if (!this.introActive) return;
+      this.game.canvas.dataset.introPhase = "goals";
       await this.showGoalBanner(false);
+      if (!this.introActive) return;
+      if (props.startingBoosters.length) {
+        this.game.canvas.dataset.introPhase = "boosters";
+        this.setMessage("Starting boosters incoming…");
+        await this.deliverStartingBoosters();
+      }
+      if (!this.introActive) return;
+      this.showLessonHint();
+      if (!this.puzzle.opening) this.setMessage("Drag or tap adjacent symbols to swap");
       this.busy = false;
+      this.game.canvas.dataset.introPhase = "ready";
       this.game.canvas.dataset.playReady = "true";
       props.onEvent({ type: "playReady" });
+    }
+    introWait(ms: number): Promise<void> {
+      if (!this.introActive) return Promise.resolve();
+      return new Promise(resolve => {
+        const done = () => { this.introPending.delete(cancel); resolve(); };
+        const timer = this.time.delayedCall(ms, done);
+        const cancel = () => { timer.remove(false); done(); };
+        this.introPending.add(cancel);
+      });
+    }
+    introTween(target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">): Promise<void> {
+      if (!this.introActive) return Promise.resolve();
+      return new Promise(resolve => {
+        const done = () => { this.introPending.delete(cancel); resolve(); };
+        const tween = this.tweens.add({ targets: target, ...config, onComplete: done });
+        const cancel = () => { tween.stop(); done(); };
+        this.introPending.add(cancel);
+      });
+    }
+    async deliverStartingBoosters() {
+      const avatar = this.keeperPortrait;
+      if (avatar && !props.reducedMotion) {
+        props.audio?.play("keeper");
+        void this.introTween(avatar, { angle: 9, y: 386, yoyo: true, repeat: 2, duration: 85 }).then(() => {
+          if (this.introActive) avatar.setPosition(75, 392).setAngle(0);
+        });
+      }
+      await Promise.all(props.startingBoosters.map(async (placement, index) => {
+        if (index) await this.introWait(props.reducedMotion ? index * 20 : index * 90);
+        if (!this.introActive) return;
+        const tile = this.puzzle.board[placement.cell.row]?.[placement.cell.col];
+        const destination = this.pieces.get(placement.tileId)?.graphic;
+        if (!tile || !destination) return;
+        const p = this.center(placement.cell);
+        const ring = this.add.circle(p.x, p.y, 19, 0xffdf92, 0).setStrokeStyle(3, 0xffd77d, 0.95).setDepth(35);
+        if (props.reducedMotion) {
+          destination.setAlpha(1);
+          ring.setAlpha(0.7);
+          await this.introTween(ring, { alpha: 0, scale: 1.25, duration: 90 });
+        } else {
+          const flight = drawPiece(this, 75, 392, tile.kind, tile.jet, false, tile.power).setDepth(42);
+          const motion = { t: 0 };
+          await this.introTween(motion, { t: 1, duration: 480, ease: "Cubic.easeInOut", onUpdate: () => {
+            const t = motion.t;
+            flight.setPosition(75 + (p.x - 75) * t, 392 + (p.y - 392) * t - Math.sin(Math.PI * t) * 80);
+            flight.setScale(0.7 + 0.3 * t);
+          } });
+          flight.destroy();
+          if (!this.introActive) { ring.destroy(); return; }
+          destination.setAlpha(1);
+          props.audio?.play("land");
+          await Promise.all([
+            this.introTween(destination, { scaleX: 1.13, scaleY: 1.13, yoyo: true, duration: 75 }),
+            this.introTween(ring, { scale: 1.6, alpha: 0, duration: 150 }),
+          ]);
+        }
+        ring.destroy();
+      }));
     }
     async showGoalBanner(completed: boolean) {
       const background = this.add.graphics();
@@ -662,17 +785,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         });
       }
       const banner = this.add.container(WIDTH / 2, -160, contents).setDepth(40);
+      const animate = (target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) => completed ? this.tween(target, config) : this.introTween(target, config);
       if (props.reducedMotion) {
         banner.setY(115).setAlpha(0);
-        await this.tween(banner, { alpha: 1, duration: 120 });
+        await animate(banner, { alpha: 1, duration: 120 });
       } else {
-        await this.tween(banner, { y: 115, duration: 480, ease: "Back.easeOut" });
+        await animate(banner, { y: 115, duration: 480, ease: "Back.easeOut" });
       }
+      if (!completed && !this.introActive) return;
       if (completed && this.revealSkipped) { banner.destroy(); return; }
       props.audio?.play("banner");
-      await this.wait(completed ? 1000 : 1300);
+      await (completed ? this.wait(1000) : this.introWait(1300));
+      if (!completed && !this.introActive) return;
       if (completed && this.revealSkipped) { banner.destroy(); return; }
-      await this.tween(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
+      await animate(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
       banner.destroy();
     }
     showLessonHint() {
@@ -1233,29 +1359,38 @@ export default function GameCanvas(props: Props) {
       onFailure: reason => { if (!disposed) onFailure.current(reason); },
       onEvent: event => { if (!disposed) callback.current(event); },
     };
-    const mobile = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
-    const renderDensity = () => {
-      const natural = Math.max(1, (element.clientWidth || WIDTH) / WIDTH * window.devicePixelRatio);
-      return mobile ? Math.min(natural, 2, Math.sqrt(2_000_000 / (WIDTH * HEIGHT))) : Math.min(natural, 3);
+    const mobile = window.matchMedia("(pointer: coarse)").matches;
+    const dimensions = () => {
+      const cssWidth = element.clientWidth || WIDTH;
+      const cssHeight = element.clientHeight || HEIGHT;
+      const logicalWidth = mobile && cssWidth / cssHeight >= WIDTH / HEIGHT ? HEIGHT * cssWidth / cssHeight : WIDTH;
+      const density = Math.min(
+        Math.max(1, cssHeight / HEIGHT * window.devicePixelRatio),
+        mobile ? 2 : 3,
+        mobile ? Math.sqrt(2_000_000 / (logicalWidth * HEIGHT)) : Infinity,
+      );
+      return { width: Math.floor(logicalWidth * density), height: Math.floor(HEIGHT * density) };
     };
-    let density = renderDensity();
+    let size = dimensions();
     const resize = () => {
       resizeFrame = 0;
       if (disposed || !game?.isBooted || !element.clientWidth || !element.clientHeight) return;
-      const next = renderDensity();
-      if (Math.abs(next - density) < 0.02) return;
-      density = next;
-      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
-      game.scale.resize(width, height);
-      for (const scene of game.scene.getScenes(true)) scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0).setZoom(width / WIDTH);
+      const next = dimensions();
+      if (Math.abs(next.width - size.width) < 2 && Math.abs(next.height - size.height) < 2) return;
+      size = next;
+      const { width, height } = size;
+      // FIT keeps its own display aspect ratio. setGameSize updates that ratio
+      // along with the backing canvas during a live viewport change.
+      game.scale.setGameSize(width, height);
+      for (const scene of game.scene.getScenes(true)) layoutScene(scene, width, height);
       logDiagnostic("canvas-resize", { width, height });
     };
     void enqueueGameWork(() => {
       if (disposed) return;
-      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
+      const { width, height } = size;
       game = new Phaser.Game({
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
-        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width, height },
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
         scene: [props.mode === "map" ? props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },

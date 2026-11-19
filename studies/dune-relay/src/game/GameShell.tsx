@@ -3,21 +3,22 @@
 import { assetUrl } from "./assetUrl";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { coinReward, createPuzzle, type Puzzle } from "./core";
 import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
-import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, startAttempt, writeArchive, type AttemptRecord, type PlaytestArchive } from "./playtest";
+import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
-import { applyStartingBoosters, boosterCost, BOOSTERS, type BoosterKind } from "./boosters";
+import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | null;
-type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; status: "prepared" | "committed" | "failed" };
+type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
+type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
 export default function GameShell() {
   const [playtest, setPlaytest] = useState(false);
@@ -47,7 +48,8 @@ export default function GameShell() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenIssue, setFullscreenIssue] = useState<string | null>(null);
   const [fullscreenEmbeddedBlocked, setFullscreenEmbeddedBlocked] = useState(false);
-  const fullscreenPending = useRef(false);
+  const fullscreenPending = useRef<FullscreenAttempt | null>(null);
+  const fullscreenToken = useRef(0);
   const [wipe, setWipe] = useState<"hidden" | "closing" | "covered" | "opening">("hidden");
   const transitioning = useRef(false);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -71,6 +73,17 @@ export default function GameShell() {
     oasis: { source: "/cinematics/oasis-awakens.mp4", poster: "/cinematics/oasis-awakens-poster.webp", caption: "The pump house wakes. Water crosses the oasis.", label: "The pump house comes to life" },
   }[filmKind];
 
+  function finishFullscreenAttempt() {
+    if (!fullscreenPending.current) return;
+    clearTimeout(fullscreenPending.current.timer);
+    fullscreenPending.current = null;
+  }
+  function lockLandscape() {
+    const orientation = screen as Screen & { orientation?: ScreenOrientation & { lock?: (direction: string) => Promise<void> } };
+    try { void orientation.orientation?.lock?.("landscape").catch(() => undefined); }
+    catch { /* Orientation locking is optional. */ }
+  }
+
   useEffect(() => {
     const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
     const fullscreenChanged = () => {
@@ -78,11 +91,13 @@ export default function GameShell() {
       setIsFullscreen(active);
       setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
       setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
-      if (active) setFullscreenIssue(null);
+      if (active) { finishFullscreenAttempt(); setFullscreenIssue(null); lockLandscape(); }
       logDiagnostic(active ? "fullscreen-entered" : "fullscreen-exited");
     };
     const fullscreenSync = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (active) { finishFullscreenAttempt(); setFullscreenIssue(null); }
       setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
       setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
     };
@@ -91,7 +106,7 @@ export default function GameShell() {
     window.addEventListener("pageshow", fullscreenSync);
     document.addEventListener("visibilitychange", fullscreenSync);
     setPlaytest(testing);
-    if (testing) { archive.current = readArchive(); writeArchive(archive.current); }
+    if (testing) { archive.current = readArchive(); writeArchive(archive.current); const wallet = readPlaytestWallet(); const loaded = normalizeSave({ ...saveRef.current, coins: wallet.coins }); saveRef.current = loaded; setSave(loaded); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
     setReady(true);
     const mixer = new GameAudio();
@@ -110,6 +125,8 @@ export default function GameShell() {
     window.addEventListener("error", pageError);
     window.addEventListener("unhandledrejection", rejection);
     return () => {
+      finishFullscreenAttempt();
+      fullscreenToken.current++;
       for (const timer of timers.current) clearTimeout(timer);
       timers.current.clear();
       sceneReady.current = null;
@@ -193,7 +210,8 @@ export default function GameShell() {
   function persist(next: Save) {
     if (next === saveRef.current) return;
     saveRef.current = next; setSave(next);
-    if (!playtest) writeSave(next);
+    if (playtest) writePlaytestWallet({ version: 1, coins: next.coins });
+    else writeSave(next);
   }
   function checkpoint(from: Save["oasisTransition"], to: Save["oasisTransition"]) {
     persist(advanceTransition(saveRef.current, from, to));
@@ -237,11 +255,11 @@ export default function GameShell() {
       changeScene();
       const status = await readyScene;
       logDiagnostic("transition-scene", { generation, status });
-      if (status !== "ready") setSceneIssue(status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
+      if (status !== "ready") setSceneIssue(previous => previous?.includes("purchase") ? previous : status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
       await delay(reducedMotion ? 30 : 70);
     } catch (error) {
       logDiagnostic("transition-error", { generation, message: String(error).slice(0, 160) });
-      setSceneIssue("The scene could not load.");
+      setSceneIssue(previous => previous?.includes("purchase") ? previous : "The scene could not load.");
     } finally {
       if (sceneReady.current?.generation === generation) sceneReady.current.settle("failed");
       if (transitionGeneration.current === generation) {
@@ -265,7 +283,16 @@ export default function GameShell() {
       : value.oasisTransition === "atlas" ? "atlas"
       : null;
   }
-  function requestGameFullscreen() {
+  function requestGameFullscreen(source: "intro" | "manual" = "manual") {
+    const pending = fullscreenPending.current;
+    if (source === "manual") logDiagnostic("fullscreen-button-activated", {
+      active: Boolean(navigator.userActivation?.isActive), fullscreen: Boolean(document.fullscreenElement),
+      pendingMs: pending ? Math.round(performance.now() - pending.started) : -1,
+    });
+    if (pending && !document.fullscreenElement && performance.now() - pending.started >= 5_000) {
+      finishFullscreenAttempt();
+      logDiagnostic("fullscreen-timeout", { elapsedMs: Math.round(performance.now() - pending.started), source: "retry" });
+    }
     if (fullscreenPending.current || document.fullscreenElement) return;
     const coarse = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
     const embedded = window.self !== window.top;
@@ -278,26 +305,39 @@ export default function GameShell() {
       setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
       return;
     }
-    fullscreenPending.current = true;
+    const token = ++fullscreenToken.current;
+    const started = performance.now();
+    const timer = setTimeout(() => {
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
+      if (document.fullscreenElement) { setIsFullscreen(true); setFullscreenIssue(null); return; }
+      logDiagnostic("fullscreen-timeout", { ...details, elapsedMs: Math.round(performance.now() - started) });
+      setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again.");
+    }, 5_000);
+    fullscreenPending.current = { token, started, timer };
+    setFullscreenIssue("Opening fullscreen…");
     // Begin the request in the click handler. Waiting for audio or a scene wipe
     // would let the browser's transient user activation expire.
     let request: Promise<void>;
     try { request = document.documentElement.requestFullscreen({ navigationUI: "hide" }); }
     catch (error) { request = Promise.reject(error); }
     void request.then(() => {
-      setIsFullscreen(true);
-      setFullscreenIssue(null);
-      const orientation = screen as Screen & { orientation?: ScreenOrientation & { lock?: (direction: string) => Promise<void> } };
-      try { void orientation.orientation?.lock?.("landscape").catch(() => undefined); }
-      catch { /* Orientation locking is optional. */ }
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (active) { setFullscreenIssue(null); lockLandscape(); }
+      else { logDiagnostic("fullscreen-failed", { ...details, name: "NoFullscreenElement" }); setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again."); }
     }).catch(error => {
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
       logDiagnostic("fullscreen-failed", { ...details, name: String(error?.name ?? "Error").slice(0, 60), message: String(error?.message ?? error).slice(0, 160) });
       setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
       setFullscreenEmbeddedBlocked(embedded && !document.fullscreenEnabled);
-    }).finally(() => { fullscreenPending.current = false; });
+    });
   }
   function enter() {
-    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen();
+    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen("intro");
     const unlocked = sound.current?.unlock();
     void unlocked?.then(() => sound.current?.play("ui"));
     const enteringOverlay = overlayForSave(saveRef.current);
@@ -312,18 +352,18 @@ export default function GameShell() {
   function launchLevel() {
     if (transitioning.current) return;
     const id = shopLevel;
-    const cost = playtest ? 0 : boosterCost(shopSelected);
+    const cost = boosterCost(shopSelected);
     if (cost > saveRef.current.coins) { setShopError("Not enough coins for this loadout."); return; }
-    let prepared: Puzzle;
-    try { prepared = applyStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
+    let prepared: ReturnType<typeof prepareStartingBoosters>;
+    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
-    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared, status: "prepared" };
+    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
     setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
     void transitionTo(() => {
-      setActiveLevel(id); setPuzzle(prepared); setMode("puzzle");
+      setActiveLevel(id); setPuzzle(prepared.puzzle); setMode("puzzle");
       setAttempt(value => value + 1); setOverlay(null);
     });
   }
@@ -347,7 +387,7 @@ export default function GameShell() {
     if (current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
     if (current.cost > 0) {
       const next = { ...saveRef.current, coins: saveRef.current.coins - current.cost };
-      if (!writeSave(next)) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
+      if (!(playtest ? writePlaytestWallet({ version: 1, coins: next.coins }) : writeSave(next))) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
       saveRef.current = next; setSave(next);
     }
     current.status = "committed";
@@ -470,7 +510,8 @@ export default function GameShell() {
     void transitionTo(() => {
       const fresh: Save = { ...EMPTY_SAVE, completed: [], companions: [] };
       saveRef.current = fresh; setSave(fresh);
-      if (!playtest) writeSave(fresh);
+      if (playtest) writePlaytestWallet({ version: 1, coins: 0 });
+      else writeSave(fresh);
       setMode("map"); mapPositions.current = { oasis: null, caravan: null, gatehouse: null }; setKeeperMet(false);
       setPuzzle(null); setSettings(false); setOverlay("start"); setAttempt(value => value + 1);
     });
@@ -488,8 +529,8 @@ export default function GameShell() {
   const speaker = COMPANIONS[speakerId];
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
-    <div className="frame" aria-label="Dune Relay game" data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -505,7 +546,7 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={requestGameFullscreen}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
@@ -527,12 +568,12 @@ export default function GameShell() {
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · STARTING BOOSTERS</span>
         <p>Choose up to one of each. Boosters start on the board and are used for this attempt.</p>
-        <div className="shop-balance">{playtest ? "Playtest loadout · free test use (reference prices shown)" : `${save.coins.toLocaleString("en-US")} coins available`}</div>
+        <div className="shop-balance">{save.coins.toLocaleString("en-US")} coins available{playtest && <small>Test wallet · campaign coins stay untouched</small>}</div>
         <div className="booster-options">{BOOSTERS.map(item => <button key={item.kind} className={`booster-option${shopSelected.includes(item.kind) ? " selected" : ""}`} aria-pressed={shopSelected.includes(item.kind)} onClick={() => { setShopError(null); setShopSelected(current => current.includes(item.kind) ? current.filter(kind => kind !== item.kind) : [...current, item.kind]); }}>
           <img src={assetUrl(item.image as `/${string}`)} alt="" />
           <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>
         </button>)}</div>
-        <div className="shop-total">{playtest ? "Test cost: 0 coins" : `Total: ${boosterCost(shopSelected).toLocaleString("en-US")} coins`}</div>
+        <div className="shop-total">Total: {boosterCost(shopSelected).toLocaleString("en-US")} coins</div>
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Cancel</button><button className="primary" onClick={launchLevel}>Start level <span>→</span></button></div>
       </div></div>}
@@ -587,9 +628,17 @@ export default function GameShell() {
         <button className="primary" onClick={() => setOverlay("kingdom")}>View the kingdom map <span>→</span></button>
         <button className="quiet" onClick={() => setOverlay(null)}>Return to the gatehouse</button>
       </div></div>}
-      {overlay === "demoThanks" && <div className="scrim"><div className="dialog-card demo-thanks">
-        <span className="speaker">THE ROAD CONTINUES</span><h2>Thanks for playing the demo.</h2>
-        <p>Stay tuned for 70 new levels soon.</p>
+      {overlay === "demoThanks" && <div className="scrim demo-ending">
+        <div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({ length: 36 }, (_, index) => <span key={index} style={{
+          "--x": `${(index * 37 + 3) % 100}%`, "--drift": `${(index * 17 % 25) - 12}cqw`,
+          "--spin": `${(index % 2 ? -1 : 1) * (360 + index * 31)}deg`,
+          "--delay": `${index % 7 * 80}ms`, "--duration": `${2600 + index % 5 * 180}ms`,
+          backgroundColor: ["#ffd77d", "#78dfca", "#e8ad59", "#df8b73", "#a8d8cc", "#b39bd5"][index % 6],
+        } as CSSProperties} />)}</div>
+        <div className="dialog-card demo-thanks">
+        <span className="speaker">YOUR RAID IS JUST BEGINNING</span><h2>Thanks for playing the demo.</h2>
+        <p>70 new levels are coming soon, with tons of new characters, tiles, and power-ups.</p>
+        <p className="demo-story">The story continues…</p>
         <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
         <button className="quiet" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); window.location.assign("?playtest=1"); }}>Playtest levels →</button>
       </div></div>}

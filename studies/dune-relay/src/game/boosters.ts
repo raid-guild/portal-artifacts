@@ -34,7 +34,8 @@ function openingFootprint(puzzle: Puzzle): Set<string> {
   while (changed) { changed = false; for (const group of groups) if (group.some(cell => selected.has(cellKey(cell)))) for (const cell of group) if (!selected.has(cellKey(cell))) { selected.add(cellKey(cell)); changed = true; } }
   return selected;
 }
-export function applyStartingBoosters(puzzle: Puzzle, selected: readonly BoosterKind[]): Puzzle {
+export type BoosterPlacement = { tileId: number; cell: Cell; kind: BoosterKind };
+export function prepareStartingBoosters(puzzle: Puzzle, selected: readonly BoosterKind[]): { puzzle: Puzzle; placements: BoosterPlacement[] } {
   boosterCost(selected);
   const board = puzzle.board.map(row => row.map(tile => tile && { ...tile }));
   const excluded = openingFootprint(puzzle);
@@ -46,6 +47,7 @@ export function applyStartingBoosters(puzzle: Puzzle, selected: readonly Booster
   if (candidates.length < selected.length) throw new Error("No room for starting boosters");
   // Stable, dispersed positions. Neither RNG state nor tile identity changes.
   const positions = selected.map((_, index) => candidates.splice(Math.floor(((index + .5) / selected.length) * candidates.length), 1)[0]);
-  selected.forEach((kind, index) => { const cell = positions[index]; const tile = board[cell.row][cell.col]!; if (kind === "jet") tile.jet = "row"; else tile.power = kind; });
-  return { ...puzzle, board, mask: puzzle.mask.map(row => [...row]), crust: puzzle.crust.map(row => [...row]), goals: { ...puzzle.goals }, symbols: [...puzzle.symbols] as SymbolKind[], opening: puzzle.opening && [{ ...puzzle.opening[0] }, { ...puzzle.opening[1] }] };
+  const placements = selected.map((kind, index) => { const cell = positions[index]; const tile = board[cell.row][cell.col]!; if (kind === "jet") tile.jet = "row"; else tile.power = kind; return { tileId: tile.id, cell: { ...cell }, kind }; });
+  return { puzzle: { ...puzzle, board, mask: puzzle.mask.map(row => [...row]), crust: puzzle.crust.map(row => [...row]), goals: { ...puzzle.goals }, symbols: [...puzzle.symbols] as SymbolKind[], opening: puzzle.opening && [{ ...puzzle.opening[0] }, { ...puzzle.opening[1] }] }, placements };
 }
+export function applyStartingBoosters(puzzle: Puzzle, selected: readonly BoosterKind[]): Puzzle { return prepareStartingBoosters(puzzle, selected).puzzle; }

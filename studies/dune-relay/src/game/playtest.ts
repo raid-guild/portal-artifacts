@@ -3,6 +3,20 @@ import type { LevelDefinition, LevelId } from "./levels";
 import type { BoosterKind } from "./boosters";
 
 export const PLAYTEST_KEY = "dune-relay-playtest-v1";
+export const PLAYTEST_WALLET_KEY = "dune-relay-playtest-wallet-v1";
+export type PlaytestWallet = { version: 1; coins: number };
+export function normalizePlaytestWallet(value: unknown): PlaytestWallet {
+  const candidate = value as Partial<PlaytestWallet> | null;
+  return { version: 1, coins: candidate?.version === 1 && typeof candidate.coins === "number" && Number.isSafeInteger(candidate.coins) && candidate.coins >= 0 ? candidate.coins : 0 };
+}
+export function readPlaytestWallet(storage?: Pick<Storage, "getItem">): PlaytestWallet {
+  try { return normalizePlaytestWallet(JSON.parse((storage ?? localStorage).getItem(PLAYTEST_WALLET_KEY) ?? "null")); }
+  catch { return normalizePlaytestWallet(null); }
+}
+export function writePlaytestWallet(wallet: PlaytestWallet, storage?: Pick<Storage, "setItem">): boolean {
+  try { (storage ?? localStorage).setItem(PLAYTEST_WALLET_KEY, JSON.stringify(normalizePlaytestWallet(wallet))); return true; }
+  catch { return false; }
+}
 export const PLAYTEST_SCHEMA = 1;
 export const MAX_ATTEMPTS = 200;
 export type MoveRecord = { index: number; action: "swap" | "directPower"; from: Cell; to: Cell; at: string; movesRemaining: number; goalsRemaining: Goals; cleared: TurnStats["symbolsCleared"]; powersCreated: TurnStats["powersCreated"]; powersActivated: TurnStats["powersActivated"]; combinations: TurnStats["combinations"]; companionGrants: number; saltHits: number; saltBlocksBroken: number; reshuffles: number; tilesCleared: number };
@@ -12,7 +26,7 @@ export type PlaytestArchive = { schemaVersion: 1; droppedAttempts: number; attem
 export function emptyArchive(): PlaytestArchive { return { schemaVersion: 1, droppedAttempts: 0, attempts: [] }; }
 export function emptyTotals(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, reshuffles: 0, tilesCleared: 0 }; }
 export function startAttempt(level: LevelDefinition, puzzle: Puzzle, now = new Date(), startingBoosters: BoosterKind[] = [], boosterCost = 0, boosterMode: "campaign" | "sandbox" = "campaign"): AttemptRecord {
-  return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 9)}`, schemaVersion: 1, appVersion: "0.1.0", rulesVersion: "gatehouse-3", contentVersion: "chapter-3-2", levelId: level.id, chapter: level.chapter ?? "oasis", authoredSeed: level.seed, initialRngState: puzzle.seed, initialBoard: puzzle.board.map(row => row.map(tile => tile && { ...tile })), initialMask: puzzle.mask.map(row => [...row]), initialCrust: puzzle.crust.map(row => [...row]), initialGoals: { ...puzzle.goals }, initialMoves: puzzle.moves, symbols: [...puzzle.symbols], chargeSymbol: puzzle.chargeSymbol, chargeTarget: puzzle.keeperTarget, grantedPower: puzzle.grantedPower, grantCount: puzzle.grantCount, startingBoosters: [...startingBoosters], boosterCost, boosterMode, startedAt: now.toISOString(), endedAt: null, outcome: "playing", terminationReason: null, activeMs: 0, movesUsed: 0, movesRemaining: puzzle.moves, goalsRemaining: { ...puzzle.goals }, totals: emptyTotals(), moves: [] };
+  return { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 9)}`, schemaVersion: 1, appVersion: "0.1.0", rulesVersion: "gatehouse-3", contentVersion: "chapter-3-3", levelId: level.id, chapter: level.chapter ?? "oasis", authoredSeed: level.seed, initialRngState: puzzle.seed, initialBoard: puzzle.board.map(row => row.map(tile => tile && { ...tile })), initialMask: puzzle.mask.map(row => [...row]), initialCrust: puzzle.crust.map(row => [...row]), initialGoals: { ...puzzle.goals }, initialMoves: puzzle.moves, symbols: [...puzzle.symbols], chargeSymbol: puzzle.chargeSymbol, chargeTarget: puzzle.keeperTarget, grantedPower: puzzle.grantedPower, grantCount: puzzle.grantCount, startingBoosters: [...startingBoosters], boosterCost, boosterMode, startedAt: now.toISOString(), endedAt: null, outcome: "playing", terminationReason: null, activeMs: 0, movesUsed: 0, movesRemaining: puzzle.moves, goalsRemaining: { ...puzzle.goals }, totals: emptyTotals(), moves: [] };
 }
 export function appendTurn(attempt: AttemptRecord, turn: Turn, from: Cell, to: Cell, at = new Date()): AttemptRecord {
   if (!turn.valid || attempt.outcome !== "playing") return attempt;

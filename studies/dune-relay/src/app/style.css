@@ -12,6 +12,10 @@ button { font: inherit; cursor: pointer; }
 .loading { width: 100vw; height: 100dvh; display: grid; place-items: center; color: #f8dfb8; }
 .viewport { width: 100vw; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: #0b2732; overflow: hidden; }
 .frame { position: relative; container-type: size; width: min(100%, calc(100dvh * 16 / 9)); aspect-ratio: 16 / 9; max-height: 100%; overflow: hidden; background: #153c48; box-shadow: 0 12px 70px #031820; }
+@media (orientation: landscape) and (pointer: coarse) and (min-aspect-ratio: 16/9) {
+  .frame { width: 100%; height: 100%; aspect-ratio: auto; }
+  .frame[data-mode="puzzle"] .coin-pill { left: max(2.5%, calc((100cqw - 177.78cqh) / 2 + 4.44cqh)); }
+}
 .game-canvas, .game-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .top-actions { position: absolute; right: 2.6%; top: 3.5%; display: flex; align-items: center; gap: 7px; z-index: 2; }
 .skip-reveal, .fullscreen-return { position: absolute; z-index: 9; border: 2px solid #ffe0a2; border-radius: 10px; background: #173c46; color: #ffe0a2; padding: 6px 12px; font-family: 'Barlow Condensed', Arial, sans-serif; font-weight: 800; font-size: clamp(13px, 2.5cqh, 20px); box-shadow: 0 3px 0 #0b2732; }
@@ -46,6 +50,7 @@ button { font: inherit; cursor: pointer; }
 .booster-shop { width: min(760px, 88%); max-height: 94%; overflow-y: auto; padding: clamp(12px, 2.7cqh, 25px); }
 .booster-shop p { margin: 6px 0 9px; font-size: clamp(12px, 2.5cqh, 17px); }
 .shop-balance, .shop-total { color: #ffe1a2; font-weight: 700; font-size: clamp(12px, 2.4cqh, 18px); }
+.shop-balance small { display: block; color: #a8d8cc; font-size: .75em; font-weight: 500; }
 .booster-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0; }
 .booster-option { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; border: 2px solid #618982; border-radius: 10px; background: #23515a; color: #fff0d0; }
 .booster-option.selected { border-color: #ffe1a2; background: #326d6d; box-shadow: 0 0 0 2px #dba452 inset; }
@@ -56,7 +61,17 @@ button { font: inherit; cursor: pointer; }
 .shop-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 7px; }
 .shop-actions .primary { font-size: clamp(17px, 3cqh, 24px); padding: 6px 13px; }
 .booster-shop .shop-error { color: #ffd1b4; margin: 4px 0; }
-.demo-thanks { text-align: center; }
+.demo-ending { overflow: hidden; }
+.demo-thanks { position: relative; z-index: 1; text-align: center; max-height: 94%; overflow-y: auto; padding: clamp(14px, 3.5cqh, 30px); }
+.demo-thanks h2 { font-size: clamp(30px, 7.5cqh, 46px); }
+.demo-thanks p { font-size: clamp(14px, 3.8cqh, 19px); margin: 10px 0 14px; }
+.demo-thanks .demo-story { color: #78dfca; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(21px, 5.4cqh, 30px); font-weight: 700; margin: 8px 0 16px; }
+.demo-confetti { position: absolute; inset: 0; pointer-events: none; }
+.demo-confetti span { position: absolute; top: -16px; left: var(--x); width: clamp(5px, 1.3cqh, 9px); height: clamp(8px, 2cqh, 14px); border-radius: 2px; opacity: 0; animation: demo-confetti-fall var(--duration) var(--delay) cubic-bezier(.18,.55,.5,1) both; }
+.demo-confetti[data-paused="true"] span { animation-play-state: paused; }
+@keyframes demo-confetti-fall { 0% { opacity: 0; transform: translate3d(0, -10px, 0) rotate(0); } 8%, 75% { opacity: 1; } 100% { opacity: 0; transform: translate3d(var(--drift), 110cqh, 0) rotate(var(--spin)); } }
+.frame[data-reduced-motion="true"] .demo-confetti { display: none; }
+@media (prefers-reduced-motion: reduce) { .demo-confetti { display: none; } }
 .quiet { display: inline-block; border: 0; background: transparent; color: #cfebe1; font-weight: 700; padding: 14px 16px; }
 .quiet:hover, .reset:hover { text-decoration: underline; }
 .settings-card { display: flex; flex-direction: column; align-items: stretch; gap: 9px; max-height: calc(100% - 28px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
