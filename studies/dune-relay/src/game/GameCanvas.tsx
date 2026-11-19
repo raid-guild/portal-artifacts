@@ -576,8 +576,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     revealPlan?: FinalePlan;
     revealActive = false;
     revealSkipped = false;
+    sceneAlive = true;
     finaleDone = false;
     pendingReveal = new Set<() => void>();
+    pendingAnimations = new Set<() => void>();
     introActive = true;
     introPending = new Set<() => void>();
     constructor() { super("Puzzle"); }
@@ -669,9 +671,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("pointercancel", cancel);
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.sceneAlive = false;
+        this.revealSkipped = true;
         this.introActive = false;
         for (const cancelIntro of this.introPending) cancelIntro();
         this.introPending.clear();
+        for (const cancelAnimation of [...this.pendingAnimations]) cancelAnimation();
+        this.pendingAnimations.clear();
+        this.pendingReveal.clear();
         canvas.removeEventListener("pointerdown", down);
         canvas.removeEventListener("pointermove", move);
         canvas.removeEventListener("pointerup", up);
@@ -769,6 +776,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }));
     }
     async showGoalBanner(completed: boolean) {
+      if (!this.sceneAlive) return;
       const background = this.add.graphics();
       background.fillStyle(0xffedc8).fillRoundedRect(-270, 0, 540, 144, 16);
       background.lineStyle(3, 0xc49551).strokeRoundedRect(-270, 0, 540, 144, 16);
@@ -850,12 +858,13 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.selection?.lineStyle(3, 0xffe396).strokeRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
     }
     wait(ms: number) {
-      if (this.revealSkipped) return Promise.resolve();
+      if (this.revealSkipped || !this.sceneAlive) return Promise.resolve();
       return new Promise<void>(resolve => {
         let timer: Phaser.Time.TimerEvent;
-        const done = () => { this.pendingReveal.delete(cancel); resolve(); };
+        const done = () => { this.pendingReveal.delete(cancel); this.pendingAnimations.delete(cancel); resolve(); };
         const cancel = () => { timer.remove(false); done(); };
         timer = this.time.delayedCall(ms, done);
+        this.pendingAnimations.add(cancel);
         if (this.revealActive) this.pendingReveal.add(cancel);
       });
     }
@@ -869,6 +878,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       return piece;
     }
     async showCrustHit(hit: { cell: Cell; hp: number }) {
+      if (!this.sceneAlive) return;
       const k = `${hit.cell.row},${hit.cell.col}`;
       const old = this.crustPieces.get(k);
       if (!old) return;
@@ -882,23 +892,28 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const shard = this.add.triangle(p.x + dx * 7, p.y + dy * 7, 0, -5, 5, 4, -4, 4, 0xffeac0).setDepth(8);
           void this.tween(shard, { x: p.x + dx * 24, y: p.y + dy * 24, angle: dx * 70, alpha: 0, duration: props.reducedMotion ? 50 : 310 }).then(() => shard.destroy());
         }
-        await this.tween(old, { scale: 0.5, alpha: 0, duration: props.reducedMotion ? 40 : 150 }); old.destroy();
+        await this.tween(old, { scale: 0.5, alpha: 0, duration: props.reducedMotion ? 40 : 150 });
+        if (!this.sceneAlive) return;
+        old.destroy();
       } else {
         await this.tween(old, { scale: 1.12, duration: props.reducedMotion ? 25 : 70 });
+        if (!this.sceneAlive) return;
         old.destroy(); this.crustPieces.delete(k); this.makeCrust(hit.cell, hit.hp);
       }
       this.displayCrust[hit.cell.row][hit.cell.col] = hit.hp;
     }
     tween(target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) {
-      if (this.revealSkipped) return Promise.resolve();
+      if (this.revealSkipped || !this.sceneAlive) return Promise.resolve();
       return new Promise<void>(resolve => {
-        const done = () => { this.pendingReveal.delete(cancel); resolve(); };
+        const done = () => { this.pendingReveal.delete(cancel); this.pendingAnimations.delete(cancel); resolve(); };
         const tween = this.tweens.add({ targets: target, ...config, onComplete: done });
         const cancel = () => { tween.stop(); done(); };
+        this.pendingAnimations.add(cancel);
         if (this.revealActive) this.pendingReveal.add(cancel);
       });
     }
     async syncTiles(board: Board, duration: number, kind: TurnStep["kind"]) {
+      if (!this.sceneAlive) return;
       if (this.revealSkipped && duration > 0) return;
       const visible = new Set<number>();
       const animations: Promise<void>[] = [];
@@ -939,9 +954,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const lands = (kind === "fall" || kind === "refill") && graphic.y < position.y - 1;
           const movement = this.tween(graphic, { x: position.x, y: position.y, alpha: 1, duration, delay: stagger.get(`${row},${col}`) ?? 0, ease: "Cubic.easeOut" });
           animations.push(movement.then(async () => {
-            if (!lands || props.reducedMotion || this.revealSkipped) return;
+            if (!this.sceneAlive || !lands || props.reducedMotion || this.revealSkipped) return;
             await this.tween(graphic, { scaleX: 1.045, scaleY: 0.94, y: position.y + 1.5, duration: 45, ease: "Sine.easeOut" });
-            if (this.revealSkipped) return;
+            if (!this.sceneAlive || this.revealSkipped) return;
             await this.tween(graphic, { scaleX: 1, scaleY: 1, y: position.y, duration: 115, ease: "Back.easeOut" });
           }));
         } else item.graphic.setPosition(position.x, position.y).setAlpha(1);
@@ -952,10 +967,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         else item.graphic.destroy();
       }
       await Promise.all(animations);
-      if (!this.revealSkipped && duration > 0 && (kind === "fall" || kind === "refill")) props.audio?.play("land");
+      if (this.sceneAlive && !this.revealSkipped && duration > 0 && (kind === "fall" || kind === "refill")) props.audio?.play("land");
     }
     async showJets(jets: TurnStep["jets"], speed = 1, onBeamLaunch?: (index: number, jet: TurnStep["jets"][number]) => Promise<void>) {
-      if (!jets.length) return;
+      if (!this.sceneAlive || !jets.length) return;
       const starts = jets.map(() => Number.POSITIVE_INFINITY);
       const visited = new Set<number>();
       starts[0] = 0;
@@ -1013,7 +1028,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     async showPowers(effects: NonNullable<TurnStep["effects"]>, speed = 1) {
       for (const effect of effects) {
-        if (this.revealSkipped) return;
+        if (!this.sceneAlive || this.revealSkipped) return;
         const center = this.center(effect.cell);
         if (effect.power === "flywheel") {
           props.audio?.play("flywheel");
@@ -1053,6 +1068,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
     }
     async showSequence(step: TurnStep, speed = 1) {
+      if (!this.sceneAlive) return;
       const revealedSalt = new Set<number>();
       const revealSaltAt = async (after: number, jet?: TurnStep["jets"][number]) => {
         for (const [index, event] of (step.crustEvents ?? []).entries()) if (event.after === after && !revealedSalt.has(index)) {
@@ -1108,13 +1124,16 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       return true;
     }
     async animateStep(step: TurnStep) {
+      if (!this.sceneAlive) return;
       const short = props.reducedMotion;
       if (step.kind === "convert") {
         const target = step.effects?.[0]?.selected;
         this.setMessage(`${target === "leaf" ? "Reeds" : target === "water" ? "Water" : target === "pennant" ? "Pennants" : "Gears"} become ${step.effects?.[0]?.convertedTo === "jet" ? "Pressure Jets" : "Flywheels"}!`);
         await this.showPowers(step.effects ?? []);
+        if (!this.sceneAlive) return;
         await this.syncTiles(step.board, 0, step.kind);
         await this.wait(short ? 60 : 240);
+        if (!this.sceneAlive) return;
         this.displayBoard = step.board;
         return;
       }
@@ -1134,13 +1153,16 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           shots.push(this.tween(orb, { x: p.x, y: p.y, duration: short ? 90 : 550, ease: "Cubic.easeInOut" }).then(() => orb.destroy()));
         }
         await Promise.all(shots);
+        if (!this.sceneAlive) return;
         await this.syncTiles(step.board, 0, step.kind);
+        if (!this.sceneAlive) return;
         for (const cell of step.cells) {
           const p = this.center(cell); const halo = this.add.circle(p.x, p.y, 25).setStrokeStyle(4, 0xffef9b);
           void this.tween(halo, { alpha: 0, scale: 1.7, duration: short ? 100 : 420 }).then(() => halo.destroy());
         }
         this.renderHud(step.goals, this.puzzle.moves, step.keeperCharge, true);
         await this.wait(short ? 100 : 620);
+        if (!this.sceneAlive) return;
         this.displayBoard = step.board;
         return;
       }
@@ -1150,7 +1172,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           jet.cell.row === other.cell.row && jet.cell.col === other.cell.col && jet.direction !== other.direction));
         if (cross) this.setMessage("Jet combo! Row + column blast");
         await this.showSequence(step);
+        if (!this.sceneAlive) return;
         await this.syncTiles(step.board, short ? 70 : 180, step.kind);
+        if (!this.sceneAlive) return;
         const chargeCells = step.cells.filter(cell => this.displayBoard[cell.row][cell.col]?.kind === this.puzzle.chargeSymbol && !isSpecial(this.displayBoard[cell.row][cell.col])).slice(0, 8);
         await Promise.all(chargeCells.map(async cell => {
           const position = this.center(cell);
@@ -1158,6 +1182,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           await this.tween(mote, { x: 225, y: 399, alpha: 0.15, duration: short ? 80 : 320, ease: "Cubic.easeIn" });
           mote.destroy();
         }));
+        if (!this.sceneAlive) return;
         this.renderHud(step.goals, this.puzzle.moves, step.keeperCharge);
         this.displayBoard = step.board;
         return;
@@ -1167,16 +1192,21 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile)).map(tile => tile!.id));
         const emptyBoard: Board = step.board.map(row => row.map(tile => tile && survivingPowers.has(tile.id) ? tile : null));
         await this.syncTiles(emptyBoard, short ? 70 : 220, "clear");
+        if (!this.sceneAlive) return;
         this.displayBoard = emptyBoard;
         await this.wait(short ? 40 : 100);
+        if (!this.sceneAlive) return;
         await this.syncTiles(step.board, short ? 80 : 400, "refill");
+        if (!this.sceneAlive) return;
         this.displayBoard = step.board;
         return;
       }
       await this.syncTiles(step.board, short ? 80 : step.kind === "swap" ? 180 : 270, step.kind);
+      if (!this.sceneAlive) return;
       this.displayBoard = step.board;
     }
     async choose(cell: Cell) {
+      if (!this.sceneAlive) return;
       const now = this.time.now;
       const doubleTap = this.lastTap && now - this.lastTap.time <= 400
         && this.lastTap.cell.row === cell.row && this.lastTap.cell.col === cell.col;
@@ -1193,6 +1223,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         const first = this.puzzle.board[from.row][from.col];
         const graphic = first && this.pieces.get(first.id)?.graphic;
         if (graphic) { const x = graphic.x; await this.tween(graphic, { x: x + (cell.col - from.col) * 9, duration: 65, yoyo: true }); }
+        if (!this.sceneAlive) return;
         this.setMessage("That swap makes no match. Try another pair.");
         return;
       }
@@ -1209,6 +1240,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.setMessage("Watch the swap, clear, and refill…");
       for (const step of turn.steps) await this.animateStep(step);
+      if (!this.sceneAlive) return;
       this.puzzle = turn.state;
       const lessonPower = turn.powersCreated.find(created => created.power === props.level.lesson);
       if (lessonPower && !this.lessonPowerId) {
@@ -1228,6 +1260,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         props.onEvent({ type: "victory", puzzle: turn.state });
         props.onEvent({ type: "revealStarted", puzzle: turn.state });
         await this.showGoalBanner(true);
+        if (!this.sceneAlive) return;
         if (!this.revealSkipped) await this.finale();
       }
       else if (turn.state.status === "lost") props.onEvent({ type: "lose", puzzle: turn.state });
@@ -1247,7 +1280,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.finishFinale();
     }
     finishFinale() {
-      if (this.finaleDone || !this.revealPlan) return;
+      if (!this.sceneAlive || this.finaleDone || !this.revealPlan) return;
       this.finaleDone = true;
       this.revealActive = false;
       this.game.canvas.dataset.revealPhase = "complete";
