@@ -10,6 +10,9 @@ import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import { BOARD_SIZE, Board, Cell, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
+import { planFinale, type FinalePlan } from "./finale";
+import { reserveGame, enqueueGameWork } from "./gameLifecycle";
+import { logDiagnostic } from "./diagnostics";
 import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
 
 export type GameEvent =
@@ -20,6 +23,7 @@ export type GameEvent =
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
   | { type: "playReady" }
   | { type: "turn"; puzzle: Puzzle; cleared: number; keeper: boolean }
+  | { type: "revealStarted"; puzzle: Puzzle }
   | { type: "victory"; puzzle: Puzzle }
   | { type: "win"; puzzle: Puzzle }
   | { type: "lose"; puzzle: Puzzle };
@@ -39,7 +43,9 @@ type Props = {
   reducedMotion: boolean;
   transitioning: boolean;
   onReady: () => void;
+  onFailure: (reason: string) => void;
   onEvent: (event: GameEvent) => void;
+  skipReveal: { current: (() => void) | null };
 };
 
 const WIDTH = 960;
@@ -163,6 +169,7 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
 
     constructor() { super("Map"); }
     preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("oasis", assetUrl("/oasis.webp"));
       this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
       this.load.image("keeper", assetUrl("/sprites/keeper.png"));
@@ -284,6 +291,7 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
     locked = false;
     constructor() { super("Caravan"); }
     preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("caravan", assetUrl("/caravan.webp"));
       this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
       this.load.image("wayfinder", assetUrl("/sprites/wayfinder.png"));
@@ -412,6 +420,7 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
     locked = false;
     constructor() { super("Gatehouse"); }
     preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("gatehouse", assetUrl("/gatehouse.webp"));
       this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
       this.load.image("gatewright", assetUrl("/sprites/gatewright.png"));
@@ -522,8 +531,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     selection?: Phaser.GameObjects.Graphics;
     message?: Phaser.GameObjects.Text;
     keeperPortrait?: Phaser.GameObjects.Image;
+    revealPlan?: FinalePlan;
+    revealActive = false;
+    revealSkipped = false;
+    finaleDone = false;
+    pendingReveal = new Set<() => void>();
     constructor() { super("Puzzle"); }
     preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("backdrop", props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
       this.load.image("tiles", assetUrl("/sprites/tiles.png"));
       this.load.image("companionAvatar", props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
@@ -554,21 +569,67 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.message = label(this, 51, 457, "Drag or tap adjacent symbols to swap", 12, "#d2c5a5").setWordWrapWidth(220);
       this.add.circle(75, 392, 30, 0x264d59).setStrokeStyle(2, 0xe0bd82);
       this.keeperPortrait = this.add.image(75, 392, prepareSmallTexture(this, "companionAvatar", "companionAvatar-small", 162)).setDisplaySize(54, 54);
-      let pressed: Cell | null = null;
-      this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        if (props.transitioning) return;
-        props.audio?.unlock();
-        pressed = this.busy ? null : this.cellAt(pointer);
-      });
-      this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
-        if (props.transitioning) { pressed = null; return; }
-        const from = pressed;
-        pressed = null;
-        const to = this.cellAt(pointer);
-        if (!from || !to || this.busy) return;
-        if (Math.abs(from.row - to.row) + Math.abs(from.col - to.col) === 1) this.selected = from;
+      // Native pointer capture keeps fast touch swipes intact even when the finger
+      // leaves the board or canvas. Move across one dominant axis, one cell only.
+      const canvas = this.game.canvas;
+      let gesture: { id: number; from: Cell; x: number; y: number; committed: boolean } | null = null;
+      const logical = (event: PointerEvent) => {
+        const rect = canvas.getBoundingClientRect();
+        return { x: (event.clientX - rect.left) * WIDTH / rect.width, y: (event.clientY - rect.top) * HEIGHT / rect.height };
+      };
+      const cellAtPoint = (x: number, y: number): Cell | null => {
+        const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
+        return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col]
+          && !this.displayCrust[row][col] && this.displayBoard[row][col] ? { row, col } : null;
+      };
+      const commitSwipe = (event: PointerEvent) => {
+        if (!gesture || gesture.id !== event.pointerId || gesture.committed || this.busy || props.transitioning) return;
+        const point = logical(event), dx = point.x - gesture.x, dy = point.y - gesture.y;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
+        const to = Math.abs(dx) >= Math.abs(dy)
+          ? { row: gesture.from.row, col: gesture.from.col + Math.sign(dx) }
+          : { row: gesture.from.row + Math.sign(dy), col: gesture.from.col };
+        gesture.committed = true;
+        if (!this.puzzle.mask[to.row]?.[to.col] || this.displayCrust[to.row][to.col] || !this.displayBoard[to.row][to.col]) return;
+        this.selected = gesture.from;
         void this.choose(to);
+      };
+      const down = (event: PointerEvent) => {
+        if (this.busy || props.transitioning || gesture || event.button !== 0) return;
+        const point = logical(event), from = cellAtPoint(point.x, point.y);
+        if (!from) return;
+        props.audio?.unlock();
+        gesture = { id: event.pointerId, from, x: point.x, y: point.y, committed: false };
+        canvas.setPointerCapture(event.pointerId);
+      };
+      const move = (event: PointerEvent) => commitSwipe(event);
+      const up = (event: PointerEvent) => {
+        if (!gesture || gesture.id !== event.pointerId) return;
+        const current = gesture;
+        commitSwipe(event);
+        const tapped = !gesture.committed;
+        gesture = null;
+        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        if (tapped && !this.busy && !props.transitioning) void this.choose(current.from);
+      };
+      const cancel = (event: PointerEvent) => {
+        if (gesture?.id === event.pointerId) gesture = null;
+      };
+      canvas.addEventListener("pointerdown", down);
+      canvas.addEventListener("pointermove", move);
+      canvas.addEventListener("pointerup", up);
+      canvas.addEventListener("pointercancel", cancel);
+      canvas.addEventListener("lostpointercapture", cancel);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        canvas.removeEventListener("pointerdown", down);
+        canvas.removeEventListener("pointermove", move);
+        canvas.removeEventListener("pointerup", up);
+        canvas.removeEventListener("pointercancel", cancel);
+        canvas.removeEventListener("lostpointercapture", cancel);
+        delete canvas.dataset.revealPhase;
+        props.skipReveal.current = null;
       });
+      props.skipReveal.current = () => this.skipWinningReveal();
       this.syncTiles(this.puzzle.board, 0, "refill");
       this.renderHud();
       props.onReady();
@@ -603,8 +664,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       } else {
         await this.tween(banner, { y: 115, duration: 480, ease: "Back.easeOut" });
       }
+      if (completed && this.revealSkipped) { banner.destroy(); return; }
       props.audio?.play("banner");
       await this.wait(completed ? 1000 : 1300);
+      if (completed && this.revealSkipped) { banner.destroy(); return; }
       await this.tween(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
       banner.destroy();
     }
@@ -619,7 +682,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "crust" ? "Normal matches beside salt crack it. Powers need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -656,7 +719,16 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const x = GRID_X + cell.col * CELL, y = GRID_Y + cell.row * CELL;
       this.selection?.lineStyle(3, 0xffe396).strokeRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
     }
-    wait(ms: number) { return new Promise<void>(resolve => this.time.delayedCall(ms, resolve)); }
+    wait(ms: number) {
+      if (this.revealSkipped) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        let timer: Phaser.Time.TimerEvent;
+        const done = () => { this.pendingReveal.delete(cancel); resolve(); };
+        const cancel = () => { timer.remove(false); done(); };
+        timer = this.time.delayedCall(ms, done);
+        if (this.revealActive) this.pendingReveal.add(cancel);
+      });
+    }
     makeCrust(cell: Cell, hp: number) {
       const p = this.center(cell);
       const image = this.add.image(0, 0, prepareSmallTexture(this, hp > 1 ? "saltCrust2" : "saltCrust", hp > 1 ? "saltCrust2-small" : "saltCrust-small", 128)).setDisplaySize(47, 47);
@@ -687,12 +759,32 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.displayCrust[hit.cell.row][hit.cell.col] = hit.hp;
     }
-    tween(target: Phaser.GameObjects.GameObject, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) {
-      return new Promise<void>(resolve => this.tweens.add({ targets: target, ...config, onComplete: () => resolve() }));
+    tween(target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) {
+      if (this.revealSkipped) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        const done = () => { this.pendingReveal.delete(cancel); resolve(); };
+        const tween = this.tweens.add({ targets: target, ...config, onComplete: done });
+        const cancel = () => { tween.stop(); done(); };
+        if (this.revealActive) this.pendingReveal.add(cancel);
+      });
     }
     async syncTiles(board: Board, duration: number, kind: TurnStep["kind"]) {
+      if (this.revealSkipped && duration > 0) return;
       const visible = new Set<number>();
       const animations: Promise<void>[] = [];
+      const stagger = new Map<string, number>();
+      if (duration > 0 && !props.reducedMotion && (kind === "fall" || kind === "refill")) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          let rank = 0;
+          for (let row = BOARD_SIZE - 1; row >= 0; row--) {
+            if (!this.puzzle.mask[row][col] || this.displayCrust[row][col]) { rank = 0; continue; }
+            const tile = board[row][col];
+            if (!tile) continue;
+            const old = this.pieces.get(tile.id)?.graphic;
+            if (!old || old.y < this.center({ row, col }).y - 1) stagger.set(`${row},${col}`, Math.min(rank++ * 22, 120));
+          }
+        }
+      }
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
         const tile = board[row][col];
         if (!tile) continue;
@@ -707,7 +799,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           graphic.setDepth(5);
           let segmentTop = row;
           while (segmentTop > 0 && this.puzzle.mask[segmentTop - 1][col] && !this.displayCrust[segmentTop - 1][col]) segmentTop--;
-          graphic.setPosition(position.x, kind === "refill" && duration > 0 && !props.reducedMotion ? GRID_Y + segmentTop * CELL - CELL : position.y);
+          graphic.setPosition(position.x, kind === "refill" && duration > 0 && !props.reducedMotion ? GRID_Y + segmentTop * CELL - CELL - (stagger.get(`${row},${col}`) ?? 0) * 0.35 : position.y);
           if (kind === "refill" && duration > 0) graphic.setAlpha(0.2);
           item = { graphic, kind: tile.kind, jet: tile.jet, power: tile.power };
           this.pieces.set(tile.id, item);
@@ -715,10 +807,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (duration > 0) {
           const graphic = item.graphic;
           const lands = (kind === "fall" || kind === "refill") && graphic.y < position.y - 1;
-          const movement = this.tween(graphic, { x: position.x, y: position.y, alpha: 1, duration, ease: "Cubic.easeOut" });
+          const movement = this.tween(graphic, { x: position.x, y: position.y, alpha: 1, duration, delay: stagger.get(`${row},${col}`) ?? 0, ease: "Cubic.easeOut" });
           animations.push(movement.then(async () => {
-            if (!lands || props.reducedMotion) return;
+            if (!lands || props.reducedMotion || this.revealSkipped) return;
             await this.tween(graphic, { scaleX: 1.045, scaleY: 0.94, y: position.y + 1.5, duration: 45, ease: "Sine.easeOut" });
+            if (this.revealSkipped) return;
             await this.tween(graphic, { scaleX: 1, scaleY: 1, y: position.y, duration: 115, ease: "Back.easeOut" });
           }));
         } else item.graphic.setPosition(position.x, position.y).setAlpha(1);
@@ -729,7 +822,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         else item.graphic.destroy();
       }
       await Promise.all(animations);
-      if (duration > 0 && (kind === "fall" || kind === "refill")) props.audio?.play("land");
+      if (!this.revealSkipped && duration > 0 && (kind === "fall" || kind === "refill")) props.audio?.play("land");
     }
     async showJets(jets: TurnStep["jets"], speed = 1, onBeamLaunch?: (index: number, jet: TurnStep["jets"][number]) => Promise<void>) {
       if (!jets.length) return;
@@ -757,6 +850,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       const effects = jets.map(async ({ cell, direction }, index) => {
         if (starts[index] > 0) await this.wait(starts[index]);
+        if (this.revealSkipped) return;
         const salt = onBeamLaunch?.(index, { cell, direction }) ?? Promise.resolve();
         props.audio?.play("jet");
         const p = this.center(cell);
@@ -776,11 +870,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           else beam.lineBetween(p.x, start, p.x, end);
         };
         draw();
-        if (!short) await new Promise<void>(resolve => this.tweens.add({
-          targets: progress, value: 1, duration: 240 / speed, onUpdate: draw, onComplete: () => resolve(),
-        }));
+        if (!short) await this.tween(progress, { value: 1, duration: 240 / speed, onUpdate: draw });
+        if (this.revealSkipped) { beam.destroy(); return; }
         await salt;
+        if (this.revealSkipped) { beam.destroy(); return; }
         await this.wait(short ? 60 : 150 / speed);
+        if (this.revealSkipped) { beam.destroy(); return; }
         await this.tween(beam, { alpha: 0, duration: short ? 50 : 150 / speed });
         beam.destroy();
       });
@@ -788,6 +883,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     async showPowers(effects: NonNullable<TurnStep["effects"]>, speed = 1) {
       for (const effect of effects) {
+        if (this.revealSkipped) return;
         const center = this.center(effect.cell);
         if (effect.power === "flywheel") {
           props.audio?.play("flywheel");
@@ -796,6 +892,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const cells = effect.targets;
           for (const cell of cells) { const p = this.center(cell); ring.lineStyle(2, 0xffd38b, 0.8).strokeRoundedRect(p.x - 24, p.y - 24, 48, 48, 7); }
           if (!props.reducedMotion) await this.tween(gear, { angle: 360, scaleX: gear.scaleX * 1.4, scaleY: gear.scaleY * 1.4, duration: 340 / speed, ease: "Cubic.easeIn" });
+          if (this.revealSkipped) { ring.destroy(); gear.destroy(); return; }
           for (const cell of cells.filter((_, index) => index % 2 === 0)) {
             const p = this.center(cell); const dust = this.add.circle(p.x, p.y, 4, 0xffd49a).setDepth(23);
             void this.tween(dust, { x: p.x + (cell.col - effect.cell.col) * 9, y: p.y + (cell.row - effect.cell.row) * 9, alpha: 0, scale: 2, duration: props.reducedMotion ? 50 : 260 / speed }).then(() => dust.destroy());
@@ -807,6 +904,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const prism = this.add.image(center.x, center.y, prepareSmallTexture(this, "prism", "prism-small", 128)).setDisplaySize(48, 48).setDepth(26);
           const halo = this.add.circle(center.x, center.y, 28, 0xe9f9ff, 0.2).setStrokeStyle(3, 0xffffff).setDepth(25);
           if (!props.reducedMotion) await this.tween(halo, { scale: 1.7, alpha: 0.75, duration: 190, ease: "Sine.easeOut" });
+          if (this.revealSkipped) { halo.destroy(); prism.destroy(); return; }
           const hues = [0xff6b6b, 0xffc35f, 0xf9e681, 0x93ecae, 0x71d7ff, 0xb7a3ff];
           for (let i = 0; i < effect.targets.length; i += 9) {
             const rays = this.add.graphics().setDepth(24);
@@ -818,6 +916,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
             }
             await this.tween(rays, { alpha: 0, duration: props.reducedMotion ? 20 : 75 });
             rays.destroy();
+            if (this.revealSkipped) { halo.destroy(); prism.destroy(); return; }
           }
           halo.destroy(); prism.destroy();
         }
@@ -993,135 +1092,105 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.renderHud();
       props.onEvent({ type: "turn", puzzle: turn.state, cleared: turn.cleared.length, keeper: turn.keeperJets.length > 0 });
       if (turn.state.status === "won") {
-        await this.showGoalBanner(true);
+        this.revealPlan = planFinale(turn.state);
+        this.revealActive = true;
+        this.game.canvas.dataset.revealPhase = "banner";
         props.onEvent({ type: "victory", puzzle: turn.state });
-        await this.finale();
+        props.onEvent({ type: "revealStarted", puzzle: turn.state });
+        await this.showGoalBanner(true);
+        if (!this.revealSkipped) await this.finale();
       }
       else if (turn.state.status === "lost") props.onEvent({ type: "lose", puzzle: turn.state });
       else {
         if (!this.followPowerHint()) this.setMessage(turn.keeperJets.length
           ? this.puzzle.grantedPower === "prism" ? "Swap the Prism with a symbol, or double-tap it." : this.puzzle.grantedPower === "flywheels" ? "Double-tap a Flywheel to spin it, or swap it." : "Double-tap a Jet to fire here, or swap it."
-          : turn.state.goals.crust ? "Normal matches break adjacent salt; powers need a direct hit."
+          : turn.state.goals.crust ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit."
           : "Swap adjacent symbols to collect your goals.");
         this.busy = false;
       }
     }
+    skipWinningReveal() {
+      if (!this.revealActive || !this.revealPlan || this.finaleDone) return;
+      this.revealSkipped = true;
+      for (const cancel of [...this.pendingReveal]) cancel();
+      this.pendingReveal.clear();
+      this.finishFinale();
+    }
+    finishFinale() {
+      if (this.finaleDone || !this.revealPlan) return;
+      this.finaleDone = true;
+      this.revealActive = false;
+      this.game.canvas.dataset.revealPhase = "complete";
+      // A skipped animation and a fully watched one have the same final board.
+      void this.syncTiles(this.revealPlan.board, 0, "refill");
+      this.displayBoard = this.revealPlan.board;
+      this.renderHud(this.puzzle.goals, 0, this.puzzle.keeperCharge, this.puzzle.keeperFired);
+      this.setMessage(props.level.victoryTitle);
+      props.onEvent({ type: "win", puzzle: this.puzzle });
+    }
     async finale() {
+      const plan = this.revealPlan;
+      if (!plan || this.revealSkipped) return;
+      this.game.canvas.dataset.revealPhase = "conversion";
       this.setMessage(this.puzzle.grantedPower === "flywheels" ? "Goals complete! Turning spare moves into Flywheels…" : "Goals complete! Turning spare moves into Pressure Jets…");
-      const spare = this.puzzle.moves;
-      const board = this.puzzle.board.map(row => row.map(tile => tile && { ...tile }));
-      const jets: TurnStep["jets"] = [];
-      const revealed = new Set<number>();
       const coinFlights: Promise<void>[] = [];
+      const revealed = new Set<number>();
       const revealCoins = (cells: Cell[], before: Board) => {
         for (const cell of cells) {
           const tile = before[cell.row][cell.col];
-          if (!tile || revealed.has(tile.id)) continue;
+          if (!tile || revealed.has(tile.id) || this.revealSkipped) continue;
           revealed.add(tile.id);
           const position = this.center(cell);
           const coin = this.add.image(position.x, position.y, prepareSmallTexture(this, "coin", "coin-small", 64)).setDisplaySize(20, 20).setDepth(4);
           coinFlights.push((async () => {
             await this.wait(props.reducedMotion ? 5 : 45);
-            await this.tween(coin, { x: 54, y: 57, alpha: 0.25,
-              duration: props.reducedMotion ? 70 : 230, ease: "Cubic.easeIn" });
-            props.audio?.play("coin", cell.col);
+            if (this.revealSkipped) { coin.destroy(); return; }
+            await this.tween(coin, { x: 54, y: 57, alpha: 0.25, duration: props.reducedMotion ? 70 : 230, ease: "Cubic.easeIn" });
+            if (!this.revealSkipped) props.audio?.play("coin", cell.col);
             coin.destroy();
           })());
         }
       };
-      const playableCells = this.puzzle.mask.flatMap((row, r) => row.flatMap((yes, c) => yes ? [{ row: r, col: c }] : []));
-      for (let i = 0; i < spare; i++) {
-        const cell = playableCells[(i * 11 + 9) % playableCells.length];
-        const direction = i % 2 === 0 ? "row" : "column";
-        const tile = board[cell.row][cell.col];
-        if (!tile) continue;
-        if (this.puzzle.grantedPower === "flywheels") {
-          tile.jet = undefined;
-          tile.power = "flywheel";
-        } else {
-          tile.power = undefined;
-          tile.jet = direction;
-          jets.push({ cell, direction });
-        }
-        await this.syncTiles(board, 0, "keeper");
-        this.renderHud(this.puzzle.goals, spare - i - 1, this.puzzle.keeperCharge, this.puzzle.keeperFired);
-        await this.wait(props.reducedMotion ? 10 : Math.max(18, 55 - i * 4));
+      for (const conversion of plan.conversions) {
+        if (this.revealSkipped) return;
+        await this.syncTiles(conversion.board, 0, "keeper");
+        this.renderHud(this.puzzle.goals, conversion.moves, this.puzzle.keeperCharge, this.puzzle.keeperFired);
+        await this.wait(props.reducedMotion ? 10 : Math.max(18, 55 - (this.puzzle.moves - conversion.moves - 1) * 4));
       }
-      if (jets.length || board.flat().some(tile => isSpecial(tile))) {
-        this.setMessage("Powers firing! Watch the chain reaction.");
-        type FinalePower = { cell: Cell; jet?: "row" | "column"; power?: Power };
-        const pending = new Map<string, FinalePower>();
-        for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
-          const tile = board[row][col];
-          if (isSpecial(tile)) pending.set(`${row},${col}`, { cell: { row, col }, jet: tile?.jet, power: tile?.power });
-        }
-        let wave: FinalePower[] = [];
-        let waveNumber = 0;
-        while (wave.length || pending.size) {
-          if (!wave.length) wave = [...pending.values()].slice(0, 3);
-          for (const item of wave) pending.delete(`${item.cell.row},${item.cell.col}`);
-          const speed = Math.min(5, 2 + waveNumber * 0.6);
-          waveNumber++;
-          const beams = wave.filter(item => item.jet).map(item => ({ cell: item.cell, direction: item.jet! }));
-          const effects: NonNullable<TurnStep["effects"]> = [];
-          const hits = new Map<string, Cell>();
-          const add = (cell: Cell) => { if (this.puzzle.mask[cell.row]?.[cell.col]) hits.set(`${cell.row},${cell.col}`, cell); };
-          for (const item of wave) {
-            add(item.cell);
-            if (item.jet) for (let n = 0; n < BOARD_SIZE; n++) add(item.jet === "row" ? { row: item.cell.row, col: n } : { row: n, col: item.cell.col });
-            if (item.power === "flywheel") {
-              const targets: Cell[] = [];
-              for (let row = Math.max(0, item.cell.row - 1); row <= Math.min(BOARD_SIZE - 1, item.cell.row + 1); row++)
-                for (let col = Math.max(0, item.cell.col - 1); col <= Math.min(BOARD_SIZE - 1, item.cell.col + 1); col++) { const cell = { row, col }; if (this.puzzle.mask[row][col]) { add(cell); targets.push(cell); } }
-              effects.push({ cell: item.cell, power: "flywheel", targets });
-            }
-            if (item.power === "prism") {
-              const count = new Map<SymbolKind, number>(this.puzzle.symbols.map(kind => [kind, 0]));
-              for (const row of board) for (const tile of row) if (tile && !isSpecial(tile)) count.set(tile.kind, (count.get(tile.kind) ?? 0) + 1);
-              const selected = this.puzzle.symbols.reduce((best, kind) => count.get(kind)! > count.get(best)! ? kind : best, this.puzzle.symbols[0]);
-              const targets: Cell[] = [];
-              for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
-                const tile = board[row][col];
-                if (tile && !isSpecial(tile) && tile.kind === selected) { const cell = { row, col }; add(cell); targets.push(cell); }
-              }
-              effects.push({ cell: item.cell, power: "prism", targets, selected });
-            }
-          }
-          await this.showJets(beams, speed);
-          await this.showPowers(effects, speed);
-          const triggered = new Map<string, FinalePower>();
-          const before = board.map(row => row.map(tile => tile && { ...tile }));
-          const removed: Cell[] = [];
-          for (const cell of hits.values()) {
-            const key = `${cell.row},${cell.col}`;
-            const next = pending.get(key);
-            if (next) triggered.set(key, next);
-            else if (board[cell.row][cell.col]) { board[cell.row][cell.col] = null; removed.push(cell); }
-          }
-          for (const key of triggered.keys()) pending.delete(key);
-          revealCoins(removed, before);
-          await this.syncTiles(board, props.reducedMotion ? 25 : 100 / speed, "clear");
-          wave = [...triggered.values()];
-          if (wave.length) this.setMessage("Chain reaction! Another power fires.");
-        }
+      if (this.revealSkipped) return;
+      if (plan.waves.length) this.setMessage("Powers firing! Watch the chain reaction.");
+      this.game.canvas.dataset.revealPhase = "chain";
+      for (const [index, wave] of plan.waves.entries()) {
+        if (this.revealSkipped) return;
+        const speed = Math.min(5, 2 + index * 0.6);
+        await this.showJets(wave.jets, speed);
+        if (this.revealSkipped) return;
+        await this.showPowers(wave.effects, speed);
+        if (this.revealSkipped) return;
+        revealCoins(wave.removed, wave.before);
+        await this.syncTiles(wave.after, props.reducedMotion ? 25 : 100 / speed, "clear");
+        if (this.revealSkipped) return;
+        this.displayBoard = wave.after;
+        if (index < plan.waves.length - 1) this.setMessage("Chain reaction! Another power fires.");
       }
       this.setMessage("The canal surges! Watch the final refill…");
-      const refill = resolveFinaleRefill(this.puzzle, board);
-      let before: Board = board.map(row => row.map(tile => tile && { ...tile }));
-      for (const step of refill.steps) {
+      this.game.canvas.dataset.revealPhase = "refill";
+      let before: Board = plan.waves.at(-1)?.after ?? plan.conversions.at(-1)?.board ?? this.puzzle.board;
+      for (const step of plan.refill.steps) {
+        if (this.revealSkipped) return;
         if (step.kind === "clear") {
           props.audio?.play("clear", this.clearStreak++);
           await this.showJets(step.jets, 3.5);
+          if (this.revealSkipped) return;
           revealCoins(step.cells, before);
         }
         const duration = props.reducedMotion ? 30 : step.kind === "clear" ? 75 : step.kind === "fall" ? 130 : 155;
         await this.syncTiles(step.board, duration, step.kind);
+        if (this.revealSkipped) return;
         before = step.board;
       }
       await Promise.all(coinFlights);
-      this.renderHud(this.puzzle.goals, 0, this.puzzle.keeperCharge, this.puzzle.keeperFired);
-      this.setMessage(props.level.victoryTitle);
-      props.onEvent({ type: "win", puzzle: this.puzzle });
+      if (!this.revealSkipped) this.finishFinale();
     }
   };
 }
@@ -1136,36 +1205,108 @@ export default function GameCanvas(props: Props) {
   transitioning.current = props.transitioning;
   const onReady = useRef(props.onReady);
   onReady.current = props.onReady;
+  const onFailure = useRef(props.onFailure);
+  onFailure.current = props.onFailure;
   useEffect(() => {
-    if (!host.current) return;
-    const current = { ...props, get reducedMotion() { return reducedMotion.current; }, get transitioning() { return transitioning.current; }, onReady: () => onReady.current(), onEvent: (event: GameEvent) => callback.current(event) };
-    const renderDensity = () => Math.min(3, Math.max(1, (host.current?.clientWidth ?? WIDTH) / WIDTH * window.devicePixelRatio));
+    const element = host.current;
+    if (!element) return;
+    const release = reserveGame();
+    let disposed = false;
+    let game: Phaser.Game | null = null;
+    let observer: ResizeObserver | null = null;
+    let resizeFrame = 0;
+    let canvas: HTMLCanvasElement | null = null;
+    const contextLost = (event: Event) => {
+      event.preventDefault();
+      logDiagnostic("webgl-context-lost");
+      if (!disposed) onFailure.current("context-lost");
+    };
+    const contextRestored = () => logDiagnostic("webgl-context-restored");
+    const current: Props = { ...props,
+      get reducedMotion() { return reducedMotion.current; },
+      get transitioning() { return transitioning.current; },
+      onReady: () => { if (!disposed) onReady.current(); },
+      onFailure: reason => { if (!disposed) onFailure.current(reason); },
+      onEvent: event => { if (!disposed) callback.current(event); },
+    };
+    const mobile = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
+    const renderDensity = () => {
+      const natural = Math.max(1, (element.clientWidth || WIDTH) / WIDTH * window.devicePixelRatio);
+      return mobile ? Math.min(natural, 2, Math.sqrt(2_000_000 / (WIDTH * HEIGHT))) : Math.min(natural, 3);
+    };
     let density = renderDensity();
-    const game = new Phaser.Game({
-      type: Phaser.AUTO,
-      width: Math.round(WIDTH * density),
-      height: Math.round(HEIGHT * density),
-      parent: host.current,
-      backgroundColor: "#153c48",
-      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: Math.round(WIDTH * density), height: Math.round(HEIGHT * density) },
-      render: { pixelArt: false, antialias: true },
-      scene: [props.mode === "map" ? props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
-      audio: { disableWebAudio: true },
-    });
-    const observer = new ResizeObserver(() => {
+    const resize = () => {
+      resizeFrame = 0;
+      if (disposed || !game?.isBooted || !element.clientWidth || !element.clientHeight) return;
       const next = renderDensity();
       if (Math.abs(next - density) < 0.02) return;
       density = next;
-      const width = Math.round(WIDTH * density);
-      const height = Math.round(HEIGHT * density);
+      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
       game.scale.resize(width, height);
-      for (const scene of game.scene.getScenes(true)) {
-        scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0).setZoom(width / WIDTH);
-      }
+      for (const scene of game.scene.getScenes(true)) scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0).setZoom(width / WIDTH);
+      logDiagnostic("canvas-resize", { width, height });
+    };
+    void enqueueGameWork(() => {
+      if (disposed) return;
+      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
+      game = new Phaser.Game({
+        type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width, height },
+        render: { pixelArt: false, antialias: true },
+        scene: [props.mode === "map" ? props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
+        audio: { disableWebAudio: true },
+      });
+      logDiagnostic("game-create", { mode: props.mode, width, height, mobile });
+      const attachCanvas = () => {
+        if (disposed || !game) return;
+        canvas = game.canvas;
+        canvas?.addEventListener("webglcontextlost", contextLost);
+        canvas?.addEventListener("webglcontextrestored", contextRestored);
+        if (!resizeFrame) resizeFrame = requestAnimationFrame(resize);
+      };
+      // Game.boot can run synchronously when the DOM is already ready.
+      if (game.isBooted) attachCanvas();
+      else game.events.once(Phaser.Core.Events.READY, attachCanvas);
+      observer = new ResizeObserver(() => { if (!resizeFrame && !disposed) resizeFrame = requestAnimationFrame(resize); });
+      observer.observe(element);
+    }).catch(error => {
+      logDiagnostic("game-create-error", { message: String(error).slice(0, 160) });
+      if (!disposed) onFailure.current("scene-create");
     });
-    observer.observe(host.current);
-    return () => { observer.disconnect(); game.destroy(true); };
-    // Recreate only when the stage changes. The Phaser scene owns its live puzzle state.
+    return () => {
+      disposed = true;
+      observer?.disconnect();
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      canvas?.removeEventListener("webglcontextlost", contextLost);
+      canvas?.removeEventListener("webglcontextrestored", contextRestored);
+      void enqueueGameWork(async () => {
+        if (!game) return;
+        const old = game;
+        const oldCanvas = old.canvas;
+        const gl = old.renderer.type === Phaser.WEBGL ? (old.renderer as Phaser.Renderer.WebGL.WebGLRenderer).gl : null;
+        await new Promise<void>(resolve => {
+          old.events.once(Phaser.Core.Events.DESTROY, resolve);
+          old.destroy(true, false);
+        });
+        // Phaser removes its renderer objects but does not explicitly return
+        // the old WebGL drawing buffer. Release it before another game boots.
+        try {
+          if (gl && !gl.isContextLost()) {
+            const extension = gl.getExtension("WEBGL_lose_context");
+            extension?.loseContext();
+            logDiagnostic("webgl-context-released", { extension: Boolean(extension) });
+          }
+        } catch (error) {
+          logDiagnostic("webgl-release-failed", { message: String(error).slice(0, 160) });
+        }
+        try { oldCanvas.width = 1; oldCanvas.height = 1; }
+        catch (error) { logDiagnostic("canvas-release-failed", { message: String(error).slice(0, 160) }); }
+        canvas = null;
+        game = null;
+        logDiagnostic("game-destroy", { mode: props.mode });
+      }).finally(release);
+    };
+    // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
   return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;

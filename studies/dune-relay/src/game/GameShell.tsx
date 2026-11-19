@@ -11,6 +11,8 @@ import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
 import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, startAttempt, writeArchive, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
+import { waitForGameIdle } from "./gameLifecycle";
+import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | null;
@@ -31,10 +33,17 @@ export default function GameShell() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
   const [filmBlocked, setFilmBlocked] = useState(false);
+  const [filmReady, setFilmReady] = useState(false);
+  const [sceneIssue, setSceneIssue] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const skipReveal = useRef<(() => void) | null>(null);
+  const [mobileFullscreenAvailable, setMobileFullscreenAvailable] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [wipe, setWipe] = useState<"hidden" | "closing" | "covered" | "opening">("hidden");
   const transitioning = useRef(false);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  const sceneReady = useRef<(() => void) | null>(null);
+  const sceneReady = useRef<{ generation: number; attempt: number; settle: (status: "ready" | "failed" | "timeout") => void } | null>(null);
+  const transitionGeneration = useRef(0);
   const reward = useRef(0);
   const mapPositions = useRef<Record<Region, { x: number; y: number } | null>>({ oasis: null, caravan: null, gatehouse: null });
   const saveRef = useRef<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
@@ -46,6 +55,9 @@ export default function GameShell() {
 
   useEffect(() => {
     const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
+    const fullscreenChanged = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    setMobileFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && window.matchMedia("(pointer: coarse) and (hover: none)").matches);
+    document.addEventListener("fullscreenchange", fullscreenChanged);
     setPlaytest(testing);
     if (testing) { archive.current = readArchive(); writeArchive(archive.current); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
@@ -61,11 +73,18 @@ export default function GameShell() {
       }
     } catch { /* Audio settings remain available for this session. */ }
     setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const pageError = (event: ErrorEvent) => logDiagnostic("window-error", { message: String(event.message).slice(0, 160) });
+    const rejection = (event: PromiseRejectionEvent) => logDiagnostic("unhandled-rejection", { message: String(event.reason).slice(0, 160) });
+    window.addEventListener("error", pageError);
+    window.addEventListener("unhandledrejection", rejection);
     return () => {
       for (const timer of timers.current) clearTimeout(timer);
       timers.current.clear();
       sceneReady.current = null;
       mixer.dispose(); if (sound.current === mixer) sound.current = null;
+      document.removeEventListener("fullscreenchange", fullscreenChanged);
+      window.removeEventListener("error", pageError);
+      window.removeEventListener("unhandledrejection", rejection);
     };
   }, []);
 
@@ -85,18 +104,58 @@ export default function GameShell() {
   }, [playtest, settings, overlay, wipe, mode]);
 
   useEffect(() => {
-    if (overlay !== "film" || wipe !== "hidden" || !film.current) return;
+    if (overlay !== "film") { setFilmReady(false); return; }
+    let cancelled = false;
+    void waitForGameIdle().then(() => {
+      if (cancelled) return;
+      logDiagnostic("film-renderer-idle");
+      setFilmReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [overlay]);
+
+  useEffect(() => {
+    if (overlay !== "film" || !filmReady || !film.current) return;
+    const video = film.current;
+    logDiagnostic("film-source-attached");
+    return () => {
+      video.pause(); video.removeAttribute("src"); video.load();
+      logDiagnostic("film-source-released");
+    };
+  }, [overlay, filmReady]);
+
+  useEffect(() => {
+    if (overlay !== "film" || !filmReady || wipe !== "hidden" || !film.current) return;
+    let cancelled = false;
+    let playGeneration = 0;
+    const video = film.current;
     setFilmBlocked(false);
-    film.current.muted = muted;
-    film.current.volume = sfxVolume;
-    void film.current.play().catch(() => setFilmBlocked(true));
-  }, [overlay, muted, sfxVolume, wipe]);
+    video.muted = muted;
+    video.volume = sfxVolume;
+    const play = () => {
+      if (cancelled || document.hidden || video.ended) return;
+      const generation = ++playGeneration;
+      void video.play().then(() => {
+        if (!cancelled && generation === playGeneration) logDiagnostic("film-playing");
+      }).catch(error => {
+        if (!cancelled && generation === playGeneration) { logDiagnostic("film-play-failed", { message: String(error).slice(0, 160) }); setFilmBlocked(true); }
+      });
+    };
+    const visibility = () => {
+      if (document.hidden) { playGeneration++; video.pause(); logDiagnostic("film-paused-hidden"); }
+      else if (!video.ended) { logDiagnostic("film-resume-visible"); play(); }
+    };
+    document.addEventListener("visibilitychange", visibility);
+    play();
+    return () => { cancelled = true; playGeneration++; document.removeEventListener("visibilitychange", visibility); video.pause(); };
+  }, [overlay, filmReady, muted, sfxVolume, wipe]);
 
   function recordPause() { if (activeRecord.current && activeSince.current !== null) { activeRecord.current = { ...activeRecord.current, activeMs: activeRecord.current.activeMs + Math.max(0, performance.now() - activeSince.current) }; activeSince.current = null; storeRecord(); } }
   function recordResume() { if (activeRecord.current?.outcome === "playing" && activeSince.current === null && !document.hidden) activeSince.current = performance.now(); }
   function storeRecord() { if (!playtest || !activeRecord.current) return; archive.current = addAttempt(archive.current, activeRecord.current); writeArchive(archive.current); }
   function abandonRecord(reason: string) { if (!activeRecord.current || activeRecord.current.outcome !== "playing") return; recordPause(); activeRecord.current = finishAttempt(activeRecord.current, "abandoned", reason); storeRecord(); activeRecord.current = null; }
   function downloadStats(format: "json" | "csv") { if (!playtest) return; recordPause(); const body = format === "json" ? archiveJson(archive.current) : archiveCsv(archive.current); const blob = new Blob([body], { type: format === "json" ? "application/json" : "text/csv" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-playtest-${new Date().toISOString().slice(0,10)}.${format}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); if (!settings) recordResume(); }
+  function downloadDiagnostics() { const blob = new Blob([diagnosticsJson()], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-diagnostics-${new Date().toISOString().slice(0,10)}.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
   function persist(next: Save) {
     if (next === saveRef.current) return;
     saveRef.current = next; setSave(next);
@@ -114,25 +173,51 @@ export default function GameShell() {
   }
   async function transitionTo(changeScene: () => void, createsScene = true) {
     if (transitioning.current) return;
-    transitioning.current = true; recordPause(); setWipe("closing"); sound.current?.play("awning");
-    await delay(reducedMotion ? 110 : 275);
-    setWipe("covered");
-    let readyScene: Promise<void> = Promise.resolve();
-    if (createsScene) readyScene = new Promise<void>(resolve => {
-      const timer = setTimeout(() => settle(), 1200);
-      timers.current.add(timer);
-      const settle = () => {
-        clearTimeout(timer); timers.current.delete(timer);
-        sceneReady.current = null; resolve();
-      };
-      sceneReady.current = settle;
-    });
-    changeScene();
-    await readyScene;
-    await delay(reducedMotion ? 30 : 70);
-    setWipe("opening");
-    await delay(reducedMotion ? 110 : 305);
-    setWipe("hidden"); transitioning.current = false;
+    const generation = ++transitionGeneration.current;
+    transitioning.current = true; recordPause(); setSceneIssue(null); setWipe("closing"); sound.current?.play("awning");
+    logDiagnostic("transition-start", { generation, createsScene });
+    try {
+      await delay(reducedMotion ? 110 : 275);
+      setWipe("covered");
+      let readyScene: Promise<"ready" | "failed" | "timeout"> = Promise.resolve("ready");
+      if (createsScene) readyScene = new Promise(resolve => {
+        let remaining = 10_000;
+        let last = performance.now();
+        let timer: ReturnType<typeof setTimeout>;
+        const settle = (status: "ready" | "failed" | "timeout") => {
+          clearTimeout(timer); timers.current.delete(timer);
+          if (sceneReady.current?.generation === generation) sceneReady.current = null;
+          resolve(status);
+        };
+        const check = () => {
+          timers.current.delete(timer);
+          const now = performance.now();
+          if (!document.hidden) remaining -= now - last;
+          last = now;
+          if (remaining <= 0) settle("timeout");
+          else { timer = setTimeout(check, Math.min(1000, remaining)); timers.current.add(timer); }
+        };
+        sceneReady.current = { generation, attempt: attempt + 1, settle };
+        timer = setTimeout(check, 1000); timers.current.add(timer);
+      });
+      changeScene();
+      const status = await readyScene;
+      logDiagnostic("transition-scene", { generation, status });
+      if (status !== "ready") setSceneIssue(status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
+      await delay(reducedMotion ? 30 : 70);
+    } catch (error) {
+      logDiagnostic("transition-error", { generation, message: String(error).slice(0, 160) });
+      setSceneIssue("The scene could not load.");
+    } finally {
+      if (sceneReady.current?.generation === generation) sceneReady.current.settle("failed");
+      if (transitionGeneration.current === generation) {
+        setWipe("opening");
+        await delay(reducedMotion ? 110 : 305);
+        setWipe("hidden");
+        transitioning.current = false;
+        logDiagnostic("transition-finished", { generation });
+      }
+    }
   }
   function overlayForSave(value: Save): Overlay {
     return value.transition?.stage === "film" ? "film"
@@ -146,7 +231,8 @@ export default function GameShell() {
   async function enter() {
     const unlocked = sound.current?.unlock();
     void unlocked?.then(() => sound.current?.play("ui"));
-    void transitionTo(() => { setOverlay(overlayForSave(saveRef.current)); setAttempt(value => value + 1); });
+    const enteringOverlay = overlayForSave(saveRef.current);
+    void transitionTo(() => { setOverlay(enteringOverlay); setAttempt(value => value + 1); }, enteringOverlay !== "film");
     if (!window.matchMedia("(pointer: coarse) and (hover: none)").matches) return;
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
@@ -154,7 +240,15 @@ export default function GameShell() {
       await screenWithLock.orientation?.lock?.("landscape");
     } catch { /* The browser tab remains usable. */ }
   }
+  async function enterFullscreen() {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      const landscape = screen as Screen & { orientation?: ScreenOrientation & { lock?: (orientation: string) => Promise<void> } };
+      await landscape.orientation?.lock?.("landscape");
+    } catch { /* Fullscreen support varies by mobile browser. */ }
+  }
   function startLevel(id: LevelId) {
+    setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
     void transitionTo(() => {
@@ -166,7 +260,16 @@ export default function GameShell() {
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
     if (event.type === "playReady") { if (playtest && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel])); storeRecord(); recordResume(); } return; }
-    if (event.type === "resolvedTurn") { if (playtest && activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); } return; }
+    if (event.type === "resolvedTurn") {
+      // Commit a terminal reward when the rule engine accepts the move. If the
+      // renderer is interrupted during its animation, a reload keeps the win.
+      if (event.turn.state.status === "won") {
+        reward.current = coinReward(event.turn.state.moves);
+        persist(completeLevel(saveRef.current, activeLevel, reward.current));
+      }
+      if (playtest && activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
+      return;
+    }
     if (event.type === "keeper") { setOverlay("keeper"); sound.current?.play("ui"); return; }
     if (event.type === "gatewright") { setOverlay("gatewright"); sound.current?.play("ui"); return; }
     if (event.type === "wayfinder") { setOverlay("wayfinder"); sound.current?.play("ui"); return; }
@@ -189,12 +292,13 @@ export default function GameShell() {
     }
     if (event.type === "turn") { setPuzzle(event.puzzle); if (playtest && activeRecord.current?.outcome === "playing" && !settings) recordResume(); return; }
     if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
+    if (event.type === "revealStarted") { setRevealing(true); return; }
     if (event.type === "victory") {
       reward.current = coinReward(event.puzzle.moves);
       persist(completeLevel(saveRef.current, activeLevel, reward.current));
       return;
     }
-    if (event.type === "win") { setOverlay("finale"); sound.current?.play("win"); }
+    if (event.type === "win") { setRevealing(false); setOverlay("finale"); sound.current?.play("win"); }
   }
   function closeDialogue() {
     void transitionTo(() => {
@@ -234,7 +338,7 @@ export default function GameShell() {
     const next = nextLevel(saveRef.current.completed);
     if (next && (LEVELS[next].chapter ?? "oasis") === saveRef.current.region) startLevel(next);
   }
-  function retry() { abandonRecord("retry"); activeRecord.current = null; void transitionTo(() => { setPuzzle(createPuzzle(LEVELS[activeLevel])); setAttempt(value => value + 1); setOverlay(null); }); }
+  function retry() { abandonRecord("retry"); activeRecord.current = null; setRevealing(false); void transitionTo(() => { setPuzzle(createPuzzle(LEVELS[activeLevel])); setAttempt(value => value + 1); setOverlay(null); }); }
   function replayLevel(id: LevelId) {
     abandonRecord("replay"); activeRecord.current = null;
     void transitionTo(() => {
@@ -251,13 +355,14 @@ export default function GameShell() {
     });
   }
   function finish() {
+    setRevealing(false);
     abandonRecord("left-board"); activeRecord.current = null;
     const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film";
     const opensCrossing = activeLevel === "openTheCrossing" && saveRef.current.completed.includes("openTheCrossing");
     void (async () => {
       await transitionTo(() => {
         setMode("map"); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
-      });
+      }, !chapterEnd);
       if (opensCrossing) { await delay(reducedMotion ? 100 : 1450); setOverlay("crossingOpen"); }
     })();
   }
@@ -285,7 +390,11 @@ export default function GameShell() {
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => sceneReady.current?.()} onEvent={onEvent} />
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("ready"); }} onFailure={reason => {
+        logDiagnostic("scene-failure", { reason, attempt });
+        if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
+        setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
+      }} onEvent={onEvent} skipReveal={skipReveal} />}
       <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
       <div className="top-actions" inert={wipe !== "hidden"}>
         {mode === "map" && partyUnlocked && <>
@@ -295,6 +404,8 @@ export default function GameShell() {
         <button className="icon-button" onClick={toggleSound} aria-label={muted ? "Unmute" : "Mute"}>{muted ? "♪̸" : "♪"}</button>
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
+      {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
+      {mobileFullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => void enterFullscreen()}>⛶ Full screen</button>}
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
@@ -311,7 +422,7 @@ export default function GameShell() {
         <button className="primary" onClick={startBriefing}>Start level <span>→</span></button>
       </div></div>}
       {overlay === "film" && <div className="film-screen">
-        <video ref={film} src={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure.mp4") : assetUrl("/cinematics/oasis-awakens.mp4")} poster={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure-poster.webp") : assetUrl("/cinematics/oasis-awakens-poster.webp")} playsInline preload="auto" onEnded={finishFilm} onError={() => setFilmBlocked(true)} aria-label={save.transition?.from === "caravan" ? "The walker train departs for the river" : "The pump house comes to life"} />
+        <video ref={film} src={filmReady ? save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure.mp4") : assetUrl("/cinematics/oasis-awakens.mp4") : undefined} poster={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure-poster.webp") : assetUrl("/cinematics/oasis-awakens-poster.webp")} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error"); setFilmBlocked(true); }} aria-label={save.transition?.from === "caravan" ? "The walker train departs for the river" : "The pump house comes to life"} />
         <div className="film-caption">{save.transition?.from === "caravan" ? "The beacon lights the path. The walkers depart for the river." : "The pump house wakes. Water crosses the oasis."}</div>
         {filmBlocked && <button className="primary film-play" onClick={() => { void film.current?.play().then(() => setFilmBlocked(false)).catch(() => setFilmBlocked(true)); }}>Play scene <span>▶</span></button>}
         <button className="film-skip" onClick={finishFilm}>Skip scene →</button>
@@ -380,6 +491,7 @@ export default function GameShell() {
         <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
         <button className="setting" onClick={() => setReducedMotion(value => !value)}>Reduced motion <strong>{reducedMotion ? "On" : "Off"}</strong></button>
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
+        <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {playtest ? <>
           <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
           <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>
@@ -390,11 +502,17 @@ export default function GameShell() {
             void transitionTo(() => {
               persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0, 10) as LevelId[], oasisTransition: "film", region: "oasis", companions: [] }));
               setMode("map"); setOverlay("film"); setAttempt(value => value + 1);
-            });
+            }, false);
           }}>Preview Oasis → desert transition</button>
-          <button className="setting" onClick={() => { abandonRecord("preview-transition"); void transitionTo(() => { persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0,20) as LevelId[], oasisTransition: "ready", gatehouseReady: false, transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper","wayfinder"] })); setMode("map"); setOverlay("film"); setSettings(false); setAttempt(value => value+1); }); }}>Preview desert → gatehouse transition</button>
+          <button className="setting" onClick={() => { abandonRecord("preview-transition"); void transitionTo(() => { persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0,20) as LevelId[], oasisTransition: "ready", gatehouseReady: false, transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper","wayfinder"] })); setMode("map"); setOverlay("film"); setSettings(false); setAttempt(value => value+1); }, false); }}>Preview desert → gatehouse transition</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
         </> : <button className="reset" onClick={reset}>Reset prototype progress</button>}
+      </div></div>}
+      {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
+        <span className="speaker">SCENE INTERRUPTED</span>
+        <p>{sceneIssue} Reloading returns to the path. {playtest ? "This test level restarts; recorded playtest attempts stay on this device." : "Unfinished levels restart; completed levels and coins are saved on this device."}</p>
+        <button className="primary" onClick={() => window.location.reload()}>Reload game <span>↻</span></button>
+        <button className="quiet" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
       </div></div>}
       {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}
       <div className="rotate"><div className="rotate-icon">▭</div><strong>Rotate your device</strong><p>Dune Relay plays in landscape.</p></div>
