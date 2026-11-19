@@ -26,6 +26,8 @@ Wide mobile landscape viewports fill the available screen. The walkable map unif
 
 ## Future feature specifications
 
+[Lore and campaign direction](docs/LORE_AND_CAMPAIGN_SPEC.md) records the flexible sixteen-chapter kingdom route, field-guide grounding, proposed companions, and mechanic progression. It is a starting point for future writing and playtesting, not a fixed production plan.
+
 [Asset loading and offline play](docs/ASSET_PIPELINE_AND_OFFLINE_PLAY_SPEC.md) is a draft for asset optimization, loading recovery, caching, offline downloads, and safe updates. It describes future work rather than current offline support.
 
 ## November 19 difficulty pass
