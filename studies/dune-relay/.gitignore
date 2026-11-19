@@ -6,3 +6,4 @@ tsconfig.tsbuildinfo
 .openai/
 .artifact-stage-*/
 .artifact-backup-*/
+test-results/

@@ -12,6 +12,7 @@ const { createPuzzle, playTurn, isSpecial, coinReward, legalMove, resolveFinaleR
 const { LEVELS, LEVEL_ORDER, nextLevel } = require('../src/game/levels.ts');
 const { completeLevel, EMPTY_SAVE, readSave, advanceTransition, advanceChapterTransition, normalizeSave } = require('../src/game/save.ts');
 const { beamTravelDelay } = require('../src/game/timing.ts');
+const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
 const priorBoards = require('./pre-gatehouse-board-baseline.json');
 const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archiveCsv, archiveJson, readArchive, PLAYTEST_KEY, MAX_ATTEMPTS } = require('../src/game/playtest.ts');
@@ -290,6 +291,70 @@ for (const reversed of [false, true]) {
   freshPowerBesideOldPower('prism', true, reversed);
 }
 
+const idlePrismPuzzle = createPuzzle(51);
+idlePrismPuzzle.board[4][4].jet = 'row';
+idlePrismPuzzle.board[4][2].power = 'prism';
+const idlePrismId = idlePrismPuzzle.board[4][2].id;
+const jetThroughPrism = playTurn(idlePrismPuzzle, { row: 4, col: 4 }, { row: 4, col: 4 });
+assert.ok(jetThroughPrism.valid, 'double-tapped Jet fires');
+assert.ok(jetThroughPrism.state.board.flat().some(tile => tile?.id === idlePrismId && tile.power === 'prism'), 'Jet passes over an idle Prism');
+assert.equal(jetThroughPrism.stats.powersActivated.prism, 0, 'idle Prism does not chain fire');
+const prismComboPuzzle = createPuzzle(51);
+prismComboPuzzle.board[4][4].power = prismComboPuzzle.board[4][5].power = prismComboPuzzle.board[4][7].power = 'prism';
+const thirdPrismId = prismComboPuzzle.board[4][7].id;
+const prismCombo = playTurn(prismComboPuzzle, { row: 4, col: 4 }, { row: 4, col: 5 });
+assert.ok(prismCombo.state.board.flat().some(tile => tile?.id === thirdPrismId && tile.power === 'prism'), 'third Prism survives an explicit Prism combo');
+assert.equal(prismCombo.stats.powersActivated.prism, 2, 'only selected Prism pair activates');
+const finalePuzzle = createPuzzle(51);
+finalePuzzle.moves = 3;
+finalePuzzle.board[4][2].power = 'prism';
+finalePuzzle.board[4][4].jet = 'row';
+const finalePrismId = finalePuzzle.board[4][2].id;
+const originalFinale = JSON.stringify(finalePuzzle);
+const finalePlan = planFinale(finalePuzzle);
+assert.equal(JSON.stringify(finalePuzzle), originalFinale, 'finale planning does not mutate puzzle');
+assert.deepEqual(planFinale(finalePuzzle), finalePlan, 'watched and skipped finale use the same deterministic plan');
+assert.ok(finalePlan.board.flat().some(tile => tile?.id === finalePrismId && tile.power === 'prism'), 'idle Prism survives finale waves and refill');
+assert.ok(finalePlan.waves.every(wave => !wave.removed.some(cell => wave.before[cell.row][cell.col]?.id === finalePrismId)), 'finale never reveals a coin by consuming idle Prism');
+
+function stripedPrismPuzzle() {
+  const puzzle = createPuzzle(51);
+  const symbols = ['water', 'gear', 'leaf'];
+  for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++)
+    puzzle.board[row][col].kind = symbols[(row + col) % symbols.length];
+  puzzle.unlocked = ['flywheel', 'prism'];
+  return puzzle;
+}
+for (const axis of ['horizontal', 'vertical']) for (const reversed of [false, true]) {
+  const puzzle = stripedPrismPuzzle();
+  const center = { row: 4, col: 4 };
+  const other = axis === 'horizontal' ? { row: 3, col: 4 } : { row: 4, col: 3 };
+  for (const n of [2, 3, 5, 6]) puzzle.board[axis === 'horizontal' ? 4 : n][axis === 'horizontal' ? n : 4].kind = 'water';
+  puzzle.board[other.row][other.col].kind = 'water';
+  puzzle.board[4][4].kind = 'gear';
+  const swappedId = puzzle.board[other.row][other.col].id;
+  const turn = playTurn(puzzle, ...(reversed ? [center, other] : [other, center]));
+  assert.ok(turn.valid, `${axis} five match works in ${reversed ? 'reverse' : 'forward'} swap order`);
+  assert.deepEqual(turn.powersCreated[0], { cell: center, power: 'prism' }, 'first-wave Prism anchors to the matched swapped tile');
+  const firstClear = turn.steps.find(step => step.kind === 'clear');
+  assert.equal(firstClear.board[4][4]?.id, swappedId, 'Prism keeps the swapped tile identity');
+  assert.equal(firstClear.board[4][4]?.power, 'prism', 'Prism appears at the swap location before gravity');
+}
+const cascadeAnchor = stripedPrismPuzzle();
+for (const col of [2, 3, 5, 6]) cascadeAnchor.board[7][col].kind = 'water';
+cascadeAnchor.board[7][4].kind = 'gear';
+cascadeAnchor.board[6][4].kind = 'gear';
+cascadeAnchor.board[5][4].kind = 'water';
+cascadeAnchor.board[5][3].kind = 'gear';
+cascadeAnchor.board[4][4].kind = 'water';
+cascadeAnchor.board[6][3].kind = 'leaf'; // Prevent an unrelated first-wave match.
+const cascadingPrism = playTurn(cascadeAnchor, { row: 5, col: 3 }, { row: 5, col: 4 });
+assert.ok(cascadingPrism.valid);
+assert.deepEqual(cascadingPrism.powersCreated[0], { cell: { row: 7, col: 4 }, power: 'prism' }, 'later cascade anchors at line center, away from stale swap coordinates');
+const cascadeClears = cascadingPrism.steps.filter(step => step.kind === 'clear');
+assert.equal(cascadeClears[0].board[7][4], null, 'Prism does not exist in first clear');
+assert.equal(cascadeClears[1].board[7][4]?.power, 'prism', 'cascade Prism appears in second clear snapshot');
+
 const independent = createPuzzle(51);
 const kinds = ['water', 'gear', 'leaf'];
 for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++) independent.board[row][col].kind = kinds[(row + col) % 3];
@@ -386,7 +451,18 @@ adjacentPrismSalt.board[1][2].kind = 'water';
 adjacentPrismSalt.board[3][4].kind = 'water';
 const adjacentPrismTurn = playTurn(adjacentPrismSalt,{row:1,col:1},{row:1,col:2});
 assert.ok(firstClear(adjacentPrismTurn).cells.some(cell => cell.row === 3 && cell.col === 4), 'Prism clears selected normal beside salt');
-assert.equal(firstClear(adjacentPrismTurn).crust[4][4], 5, 'Prism color clear does not directly strike adjacent salt');
+assert.equal(firstClear(adjacentPrismTurn).crust[4][4], 4, 'Prism-cleared normal tile cracks adjacent salt');
+const thinPrismSalt = saltFixture([{row:4,col:4,hp:1}]);
+thinPrismSalt.board[1][1].power = 'prism'; thinPrismSalt.board[1][2].kind = 'water'; thinPrismSalt.board[3][4].kind = 'water';
+const thinPrismTurn = playTurn(thinPrismSalt,{row:1,col:1},{row:1,col:2});
+assert.equal(firstClear(thinPrismTurn).crust[4][4], 0, 'Prism-adjacent clear breaks one-hit salt');
+assert.equal(firstClear(thinPrismTurn).goals.crust, 0, 'Prism-adjacent break counts toward salt goal');
+const multiSidePrismSalt = saltFixture([{row:4,col:4,hp:2}]);
+multiSidePrismSalt.board[1][1].power = 'prism'; multiSidePrismSalt.board[1][2].kind = 'water';
+for (const [row,col] of [[3,4],[4,3],[4,5],[5,4]]) multiSidePrismSalt.board[row][col].kind = 'water';
+const multiSidePrismTurn = playTurn(multiSidePrismSalt,{row:1,col:1},{row:1,col:2});
+assert.equal(firstClear(multiSidePrismTurn).crust[4][4], 1, 'one Prism clear event damages two-hit salt once despite four neighboring tiles');
+assert.equal(firstClear(multiSidePrismTurn).crustEvents.length, 1, 'one Prism clear yields one atomic salt damage event');
 const comboSalt = saltFixture([{row:4,col:4,hp:5}]);
 comboSalt.board[4][5].jet = 'row'; comboSalt.board[4][6].jet = 'column';
 const comboTurn = playTurn(comboSalt,{row:4,col:5},{row:4,col:6});
@@ -422,6 +498,7 @@ prismPartner.board[4][5].power = 'prism'; prismPartner.board[4][6].jet = 'row';
 const prismPartnerTurn = playTurn(prismPartner,{row:4,col:5},{row:4,col:6});
 assert.ok(prismPartnerTurn.steps.some(step => step.kind === 'convert'));
 assert.equal(firstClear(prismPartnerTurn).crustEvents[0]?.hits[0]?.hp, 4, 'Prism conversion origin does not add extra damage');
+assert.ok(firstClear(prismPartnerTurn).crustEvents.every(event => firstClear(prismPartnerTurn).sequence[event.after]?.kind === 'jet'), 'Prism + Jet conversion damages salt only through its copied direct-hit Jets');
 assert.ok(firstClear(prismPartnerTurn).crust[4][4] < 5, 'copied powers can damage salt');
 const segment = saltFixture([{row:4,col:4,hp:1}]);
 const lowerIds = [5,6,7,8].map(row => segment.board[row][4].id);
@@ -473,6 +550,7 @@ assert.equal(saltHit.state.crust[1][6],1,'first hit cracks layered salt');
 assert.equal(saltHit.stats.saltBlocksBroken,0,'first hit does not count block broken');
 assert.equal(saltHit.stats.saltHits, saltHit.steps.reduce((n,step)=>n+(step.crustEvents?.reduce((x,event)=>x+event.hits.length,0)??0),0));
 let attempt=startAttempt(LEVELS.gatehouseApproach,gate);
+assert.equal(attempt.rulesVersion, 'gatehouse-2', 'playtest exports distinguish the updated Prism and salt rules');
 attempt=appendTurn(attempt,playTurn(gate,...gate.opening),...gate.opening);
 assert.equal(attempt.movesUsed,1);assert.equal(attempt.totals.tilesCleared,attempt.moves[0].tilesCleared);
 assert.equal(attempt.moves[0].action,'swap');

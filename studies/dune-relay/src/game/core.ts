@@ -316,12 +316,12 @@ export function resolveFinaleRefill(previous: Puzzle, clearedBoard: Board): { bo
       if (!tile?.jet || fired.has(key(cell))) continue;
       fired.add(key(cell));
       jets.push({ cell, direction: tile.jet });
-      for (const hit of jetCells(cell, tile.jet, previous.mask)) if (!removal.has(key(hit))) {
+      for (const hit of jetCells(cell, tile.jet, previous.mask)) if (at(board, hit)?.power !== "prism" && !removal.has(key(hit))) {
         removal.set(key(hit), hit);
         queue.push(hit);
       }
     }
-    for (const cell of removal.values()) board[cell.row][cell.col] = null;
+    for (const cell of removal.values()) if (at(board, cell)?.power !== "prism") board[cell.row][cell.col] = null;
     record("clear", [...removal.values()], jets);
     settle(board, previous.mask, previous.crust);
     record("fall");
@@ -399,6 +399,9 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
   const swappedTwoPowers = !direct && isSpecial(swappedFrom) && isSpecial(swappedTo);
   const initial = matches(board);
   const activated = (direct ? [from] : [from, to]).filter(cell => isSpecial(at(board, cell)));
+  // Prisms only fire when the player selected them. A beam or later cascade
+  // can pass over an idle Prism without consuming it.
+  const selectedPrisms = new Set(activated.map(cell => at(board, cell)).filter(tile => tile?.power === "prism").map(tile => tile!.id));
   if (!initial.length && !activated.length) return invalid;
   const state: Puzzle = { ...previous, board, crust: copyCrust(previous.crust), moves: previous.moves - 1, goals: { ...previous.goals } };
   const cleared = new Map<string, Cell>();
@@ -431,7 +434,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       const four = component.find(group => group.length >= 4);
       if (!five && !cross && !four) continue;
       const intersection = cross ? cells.find(cell => component.filter(group => group.some(member => key(member) === key(cell))).length > 1) : undefined;
-      const origin = [to, from, intersection, ...cells].find(cell => cell && cells.some(member => key(member) === key(cell)) && !isSpecial(at(board, cell)))!;
+      const firstWave = iterations === 1;
+      const line = component.reduce((longest, group) => group.length > longest.length ? group : longest, component[0]);
+      const center = line[Math.floor((line.length - 1) / 2)];
+      const origin = [firstWave ? to : undefined, firstWave ? from : undefined, intersection, center, ...cells].find(cell => cell && cells.some(member => key(member) === key(cell)) && !isSpecial(at(board, cell)))!;
       const tile = at(board, origin)!;
       if (five && state.unlocked.includes("prism")) tile.power = "prism";
       else if (cross && state.unlocked.includes("flywheel")) tile.power = "flywheel";
@@ -452,7 +458,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const jets: TurnStep["jets"] = [];
     const effects: NonNullable<TurnStep["effects"]> = [];
     const sequence: NonNullable<TurnStep["sequence"]> = [];
-    type DamageEvent = { kind: "match" | "power"; clears: Map<string, Cell>; direct: Map<string, Cell>; after: number };
+    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; direct: Map<string, Cell>; after: number };
     const events: DamageEvent[] = [];
     const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), direct: new Map<string, Cell>(), after: -1 }; events.push(event); return event; };
     const claimed = new Set<string>();
@@ -471,6 +477,8 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const addHits = (hits: Cell[], event: DamageEvent) => {
       for (const hit of hits) {
         if (state.crust[hit.row][hit.col] > 0) event.direct.set(key(hit), hit);
+        const occupant = at(board, hit);
+        if (occupant?.power === "prism" && !selectedPrisms.has(occupant.id)) continue;
         if (!removal.has(key(hit))) removal.set(key(hit), hit);
         claim(hit, event);
         queue.push(hit);
@@ -489,6 +497,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
         event.clears.set(key(from), from); event.clears.set(key(to), to);
       }
       if (left.power === "prism" && right.power === "prism") {
+        event.kind = "prism";
         addHits(Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, n) => ({ row: Math.floor(n / BOARD_SIZE), col: n % BOARD_SIZE })).filter(cell => playable(state.mask, cell)), event);
         fireEffect({ cell: to, power: "prism", targets: [...removal.values()] });
       } else if (left.power === "prism" || right.power === "prism") {
@@ -528,10 +537,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     let head = 0;
     while (head < queue.length) {
       const cell = queue[head++]; const tile = at(board, cell);
-      if (!tile || !isSpecial(tile) || fired.has(tile.id) || protectedCells.has(key(cell))) continue;
+      if (!tile || !isSpecial(tile) || fired.has(tile.id) || protectedCells.has(key(cell)) || tile.power === "prism" && !selectedPrisms.has(tile.id)) continue;
       fired.add(tile.id);
       if (!countedPowerActivations.has(tile.id)) { stats.powersActivated[tile.power ?? "jet"]++; countedPowerActivations.add(tile.id); }
-      const event = newEvent("power");
+      const event = newEvent(tile.power === "prism" ? "prism" : "power");
       event.clears.set(key(cell), cell);
       if (tile.jet) { fireJet(cell, tile.jet); addHits(jetCells(cell, tile.jet, previous.mask), event); }
       if (tile.power === "flywheel") { const hits = area(cell, 1, state.mask); fireEffect({ cell, power: "flywheel", targets: hits, converted: convertedOriginals.has(tile.id) }); addHits(hits, event); }
@@ -550,7 +559,12 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const crustEvents: NonNullable<TurnStep["crustEvents"]> = [];
     for (const event of events) {
       const candidates = new Map(event.direct);
-      if (event.kind === "match") for (const cell of event.clears.values()) for (const neighbor of orthogonal(cell)) if (state.crust[neighbor.row][neighbor.col] > 0) candidates.set(key(neighbor), neighbor);
+      if (event.kind === "match" || event.kind === "prism") for (const cell of event.clears.values()) {
+        // A Prism's cleared normal symbols crack neighboring salt just like a
+        // match. Its own origin and any converted powers do not radiate hits.
+        if (isSpecial(at(board, cell))) continue;
+        for (const neighbor of orthogonal(cell)) if (state.crust[neighbor.row][neighbor.col] > 0) candidates.set(key(neighbor), neighbor);
+      }
       const hits: { cell: Cell; hp: number }[] = [];
       for (const cell of candidates.values()) if (state.crust[cell.row][cell.col] > 0) {
         state.crust[cell.row][cell.col]--;
@@ -566,6 +580,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       if (protectedCells.has(key(cell))) continue;
       const tile = at(board, cell);
       if (!tile) continue;
+      if (tile.power === "prism" && !selectedPrisms.has(tile.id)) continue;
       const collected = convertedOriginals.get(tile.id) ?? (!isSpecial(tile) ? tile.kind : undefined);
       stats.tilesCleared++;
       if (collected) stats.symbolsCleared[collected] = (stats.symbolsCleared[collected] ?? 0) + 1;
