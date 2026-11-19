@@ -433,6 +433,70 @@ async function checkFullscreen(browser) {
   await rejectedPage.getByRole('button', { name: /Full screen/ }).tap();
   await rejectedPage.waitForFunction(() => Boolean(document.fullscreenElement));
   await rejected.close();
+
+  const stalled = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const stalledPage = await stalled.newPage();
+  await stalledPage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (first) { first = false; window.__settleFirstFullscreen = () => {}; return new Promise(resolve => { window.__settleFirstFullscreen = resolve; }); }
+      return original.apply(this, options);
+    };
+  });
+  await stalledPage.goto(url());
+  await stalledPage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await stalledPage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await stalledPage.getByRole('status').getByText(/Opening fullscreen/).waitFor();
+  await stalledPage.getByRole('status').getByText(/didn't open/).waitFor({ timeout: 10_000 });
+  assert.equal(await stalledPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-diagnostics-v1')).some(entry => entry.event === 'fullscreen-timeout')), true);
+  await stalledPage.getByRole('button', { name: /Full screen/ }).tap();
+  await stalledPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await stalledPage.evaluate(() => window.__settleFirstFullscreen());
+  await stalledPage.evaluate(() => document.exitFullscreen());
+  await stalledPage.getByRole('button', { name: /Full screen/ }).waitFor();
+  await stalled.close();
+
+  const falseSuccess = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const falseSuccessPage = await falseSuccess.newPage();
+  await falseSuccessPage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (first) { first = false; return Promise.resolve(); }
+      return original.apply(this, options);
+    };
+  });
+  await falseSuccessPage.goto(url());
+  await falseSuccessPage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await falseSuccessPage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await falseSuccessPage.getByRole('status').getByText(/didn't open/).waitFor();
+  assert.equal(await falseSuccessPage.evaluate(() => Boolean(document.fullscreenElement)), false);
+  await falseSuccessPage.getByRole('button', { name: /Full screen/ }).tap();
+  await falseSuccessPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await falseSuccess.close();
+
+  const lateSuccess = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const latePage = await lateSuccess.newPage();
+  await latePage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (!first) return original.apply(this, options);
+      first = false;
+      const entered = original.apply(this, options);
+      return entered.then(() => new Promise(resolve => { window.__settleLateFullscreen = resolve; }));
+    };
+  });
+  await latePage.goto(url());
+  await latePage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await latePage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await latePage.evaluate(() => document.exitFullscreen());
+  await latePage.getByRole('button', { name: /Full screen/ }).waitFor();
+  await latePage.evaluate(() => window.__settleLateFullscreen());
+  await latePage.waitForTimeout(100);
+  assert.equal(await latePage.getByRole('button', { name: /Full screen/ }).isVisible(), true, 'late success cannot hide the retry button after exit');
+  await lateSuccess.close();
   console.log('Fullscreen desktop/manual, mobile/reentry, fine-input, and rejected-request checks passed');
 }
 

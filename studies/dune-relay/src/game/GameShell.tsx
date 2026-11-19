@@ -18,6 +18,7 @@ import { applyStartingBoosters, boosterCost, BOOSTERS, type BoosterKind } from "
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | null;
 type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; status: "prepared" | "committed" | "failed" };
+type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
 export default function GameShell() {
   const [playtest, setPlaytest] = useState(false);
@@ -47,7 +48,8 @@ export default function GameShell() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenIssue, setFullscreenIssue] = useState<string | null>(null);
   const [fullscreenEmbeddedBlocked, setFullscreenEmbeddedBlocked] = useState(false);
-  const fullscreenPending = useRef(false);
+  const fullscreenPending = useRef<FullscreenAttempt | null>(null);
+  const fullscreenToken = useRef(0);
   const [wipe, setWipe] = useState<"hidden" | "closing" | "covered" | "opening">("hidden");
   const transitioning = useRef(false);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -71,6 +73,17 @@ export default function GameShell() {
     oasis: { source: "/cinematics/oasis-awakens.mp4", poster: "/cinematics/oasis-awakens-poster.webp", caption: "The pump house wakes. Water crosses the oasis.", label: "The pump house comes to life" },
   }[filmKind];
 
+  function finishFullscreenAttempt() {
+    if (!fullscreenPending.current) return;
+    clearTimeout(fullscreenPending.current.timer);
+    fullscreenPending.current = null;
+  }
+  function lockLandscape() {
+    const orientation = screen as Screen & { orientation?: ScreenOrientation & { lock?: (direction: string) => Promise<void> } };
+    try { void orientation.orientation?.lock?.("landscape").catch(() => undefined); }
+    catch { /* Orientation locking is optional. */ }
+  }
+
   useEffect(() => {
     const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
     const fullscreenChanged = () => {
@@ -78,11 +91,13 @@ export default function GameShell() {
       setIsFullscreen(active);
       setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
       setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
-      if (active) setFullscreenIssue(null);
+      if (active) { finishFullscreenAttempt(); setFullscreenIssue(null); lockLandscape(); }
       logDiagnostic(active ? "fullscreen-entered" : "fullscreen-exited");
     };
     const fullscreenSync = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (active) { finishFullscreenAttempt(); setFullscreenIssue(null); }
       setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
       setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
     };
@@ -110,6 +125,8 @@ export default function GameShell() {
     window.addEventListener("error", pageError);
     window.addEventListener("unhandledrejection", rejection);
     return () => {
+      finishFullscreenAttempt();
+      fullscreenToken.current++;
       for (const timer of timers.current) clearTimeout(timer);
       timers.current.clear();
       sceneReady.current = null;
@@ -265,7 +282,16 @@ export default function GameShell() {
       : value.oasisTransition === "atlas" ? "atlas"
       : null;
   }
-  function requestGameFullscreen() {
+  function requestGameFullscreen(source: "intro" | "manual" = "manual") {
+    const pending = fullscreenPending.current;
+    if (source === "manual") logDiagnostic("fullscreen-button-activated", {
+      active: Boolean(navigator.userActivation?.isActive), fullscreen: Boolean(document.fullscreenElement),
+      pendingMs: pending ? Math.round(performance.now() - pending.started) : -1,
+    });
+    if (pending && !document.fullscreenElement && performance.now() - pending.started >= 5_000) {
+      finishFullscreenAttempt();
+      logDiagnostic("fullscreen-timeout", { elapsedMs: Math.round(performance.now() - pending.started), source: "retry" });
+    }
     if (fullscreenPending.current || document.fullscreenElement) return;
     const coarse = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
     const embedded = window.self !== window.top;
@@ -278,26 +304,39 @@ export default function GameShell() {
       setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
       return;
     }
-    fullscreenPending.current = true;
+    const token = ++fullscreenToken.current;
+    const started = performance.now();
+    const timer = setTimeout(() => {
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
+      if (document.fullscreenElement) { setIsFullscreen(true); setFullscreenIssue(null); return; }
+      logDiagnostic("fullscreen-timeout", { ...details, elapsedMs: Math.round(performance.now() - started) });
+      setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again.");
+    }, 5_000);
+    fullscreenPending.current = { token, started, timer };
+    setFullscreenIssue("Opening fullscreen…");
     // Begin the request in the click handler. Waiting for audio or a scene wipe
     // would let the browser's transient user activation expire.
     let request: Promise<void>;
     try { request = document.documentElement.requestFullscreen({ navigationUI: "hide" }); }
     catch (error) { request = Promise.reject(error); }
     void request.then(() => {
-      setIsFullscreen(true);
-      setFullscreenIssue(null);
-      const orientation = screen as Screen & { orientation?: ScreenOrientation & { lock?: (direction: string) => Promise<void> } };
-      try { void orientation.orientation?.lock?.("landscape").catch(() => undefined); }
-      catch { /* Orientation locking is optional. */ }
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (active) { setFullscreenIssue(null); lockLandscape(); }
+      else { logDiagnostic("fullscreen-failed", { ...details, name: "NoFullscreenElement" }); setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again."); }
     }).catch(error => {
+      if (fullscreenPending.current?.token !== token) return;
+      finishFullscreenAttempt();
       logDiagnostic("fullscreen-failed", { ...details, name: String(error?.name ?? "Error").slice(0, 60), message: String(error?.message ?? error).slice(0, 160) });
       setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
       setFullscreenEmbeddedBlocked(embedded && !document.fullscreenEnabled);
-    }).finally(() => { fullscreenPending.current = false; });
+    });
   }
   function enter() {
-    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen();
+    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen("intro");
     const unlocked = sound.current?.unlock();
     void unlocked?.then(() => sound.current?.play("ui"));
     const enteringOverlay = overlayForSave(saveRef.current);
@@ -505,7 +544,7 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={requestGameFullscreen}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
