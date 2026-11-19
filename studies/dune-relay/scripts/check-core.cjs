@@ -16,6 +16,7 @@ const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
 const priorBoards = require('./pre-gatehouse-board-baseline.json');
 const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archiveCsv, archiveJson, readArchive, PLAYTEST_KEY, MAX_ATTEMPTS } = require('../src/game/playtest.ts');
+const { applyStartingBoosters, boosterCost } = require('../src/game/boosters.ts');
 
 for (const [index, id] of LEVEL_ORDER.entries()) {
   const level = LEVELS[id];
@@ -354,6 +355,15 @@ assert.deepEqual(cascadingPrism.powersCreated[0], { cell: { row: 7, col: 4 }, po
 const cascadeClears = cascadingPrism.steps.filter(step => step.kind === 'clear');
 assert.equal(cascadeClears[0].board[7][4], null, 'Prism does not exist in first clear');
 assert.equal(cascadeClears[1].board[7][4]?.power, 'prism', 'cascade Prism appears in second clear snapshot');
+const cascadeSalt = { ...cascadeAnchor, board: cascadeAnchor.board.map(row=>row.map(tile=>tile&&{...tile})), crust:cascadeAnchor.crust.map(row=>[...row]), goals:{water:0,leaf:0,crust:1} };
+cascadeSalt.board[8][4]=null; cascadeSalt.crust[8][4]=2;
+const cascadeSaltTurn=playTurn(cascadeSalt,{row:5,col:3},{row:5,col:4});
+const cascadeSaltClears=cascadeSaltTurn.steps.filter(step=>step.kind==='clear');
+assert.deepEqual(cascadeSaltTurn.powersCreated[0],{cell:{row:7,col:4},power:'prism'});
+assert.equal(cascadeSaltClears[0].crust[8][4],1,'first wave damages salt before the new power appears');
+assert.equal(cascadeSaltClears[1].crust[8][4],0,'cascade-created retained Prism origin damages adjacent salt');
+assert.ok(!cascadeSaltClears[1].cells.some(cell=>cell.row===7&&cell.col===4),'retained origin is not collected');
+assert.equal(cascadeSaltTurn.stats.powersActivated.prism,0,'cascade-created Prism stays idle');
 
 const independent = createPuzzle(51);
 const kinds = ['water', 'gear', 'leaf'];
@@ -370,7 +380,7 @@ const v2AllOasis = { version: 2, completed: LEVEL_ORDER.slice(0, 10), coins: 456
 const memory = new Map([['dune-relay-campaign-v2', JSON.stringify(v2AllOasis)]]);
 const storage = { getItem: key => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value) };
 let migrated = readSave(storage);
-assert.equal(migrated.version, 4);
+assert.equal(migrated.version, 5);
 assert.equal(migrated.coins, 456);
 assert.equal(migrated.oasisTransition, 'film', 'ten-cleared v2 save resumes with film');
 assert.equal(readSave(storage).oasisTransition, 'film', 'migration is persisted');
@@ -379,7 +389,7 @@ for (const [from, to] of [['film', 'keeper'], ['keeper', 'atlas'], ['atlas', 'ar
   assert.equal(next.oasisTransition, to);
   assert.equal(advanceTransition(next, from, to), next, 'checkpoint is idempotent');
   migrated = next;
-  storage.setItem('dune-relay-campaign-v4', JSON.stringify(next));
+  storage.setItem('dune-relay-campaign-v5', JSON.stringify(next));
   assert.equal(readSave(storage).oasisTransition, to, 'reload resumes checkpoint');
 }
 assert.deepEqual(migrated.companions, ['keeper', 'wayfinder']);
@@ -519,7 +529,26 @@ const newPowerSalt = saltFixture([{row:5,col:4,hp:5}]);
 newPowerSalt.board[4][2].kind='water'; newPowerSalt.board[4][3].kind='water'; newPowerSalt.board[4][4].kind='gear'; newPowerSalt.board[4][5].kind='water'; newPowerSalt.board[4][6].kind='gear'; newPowerSalt.board[3][4].kind='water';
 const newPowerTurn = playTurn(newPowerSalt,{row:3,col:4},{row:4,col:4});
 assert.ok(newPowerTurn.powersCreated.some(power=>power.power==='jet'), 'four in a row creates Jet');
-assert.equal(firstClear(newPowerTurn).crust[5][4], 5, 'fresh retained power origin does not damage adjacent salt');
+assert.equal(firstClear(newPowerTurn).crust[5][4], 4, 'fresh retained power origin damages adjacent salt without firing');
+assert.equal(newPowerTurn.stats.powersActivated.jet, 0, 'new Jet does not fire on creation');
+assert.equal(newPowerTurn.steps[0].kind, 'swap');
+assert.equal(newPowerTurn.state.board[4][4]?.jet, 'row', 'new Jet remains on board');
+assert.equal(newPowerTurn.stats.saltHits, 1, 'one matched component causes one salt hit');
+const prismOriginSalt = saltFixture([{row:5,col:4,hp:2}]); prismOriginSalt.unlocked=['flywheel','prism'];
+for (const col of [2,3,5,6]) prismOriginSalt.board[4][col].kind='water';
+prismOriginSalt.board[4][4].kind='gear'; prismOriginSalt.board[3][4].kind='water';
+const prismOriginTurn=playTurn(prismOriginSalt,{row:3,col:4},{row:4,col:4});
+assert.equal(prismOriginTurn.powersCreated[0].power,'prism');
+assert.equal(firstClear(prismOriginTurn).crust[5][4],1,'retained new Prism origin damages neighboring salt');
+assert.equal(prismOriginTurn.stats.powersActivated.prism,0,'new Prism stays idle');
+const wheelOriginSalt=saltFixture([{row:4,col:5,hp:1}]); wheelOriginSalt.unlocked=['flywheel','prism'];
+for(const col of [2,3]) wheelOriginSalt.board[4][col].kind='water';
+for(const row of [5,6]) wheelOriginSalt.board[row][4].kind='water';
+wheelOriginSalt.board[4][4].kind='gear'; wheelOriginSalt.board[3][4].kind='water';
+const wheelOriginTurn=playTurn(wheelOriginSalt,{row:3,col:4},{row:4,col:4});
+assert.equal(wheelOriginTurn.powersCreated[0].power,'flywheel');
+assert.equal(firstClear(wheelOriginTurn).crust[4][5],0,'retained new Flywheel origin breaks adjacent salt');
+assert.equal(wheelOriginTurn.stats.powersActivated.flywheel,0,'new Flywheel stays idle');
 for (const invalidHp of [0, 1.5, 6, NaN]) assert.throws(() => createPuzzle({ ...LEVELS.pennantLine, goals:{water:0,leaf:0,crust:1}, crust:[{row:4,col:4,hp:invalidHp}] }), 'invalid crust HP rejected');
 for (let hp=1; hp<=5; hp++) {
   const layered = saltFixture([{row:4,col:4,hp}]); layered.board[4][2].jet='row';
@@ -550,7 +579,7 @@ assert.equal(saltHit.state.crust[1][6],1,'first hit cracks layered salt');
 assert.equal(saltHit.stats.saltBlocksBroken,0,'first hit does not count block broken');
 assert.equal(saltHit.stats.saltHits, saltHit.steps.reduce((n,step)=>n+(step.crustEvents?.reduce((x,event)=>x+event.hits.length,0)??0),0));
 let attempt=startAttempt(LEVELS.gatehouseApproach,gate);
-assert.equal(attempt.rulesVersion, 'gatehouse-2', 'playtest exports distinguish the updated Prism and salt rules');
+assert.equal(attempt.rulesVersion, 'gatehouse-3', 'playtest exports distinguish the updated match-origin salt rules');
 attempt=appendTurn(attempt,playTurn(gate,...gate.opening),...gate.opening);
 assert.equal(attempt.movesUsed,1);assert.equal(attempt.totals.tilesCleared,attempt.moves[0].tilesCleared);
 assert.equal(attempt.moves[0].action,'swap');
@@ -575,6 +604,32 @@ assert.equal(atlasDone.region,'gatehouse');assert.equal(atlasDone.gatehouseReady
 const arrivalDone=advanceChapterTransition(atlasDone,'arrival','ready');
 assert.equal(arrivalDone.gatehouseReady,true);assert.equal(arrivalDone.transition,null);assert.ok(arrivalDone.companions.includes('gatewright'));
 assert.equal(advanceChapterTransition(arrivalDone,'arrival','ready'),arrivalDone,'arrival checkpoint idempotent');
+assert.equal(boosterCost(['jet','flywheel','prism']), 1100);
+assert.throws(() => boosterCost(['jet','jet']));
+for (const id of LEVEL_ORDER) {
+  const plain = createPuzzle(LEVELS[id]); const frozen = JSON.stringify(plain);
+  for (const loadout of [[],['jet'],['flywheel'],['prism'],['jet','flywheel','prism']]) {
+    const boosted = applyStartingBoosters(plain,loadout);
+    assert.equal(JSON.stringify(plain),frozen,`${id} ${loadout}: source is immutable`);
+    assert.equal(boosted.seed,plain.seed); assert.equal(boosted.nextId,plain.nextId);
+    assert.deepEqual(boosted.goals,plain.goals); assert.deepEqual(boosted.crust,plain.crust);
+    assert.equal(boosted.board.flat().filter(tile=>tile && isSpecial(tile)).length,plain.board.flat().filter(tile=>tile && isSpecial(tile)).length+loadout.length);
+    if (boosted.opening) assert.ok(playTurn(boosted,...boosted.opening).valid,`${id} ${loadout}: guided opening remains valid`);
+    assert.deepEqual(applyStartingBoosters(plain,loadout).board,boosted.board,`${id} ${loadout}: placements deterministic`);
+  }
+}
+const finalV4 = { ...arrivalDone, version:4, completed:[...LEVEL_ORDER], coins:1299 };
+const migrationMemory = new Map([['dune-relay-campaign-v4',JSON.stringify(finalV4)]]);
+const migratedFinal = readSave({getItem:key=>migrationMemory.get(key)??null,setItem:(key,value)=>migrationMemory.set(key,value)});
+assert.equal(migratedFinal.demoEnding,'gate','completed v4 campaign resumes demo ending once');
+assert.equal(migratedFinal.region,'gatehouse');
+assert.equal(migratedFinal.coins,1299); assert.deepEqual(migratedFinal.completed,LEVEL_ORDER);
+for (const stage of ['gate','film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,demoEnding:stage}).demoEnding,stage);
+const oasisOriginV4={...finalV4,region:'oasis'};
+const migratedOasisOrigin=normalizeSave(oasisOriginV4);
+assert.equal(migratedOasisOrigin.region,'gatehouse','pre-ack ending resumes at the gate even if last visited Oasis');
+assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',region:'oasis'}).region,'oasis','after acknowledgement visitor can revisit Oasis');
+assert.equal(normalizeSave({...migratedFinal,demoEnding:'done'}).coins,1299);
 console.log('Core checks passed: 30 levels, preserved boards, salt HP, Gatewright grant, saves, and playtest aggregation.');
 
 // Opaque-origin Portal embeds may deny the localStorage getter itself.

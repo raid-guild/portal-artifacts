@@ -84,3 +84,15 @@ Use case: illustration-story. Asset single transparent game environmental PROP: 
 - `public/dune-relay-social-v1.png` is a 1200 × 630 screenshot of the actual Dune Relay title screen for link unfurls; it is not generated concept art.
 - `public/fonts/barlow-condensed-latin-{500,600,700,800}-normal.woff2` comes from `@fontsource/barlow-condensed@5.2.8` and includes its SIL OFL license as `barlow-condensed-OFL.txt`.
 - `public/fonts/dm-sans-latin.woff2` and `dm-sans-LICENSE.txt` are copied from the existing Chance Pint artifact in this repository, also under SIL OFL.
+
+## Gatehouse demo ending film
+
+- User-provided source: `grok-video-500c359e-5a17-4a15-835f-3e169c836939.mp4` (20.041667 seconds, 736×400, H.264/AAC with an attached MJPEG thumbnail, 15,352,158 bytes).
+- Published source asset: `public/cinematics/gatehouse-crossing.mp4`, 18.541667 seconds at native 736×400, 24 fps, H.264/yuv420p and AAC 96 kb/s, 3,162,068 bytes. The opening 1.5 seconds were trimmed; the inner doors open and the camera crosses toward the farmland. The attached thumbnail stream is excluded.
+- Playback sequence: in-game portcullis rise → crossing film → demo thanks popup. Reuses renderer-idle gating, metadata preload, byte-range-capable hosting, Skip, and decoder cleanup.
+- `public/cinematics/gatehouse-crossing-poster.webp` is the first frame of the optimized film, encoded as WebP quality 88.
+- Encoding: `ffmpeg -ss 1.5 -i <source> -map 0:v:0 -map 0:a:0? -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart gatehouse-crossing.mp4`.
+
+## Booster shop icon
+
+- `public/sprites/jet-row.png` is a transparent crop of the existing horizontal Water Jet in `public/sprites/tiles.png`, used to display the complete icon in the pre-level shop without atlas clipping.

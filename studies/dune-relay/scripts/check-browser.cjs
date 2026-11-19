@@ -9,7 +9,7 @@ Module._extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, filename);
 const { createPuzzle, playTurn, isSpecial, coinReward } = require('../src/game/core.ts');
-const { LEVELS } = require('../src/game/levels.ts');
+const { LEVELS, LEVEL_ORDER } = require('../src/game/levels.ts');
 
 const baseUrl = process.env.DUNE_TEST_URL || 'http://127.0.0.1:3000/';
 const chrome = process.env.CHROMIUM_EXECUTABLE || (fs.existsSync('/usr/bin/google-chrome') ? '/usr/bin/google-chrome' : undefined);
@@ -77,6 +77,7 @@ async function checkInput(browser) {
       const old = await page.evaluate(() => (JSON.parse(localStorage.getItem('dune-relay-playtest-v1') || '{"attempts":[]}').attempts.at(-1)?.id || null));
       await page.getByRole('button', { name: 'Settings' }).click();
       await page.getByRole('button', { name: 'Replay PUMP HOUSE', exact: true }).click();
+      await page.getByRole('button', { name: /Start level/ }).click();
       await waitForNewAttempt(page, old);
       await page.locator('[data-moves="24"]').waitFor();
       return createPuzzle(LEVELS.pumpHouse);
@@ -215,14 +216,15 @@ async function checkRevealCase(browser, phase) {
     // The walkable map can take a frame after its awning transition to accept
     // input. Try the marker and its visible label before treating it as stuck.
     for (const [x, y] of [[756, 289], [730, 310], [756, 356]]) {
-      if (await page.locator('[data-moves="24"]').count()) break;
+      if (await page.locator('.booster-shop').count()) break;
       await tapMap(page, x, y);
       await page.waitForTimeout(450);
     }
+    await page.locator('.booster-shop').waitFor();
+    await page.getByRole('button', { name: /Start level/ }).click();
     await page.locator('[data-moves="24"]').waitFor();
-    // The save-mode scene has no playtest archive. Wait until its intro banner
-    // completes so a move cannot be lost while Phaser is still busy.
-    await page.waitForTimeout(8000);
+    // Wait for the goal banner to release input; fixed sleeps race on SwiftShader.
+    await page.locator('canvas[data-play-ready="true"]').waitFor({ timeout: 30000 });
     let puzzle = createPuzzle(LEVELS.pumpHouse);
     let first = true;
     while (puzzle.status === 'playing') {
@@ -241,7 +243,7 @@ async function checkRevealCase(browser, phase) {
     await page.locator('.result-card').waitFor({ timeout: 60000 });
     if (phase) assert.equal(await page.evaluate(() => window.__phaseResult), phase, `Skip fired in ${phase} phase`);
     const expected = 600 + coinReward(puzzle.moves);
-    const save = await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v4')));
+    const save = await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')));
     assert.equal(save.coins, expected, 'reward awarded exactly once');
     assert.equal(save.completed.filter(id => id === 'pumpHouse').length, 1, 'level completion saved once');
     assert.equal((await page.locator('.coin-pill').innerText()).replace(/\D/g, ''), String(expected));
@@ -258,7 +260,7 @@ async function checkRevealCase(browser, phase) {
     await page.locator('.awning-wipe').waitFor({ state: 'detached' });
     await page.reload();
     await page.getByRole('button', { name: /Enter the oasis/ }).waitFor();
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v4')).coins), expected, 'reward remains single after reload');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins), expected, 'reward remains single after reload');
     assert.deepEqual(errors, [], 'no browser errors during reveal');
     console.log(`Reveal ${label} passed: ${expected} coins`);
     return { label, coins: expected, board };
@@ -320,6 +322,62 @@ async function checkLifecycle(browser) {
   } finally { await context.close(); }
 }
 
+async function checkDemo(browser) {
+  const context = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.addInitScript(() => { if (!localStorage.getItem('dune-relay-campaign-v5')) localStorage.setItem('dune-relay-campaign-v5', JSON.stringify({ version:5, completed:[], coins:600, region:'oasis', companions:[], oasisTransition:'locked', transition:null, gatehouseReady:false, demoEnding:'locked' })); });
+    await page.goto(url());
+    await page.getByRole('button', { name: /Enter the oasis/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state:'detached' });
+    await tapMap(page,447,375);
+    await page.getByRole('button', { name:/Let's do it/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state:'detached' });
+    await tapMap(page,756,289);
+    await page.getByText('PUMP HOUSE · STARTING BOOSTERS').waitFor();
+    await page.getByRole('button',{name:'Cancel'}).click();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins),600,'cancel costs nothing');
+    await page.locator('.awning-wipe').waitFor({ state:'detached' });
+    await tapMap(page,756,289);
+    await page.getByRole('button',{name:/Water Jet/}).click();
+    await page.getByRole('button',{name:/Start level/}).click();
+    await page.locator('[data-moves="24"]').waitFor();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins === 300);
+    await page.reload();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins),300,'reload does not repay or refund consumed booster');
+    await context.close();
+    const endingContext = await browser.newContext({ viewport: { width:1100,height:650 }, reducedMotion:'reduce' });
+    const endingPage = await endingContext.newPage();
+    try {
+      const fixture = {version:4,completed:LEVEL_ORDER,coins:777,region:'gatehouse',companions:['keeper','wayfinder','gatewright'],oasisTransition:'ready',transition:null,gatehouseReady:true};
+      await endingPage.addInitScript(value => localStorage.setItem('dune-relay-campaign-v4',JSON.stringify(value)),fixture);
+      await endingPage.goto(url());
+      await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
+      await endingPage.locator('.film-screen').waitFor({timeout:30000});
+      await endingPage.waitForFunction(() => document.querySelector('video')?.currentSrc.includes('gatehouse-crossing.mp4') && !document.querySelector('canvas'));
+      assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'film');
+      await endingPage.getByRole('button',{name:/Skip scene/}).click();
+      await endingPage.getByText('Stay tuned for 70 new levels soon.').waitFor();
+      await endingPage.reload();
+      await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
+      await endingPage.getByText('Stay tuned for 70 new levels soon.').waitFor();
+      await endingPage.getByRole('button',{name:/Explore the kingdom/}).click();
+      assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'done');
+      await endingPage.getByRole('button',{name:/Return to the path/}).click();
+      await endingPage.getByRole('button',{name:'Settings'}).click();
+      await endingPage.getByRole('button',{name:'Playtest levels',exact:true}).click();
+      await endingPage.waitForURL(/playtest=1/);
+      await endingPage.getByRole('button',{name:/Enter the oasis/}).click();
+      await endingPage.getByRole('button',{name:'Settings'}).click();
+      await endingPage.getByRole('button',{name:'Return to campaign'}).click();
+      await endingPage.waitForURL(target => !target.searchParams.has('playtest'));
+      assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins),777,'sandbox navigation preserves campaign currency');
+    } finally { await endingContext.close(); }
+    assert.deepEqual(errors,[],'no browser errors during demo flow');
+  } finally { if (!context.pages().every(page => page.isClosed())) await context.close(); }
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: chrome, args });
   try {
@@ -338,6 +396,7 @@ async function checkLifecycle(browser) {
       }
     }
     if (scope === 'all' || scope === 'lifecycle') await checkLifecycle(browser);
+    if (scope === 'all' || scope === 'demo') await checkDemo(browser);
     console.log('Browser checks passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
