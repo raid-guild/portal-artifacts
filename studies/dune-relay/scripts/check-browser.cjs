@@ -378,11 +378,70 @@ async function checkDemo(browser) {
   } finally { if (!context.pages().every(page => page.isClosed())) await context.close(); }
 }
 
+async function checkFullscreen(browser) {
+  const desktop = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  const desktopPage = await desktop.newPage();
+  await openIntro(desktopPage);
+  assert.equal(await desktopPage.evaluate(() => Boolean(document.fullscreenElement)), false, 'desktop entry stays windowed');
+  await desktopPage.getByRole('button', { name: /Full screen/ }).click();
+  await desktopPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await desktop.close();
+
+  const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const mobilePage = await mobile.newPage();
+  await mobilePage.goto(url());
+  await mobilePage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await mobilePage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await mobilePage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await mobilePage.evaluate(() => document.exitFullscreen());
+  const returnButton = mobilePage.getByRole('button', { name: /Full screen/ });
+  await returnButton.waitFor();
+  await mobilePage.getByRole('button', { name: 'Settings' }).tap();
+  await returnButton.tap();
+  await mobilePage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await mobile.close();
+
+  const fine = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const finePage = await fine.newPage();
+  await finePage.addInitScript(() => {
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = query => query === '(pointer: coarse) and (hover: none)' ? original('(pointer: fine) and (hover: hover)') : original(query);
+  });
+  await finePage.goto(url());
+  await finePage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await finePage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  assert.equal(await finePage.evaluate(() => Boolean(document.fullscreenElement)), false, 'fine input does not request fullscreen automatically');
+  await finePage.getByRole('button', { name: /Full screen/ }).tap();
+  await finePage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await fine.close();
+
+  const rejected = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const rejectedPage = await rejected.newPage();
+  await rejectedPage.addInitScript(() => {
+    const original = Element.prototype.requestFullscreen;
+    let first = true;
+    Element.prototype.requestFullscreen = function (...options) {
+      if (first) { first = false; return Promise.reject(new DOMException('Simulated browser rejection', 'NotAllowedError')); }
+      return original.apply(this, options);
+    };
+  });
+  await rejectedPage.goto(url());
+  await rejectedPage.getByRole('button', { name: /Enter the oasis/ }).tap();
+  await rejectedPage.locator('.awning-wipe').waitFor({ state: 'detached' });
+  await rejectedPage.getByRole('status').getByText(/Fullscreen couldn't open/).waitFor();
+  assert.equal(await rejectedPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-diagnostics-v1')).some(entry => entry.event === 'fullscreen-failed' && entry.details.name === 'NotAllowedError')), true);
+  await rejectedPage.getByRole('button', { name: /Full screen/ }).tap();
+  await rejectedPage.waitForFunction(() => Boolean(document.fullscreenElement));
+  await rejected.close();
+  console.log('Fullscreen desktop/manual, mobile/reentry, fine-input, and rejected-request checks passed');
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: chrome, args });
   try {
     const scope = process.env.DUNE_TEST_SCOPE || 'all';
     if (scope === 'all' || scope === 'input') await checkInput(browser);
+    if (scope === 'all' || scope === 'fullscreen') await checkFullscreen(browser);
     if (scope === 'all' || scope === 'reveal') {
       const phases = process.env.DUNE_TEST_PHASE ? [process.env.DUNE_TEST_PHASE === 'normal' ? null : process.env.DUNE_TEST_PHASE] : [null, 'banner', 'conversion', 'chain', 'refill'];
       let watched;

@@ -43,8 +43,11 @@ export default function GameShell() {
   const [sceneIssue, setSceneIssue] = useState<string | null>(null);
   const [revealing, setRevealing] = useState(false);
   const skipReveal = useRef<(() => void) | null>(null);
-  const [mobileFullscreenAvailable, setMobileFullscreenAvailable] = useState(false);
+  const [fullscreenAvailable, setFullscreenAvailable] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenIssue, setFullscreenIssue] = useState<string | null>(null);
+  const [fullscreenEmbeddedBlocked, setFullscreenEmbeddedBlocked] = useState(false);
+  const fullscreenPending = useRef(false);
   const [wipe, setWipe] = useState<"hidden" | "closing" | "covered" | "opening">("hidden");
   const transitioning = useRef(false);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -70,9 +73,23 @@ export default function GameShell() {
 
   useEffect(() => {
     const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
-    const fullscreenChanged = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    setMobileFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && window.matchMedia("(pointer: coarse) and (hover: none)").matches);
+    const fullscreenChanged = () => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
+      setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
+      if (active) setFullscreenIssue(null);
+      logDiagnostic(active ? "fullscreen-entered" : "fullscreen-exited");
+    };
+    const fullscreenSync = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+      setFullscreenAvailable(Boolean(document.documentElement.requestFullscreen) && document.fullscreenEnabled);
+      setFullscreenEmbeddedBlocked(window.self !== window.top && !document.fullscreenEnabled);
+    };
+    fullscreenSync();
     document.addEventListener("fullscreenchange", fullscreenChanged);
+    window.addEventListener("pageshow", fullscreenSync);
+    document.addEventListener("visibilitychange", fullscreenSync);
     setPlaytest(testing);
     if (testing) { archive.current = readArchive(); writeArchive(archive.current); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
@@ -98,6 +115,8 @@ export default function GameShell() {
       sceneReady.current = null;
       mixer.dispose(); if (sound.current === mixer) sound.current = null;
       document.removeEventListener("fullscreenchange", fullscreenChanged);
+      window.removeEventListener("pageshow", fullscreenSync);
+      document.removeEventListener("visibilitychange", fullscreenSync);
       window.removeEventListener("error", pageError);
       window.removeEventListener("unhandledrejection", rejection);
     };
@@ -246,24 +265,43 @@ export default function GameShell() {
       : value.oasisTransition === "atlas" ? "atlas"
       : null;
   }
-  async function enter() {
+  function requestGameFullscreen() {
+    if (fullscreenPending.current || document.fullscreenElement) return;
+    const coarse = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
+    const embedded = window.self !== window.top;
+    const details = { enabled: document.fullscreenEnabled, embedded, coarse, active: Boolean(navigator.userActivation?.isActive) };
+    logDiagnostic("fullscreen-request", details);
+    setFullscreenIssue(null);
+    if (!document.documentElement.requestFullscreen || !document.fullscreenEnabled) {
+      logDiagnostic("fullscreen-failed", { ...details, name: "Unavailable" });
+      setFullscreenEmbeddedBlocked(embedded);
+      setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
+      return;
+    }
+    fullscreenPending.current = true;
+    // Begin the request in the click handler. Waiting for audio or a scene wipe
+    // would let the browser's transient user activation expire.
+    let request: Promise<void>;
+    try { request = document.documentElement.requestFullscreen({ navigationUI: "hide" }); }
+    catch (error) { request = Promise.reject(error); }
+    void request.then(() => {
+      setIsFullscreen(true);
+      setFullscreenIssue(null);
+      const orientation = screen as Screen & { orientation?: ScreenOrientation & { lock?: (direction: string) => Promise<void> } };
+      try { void orientation.orientation?.lock?.("landscape").catch(() => undefined); }
+      catch { /* Orientation locking is optional. */ }
+    }).catch(error => {
+      logDiagnostic("fullscreen-failed", { ...details, name: String(error?.name ?? "Error").slice(0, 60), message: String(error?.message ?? error).slice(0, 160) });
+      setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
+      setFullscreenEmbeddedBlocked(embedded && !document.fullscreenEnabled);
+    }).finally(() => { fullscreenPending.current = false; });
+  }
+  function enter() {
+    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen();
     const unlocked = sound.current?.unlock();
     void unlocked?.then(() => sound.current?.play("ui"));
     const enteringOverlay = overlayForSave(saveRef.current);
     void transitionTo(() => { setOverlay(enteringOverlay); setAttempt(value => value + 1); }, enteringOverlay !== "film");
-    if (!window.matchMedia("(pointer: coarse) and (hover: none)").matches) return;
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      const screenWithLock = screen as Screen & { orientation?: ScreenOrientation & { lock?: (orientation: string) => Promise<void> } };
-      await screenWithLock.orientation?.lock?.("landscape");
-    } catch { /* The browser tab remains usable. */ }
-  }
-  async function enterFullscreen() {
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      const landscape = screen as Screen & { orientation?: ScreenOrientation & { lock?: (orientation: string) => Promise<void> } };
-      await landscape.orientation?.lock?.("landscape");
-    } catch { /* Fullscreen support varies by mobile browser. */ }
   }
   function startLevel(id: LevelId) {
     pendingAttempt.current = null;
@@ -467,7 +505,9 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {mobileFullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => void enterFullscreen()}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={requestGameFullscreen}>⛶ Full screen</button>}
+      {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
+      {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>

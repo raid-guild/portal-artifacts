@@ -16,7 +16,9 @@ button { font: inherit; cursor: pointer; }
 .top-actions { position: absolute; right: 2.6%; top: 3.5%; display: flex; align-items: center; gap: 7px; z-index: 2; }
 .skip-reveal, .fullscreen-return { position: absolute; z-index: 9; border: 2px solid #ffe0a2; border-radius: 10px; background: #173c46; color: #ffe0a2; padding: 6px 12px; font-family: 'Barlow Condensed', Arial, sans-serif; font-weight: 800; font-size: clamp(13px, 2.5cqh, 20px); box-shadow: 0 3px 0 #0b2732; }
 .skip-reveal { right: 2.6%; bottom: 4%; }
-.fullscreen-return { right: 2.6%; top: 14%; }
+.fullscreen-return { right: 2.6%; top: 14%; z-index: 11; }
+.fullscreen-issue, .fullscreen-new-tab { position: absolute; z-index: 11; right: 2.6%; top: 24%; max-width: min(42%, 310px); border: 1px solid #ffe0a2; border-radius: 8px; background: rgba(15, 48, 58, .96); color: #ffe0a2; padding: 6px 9px; font: 700 clamp(10px, 1.8cqh, 14px) / 1.2 'DM Sans', Arial, sans-serif; text-align: right; }
+.fullscreen-new-tab { top: 35%; text-decoration: underline; }
 .nav-button { border: 2px solid #ddc18e; background: rgba(18, 53, 61, .94); color: #ffe5b1; border-radius: 11px; min-height: clamp(26px, 7.2vh, 40px); padding: 0 12px; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(13px, 2.1cqh, 20px); font-weight: 700; white-space: nowrap; box-shadow: 0 3px 0 #102a32; }
 .nav-button:hover { background: #285b64; }
 .coin-pill, .icon-button { border: 2px solid #ddc18e; background: rgba(18, 53, 61, .91); color: #ffe29c; height: clamp(26px, 7.2vh, 40px); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; box-shadow: 0 3px 0 #102a32; }
