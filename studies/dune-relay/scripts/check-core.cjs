@@ -23,7 +23,7 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
   const puzzle = createPuzzle(level);
   if (index < 20) assert.equal(crypto.createHash('sha256').update(JSON.stringify(puzzle.board)).digest('hex'), priorBoards[id], `${id}: first twenty opening boards unchanged`);
   if (index < 11) assert.equal(crypto.createHash('sha256').update(JSON.stringify(puzzle.board)).digest('hex'), oasisBaseline[id], `${id}: existing seeded board unchanged`);
-  const goalProgression = { pumpHouse: [36,36], primePump: [40,40], prismTower: [44,44], oasisRelay: [48,48], palmIntake: [48,48], irrigationChannels: [56,52], twinTanks: [56,52], pressureManifold: [56,52], aqueductRise: [71,67], openWaterway: [98,90], caravanPennants: [24,0], pennantLine:[30,0],walkersFoot:[36,0],caravanLaunch:[42,0],saltSealedIntake:[0,0],cisternFlush:[30,0],saltwindCrossing:[0,0],twinReservoirs:[36,0],beaconAscent:[0,0],lightTheRoute:[42,0] };
+  const goalProgression = { pumpHouse: [36,36], primePump: [40,40], prismTower: [44,44], oasisRelay: [48,48], palmIntake: [48,48], irrigationChannels: [56,52], twinTanks: [56,52], pressureManifold: [56,52], aqueductRise: [71,67], openWaterway: [98,90], caravanPennants: [24,0], pennantLine:[36,0],walkersFoot:[42,0],caravanLaunch:[42,0],saltSealedIntake:[0,0],cisternFlush:[30,0],saltwindCrossing:[0,0],twinReservoirs:[36,0],beaconAscent:[0,0],lightTheRoute:[42,0] };
   if (index < 20) assert.deepEqual([puzzle.goals.water, puzzle.goals.leaf], goalProgression[id], `${id}: goals`);
   else assert.deepEqual(puzzle.goals, level.goals, `${id}: authored goals`);
   assert.equal(puzzle.board.length, 9);
@@ -34,6 +34,8 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant']);
     assert.equal(puzzle.chargeSymbol, 'pennant');
     assert.equal(puzzle.grantedPower, 'flywheels');
+    if (id === 'pennantLine') assert.equal(puzzle.goals.pennant, 30, 'Pennant Line requires thirty pennants');
+    if (id === 'walkersFoot') assert.equal(puzzle.goals.pennant, 33, "Walker's Foot requires thirty-three pennants");
   }
   if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); }
   for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++) {
@@ -588,12 +590,19 @@ const statsDirectCell={row:4,col:4};const statsDirectTurn=playTurn(directPuzzle,
 assert.equal(appendTurn(startAttempt(LEVELS.gatehouseApproach,directPuzzle),statsDirectTurn,statsDirectCell,statsDirectCell).moves[0].action,'directPower');
 attempt=finishAttempt(attempt,'abandoned','test');assert.equal(finishAttempt(attempt,'won','late'),attempt);
 const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archiveJson(archive)).attempts[0].levelId,'gatehouseApproach');assert.ok(archiveCsv(archive).includes('gatehouseApproach'));
-const tunedAttempt=startAttempt(LEVELS.irrigationChannels,createPuzzle(LEVELS.irrigationChannels));
-assert.equal(tunedAttempt.initialMoves,23,'new attempt exports the tuned board budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-3-2','tuned attempts carry a distinct content version');
+const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
+assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
+assert.equal(tunedAttempt.contentVersion,'chapter-3-3','new attempts carry a distinct content version');
+const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));
+assert.equal(pennantAttempt.initialMoves,25,'Pennant Line keeps its move budget');
+assert.equal(pennantAttempt.initialGoals.water,36,'new attempt exports the increased Pennant Line water goal');
+assert.equal(pennantAttempt.initialGoals.pennant,30,'new attempt exports the increased Pennant Line pennant goal');
 const olderAttempt={...tunedAttempt,id:'older-content',contentVersion:'chapter-3-1'};
 const olderRestored=readArchive({getItem:key=>key===PLAYTEST_KEY?archiveJson(addAttempt(emptyArchive(),olderAttempt)):null,setItem:()=>{}});
 assert.equal(olderRestored.attempts[0].contentVersion,'chapter-3-1','old exports keep their authored content version');
+const priorAttempt={...tunedAttempt,id:'prior-content',contentVersion:'chapter-3-2'};
+const priorRestored=readArchive({getItem:key=>key===PLAYTEST_KEY?archiveJson(addAttempt(emptyArchive(),priorAttempt)):null,setItem:()=>{}});
+assert.equal(priorRestored.attempts[0].contentVersion,'chapter-3-2','first tuning pass exports keep their authored content version');
 const secondAttempt=startAttempt(LEVELS.gatewrightWorkshop,createPuzzle(LEVELS.gatewrightWorkshop));
 const both=addAttempt(archive,secondAttempt);assert.equal(both.attempts.length,2,'a second level records a separate attempt');
 const restored=readArchive({getItem:key=>key===PLAYTEST_KEY?archiveJson(both):null,setItem:()=>{}});
