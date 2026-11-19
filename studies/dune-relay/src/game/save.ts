@@ -1,0 +1,63 @@
+import { LEVEL_ORDER, type LevelId } from "./levels";
+
+export const SAVE_KEY = "dune-relay-campaign-v4";
+const V3_SAVE_KEY = "dune-relay-campaign-v3";
+const V2_SAVE_KEY = "dune-relay-campaign-v2";
+const OLD_SAVE_KEY = "dune-relay-pump-house-v1";
+export type Region = "oasis" | "caravan" | "gatehouse";
+export type CompanionId = "keeper" | "wayfinder" | "gatewright";
+export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival" | "ready";
+export type ChapterTransition = null | { from: "oasis" | "caravan"; to: "caravan" | "gatehouse"; stage: "film" | "handoff" | "atlas" | "arrival" };
+export type Save = { version: 4; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean };
+export const EMPTY_SAVE: Save = { version: 4, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false };
+const oasisStages: OasisTransition[] = ["locked", "film", "keeper", "atlas", "arrival", "ready"];
+const stageOrder = ["film", "handoff", "atlas", "arrival"] as const;
+function validCoins(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
+export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }): Save {
+  const completed = LEVEL_ORDER.filter(id => Array.isArray(value.completed) && value.completed.includes(id));
+  const oasisDone = completed.includes("openWaterway");
+  const caravanDone = completed.includes("lightTheRoute");
+  let oasisTransition: OasisTransition = oasisStages.includes(value.oasisTransition as OasisTransition) ? value.oasisTransition as OasisTransition : "locked";
+  if (oasisDone && oasisTransition === "locked") oasisTransition = "film";
+  if (!oasisDone) oasisTransition = "locked";
+  const oasisIndex = oasisStages.indexOf(oasisTransition);
+  let transition: ChapterTransition = null;
+  const stored = value.transition;
+  if (stored && (stored.from === "oasis" && stored.to === "caravan" || stored.from === "caravan" && stored.to === "gatehouse") && stageOrder.includes(stored.stage)) transition = { ...stored };
+  if (oasisDone && oasisTransition !== "ready" && !transition) transition = { from: "oasis", to: "caravan", stage: oasisTransition === "keeper" ? "handoff" : oasisTransition === "atlas" ? "atlas" : oasisTransition === "arrival" ? "arrival" : "film" };
+  const gatehouseReady = Boolean(value.gatehouseReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 20) || value.region === "gatehouse" && !transition);
+  if (caravanDone && oasisTransition === "ready" && !gatehouseReady && !transition) transition = { from: "caravan", to: "gatehouse", stage: "film" };
+  if (transition?.from === "caravan" && !caravanDone) transition = null;
+  const companions: CompanionId[] = [];
+  if (oasisIndex >= 3 || value.companions?.includes("keeper")) companions.push("keeper");
+  if (oasisIndex >= 5 || value.companions?.includes("wayfinder")) companions.push("wayfinder");
+  if (gatehouseReady || value.companions?.includes("gatewright")) companions.push("gatewright");
+  let region: Region = value.region === "oasis" ? "oasis" : value.region === "gatehouse" && gatehouseReady ? "gatehouse" : oasisIndex >= 4 ? "caravan" : "oasis";
+  if (transition?.stage === "arrival") region = transition.to;
+  return { version: 4, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady };
+}
+export function readSave(storage?: Pick<Storage, "getItem" | "setItem">): Save {
+  try {
+    const safeStorage = storage ?? localStorage;
+    const parse = (key: string) => { try { return JSON.parse(safeStorage.getItem(key) ?? "null"); } catch { return null; } };
+    const v4 = parse(SAVE_KEY); if (v4?.version === 4) return normalizeSave(v4);
+    const v3 = parse(V3_SAVE_KEY); if (v3?.version === 3) { const migrated = normalizeSave(v3); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
+    const v2 = parse(V2_SAVE_KEY); if (v2?.version === 2 && Array.isArray(v2.completed)) { const migrated = normalizeSave(v2); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
+    const old = parse(OLD_SAVE_KEY); if (old?.version === 1 && typeof old.repaired === "boolean") { const migrated = normalizeSave({ completed: old.repaired ? ["pumpHouse"] : [], coins: old.coins }); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
+  } catch {}
+  return { ...EMPTY_SAVE, completed: [], companions: [] };
+}
+export function writeSave(save: Save, storage?: Pick<Storage, "setItem">) { try { (storage ?? localStorage).setItem(SAVE_KEY, JSON.stringify(save)); } catch {} }
+export function completeLevel(save: Save, id: LevelId, coins: number): Save {
+  if (save.completed.includes(id)) return save;
+  return normalizeSave({ ...save, completed: [...save.completed, id], coins: save.coins + Math.max(0, Math.floor(coins)) });
+}
+export function advanceTransition(save: Save, expected: OasisTransition, next: OasisTransition): Save {
+  if (save.oasisTransition !== expected || oasisStages.indexOf(next) !== oasisStages.indexOf(expected) + 1) return save;
+  return normalizeSave({ ...save, oasisTransition: next, transition: next === "ready" ? null : { from: "oasis", to: "caravan", stage: next === "keeper" ? "handoff" : next === "atlas" ? "atlas" : next === "arrival" ? "arrival" : "film" } });
+}
+export function advanceChapterTransition(save: Save, expected: NonNullable<ChapterTransition>["stage"], next: NonNullable<ChapterTransition>["stage"] | "ready"): Save {
+  const current = save.transition;
+  if (!current || current.stage !== expected || (next !== "ready" && stageOrder.indexOf(next) !== stageOrder.indexOf(expected) + 1) || (next === "ready" && expected !== "arrival")) return save;
+  return normalizeSave({ ...save, transition: next === "ready" ? null : { ...current, stage: next }, gatehouseReady: next === "ready" && current.to === "gatehouse" ? true : save.gatehouseReady, region: next === "ready" ? current.to : save.region });
+}

@@ -1,0 +1,24 @@
+{
+  "name": "dune-relay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "test:core": "node scripts/check-core.cjs",
+    "build:artifact": "node scripts/build-artifact.mjs"
+  },
+  "dependencies": {
+    "next": "15.5.29",
+    "phaser": "3.90.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.6",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
