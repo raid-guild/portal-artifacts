@@ -50,8 +50,8 @@ button { font: inherit; cursor: pointer; }
 .volume-setting span { color: #93ecce; font-variant-numeric: tabular-nums; }
 .volume-setting input { grid-column: 1 / -1; width: 100%; accent-color: #8bd39a; cursor: pointer; }
 .reset { color: #f2bea6; background: transparent; border: 0; padding: 10px; font-size: 12px; }
-.result-overlay { position: absolute; z-index: 4; inset: 0; pointer-events: none; display: flex; align-items: center; padding-left: 2.5%; }
-.result-card { width: 28%; max-height: 90%; overflow: auto; pointer-events: auto; text-align: center; padding: 13px 15px; border-radius: 13px; border: 2px solid #ecd29d; background: rgba(13, 48, 57, .96); box-shadow: 0 9px 30px #00242e; color: #fff0d0; }
+.result-overlay { position: absolute; z-index: 4; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; padding: 4%; }
+.result-card { width: min(68%, 540px); max-height: 100%; overflow: auto; pointer-events: auto; text-align: center; padding: 20px 24px; border-radius: 13px; border: 2px solid #ecd29d; background: rgba(13, 48, 57, .96); box-shadow: 0 9px 30px #00242e; color: #fff0d0; }
 .result-card h2 { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(21px, 3vw, 32px); line-height: 1; margin: 7px 0; color: #ffe3a2; }
 .result-card p { font-size: clamp(11px, 1.3vw, 14px); margin: 6px 0; }
 .result-card .coin-reveal { font-size: clamp(24px, 3.5vw, 38px); margin: 5px 0; }
