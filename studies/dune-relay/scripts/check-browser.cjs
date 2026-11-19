@@ -280,7 +280,11 @@ async function checkLifecycle(browser) {
     await page.waitForFunction(() => document.querySelector('canvas')?.width > 0);
     const pixels = await page.locator('canvas').first().evaluate(canvas => canvas.width * canvas.height);
     assert(pixels <= 2_000_000, `mobile DPR3 backing buffer capped: ${pixels}`);
-    await page.evaluate(() => { window.__oldGameCanvas = document.querySelector('canvas'); });
+    await page.evaluate(() => {
+      window.__oldGameCanvas = document.querySelector('canvas');
+      window.__oldGameGl = window.__oldGameCanvas.getContext('webgl') || window.__oldGameCanvas.getContext('webgl2');
+      window.__canReleaseGl = Boolean(window.__oldGameGl?.getExtension('WEBGL_lose_context'));
+    });
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByRole('button', { name: /Preview desert → gatehouse transition/ }).click();
     await page.locator('.film-screen').waitFor({ timeout: 30000 });
@@ -291,6 +295,8 @@ async function checkLifecycle(browser) {
     assert(destroy >= 0 && source > destroy, 'film source attaches only after Phaser destroy');
     const oldCanvasSize = await page.evaluate(() => [window.__oldGameCanvas.width, window.__oldGameCanvas.height]);
     assert.deepEqual(oldCanvasSize, [1, 1], 'detached Phaser canvas drawing buffer released before film');
+    if (await page.evaluate(() => window.__canReleaseGl))
+      assert.equal(await page.evaluate(() => window.__oldGameGl.isContextLost()), true, 'retained old WebGL context explicitly released before film');
     await page.locator('.awning-wipe').waitFor({ state: 'detached' });
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('dune-relay-diagnostics-v1') || '[]').some(entry => entry.event === 'film-playing'));
     await page.evaluate(() => {
