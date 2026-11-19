@@ -1,6 +1,7 @@
 import { LEVEL_ORDER, type LevelId } from "./levels";
 
-export const SAVE_KEY = "dune-relay-campaign-v4";
+export const SAVE_KEY = "dune-relay-campaign-v5";
+const V4_SAVE_KEY = "dune-relay-campaign-v4";
 const V3_SAVE_KEY = "dune-relay-campaign-v3";
 const V2_SAVE_KEY = "dune-relay-campaign-v2";
 const OLD_SAVE_KEY = "dune-relay-pump-house-v1";
@@ -8,8 +9,9 @@ export type Region = "oasis" | "caravan" | "gatehouse";
 export type CompanionId = "keeper" | "wayfinder" | "gatewright";
 export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival" | "ready";
 export type ChapterTransition = null | { from: "oasis" | "caravan"; to: "caravan" | "gatehouse"; stage: "film" | "handoff" | "atlas" | "arrival" };
-export type Save = { version: 4; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean };
-export const EMPTY_SAVE: Save = { version: 4, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false };
+export type DemoEnding = "locked" | "gate" | "film" | "thanks" | "done";
+export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; demoEnding: DemoEnding };
+export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, demoEnding: "locked" };
 const oasisStages: OasisTransition[] = ["locked", "film", "keeper", "atlas", "arrival", "ready"];
 const stageOrder = ["film", "handoff", "atlas", "arrival"] as const;
 function validCoins(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
@@ -34,20 +36,24 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   if (gatehouseReady || value.companions?.includes("gatewright")) companions.push("gatewright");
   let region: Region = value.region === "oasis" ? "oasis" : value.region === "gatehouse" && gatehouseReady ? "gatehouse" : oasisIndex >= 4 ? "caravan" : "oasis";
   if (transition?.stage === "arrival") region = transition.to;
-  return { version: 4, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady };
+  const endingStages: DemoEnding[] = ["locked", "gate", "film", "thanks", "done"];
+  const demoEnding: DemoEnding = completed.includes("openTheCrossing") ? endingStages.includes(value.demoEnding as DemoEnding) && value.demoEnding !== "locked" ? value.demoEnding as DemoEnding : "gate" : "locked";
+  if (demoEnding === "gate" || demoEnding === "film" || demoEnding === "thanks") region = "gatehouse";
+  return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, demoEnding };
 }
 export function readSave(storage?: Pick<Storage, "getItem" | "setItem">): Save {
   try {
     const safeStorage = storage ?? localStorage;
     const parse = (key: string) => { try { return JSON.parse(safeStorage.getItem(key) ?? "null"); } catch { return null; } };
-    const v4 = parse(SAVE_KEY); if (v4?.version === 4) return normalizeSave(v4);
+    const v5 = parse(SAVE_KEY); if (v5?.version === 5) return normalizeSave(v5);
+    const v4 = parse(V4_SAVE_KEY); if (v4?.version === 4) { const migrated = normalizeSave(v4); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
     const v3 = parse(V3_SAVE_KEY); if (v3?.version === 3) { const migrated = normalizeSave(v3); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
     const v2 = parse(V2_SAVE_KEY); if (v2?.version === 2 && Array.isArray(v2.completed)) { const migrated = normalizeSave(v2); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
     const old = parse(OLD_SAVE_KEY); if (old?.version === 1 && typeof old.repaired === "boolean") { const migrated = normalizeSave({ completed: old.repaired ? ["pumpHouse"] : [], coins: old.coins }); try { safeStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch {} return migrated; }
   } catch {}
   return { ...EMPTY_SAVE, completed: [], companions: [] };
 }
-export function writeSave(save: Save, storage?: Pick<Storage, "setItem">) { try { (storage ?? localStorage).setItem(SAVE_KEY, JSON.stringify(save)); } catch {} }
+export function writeSave(save: Save, storage?: Pick<Storage, "setItem">): boolean { try { (storage ?? localStorage).setItem(SAVE_KEY, JSON.stringify(save)); return true; } catch { return false; } }
 export function completeLevel(save: Save, id: LevelId, coins: number): Save {
   if (save.completed.includes(id)) return save;
   return normalizeSave({ ...save, completed: [...save.completed, id], coins: save.coins + Math.max(0, Math.floor(coins)) });

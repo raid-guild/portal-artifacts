@@ -13,9 +13,11 @@ import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAt
 import { COMPANIONS } from "./chapters";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
+import { applyStartingBoosters, boosterCost, BOOSTERS, type BoosterKind } from "./boosters";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | null;
+type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; status: "prepared" | "committed" | "failed" };
 
 export default function GameShell() {
   const [playtest, setPlaytest] = useState(false);
@@ -25,6 +27,10 @@ export default function GameShell() {
   const [overlay, setOverlay] = useState<Overlay>("start");
   const [keeperMet, setKeeperMet] = useState(false);
   const [activeLevel, setActiveLevel] = useState<LevelId>("pumpHouse");
+  const [shopLevel, setShopLevel] = useState<LevelId>("pumpHouse");
+  const [shopReturn, setShopReturn] = useState<Overlay>(null);
+  const [shopSelected, setShopSelected] = useState<BoosterKind[]>([]);
+  const [shopError, setShopError] = useState<string | null>(null);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -52,6 +58,15 @@ export default function GameShell() {
   const archive = useRef<PlaytestArchive>(emptyArchive());
   const activeRecord = useRef<AttemptRecord | null>(null);
   const activeSince = useRef<number | null>(null);
+  const pendingAttempt = useRef<PendingAttempt | null>(null);
+  const tokenCounter = useRef(0);
+  const gateOpenedPending = useRef(false);
+  const filmKind = save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
+  const filmContent = {
+    gatehouse: { source: "/cinematics/gatehouse-crossing.mp4", poster: "/cinematics/gatehouse-crossing-poster.webp", caption: "The bridge opens. The road carries on into farmland.", label: "The gate rises and the bridge opens into farmland" },
+    caravan: { source: "/cinematics/caravan-departure.mp4", poster: "/cinematics/caravan-departure-poster.webp", caption: "The beacon lights the path. The walkers depart for the river.", label: "The walker train departs for the river" },
+    oasis: { source: "/cinematics/oasis-awakens.mp4", poster: "/cinematics/oasis-awakens-poster.webp", caption: "The pump house wakes. Water crosses the oasis.", label: "The pump house comes to life" },
+  }[filmKind];
 
   useEffect(() => {
     const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
@@ -117,10 +132,10 @@ export default function GameShell() {
   useEffect(() => {
     if (overlay !== "film" || !filmReady || !film.current) return;
     const video = film.current;
-    logDiagnostic("film-source-attached");
+    logDiagnostic("film-source-attached", { film: filmKind });
     return () => {
       video.pause(); video.removeAttribute("src"); video.load();
-      logDiagnostic("film-source-released");
+      logDiagnostic("film-source-released", { film: filmKind });
     };
   }, [overlay, filmReady]);
 
@@ -136,7 +151,7 @@ export default function GameShell() {
       if (cancelled || document.hidden || video.ended) return;
       const generation = ++playGeneration;
       void video.play().then(() => {
-        if (!cancelled && generation === playGeneration) logDiagnostic("film-playing");
+        if (!cancelled && generation === playGeneration) logDiagnostic("film-playing", { film: filmKind });
       }).catch(error => {
         if (!cancelled && generation === playGeneration) { logDiagnostic("film-play-failed", { message: String(error).slice(0, 160) }); setFilmBlocked(true); }
       });
@@ -216,11 +231,14 @@ export default function GameShell() {
         setWipe("hidden");
         transitioning.current = false;
         logDiagnostic("transition-finished", { generation });
+        if (gateOpenedPending.current) { gateOpenedPending.current = false; beginDemoFilm(); }
       }
     }
   }
   function overlayForSave(value: Save): Overlay {
-    return value.transition?.stage === "film" ? "film"
+    return value.demoEnding === "film" ? "film"
+      : value.demoEnding === "thanks" ? "demoThanks"
+      : value.transition?.stage === "film" ? "film"
       : value.transition?.stage === "handoff" ? "handoff"
       : value.transition?.stage === "atlas" ? "atlas"
       : value.oasisTransition === "film" ? "film"
@@ -248,18 +266,62 @@ export default function GameShell() {
     } catch { /* Fullscreen support varies by mobile browser. */ }
   }
   function startLevel(id: LevelId) {
+    pendingAttempt.current = null;
+    setShopLevel(id); setShopSelected([]); setShopError(null);
+    setShopReturn(overlay);
+    setOverlay("shop");
+  }
+  function launchLevel() {
+    if (transitioning.current) return;
+    const id = shopLevel;
+    const cost = playtest ? 0 : boosterCost(shopSelected);
+    if (cost > saveRef.current.coins) { setShopError("Not enough coins for this loadout."); return; }
+    let prepared: Puzzle;
+    try { prepared = applyStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
+    catch (error) { setShopError(String(error)); return; }
+    const token = ++tokenCounter.current;
+    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared, status: "prepared" };
     setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
     void transitionTo(() => {
-      setActiveLevel(id); setPuzzle(createPuzzle(LEVELS[id])); setMode("puzzle");
+      setActiveLevel(id); setPuzzle(prepared); setMode("puzzle");
       setAttempt(value => value + 1); setOverlay(null);
     });
   }
+  function cancelShop() {
+    pendingAttempt.current = null; setShopError(null);
+    if (shopReturn === null && mode === "map") void transitionTo(() => { setOverlay(null); setAttempt(value => value + 1); });
+    else setOverlay(shopReturn);
+  }
+  function recoverShop() {
+    pendingAttempt.current = null;
+    setShopReturn(null);
+    setShopSelected([]);
+    setShopError("The purchase could not be saved. Choose no boosters to play for free, or try again after storage is available.");
+    void transitionTo(() => { setMode("map"); setPuzzle(null); setOverlay("shop"); setAttempt(value => value + 1); });
+  }
+  function authorizeSceneReady(): boolean {
+    const current = pendingAttempt.current;
+    if (mode !== "puzzle") return true;
+    if (!current || current.sceneAttempt !== attempt || current.level !== activeLevel || current.status === "failed") return false;
+    if (current.status === "committed") return true;
+    if (current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
+    if (current.cost > 0) {
+      const next = { ...saveRef.current, coins: saveRef.current.coins - current.cost };
+      if (!writeSave(next)) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
+      saveRef.current = next; setSave(next);
+    }
+    current.status = "committed";
+    logDiagnostic("starting-boosters-committed", { token: current.token, level: current.level, selected: current.selected.join(","), cost: current.cost });
+    return true;
+  }
   function onEvent(event: GameEvent) {
+    if (event.type === "gateOpened" && transitioning.current) { gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
-    if (event.type === "playReady") { if (playtest && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel])); storeRecord(); recordResume(); } return; }
+    if (event.type === "playReady") { if (playtest && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, "sandbox"); storeRecord(); recordResume(); } return; }
+    if (event.type === "gateOpened") { if (saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
       // renderer is interrupted during its animation, a reload keeps the win.
@@ -306,7 +368,13 @@ export default function GameShell() {
       setOverlay(null); setAttempt(value => value + 1);
     });
   }
+  function beginDemoFilm() {
+    if (saveRef.current.demoEnding !== "gate") return;
+    persist(normalizeSave({ ...saveRef.current, demoEnding: "film" }));
+    setOverlay("film");
+  }
   function finishFilm() {
+    if (saveRef.current.demoEnding === "film") { persist(normalizeSave({ ...saveRef.current, demoEnding: "thanks" })); setOverlay("demoThanks"); return; }
     if (saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film") { persist(advanceChapterTransition(saveRef.current, "film", "handoff")); setOverlay("handoff"); return; }
     if (saveRef.current.oasisTransition !== "film") { setOverlay(null); return; }
     checkpoint("film", "keeper");
@@ -338,33 +406,26 @@ export default function GameShell() {
     const next = nextLevel(saveRef.current.completed);
     if (next && (LEVELS[next].chapter ?? "oasis") === saveRef.current.region) startLevel(next);
   }
-  function retry() { abandonRecord("retry"); activeRecord.current = null; setRevealing(false); void transitionTo(() => { setPuzzle(createPuzzle(LEVELS[activeLevel])); setAttempt(value => value + 1); setOverlay(null); }); }
+  function retry() { abandonRecord("retry"); activeRecord.current = null; setRevealing(false); startLevel(activeLevel); }
   function replayLevel(id: LevelId) {
     abandonRecord("replay"); activeRecord.current = null;
-    void transitionTo(() => {
-      if (playtest) {
+    if (playtest) {
         const chapter = LEVELS[id].chapter ?? "oasis";
         const completed = LEVEL_ORDER.slice(0, LEVEL_ORDER.indexOf(id)) as LevelId[];
         persist(normalizeSave({ ...saveRef.current, completed, region: chapter,
-          oasisTransition: chapter !== "oasis" ? "ready" : "locked", gatehouseReady: chapter === "gatehouse", transition: null,
+          oasisTransition: chapter !== "oasis" ? "ready" : "locked", gatehouseReady: chapter === "gatehouse", transition: null, demoEnding: "locked",
           companions: chapter === "gatehouse" ? ["keeper", "wayfinder", "gatewright"] : chapter === "caravan" ? ["keeper", "wayfinder"] : completed.length ? ["keeper"] : [] }));
         setKeeperMet(completed.includes("pumpHouse"));
-      }
-      setMode("puzzle"); setSettings(false); setActiveLevel(id); setPuzzle(createPuzzle(LEVELS[id]));
-      setAttempt(value => value + 1); setOverlay(null);
-    });
+    }
+    setSettings(false); startLevel(id);
   }
   function finish() {
     setRevealing(false);
     abandonRecord("left-board"); activeRecord.current = null;
     const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film";
-    const opensCrossing = activeLevel === "openTheCrossing" && saveRef.current.completed.includes("openTheCrossing");
-    void (async () => {
-      await transitionTo(() => {
+    void transitionTo(() => {
         setMode("map"); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
       }, !chapterEnd);
-      if (opensCrossing) { await delay(reducedMotion ? 100 : 1450); setOverlay("crossingOpen"); }
-    })();
   }
   function reset() {
     abandonRecord("reset"); activeRecord.current = null;
@@ -390,8 +451,9 @@ export default function GameShell() {
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("ready"); }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
+        if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
         setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
       }} onEvent={onEvent} skipReveal={skipReveal} />}
@@ -410,6 +472,7 @@ export default function GameShell() {
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
         <button className="primary" onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        {save.demoEnding === "done" && !playtest && <button className="quiet" onClick={() => window.location.assign("?playtest=1")}>Playtest levels →</button>}
         <small>Touch to walk · Mobile landscape · WASD and mouse on desktop</small>
       </div></div>}
       {overlay === "keeper" && <div className="scrim"><div className="dialog-card">
@@ -421,9 +484,21 @@ export default function GameShell() {
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
         <button className="primary" onClick={startBriefing}>Start level <span>→</span></button>
       </div></div>}
+      {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
+        <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · STARTING BOOSTERS</span>
+        <p>Choose up to one of each. Boosters start on the board and are used for this attempt.</p>
+        <div className="shop-balance">{playtest ? "Playtest loadout · free test use (reference prices shown)" : `${save.coins.toLocaleString("en-US")} coins available`}</div>
+        <div className="booster-options">{BOOSTERS.map(item => <button key={item.kind} className={`booster-option${shopSelected.includes(item.kind) ? " selected" : ""}`} aria-pressed={shopSelected.includes(item.kind)} onClick={() => { setShopError(null); setShopSelected(current => current.includes(item.kind) ? current.filter(kind => kind !== item.kind) : [...current, item.kind]); }}>
+          <img src={assetUrl(item.image as `/${string}`)} alt="" />
+          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>
+        </button>)}</div>
+        <div className="shop-total">{playtest ? "Test cost: 0 coins" : `Total: ${boosterCost(shopSelected).toLocaleString("en-US")} coins`}</div>
+        {shopError && <p className="shop-error" role="alert">{shopError}</p>}
+        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Cancel</button><button className="primary" onClick={launchLevel}>Start level <span>→</span></button></div>
+      </div></div>}
       {overlay === "film" && <div className="film-screen">
-        <video ref={film} src={filmReady ? save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure.mp4") : assetUrl("/cinematics/oasis-awakens.mp4") : undefined} poster={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure-poster.webp") : assetUrl("/cinematics/oasis-awakens-poster.webp")} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error"); setFilmBlocked(true); }} aria-label={save.transition?.from === "caravan" ? "The walker train departs for the river" : "The pump house comes to life"} />
-        <div className="film-caption">{save.transition?.from === "caravan" ? "The beacon lights the path. The walkers depart for the river." : "The pump house wakes. Water crosses the oasis."}</div>
+        <video ref={film} src={filmReady ? assetUrl(filmContent.source as `/${string}`) : undefined} poster={assetUrl(filmContent.poster as `/${string}`)} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />
+        <div className="film-caption">{filmContent.caption}</div>
         {filmBlocked && <button className="primary film-play" onClick={() => { void film.current?.play().then(() => setFilmBlocked(false)).catch(() => setFilmBlocked(true)); }}>Play scene <span>▶</span></button>}
         <button className="film-skip" onClick={finishFilm}>Skip scene →</button>
       </div>}
@@ -472,6 +547,12 @@ export default function GameShell() {
         <button className="primary" onClick={() => setOverlay("kingdom")}>View the kingdom map <span>→</span></button>
         <button className="quiet" onClick={() => setOverlay(null)}>Return to the gatehouse</button>
       </div></div>}
+      {overlay === "demoThanks" && <div className="scrim"><div className="dialog-card demo-thanks">
+        <span className="speaker">THE ROAD CONTINUES</span><h2>Thanks for playing the demo.</h2>
+        <p>Stay tuned for 70 new levels soon.</p>
+        <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
+        <button className="quiet" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); window.location.assign("?playtest=1"); }}>Playtest levels →</button>
+      </div></div>}
       {overlay === "lost" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={COMPANIONS[level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].portrait} alt="" /><span className="speaker">{COMPANIONS[level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].name.toUpperCase()}</span></div><h2>{level.title} stalls</h2>
         <p>The trail still needs {goalsLeft}.</p>
@@ -493,6 +574,7 @@ export default function GameShell() {
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {playtest ? <>
+          <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
           <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
@@ -506,12 +588,13 @@ export default function GameShell() {
           }}>Preview Oasis → desert transition</button>
           <button className="setting" onClick={() => { abandonRecord("preview-transition"); void transitionTo(() => { persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0,20) as LevelId[], oasisTransition: "ready", gatehouseReady: false, transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper","wayfinder"] })); setMode("map"); setOverlay("film"); setSettings(false); setAttempt(value => value+1); }, false); }}>Preview desert → gatehouse transition</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
-        </> : <button className="reset" onClick={reset}>Reset prototype progress</button>}
+        </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}<button className="reset" onClick={reset}>Reset prototype progress</button></>}
       </div></div>}
       {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
         <span className="speaker">SCENE INTERRUPTED</span>
         <p>{sceneIssue} Reloading returns to the path. {playtest ? "This test level restarts; recorded playtest attempts stay on this device." : "Unfinished levels restart; completed levels and coins are saved on this device."}</p>
         <button className="primary" onClick={() => window.location.reload()}>Reload game <span>↻</span></button>
+        {sceneIssue.includes("purchase") && <button className="quiet" onClick={recoverShop}>Choose a free loadout</button>}
         <button className="quiet" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
       </div></div>}
       {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}

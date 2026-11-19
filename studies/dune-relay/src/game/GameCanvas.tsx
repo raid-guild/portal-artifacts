@@ -22,6 +22,7 @@ export type GameEvent =
   | { type: "gatewright"; position: { x: number; y: number } }
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
   | { type: "playReady" }
+  | { type: "gateOpened" }
   | { type: "turn"; puzzle: Puzzle; cleared: number; keeper: boolean }
   | { type: "revealStarted"; puzzle: Puzzle }
   | { type: "victory"; puzzle: Puzzle }
@@ -35,6 +36,7 @@ type Props = {
   repaired: boolean;
   caravanComplete: boolean;
   gatehouseComplete: boolean;
+  gateOpening: boolean;
   nextLevel: LevelId | null;
   keeperMet: boolean;
   level: LevelDefinition;
@@ -42,7 +44,7 @@ type Props = {
   audio: GameAudio | null;
   reducedMotion: boolean;
   transitioning: boolean;
-  onReady: () => void;
+  onReady: () => boolean;
   onFailure: (reason: string) => void;
   onEvent: (event: GameEvent) => void;
   skipReveal: { current: (() => void) | null };
@@ -439,8 +441,8 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         const aperture = this.make.graphics({ x: 0, y: 0 });
         aperture.fillStyle(0xffffff).fillRoundedRect(640, 236, 128, 141, 52);
         gate.setMask(aperture.createGeometryMask());
-        if (!props.reducedMotion) this.tweens.add({ targets: gate, y: 158, duration: 1250, ease: "Cubic.easeInOut", onComplete: () => { gate.destroy(); aperture.destroy(); } });
-        else { gate.destroy(); aperture.destroy(); }
+        if (props.gateOpening && !props.reducedMotion) this.tweens.add({ targets: gate, y: 158, duration: 1250, ease: "Cubic.easeInOut", onComplete: () => { gate.destroy(); aperture.destroy(); props.onEvent({ type: "gateOpened" }); } });
+        else { gate.destroy(); aperture.destroy(); if (props.gateOpening) queueMicrotask(() => props.onEvent({ type: "gateOpened" })); }
         const light = this.add.ellipse(704, 330, 104, 137, 0xffe1a1, .13).setDepth(1);
         if (!props.reducedMotion) this.tweens.add({ targets: light, alpha: .32, duration: 1100, yoyo: true, repeat: -1 });
       }
@@ -627,18 +629,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         canvas.removeEventListener("pointercancel", cancel);
         canvas.removeEventListener("lostpointercapture", cancel);
         delete canvas.dataset.revealPhase;
+        delete canvas.dataset.playReady;
         props.skipReveal.current = null;
       });
       props.skipReveal.current = () => this.skipWinningReveal();
       this.syncTiles(this.puzzle.board, 0, "refill");
       this.renderHud();
-      props.onReady();
-      void this.revealGoals().then(() => this.showLessonHint());
+      this.busy = true;
+      if (props.onReady()) void this.revealGoals().then(() => this.showLessonHint());
     }
     async revealGoals() {
       this.busy = true;
       await this.showGoalBanner(false);
       this.busy = false;
+      this.game.canvas.dataset.playReady = "true";
       props.onEvent({ type: "playReady" });
     }
     async showGoalBanner(completed: boolean) {
@@ -1225,7 +1229,7 @@ export default function GameCanvas(props: Props) {
     const current: Props = { ...props,
       get reducedMotion() { return reducedMotion.current; },
       get transitioning() { return transitioning.current; },
-      onReady: () => { if (!disposed) onReady.current(); },
+      onReady: () => !disposed && onReady.current(),
       onFailure: reason => { if (!disposed) onFailure.current(reason); },
       onEvent: event => { if (!disposed) callback.current(event); },
     };

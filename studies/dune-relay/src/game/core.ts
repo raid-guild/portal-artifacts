@@ -458,9 +458,9 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const jets: TurnStep["jets"] = [];
     const effects: NonNullable<TurnStep["effects"]> = [];
     const sequence: NonNullable<TurnStep["sequence"]> = [];
-    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; direct: Map<string, Cell>; after: number };
+    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; after: number };
     const events: DamageEvent[] = [];
-    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), direct: new Map<string, Cell>(), after: -1 }; events.push(event); return event; };
+    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), after: -1 }; events.push(event); return event; };
     const claimed = new Set<string>();
     const claim = (cell: Cell, event: DamageEvent) => {
       const tile = at(board, cell);
@@ -469,7 +469,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     };
     for (const component of matchComponents(groups)) {
       const event = newEvent("match");
-      for (const cell of component.flat()) claim(cell, event);
+      for (const cell of component.flat()) { event.adjacency.set(key(cell), cell); claim(cell, event); }
     }
     const fireJet = (cell: Cell, direction: Direction) => { jets.push({ cell, direction }); sequence.push({ kind: "jet", index: jets.length - 1 }); };
     const fireEffect = (effect: NonNullable<TurnStep["effects"]>[number]) => { effects.push(effect); sequence.push({ kind: "effect", index: effects.length - 1 }); };
@@ -559,10 +559,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const crustEvents: NonNullable<TurnStep["crustEvents"]> = [];
     for (const event of events) {
       const candidates = new Map(event.direct);
-      if (event.kind === "match" || event.kind === "prism") for (const cell of event.clears.values()) {
+      if (event.kind === "match" || event.kind === "prism") for (const cell of (event.kind === "match" ? event.adjacency : event.clears).values()) {
         // A Prism's cleared normal symbols crack neighboring salt just like a
         // match. Its own origin and any converted powers do not radiate hits.
-        if (isSpecial(at(board, cell))) continue;
+        if (event.kind === "prism" && isSpecial(at(board, cell))) continue;
         for (const neighbor of orthogonal(cell)) if (state.crust[neighbor.row][neighbor.col] > 0) candidates.set(key(neighbor), neighbor);
       }
       const hits: { cell: Cell; hp: number }[] = [];
