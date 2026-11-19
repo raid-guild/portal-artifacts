@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { coinReward, createPuzzle, type Puzzle } from "./core";
 import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
+import { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS, type TrackPreference } from "./soundtracks";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
 import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
@@ -37,6 +38,9 @@ export default function GameShell() {
   const [muted, setMuted] = useState(false);
   const [sfxVolume, setSfxVolume] = useState(0.7);
   const [ambienceVolume, setAmbienceVolume] = useState(0.22);
+  const [musicVolume, setMusicVolume] = useState(0.25);
+  const [trackPreference, setTrackPreference] = useState<TrackPreference>("auto");
+  const [playtestTrack, setPlaytestTrack] = useState<TrackPreference>("auto");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
   const [filmBlocked, setFilmBlocked] = useState(false);
@@ -112,12 +116,9 @@ export default function GameShell() {
     const mixer = new GameAudio();
     sound.current = mixer;
     try {
-      const audio = JSON.parse(localStorage.getItem("dune-relay-audio-v1") ?? "null");
-      if (audio && typeof audio === "object") {
-        setMuted(Boolean(audio.muted));
-        if (typeof audio.sfx === "number") setSfxVolume(Math.max(0, Math.min(1, audio.sfx)));
-        if (typeof audio.ambience === "number") setAmbienceVolume(Math.max(0, Math.min(1, audio.ambience)));
-      }
+      const audio = normalizeAudioPreferences(JSON.parse(localStorage.getItem("dune-relay-audio-v1") ?? "null"));
+      setMuted(audio.muted); setSfxVolume(audio.sfx); setAmbienceVolume(audio.ambience);
+      setMusicVolume(audio.music); setTrackPreference(audio.track);
     } catch { /* Audio settings remain available for this session. */ }
     setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     const pageError = (event: ErrorEvent) => logDiagnostic("window-error", { message: String(event.message).slice(0, 160) });
@@ -141,10 +142,17 @@ export default function GameShell() {
 
   useEffect(() => {
     if (!ready) return;
-    sound.current?.setLevels(muted, sfxVolume, overlay === "film" ? 0 : ambienceVolume);
-    try { localStorage.setItem("dune-relay-audio-v1", JSON.stringify({ muted, sfx: sfxVolume, ambience: ambienceVolume })); }
+    sound.current?.setLevels(muted, sfxVolume, ambienceVolume, musicVolume);
+    try { localStorage.setItem("dune-relay-audio-v1", JSON.stringify({ muted, sfx: sfxVolume, ambience: ambienceVolume, music: musicVolume, track: trackPreference })); }
     catch { /* Private browsing can block storage. */ }
-  }, [ready, muted, sfxVolume, ambienceVolume, overlay]);
+  }, [ready, muted, sfxVolume, ambienceVolume, musicVolume, trackPreference]);
+
+  const unlockedTracks = getUnlockedSoundtracks(save);
+  const selectedTrack = playtest ? playtestTrack : trackPreference;
+  const effectiveTrack = selectedTrack === "auto" || unlockedTracks.includes(selectedTrack) ? selectedTrack : "auto";
+  useEffect(() => {
+    if (ready) sound.current?.setScene(save.region, effectiveTrack, overlay === "film");
+  }, [ready, save.region, effectiveTrack, overlay]);
 
   useEffect(() => {
     if (!playtest) return;
@@ -497,16 +505,37 @@ export default function GameShell() {
     }
     setSettings(false); startLevel(id);
   }
-  function finish() {
-    setRevealing(false);
-    abandonRecord("left-board"); activeRecord.current = null;
+  function leaveBoard(reason: string) {
+    if (transitioning.current) return;
+    setSettings(false); setRevealing(false); skipReveal.current = null;
+    sound.current?.stopTransientSounds();
+    abandonRecord(reason); activeRecord.current = null;
     const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film";
     void transitionTo(() => {
-        setMode("map"); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
+        pendingAttempt.current = null; setShopSelected([]); setShopError(null);
+        setMode("map"); setPuzzle(null); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
       }, !chapterEnd);
+  }
+  function finish() { leaveBoard("left-board"); }
+  function previewTransition(kind: "oasis" | "caravan" | "gatehouse") {
+    if (!playtest || transitioning.current) return;
+    abandonRecord("preview-transition"); activeRecord.current = null;
+    setSettings(false); setRevealing(false); skipReveal.current = null;
+    sound.current?.stopTransientSounds();
+    const chapters: Record<typeof kind, Partial<Save>> = {
+      oasis: { completed: LEVEL_ORDER.slice(0, 10) as LevelId[], oasisTransition: "film", transition: { from: "oasis", to: "caravan", stage: "film" }, region: "oasis", companions: [], gatehouseReady: false, demoEnding: "locked" },
+      caravan: { completed: LEVEL_ORDER.slice(0, 20) as LevelId[], oasisTransition: "ready", transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper", "wayfinder"], gatehouseReady: false, demoEnding: "locked" },
+      gatehouse: { completed: [...LEVEL_ORDER], oasisTransition: "ready", transition: null, region: "gatehouse", companions: ["keeper", "wayfinder", "gatewright"], gatehouseReady: true, demoEnding: "gate" },
+    };
+    void transitionTo(() => {
+      pendingAttempt.current = null; setShopSelected([]); setShopError(null); setPuzzle(null);
+      persist(normalizeSave({ ...saveRef.current, ...chapters[kind] }));
+      setMode("map"); setOverlay(kind === "gatehouse" ? null : "film"); setAttempt(value => value + 1);
+    }, kind === "gatehouse");
   }
   function reset() {
     abandonRecord("reset"); activeRecord.current = null;
+    if (playtest) setPlaytestTrack("auto"); else setTrackPreference("auto");
     void transitionTo(() => {
       const fresh: Save = { ...EMPTY_SAVE, completed: [], companions: [] };
       saveRef.current = fresh; setSave(fresh);
@@ -656,9 +685,12 @@ export default function GameShell() {
       </div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
+        {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
         <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
+        <label className="volume-setting">Music <span>{Math.round(musicVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(musicVolume * 100)} onChange={event => setMusicVolume(Number(event.target.value) / 100)} /></label>
+        <label className="soundtrack-setting">Soundtrack<select value={effectiveTrack} onChange={event => { const choice = event.target.value as TrackPreference; if (choice !== "auto" && !unlockedTracks.includes(choice)) return; if (playtest) setPlaytestTrack(choice); else setTrackPreference(choice); }}><option value="auto">Follow chapter</option>{SOUNDTRACKS.map(track => <option key={track.id} value={track.id} disabled={!unlockedTracks.includes(track.id)}>{track.title}{unlockedTracks.includes(track.id) ? "" : ` · unlock in ${track.chapter}`}</option>)}</select></label>
         <button className="setting" onClick={() => setReducedMotion(value => !value)}>Reduced motion <strong>{reducedMotion ? "On" : "Off"}</strong></button>
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
@@ -667,15 +699,9 @@ export default function GameShell() {
           <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
           <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
-          <button className="setting" onClick={() => {
-            abandonRecord("preview-transition"); activeRecord.current = null;
-            setSettings(false);
-            void transitionTo(() => {
-              persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0, 10) as LevelId[], oasisTransition: "film", region: "oasis", companions: [] }));
-              setMode("map"); setOverlay("film"); setAttempt(value => value + 1);
-            }, false);
-          }}>Preview Oasis → desert transition</button>
-          <button className="setting" onClick={() => { abandonRecord("preview-transition"); void transitionTo(() => { persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0,20) as LevelId[], oasisTransition: "ready", gatehouseReady: false, transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper","wayfinder"] })); setMode("map"); setOverlay("film"); setSettings(false); setAttempt(value => value+1); }, false); }}>Preview desert → gatehouse transition</button>
+          <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
+          <button className="setting" onClick={() => previewTransition("caravan")}>Preview desert → gatehouse transition</button>
+          <button className="setting" onClick={() => previewTransition("gatehouse")}>Preview Gatehouse → demo ending</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
         </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}<button className="reset" onClick={reset}>Reset prototype progress</button></>}
       </div></div>}

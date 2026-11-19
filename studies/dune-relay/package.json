@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs",
+    "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs",
     "test:browser": "node scripts/check-browser.cjs",
     "build:artifact": "node scripts/build-artifact.mjs"
   },
