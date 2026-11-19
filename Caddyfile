@@ -28,6 +28,10 @@
 	header @chance_pint Access-Control-Allow-Origin "*"
 	header @chance_pint Cache-Control "no-cache"
 
+	@dune_relay path /dune-relay /dune-relay/*
+	header @dune_relay Access-Control-Allow-Origin "*"
+	header @dune_relay Cache-Control "no-cache"
+
 	@puddle path /puddle-study /puddle-study/*
 	header @puddle Access-Control-Allow-Origin "*"
 	header @puddle Cache-Control "no-cache"

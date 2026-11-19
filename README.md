@@ -239,6 +239,8 @@ preview, controls, source provenance, and simulation tests.
 
 ## Published artifacts
 
+- `dune-relay/` — **Dune Relay**, a thirty-level match-three adventure through the Oasis, Open Desert, and River Gatehouse. Editable Next.js/Phaser source, artwork provenance, tests, and static rebuild instructions are in `studies/dune-relay/`; playtest stats export is available with `?playtest=1`.
+
 - `raidguild-field-guide/` — Illustrated Guild field guide with a longform
   website, interactive class and diagram notes, an alternate book reader, and
   a 35-page print edition. Editable content, art provenance, tests, and print

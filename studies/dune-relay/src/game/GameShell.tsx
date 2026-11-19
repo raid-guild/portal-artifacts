@@ -1,0 +1,403 @@
+"use client";
+
+import { assetUrl } from "./assetUrl";
+
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import { coinReward, createPuzzle, type Puzzle } from "./core";
+import type { GameEvent } from "./GameCanvas";
+import { GameAudio } from "./audio";
+import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
+import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
+import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, startAttempt, writeArchive, type AttemptRecord, type PlaytestArchive } from "./playtest";
+import { COMPANIONS } from "./chapters";
+
+const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
+type Overlay = "start" | "keeper" | "briefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | null;
+
+export default function GameShell() {
+  const [playtest, setPlaytest] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
+  const [mode, setMode] = useState<"map" | "puzzle">("map");
+  const [overlay, setOverlay] = useState<Overlay>("start");
+  const [keeperMet, setKeeperMet] = useState(false);
+  const [activeLevel, setActiveLevel] = useState<LevelId>("pumpHouse");
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [sfxVolume, setSfxVolume] = useState(0.7);
+  const [ambienceVolume, setAmbienceVolume] = useState(0.22);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [filmBlocked, setFilmBlocked] = useState(false);
+  const [wipe, setWipe] = useState<"hidden" | "closing" | "covered" | "opening">("hidden");
+  const transitioning = useRef(false);
+  const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const sceneReady = useRef<(() => void) | null>(null);
+  const reward = useRef(0);
+  const mapPositions = useRef<Record<Region, { x: number; y: number } | null>>({ oasis: null, caravan: null, gatehouse: null });
+  const saveRef = useRef<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
+  const sound = useRef<GameAudio | null>(null);
+  const film = useRef<HTMLVideoElement | null>(null);
+  const archive = useRef<PlaytestArchive>(emptyArchive());
+  const activeRecord = useRef<AttemptRecord | null>(null);
+  const activeSince = useRef<number | null>(null);
+
+  useEffect(() => {
+    const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
+    setPlaytest(testing);
+    if (testing) { archive.current = readArchive(); writeArchive(archive.current); }
+    if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
+    setReady(true);
+    const mixer = new GameAudio();
+    sound.current = mixer;
+    try {
+      const audio = JSON.parse(localStorage.getItem("dune-relay-audio-v1") ?? "null");
+      if (audio && typeof audio === "object") {
+        setMuted(Boolean(audio.muted));
+        if (typeof audio.sfx === "number") setSfxVolume(Math.max(0, Math.min(1, audio.sfx)));
+        if (typeof audio.ambience === "number") setAmbienceVolume(Math.max(0, Math.min(1, audio.ambience)));
+      }
+    } catch { /* Audio settings remain available for this session. */ }
+    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    return () => {
+      for (const timer of timers.current) clearTimeout(timer);
+      timers.current.clear();
+      sceneReady.current = null;
+      mixer.dispose(); if (sound.current === mixer) sound.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    sound.current?.setLevels(muted, sfxVolume, overlay === "film" ? 0 : ambienceVolume);
+    try { localStorage.setItem("dune-relay-audio-v1", JSON.stringify({ muted, sfx: sfxVolume, ambience: ambienceVolume })); }
+    catch { /* Private browsing can block storage. */ }
+  }, [ready, muted, sfxVolume, ambienceVolume, overlay]);
+
+  useEffect(() => {
+    if (!playtest) return;
+    if (settings || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden) recordPause(); else recordResume();
+    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && overlay === null && wipe === "hidden" && mode === "puzzle") recordResume(); };
+    document.addEventListener("visibilitychange", visibility);
+    return () => document.removeEventListener("visibilitychange", visibility);
+  }, [playtest, settings, overlay, wipe, mode]);
+
+  useEffect(() => {
+    if (overlay !== "film" || wipe !== "hidden" || !film.current) return;
+    setFilmBlocked(false);
+    film.current.muted = muted;
+    film.current.volume = sfxVolume;
+    void film.current.play().catch(() => setFilmBlocked(true));
+  }, [overlay, muted, sfxVolume, wipe]);
+
+  function recordPause() { if (activeRecord.current && activeSince.current !== null) { activeRecord.current = { ...activeRecord.current, activeMs: activeRecord.current.activeMs + Math.max(0, performance.now() - activeSince.current) }; activeSince.current = null; storeRecord(); } }
+  function recordResume() { if (activeRecord.current?.outcome === "playing" && activeSince.current === null && !document.hidden) activeSince.current = performance.now(); }
+  function storeRecord() { if (!playtest || !activeRecord.current) return; archive.current = addAttempt(archive.current, activeRecord.current); writeArchive(archive.current); }
+  function abandonRecord(reason: string) { if (!activeRecord.current || activeRecord.current.outcome !== "playing") return; recordPause(); activeRecord.current = finishAttempt(activeRecord.current, "abandoned", reason); storeRecord(); activeRecord.current = null; }
+  function downloadStats(format: "json" | "csv") { if (!playtest) return; recordPause(); const body = format === "json" ? archiveJson(archive.current) : archiveCsv(archive.current); const blob = new Blob([body], { type: format === "json" ? "application/json" : "text/csv" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-playtest-${new Date().toISOString().slice(0,10)}.${format}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); if (!settings) recordResume(); }
+  function persist(next: Save) {
+    if (next === saveRef.current) return;
+    saveRef.current = next; setSave(next);
+    if (!playtest) writeSave(next);
+  }
+  function checkpoint(from: Save["oasisTransition"], to: Save["oasisTransition"]) {
+    persist(advanceTransition(saveRef.current, from, to));
+  }
+  function toggleSound() { sound.current?.unlock(); setMuted(value => !value); }
+  function delay(ms: number) {
+    return new Promise<void>(resolve => {
+      const timer = setTimeout(() => { timers.current.delete(timer); resolve(); }, ms);
+      timers.current.add(timer);
+    });
+  }
+  async function transitionTo(changeScene: () => void, createsScene = true) {
+    if (transitioning.current) return;
+    transitioning.current = true; recordPause(); setWipe("closing"); sound.current?.play("awning");
+    await delay(reducedMotion ? 110 : 275);
+    setWipe("covered");
+    let readyScene: Promise<void> = Promise.resolve();
+    if (createsScene) readyScene = new Promise<void>(resolve => {
+      const timer = setTimeout(() => settle(), 1200);
+      timers.current.add(timer);
+      const settle = () => {
+        clearTimeout(timer); timers.current.delete(timer);
+        sceneReady.current = null; resolve();
+      };
+      sceneReady.current = settle;
+    });
+    changeScene();
+    await readyScene;
+    await delay(reducedMotion ? 30 : 70);
+    setWipe("opening");
+    await delay(reducedMotion ? 110 : 305);
+    setWipe("hidden"); transitioning.current = false;
+  }
+  function overlayForSave(value: Save): Overlay {
+    return value.transition?.stage === "film" ? "film"
+      : value.transition?.stage === "handoff" ? "handoff"
+      : value.transition?.stage === "atlas" ? "atlas"
+      : value.oasisTransition === "film" ? "film"
+      : value.oasisTransition === "keeper" ? "handoff"
+      : value.oasisTransition === "atlas" ? "atlas"
+      : null;
+  }
+  async function enter() {
+    const unlocked = sound.current?.unlock();
+    void unlocked?.then(() => sound.current?.play("ui"));
+    void transitionTo(() => { setOverlay(overlayForSave(saveRef.current)); setAttempt(value => value + 1); });
+    if (!window.matchMedia("(pointer: coarse) and (hover: none)").matches) return;
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      const screenWithLock = screen as Screen & { orientation?: ScreenOrientation & { lock?: (orientation: string) => Promise<void> } };
+      await screenWithLock.orientation?.lock?.("landscape");
+    } catch { /* The browser tab remains usable. */ }
+  }
+  function startLevel(id: LevelId) {
+    abandonRecord("started-another-level");
+    activeRecord.current = null;
+    void transitionTo(() => {
+      setActiveLevel(id); setPuzzle(createPuzzle(LEVELS[id])); setMode("puzzle");
+      setAttempt(value => value + 1); setOverlay(null);
+    });
+  }
+  function onEvent(event: GameEvent) {
+    if (transitioning.current) return;
+    if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
+    if (event.type === "playReady") { if (playtest && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel])); storeRecord(); recordResume(); } return; }
+    if (event.type === "resolvedTurn") { if (playtest && activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); } return; }
+    if (event.type === "keeper") { setOverlay("keeper"); sound.current?.play("ui"); return; }
+    if (event.type === "gatewright") { setOverlay("gatewright"); sound.current?.play("ui"); return; }
+    if (event.type === "wayfinder") { setOverlay("wayfinder"); sound.current?.play("ui"); return; }
+    if (event.type === "pump") {
+      const next = nextLevel(saveRef.current.completed);
+      if (saveRef.current.region === "gatehouse") {
+        if (next === "gatehouseApproach") setOverlay("gatewright");
+        else if (next && LEVELS[next].chapter === "gatehouse") { setOverlay("briefing"); sound.current?.play("ui"); }
+        return;
+      }
+      if (saveRef.current.region === "caravan") {
+        if (next === "caravanPennants") setOverlay("wayfinder");
+        else if (next && LEVELS[next].chapter === "caravan") { setOverlay("briefing"); sound.current?.play("ui"); }
+        return;
+      }
+      if (next === "pumpHouse" && !keeperMet) return;
+      if (next !== "pumpHouse" && next && LEVELS[next].chapter !== "caravan") { setOverlay("briefing"); sound.current?.play("ui"); return; }
+      if (next === "pumpHouse") startLevel(next);
+      return;
+    }
+    if (event.type === "turn") { setPuzzle(event.puzzle); if (playtest && activeRecord.current?.outcome === "playing" && !settings) recordResume(); return; }
+    if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
+    if (event.type === "victory") {
+      reward.current = coinReward(event.puzzle.moves);
+      persist(completeLevel(saveRef.current, activeLevel, reward.current));
+      return;
+    }
+    if (event.type === "win") { setOverlay("finale"); sound.current?.play("win"); }
+  }
+  function closeDialogue() {
+    void transitionTo(() => {
+      if (overlay === "keeper") setKeeperMet(true);
+      setOverlay(null); setAttempt(value => value + 1);
+    });
+  }
+  function finishFilm() {
+    if (saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film") { persist(advanceChapterTransition(saveRef.current, "film", "handoff")); setOverlay("handoff"); return; }
+    if (saveRef.current.oasisTransition !== "film") { setOverlay(null); return; }
+    checkpoint("film", "keeper");
+    setOverlay("handoff");
+  }
+  function acceptHandoff() {
+    if (saveRef.current.transition?.from === "caravan") { persist(advanceChapterTransition(saveRef.current, "handoff", "atlas")); setOverlay("atlas"); return; }
+    checkpoint("keeper", "atlas");
+    setOverlay("atlas");
+  }
+  function travelToCaravan() {
+    if (saveRef.current.transition?.from === "caravan") { persist(advanceChapterTransition(saveRef.current, "atlas", "arrival")); void transitionTo(() => { setMode("map"); setOverlay(null); setAttempt(value => value + 1); }); return; }
+    checkpoint("atlas", "arrival");
+    void transitionTo(() => {
+      setMode("map"); setOverlay(null); setAttempt(value => value + 1);
+    });
+  }
+  function visitRegion(region: Region) {
+    if (saveRef.current.oasisTransition !== "ready" || region === "gatehouse" && !saveRef.current.gatehouseReady) return;
+    persist({ ...saveRef.current, region });
+    void transitionTo(() => { setMode("map"); setOverlay(null); setAttempt(value => value + 1); });
+  }
+  function openGatehouse() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("gatehouseApproach"); }
+  function followPennants() {
+    checkpoint("arrival", "ready");
+    startLevel("caravanPennants");
+  }
+  function startBriefing() {
+    const next = nextLevel(saveRef.current.completed);
+    if (next && (LEVELS[next].chapter ?? "oasis") === saveRef.current.region) startLevel(next);
+  }
+  function retry() { abandonRecord("retry"); activeRecord.current = null; void transitionTo(() => { setPuzzle(createPuzzle(LEVELS[activeLevel])); setAttempt(value => value + 1); setOverlay(null); }); }
+  function replayLevel(id: LevelId) {
+    abandonRecord("replay"); activeRecord.current = null;
+    void transitionTo(() => {
+      if (playtest) {
+        const chapter = LEVELS[id].chapter ?? "oasis";
+        const completed = LEVEL_ORDER.slice(0, LEVEL_ORDER.indexOf(id)) as LevelId[];
+        persist(normalizeSave({ ...saveRef.current, completed, region: chapter,
+          oasisTransition: chapter !== "oasis" ? "ready" : "locked", gatehouseReady: chapter === "gatehouse", transition: null,
+          companions: chapter === "gatehouse" ? ["keeper", "wayfinder", "gatewright"] : chapter === "caravan" ? ["keeper", "wayfinder"] : completed.length ? ["keeper"] : [] }));
+        setKeeperMet(completed.includes("pumpHouse"));
+      }
+      setMode("puzzle"); setSettings(false); setActiveLevel(id); setPuzzle(createPuzzle(LEVELS[id]));
+      setAttempt(value => value + 1); setOverlay(null);
+    });
+  }
+  function finish() {
+    abandonRecord("left-board"); activeRecord.current = null;
+    const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film";
+    const opensCrossing = activeLevel === "openTheCrossing" && saveRef.current.completed.includes("openTheCrossing");
+    void (async () => {
+      await transitionTo(() => {
+        setMode("map"); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
+      });
+      if (opensCrossing) { await delay(reducedMotion ? 100 : 1450); setOverlay("crossingOpen"); }
+    })();
+  }
+  function reset() {
+    abandonRecord("reset"); activeRecord.current = null;
+    void transitionTo(() => {
+      const fresh: Save = { ...EMPTY_SAVE, completed: [], companions: [] };
+      saveRef.current = fresh; setSave(fresh);
+      if (!playtest) writeSave(fresh);
+      setMode("map"); mapPositions.current = { oasis: null, caravan: null, gatehouse: null }; setKeeperMet(false);
+      setPuzzle(null); setSettings(false); setOverlay("start"); setAttempt(value => value + 1);
+    });
+  }
+
+  if (!ready) return <main className="loading">Loading the kingdom…</main>;
+  const repaired = save.completed.includes("pumpHouse");
+  const available = nextLevel(save.completed);
+  const level = LEVELS[activeLevel];
+  const mapLevel = available && (LEVELS[available].chapter ?? "oasis") === save.region ? available : null;
+  const partyUnlocked = save.companions.includes("keeper");
+  const isCaravan = save.region === "caravan";
+  const isGatehouse = save.region === "gatehouse";
+  const speakerId = isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
+  const speaker = COMPANIONS[speakerId];
+  const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
+  return <main className="viewport">
+    <div className="frame" aria-label="Dune Relay game" data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
+      <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => sceneReady.current?.()} onEvent={onEvent} />
+      <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
+      <div className="top-actions" inert={wipe !== "hidden"}>
+        {mode === "map" && partyUnlocked && <>
+          <button className="nav-button" onClick={() => setOverlay("kingdom")}>Kingdom Map</button>
+          <button className="nav-button" onClick={() => setOverlay("party")}>Raid Party</button>
+        </>}
+        <button className="icon-button" onClick={toggleSound} aria-label={muted ? "Unmute" : "Mute"}>{muted ? "♪̸" : "♪"}</button>
+        <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
+      </div>
+      {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
+        <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
+        <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
+        <button className="primary" onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        <small>Touch to walk · Mobile landscape · WASD and mouse on desktop</small>
+      </div></div>}
+      {overlay === "keeper" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/keeper-avatar.png")} alt="" /><span className="speaker">THE KEEPER</span></div>
+        <p>{LEVELS.pumpHouse.briefing}</p><button className="primary" onClick={closeDialogue}>Let's do it <span>→</span></button>
+      </div></div>}
+      {overlay === "briefing" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={speaker.portrait} alt="" /><span className="speaker">{speaker.name.toUpperCase()} · {mapLevel ? LEVELS[mapLevel].title : isGatehouse ? "RIVER GATEHOUSE" : isCaravan ? "OPEN DESERT" : "OASIS"}</span></div>
+        <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
+        <button className="primary" onClick={startBriefing}>Start level <span>→</span></button>
+      </div></div>}
+      {overlay === "film" && <div className="film-screen">
+        <video ref={film} src={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure.mp4") : assetUrl("/cinematics/oasis-awakens.mp4")} poster={save.transition?.from === "caravan" ? assetUrl("/cinematics/caravan-departure-poster.webp") : assetUrl("/cinematics/oasis-awakens-poster.webp")} playsInline preload="auto" onEnded={finishFilm} onError={() => setFilmBlocked(true)} aria-label={save.transition?.from === "caravan" ? "The walker train departs for the river" : "The pump house comes to life"} />
+        <div className="film-caption">{save.transition?.from === "caravan" ? "The beacon lights the path. The walkers depart for the river." : "The pump house wakes. Water crosses the oasis."}</div>
+        {filmBlocked && <button className="primary film-play" onClick={() => { void film.current?.play().then(() => setFilmBlocked(false)).catch(() => setFilmBlocked(true)); }}>Play scene <span>▶</span></button>}
+        <button className="film-skip" onClick={finishFilm}>Skip scene →</button>
+      </div>}
+      {overlay === "handoff" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={save.transition?.from === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png")} alt="" /><span className="speaker">{save.transition?.from === "caravan" ? "THE WAYFINDER" : "THE KEEPER"}</span></div>
+        {save.transition?.from === "caravan" ? <p>The beacon connects the desert road, but the river crossing is sealed. Walkers cannot carry the caravan over it. The Gatewright tends the bridge winches. Let’s bring her the keys and reopen the way into farmland.</p> : <p>Listen to that water. The pump can run without us now. Beyond the dunes, the walker train needs a marked route. Take the map, and find the Wayfinder. A shared road is how we carry this oasis to the rest of the kingdom.</p>}
+        <button className="primary" onClick={acceptHandoff}>Open the kingdom map <span>→</span></button>
+      </div></div>}
+      {(overlay === "atlas" || overlay === "kingdom") && <div className="atlas-screen">
+        <div className="atlas-plane">
+          <img src={assetUrl("/kingdom.webp")} alt="Illustrated kingdom with the oasis, camel caravan, river bridge, farmland, and distant regions" />
+          <svg className="atlas-path" viewBox="0 0 1774 887" aria-hidden="true">
+            <path className="atlas-path-shadow" d="M444 580 C620 610 720 682 885 695 M885 695 C1005 716 1074 751 1195 768" />
+            <path className="atlas-path-light" d="M444 580 C620 610 720 682 885 695 M885 695 C1005 716 1074 751 1195 768" />
+          </svg>
+          <span className="atlas-anchor oasis-anchor" /><span className="atlas-anchor caravan-anchor" /><span className="atlas-anchor bridge-anchor" />
+          <div className="atlas-route">
+            <button className="atlas-stamp" disabled={save.oasisTransition !== "ready"} onClick={() => visitRegion("oasis")}>OASIS ✓<small>Waterway restored · visit</small></button>
+            <button className="atlas-active" disabled={save.oasisTransition !== "ready"} onClick={() => visitRegion("caravan")}>OPEN DESERT {save.completed.includes("lightTheRoute") ? "✓" : ""}<small>{save.completed.includes("lightTheRoute") ? "Route beacon lit · visit" : "Walker train · route beacon"}</small></button>
+            {save.completed.includes("lightTheRoute") && <button className="atlas-gatehouse" disabled={!save.gatehouseReady} onClick={() => visitRegion("gatehouse")}>RIVER GATEHOUSE {save.completed.includes("openTheCrossing") ? "✓" : ""}<small>{save.gatehouseReady ? "Bridge crossing · visit" : "River crossing ahead"}</small></button>}
+          </div>
+        </div>
+        <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
+        <div className="atlas-future">{save.completed.includes("openTheCrossing") ? "The bridge is open toward the farmland. That road belongs to a later chapter." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
+        <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
+      </div>}
+      {overlay === "party" && <div className="scrim"><div className="party-card">
+        <div className="eyebrow">THE RAID PARTY</div><h2>Those who keep the road open</h2>
+        <div className="party-list">
+          {(["keeper", "wayfinder", "gatewright"] as const).map(id => save.companions.includes(id) ? <div className="party-member" key={id}><img src={COMPANIONS[id].portrait} alt="" /><div><strong>{COMPANIONS[id].name}</strong><p>{COMPANIONS[id].chapter} · {COMPANIONS[id].power}.</p></div></div> : <div className="party-member unknown" key={id}><span>?</span><div><strong>Future companion</strong><p>Waiting farther along the road.</p></div></div>)}
+        </div><button className="primary" onClick={() => setOverlay(null)}>Back to the path <span>→</span></button>
+      </div></div>}
+      {overlay === "wayfinder" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/wayfinder-avatar.png")} alt="" /><span className="speaker">THE WAYFINDER · WINDWARD TRAIL</span></div>
+        <p>These coral pennants mark the route for every walker. Match them with the familiar oasis symbols. Every nine pennants gives me enough tailwind to send two Flywheels. Help me set the trail, and I’ll travel with your party.</p>
+        <button className="primary" onClick={followPennants}>Follow the pennants <span>→</span></button>
+      </div></div>}
+      {overlay === "gatewright" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/gatewright-avatar.png")} alt="" /><span className="speaker">THE GATEWRIGHT · RIVER GATEHOUSE</span></div>
+        <p>The bridge winches have locked under salt. These violet keys fit the old controls. Match them to help me free the gate. Every nine keys, I can place one Prism on your board; swap it with a symbol or double-tap it when you need it.</p>
+        <button className="primary" onClick={openGatehouse}>Open the gatehouse <span>→</span></button>
+      </div></div>}
+      {overlay === "crossingOpen" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/gatewright-avatar.png")} alt="" /><span className="speaker">THE GATEWRIGHT · CROSSING OPEN</span></div>
+        <h2>The bridge is open</h2><p>The counterweights lift, and water runs through the gatehouse. The walkers can cross toward the farmland when that chapter is ready.</p>
+        <button className="primary" onClick={() => setOverlay("kingdom")}>View the kingdom map <span>→</span></button>
+        <button className="quiet" onClick={() => setOverlay(null)}>Return to the gatehouse</button>
+      </div></div>}
+      {overlay === "lost" && <div className="scrim"><div className="dialog-card">
+        <div className="speaker-row"><img className="speaker-avatar" src={COMPANIONS[level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].portrait} alt="" /><span className="speaker">{COMPANIONS[level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].name.toUpperCase()}</span></div><h2>{level.title} stalls</h2>
+        <p>The trail still needs {goalsLeft}.</p>
+        <button className="primary" onClick={retry}>Try again <span>↻</span></button>
+        <button className="quiet" onClick={finish}>Back to the {level.chapter === "gatehouse" ? "gatehouse" : level.chapter === "caravan" ? "caravan" : "oasis"}</button>
+      </div></div>}
+      {overlay === "finale" && <div className="result-overlay"><div className="result-card">
+        <span className="eyebrow">{level.victoryEyebrow}</span><h2>{level.victoryTitle}</h2>
+        <p>{level.victoryMessage} {puzzle?.moves} spare moves fired as {puzzle?.grantedPower === "flywheels" ? "Flywheels" : "Pressure Jets"}.</p>
+        <div className="coin-reveal"><img src={assetUrl("/sprites/coin.png")} alt="" />+{reward.current} coins</div>
+        <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
+      </div></div>}
+      {settings && <div className="scrim"><div className="dialog-card settings-card">
+        <span className="speaker">SETTINGS</span>
+        <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
+        <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
+        <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
+        <button className="setting" onClick={() => setReducedMotion(value => !value)}>Reduced motion <strong>{reducedMotion ? "On" : "Off"}</strong></button>
+        <button className="quiet" onClick={() => setSettings(false)}>Close</button>
+        {playtest ? <>
+          <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
+          <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>
+          {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
+          <button className="setting" onClick={() => {
+            abandonRecord("preview-transition"); activeRecord.current = null;
+            setSettings(false);
+            void transitionTo(() => {
+              persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0, 10) as LevelId[], oasisTransition: "film", region: "oasis", companions: [] }));
+              setMode("map"); setOverlay("film"); setAttempt(value => value + 1);
+            });
+          }}>Preview Oasis → desert transition</button>
+          <button className="setting" onClick={() => { abandonRecord("preview-transition"); void transitionTo(() => { persist(normalizeSave({ ...saveRef.current, completed: LEVEL_ORDER.slice(0,20) as LevelId[], oasisTransition: "ready", gatehouseReady: false, transition: { from: "caravan", to: "gatehouse", stage: "film" }, region: "caravan", companions: ["keeper","wayfinder"] })); setMode("map"); setOverlay("film"); setSettings(false); setAttempt(value => value+1); }); }}>Preview desert → gatehouse transition</button>
+          <button className="setting" onClick={reset}>Restart sequence</button>
+        </> : <button className="reset" onClick={reset}>Reset prototype progress</button>}
+      </div></div>}
+      {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}
+      <div className="rotate"><div className="rotate-icon">▭</div><strong>Rotate your device</strong><p>Dune Relay plays in landscape.</p></div>
+    </div>
+  </main>;
+}
