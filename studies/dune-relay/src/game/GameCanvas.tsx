@@ -58,6 +58,38 @@ const GRID_X = 330;
 const GRID_Y = 45;
 const CELL = 50;
 
+type SceneLayout = { mode: "map" | "puzzle"; hud?: Phaser.GameObjects.Container; backdrop?: Phaser.GameObjects.Image; veil?: Phaser.GameObjects.Graphics };
+const sceneLayouts = new WeakMap<Phaser.Scene, SceneLayout>();
+
+function layoutScene(scene: Phaser.Scene, width: number, height: number) {
+  const layout = sceneLayouts.get(scene);
+  if (!layout) return;
+  const main = scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0);
+  if (layout.mode === "map") {
+    const zoom = width / WIDTH;
+    const top = HEIGHT - height / zoom;
+    main.setZoom(zoom).setScroll(0, top);
+    // HUD content stays in the safe, height-fitted view while map landmarks
+    // and their hit areas use one shared world transform.
+    layout.hud?.setPosition(0, top).setScale(height / zoom / HEIGHT);
+    return;
+  }
+  const zoom = height / HEIGHT;
+  const logicalWidth = width / zoom;
+  main.setZoom(zoom).setScroll(-(logicalWidth - WIDTH) / 2, 0);
+  // Only the decorative art grows; the 9×9 board and HUD retain their authored scale.
+  layout.backdrop?.setDisplaySize(Math.max(WIDTH, logicalWidth), Math.max(HEIGHT, HEIGHT * logicalWidth / WIDTH));
+  if (layout.veil) {
+    layout.veil.clear().fillStyle(0x082c39, 0.54).fillRect(WIDTH / 2 - logicalWidth / 2, 0, logicalWidth, HEIGHT);
+  }
+}
+
+function mapHud(scene: Phaser.Scene, parts: Phaser.GameObjects.GameObject[]) {
+  const hud = scene.add.container(0, 0, parts).setDepth(50);
+  sceneLayouts.set(scene, { mode: "map", hud });
+  layoutScene(scene, Number(scene.game.config.width), Number(scene.game.config.height));
+}
+
 function label(scene: Phaser.Scene, x: number, y: number, text: string, size = 20, color = "#fff0d0") {
   return scene.add.text(x, y, text, { fontFamily: "Arial, sans-serif", fontSize: `${size}px`, color, fontStyle: "bold", stroke: "#173440", strokeThickness: 3 });
 }
@@ -177,7 +209,6 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       this.load.image("keeper", assetUrl("/sprites/keeper.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic");
       registerFrames(this, "keeper");
       characterAnimation(this, "mechanic", "left");
@@ -185,9 +216,11 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       characterAnimation(this, "keeper", "left");
       characterAnimation(this, "keeper", "right");
       this.add.image(480, 270, "oasis").setDisplaySize(WIDTH, HEIGHT);
-      panel(this, 22, 83, 303, 66, 0.92);
-      label(this, 40, 94, "DUNE RELAY", 28);
-      label(this, 40, 124, props.nextLevel && props.nextLevel !== "pumpHouse" ? "THE NEXT STATION AWAITS" : props.repaired ? "THE WATER RUNS AGAIN" : "THE OASIS NEEDS WATER", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 83, 303, 66, 0.92),
+        label(this, 40, 94, "DUNE RELAY", 28),
+        label(this, 40, 124, props.nextLevel && props.nextLevel !== "pumpHouse" ? "THE NEXT STATION AWAITS" : props.repaired ? "THE WATER RUNS AGAIN" : "THE OASIS NEEDS WATER", 13, "#9de4d4"),
+      ];
       this.add.ellipse(447, 409, 42, 11, 0x132c31, 0.3);
       const keeper = this.add.sprite(447, 408, "keeper", "4").setOrigin(0.5, 1).setScale(82 / 420);
       characterPosition(keeper, "keeper", 447, 408);
@@ -231,8 +264,9 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
         this.target = { x: Phaser.Math.Clamp(x, 85, 855), y: Phaser.Math.Clamp(y, 379, 486) };
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this, 26, 469, 326, 46, 0.84);
-      label(this, 44, 480, props.nextLevel && props.nextLevel !== "pumpHouse" ? "Walk to the glowing marker →" : props.nextLevel === null ? "Oasis chapter complete" : props.keeperMet ? "Walk to the Pump House →" : "Talk to the Keeper →", 14);
+      hudParts.push(panel(this, 26, 469, 326, 46, 0.84));
+      hudParts.push(label(this, 44, 480, props.nextLevel && props.nextLevel !== "pumpHouse" ? "Walk to the glowing marker →" : props.nextLevel === null ? "Oasis chapter complete" : props.keeperMet ? "Walk to the Pump House →" : "Talk to the Keeper →", 14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     walkThen(done: () => void) {
@@ -300,7 +334,6 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       this.load.image("routeBeacon", assetUrl("/sprites/route-beacon.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic");
       registerFrames(this, "wayfinder");
       for (const direction of ["left", "right"] as const) {
@@ -314,9 +347,11 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         if (!props.reducedMotion) this.tweens.add({ targets: light, alpha: 0.15, scale: 2.3, duration: 1100, yoyo: true, repeat: -1 });
         beacon.setTint(0xfff5cf);
       }
-      panel(this, 22, 91, 302, 66, 0.92);
-      label(this, 40, 100, "OPEN DESERT", 26);
-      label(this, 40, 132, "THE WALKER TRAIN", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, 0.92),
+        label(this, 40, 100, "OPEN DESERT", 26),
+        label(this, 40, 132, "THE WALKER TRAIN", 13, "#9de4d4"),
+      ];
       const person = this.add.sprite(677, 433, "wayfinder", "4").setOrigin(0.5, 1).setScale(91 / 430);
       characterPosition(person, "wayfinder", 677, 433);
       person.setDepth(2);
@@ -368,8 +403,9 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         this.target = { x: Phaser.Math.Clamp(x, 72, 869), y: Phaser.Math.Clamp(y, 389, 482) };
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this, 26, 469, 328, 46, 0.84);
-      label(this, 44, 480, actionAvailable ? "Walk to the Wayfinder →" : routeLevel ? `Walk to ${routeLevel.title} →` : props.caravanComplete ? "The route beacon is lit ✓" : "The route beacon waits ahead", 14);
+      hudParts.push(panel(this, 26, 469, 328, 46, 0.84));
+      hudParts.push(label(this, 44, 480, actionAvailable ? "Walk to the Wayfinder →" : routeLevel ? `Walk to ${routeLevel.title} →` : props.caravanComplete ? "The route beacon is lit ✓" : "The route beacon waits ahead", 14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     update(_: number, delta: number) {
@@ -429,7 +465,6 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       this.load.image("bridgeGate", assetUrl("/sprites/bridge-gate.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "mechanic"); registerFrames(this, "gatewright");
       for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "gatewright", direction); }
       this.add.image(480, 270, "gatehouse").setDisplaySize(WIDTH, HEIGHT);
@@ -446,9 +481,11 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         const light = this.add.ellipse(704, 330, 104, 137, 0xffe1a1, .13).setDepth(1);
         if (!props.reducedMotion) this.tweens.add({ targets: light, alpha: .32, duration: 1100, yoyo: true, repeat: -1 });
       }
-      panel(this, 22, 91, 302, 66, .92);
-      label(this, 40, 100, "RIVER GATEHOUSE", 26);
-      label(this, 40, 132, "THE BRIDGE INTO FARMLAND", 13, "#9de4d4");
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "RIVER GATEHOUSE", 26),
+        label(this, 40, 132, "THE BRIDGE INTO FARMLAND", 13, "#9de4d4"),
+      ];
       const person = this.add.sprite(520, 452, "gatewright", "4").setOrigin(.5, 1).setScale(93 / 430).setDepth(2);
       characterPosition(person, "gatewright", 520, 452); this.gatewrightGraphic = person;
       for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
@@ -485,8 +522,9 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         this.target = {x:Phaser.Math.Clamp(x,68,882),y:Phaser.Math.Clamp(y,420,491)};
       });
       this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
-      panel(this,26,469,328,46,.84);
-      label(this,44,480,arriving?"Walk to the Gatewright →":route?`Walk to ${route.title} →`:"The crossing is open ✓",14);
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Gatewright →":route?`Walk to ${route.title} →`:"The crossing is open ✓",14));
+      mapHud(this, hudParts);
       props.onReady();
     }
     update(_:number,delta:number) {
@@ -553,10 +591,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("saltCrust2", assetUrl("/sprites/salt-crust-2.png"));
     }
     create() {
-      this.cameras.main.setOrigin(0, 0).setZoom(Number(this.game.config.width) / WIDTH);
       registerFrames(this, "tiles");
-      this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
-      const veil = this.add.graphics(); veil.fillStyle(0x082c39, 0.54).fillRect(0, 0, WIDTH, HEIGHT);
+      const backdrop = this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
+      const veil = this.add.graphics();
+      sceneLayouts.set(this, { mode: "puzzle", backdrop, veil });
+      layoutScene(this, Number(this.game.config.width), Number(this.game.config.height));
       panel(this, 24, 92, 271, 424, 0.96);
       panel(this, 318, 20, 474, 500, 0.98);
       label(this, 50, 106, props.level.title, props.level.title.length > 15 ? 19 : props.level.title.length > 13 ? 21 : 24);
@@ -577,7 +616,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       let gesture: { id: number; from: Cell; x: number; y: number; committed: boolean } | null = null;
       const logical = (event: PointerEvent) => {
         const rect = canvas.getBoundingClientRect();
-        return { x: (event.clientX - rect.left) * WIDTH / rect.width, y: (event.clientY - rect.top) * HEIGHT / rect.height };
+        return this.cameras.main.getWorldPoint(
+          (event.clientX - rect.left) * canvas.width / rect.width,
+          (event.clientY - rect.top) * canvas.height / rect.height,
+        );
       };
       const cellAtPoint = (x: number, y: number): Cell | null => {
         const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
@@ -1233,29 +1275,38 @@ export default function GameCanvas(props: Props) {
       onFailure: reason => { if (!disposed) onFailure.current(reason); },
       onEvent: event => { if (!disposed) callback.current(event); },
     };
-    const mobile = window.matchMedia("(pointer: coarse) and (hover: none)").matches;
-    const renderDensity = () => {
-      const natural = Math.max(1, (element.clientWidth || WIDTH) / WIDTH * window.devicePixelRatio);
-      return mobile ? Math.min(natural, 2, Math.sqrt(2_000_000 / (WIDTH * HEIGHT))) : Math.min(natural, 3);
+    const mobile = window.matchMedia("(pointer: coarse)").matches;
+    const dimensions = () => {
+      const cssWidth = element.clientWidth || WIDTH;
+      const cssHeight = element.clientHeight || HEIGHT;
+      const logicalWidth = mobile && cssWidth / cssHeight >= WIDTH / HEIGHT ? HEIGHT * cssWidth / cssHeight : WIDTH;
+      const density = Math.min(
+        Math.max(1, cssHeight / HEIGHT * window.devicePixelRatio),
+        mobile ? 2 : 3,
+        mobile ? Math.sqrt(2_000_000 / (logicalWidth * HEIGHT)) : Infinity,
+      );
+      return { width: Math.floor(logicalWidth * density), height: Math.floor(HEIGHT * density) };
     };
-    let density = renderDensity();
+    let size = dimensions();
     const resize = () => {
       resizeFrame = 0;
       if (disposed || !game?.isBooted || !element.clientWidth || !element.clientHeight) return;
-      const next = renderDensity();
-      if (Math.abs(next - density) < 0.02) return;
-      density = next;
-      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
-      game.scale.resize(width, height);
-      for (const scene of game.scene.getScenes(true)) scene.cameras.main.setViewport(0, 0, width, height).setOrigin(0, 0).setZoom(width / WIDTH);
+      const next = dimensions();
+      if (Math.abs(next.width - size.width) < 2 && Math.abs(next.height - size.height) < 2) return;
+      size = next;
+      const { width, height } = size;
+      // FIT keeps its own display aspect ratio. setGameSize updates that ratio
+      // along with the backing canvas during a live viewport change.
+      game.scale.setGameSize(width, height);
+      for (const scene of game.scene.getScenes(true)) layoutScene(scene, width, height);
       logDiagnostic("canvas-resize", { width, height });
     };
     void enqueueGameWork(() => {
       if (disposed) return;
-      const width = Math.floor(WIDTH * density), height = Math.floor(HEIGHT * density);
+      const { width, height } = size;
       game = new Phaser.Game({
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
-        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width, height },
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
         scene: [props.mode === "map" ? props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },

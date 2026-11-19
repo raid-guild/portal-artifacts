@@ -21,12 +21,13 @@ const url = (playtest = false) => { const target = new URL(baseUrl); if (playtes
 async function boardPosition(page, cell) {
   const box = await page.locator('canvas').first().boundingBox();
   assert(box, 'Phaser canvas has a box');
-  return { x: box.x + (330 + (cell.col + .5) * 50) * box.width / 960,
+  return { x: box.x + box.width / 2 + (330 + (cell.col + .5) * 50 - 480) * box.height / 540,
     y: box.y + (45 + (cell.row + .5) * 50) * box.height / 540 };
 }
 async function tapMap(page, x, y) {
   const box = await page.locator('canvas').first().boundingBox();
-  await page.mouse.click(box.x + x / 960 * box.width, box.y + y / 540 * box.height);
+  const scale = box.width / 960, top = 540 - box.height / scale;
+  await page.mouse.click(box.x + x * scale, box.y + (y - top) * scale);
 }
 async function move(page, from, to) {
   const a = await boardPosition(page, from), b = await boardPosition(page, to);
@@ -252,8 +253,8 @@ async function checkRevealCase(browser, phase) {
     await page.locator('.result-overlay').evaluate(element => { element.style.visibility = 'hidden'; });
     const box = await page.locator('canvas').first().boundingBox();
     const board = await page.screenshot({ clip: {
-      x: box.x + 330 / 960 * box.width, y: box.y + 45 / 540 * box.height,
-      width: 450 / 960 * box.width, height: 450 / 540 * box.height,
+      x: box.x + box.width / 2 + (330 - 480) * box.height / 540, y: box.y + 45 / 540 * box.height,
+      width: 450 / 540 * box.height, height: 450 / 540 * box.height,
     } });
     await page.locator('.result-overlay').evaluate(element => { element.style.visibility = ''; });
     await page.getByRole('button', { name: /Follow the water/ }).click();

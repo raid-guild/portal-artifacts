@@ -527,7 +527,7 @@ export default function GameShell() {
   const speaker = COMPANIONS[speakerId];
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
-    <div className="frame" aria-label="Dune Relay game" data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
+    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
       {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
