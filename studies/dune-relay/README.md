@@ -22,6 +22,10 @@ For browser interaction regression checks, start `npm run dev` in one terminal, 
 
 The intro and chapter films do not run Phaser behind them. A film attaches its video source after the previous game reports destruction, and releases it on exit. Mobile canvas backing pixels are capped at about two million. Scene transitions wait for the new scene and show a Retry loading card if assets or graphics fail. Settings can export a bounded local diagnostics JSON with scene, canvas, transition, media, and browser error events; no diagnostics are sent to a server. Playtest attempts under the updated match-origin salt rules carry `rulesVersion: gatehouse-3`.
 
+## November 19 difficulty pass
+
+A single-player playtest found comfortable early lessons and a close Gatehouse finish, with several generous practice levels between them. The first tuning pass reduces the move budgets for Palm Intake (27→24), Irrigation Channels (27→23), Twin Tanks (27→25), Pennant Line (28→25), Walker’s Foot (28→26), Caravan Launch (28→25), Cistern Flush (28→25), and Saltwind Crossing (28→25). The opening power lessons and Gatehouse budgets stay as authored while we collect more playtests from players new to the power combinations. New attempt exports use `contentVersion: chapter-3-2`; older records keep their original version. For identical solutions across these eight levels, the three-coins-per-spare-move reward would total 69 fewer coins.
+
 ## Portal Artifacts build
 
 Use Node.js 20.19 or newer.

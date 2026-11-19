@@ -232,7 +232,7 @@ const saved = readSave({getItem:key => key==='dune-relay-campaign-v2' ? JSON.str
 assert.equal(nextLevel(saved.completed), 'twinTanks', 'existing six-level save advances to level seven');
 assert.equal(saved.coins, 481);
 assert.equal(nextLevel(LEVEL_ORDER), null, 'all available clears complete');
-for (const id of ['twinTanks','pressureManifold','aqueductRise','openWaterway',...LEVEL_ORDER.slice(10)]) {
+for (const id of ['palmIntake','irrigationChannels','twinTanks','pressureManifold','aqueductRise','openWaterway',...LEVEL_ORDER.slice(10)]) {
   let puzzle = createPuzzle(LEVELS[id]);
   let opening = puzzle.opening;
   while (puzzle.status === 'playing') {
@@ -588,6 +588,12 @@ const statsDirectCell={row:4,col:4};const statsDirectTurn=playTurn(directPuzzle,
 assert.equal(appendTurn(startAttempt(LEVELS.gatehouseApproach,directPuzzle),statsDirectTurn,statsDirectCell,statsDirectCell).moves[0].action,'directPower');
 attempt=finishAttempt(attempt,'abandoned','test');assert.equal(finishAttempt(attempt,'won','late'),attempt);
 const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archiveJson(archive)).attempts[0].levelId,'gatehouseApproach');assert.ok(archiveCsv(archive).includes('gatehouseApproach'));
+const tunedAttempt=startAttempt(LEVELS.irrigationChannels,createPuzzle(LEVELS.irrigationChannels));
+assert.equal(tunedAttempt.initialMoves,23,'new attempt exports the tuned board budget');
+assert.equal(tunedAttempt.contentVersion,'chapter-3-2','tuned attempts carry a distinct content version');
+const olderAttempt={...tunedAttempt,id:'older-content',contentVersion:'chapter-3-1'};
+const olderRestored=readArchive({getItem:key=>key===PLAYTEST_KEY?archiveJson(addAttempt(emptyArchive(),olderAttempt)):null,setItem:()=>{}});
+assert.equal(olderRestored.attempts[0].contentVersion,'chapter-3-1','old exports keep their authored content version');
 const secondAttempt=startAttempt(LEVELS.gatewrightWorkshop,createPuzzle(LEVELS.gatewrightWorkshop));
 const both=addAttempt(archive,secondAttempt);assert.equal(both.attempts.length,2,'a second level records a separate attempt');
 const restored=readArchive({getItem:key=>key===PLAYTEST_KEY?archiveJson(both):null,setItem:()=>{}});
