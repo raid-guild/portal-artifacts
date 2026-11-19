@@ -131,7 +131,7 @@ export class GameAudio {
     this.sfx?.gain.setTargetAtTime(this.muted ? 0 : this.sfxVolume * 0.34, time, 0.025);
     const silent = this.muted || this.cinematic || this.hidden;
     this.ambience?.gain.setTargetAtTime(silent ? 0 : this.ambienceVolume * 0.12, time, 0.12);
-    this.music?.gain.setTargetAtTime(silent ? 0 : this.musicVolume * 0.24, time, 0.12);
+    this.music?.gain.setTargetAtTime(silent ? 0 : this.musicVolume * 0.48, time, 0.12);
   }
 
   private createNoiseBuffer() {

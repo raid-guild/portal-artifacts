@@ -20,9 +20,15 @@ Run `npm run test:core` for seeded level, rules, migration, and statistics check
 
 For browser interaction regression checks, start `npm run dev` in one terminal, then run `npm run test:browser` in another. Set `DUNE_TEST_URL` to test a deployed artifact instead; set `CHROMIUM_EXECUTABLE` if Chrome is not on the default path. The suite uses native touch events and checks quick swipes, tap controls, mobile fullscreen reentry, and winning reveal Skip in the banner, conversion, chain, and refill phases. Failure screenshots go to ignored `test-results/` (or `DUNE_TEST_RESULTS_DIR`).
 
-The intro and chapter films do not run Phaser behind them. A film attaches its video source after the previous game reports destruction, and releases it on exit. Mobile canvas backing pixels are capped at about two million. Scene transitions wait for the new scene and show a Retry loading card if assets or graphics fail. Settings can export a bounded local diagnostics JSON with scene, canvas, transition, media, and browser error events; no diagnostics are sent to a server. Playtest attempts under the updated match-origin salt rules carry `rulesVersion: gatehouse-3`.
+The intro and chapter films do not run Phaser behind them. A film attaches its video source after the previous game reports destruction, and releases it on exit. Mobile canvas backing pixels are capped at about two million. Scene transitions wait for the new scene and show a recovery card if assets or graphics fail. Settings can export a bounded local diagnostics JSON with scene, canvas, transition, media, and browser error events; no diagnostics are sent to a server. Playtest attempts under the updated match-origin salt rules carry `rulesVersion: gatehouse-3`.
 
 Wide mobile landscape viewports fill the available screen. The walkable map uniformly covers the width while keeping its landmarks and hit targets aligned; only upper sky is cropped. The puzzle keeps its square tiles and authored 960×540 play area centered over extended scenery. Desktop continues to use a windowed 16:9 frame, and touch coordinates follow the active camera during resize.
+
+## Future feature specifications
+
+[Lore and campaign direction](docs/LORE_AND_CAMPAIGN_SPEC.md) records the flexible sixteen-chapter kingdom route, field-guide grounding, proposed companions, and mechanic progression. It is a starting point for future writing and playtesting, not a fixed production plan.
+
+[Asset loading and offline play](docs/ASSET_PIPELINE_AND_OFFLINE_PLAY_SPEC.md) is a draft for asset optimization, loading recovery, caching, offline downloads, and safe updates. It describes future work rather than current offline support.
 
 ## November 19 difficulty pass
 
