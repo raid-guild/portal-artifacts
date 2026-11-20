@@ -43,6 +43,7 @@ type Props = {
   gateOpening: boolean;
   nextLevel: LevelId | null;
   keeperMet: boolean;
+  companionIntroduced: boolean;
   level: LevelDefinition;
   puzzle: Puzzle | null;
   startingBoosters: BoosterPlacement[];
@@ -273,9 +274,9 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       if (!props.reducedMotion) this.tweens.add({ targets: this.keeperGlow, alpha: 0.15, yoyo: true, repeat: -1, duration: 750 });
       const keeperHit = this.add.zone(447, 367, 66, 104);
       this.companionHit = keeperHit;
-      if (props.nextLevel === "pumpHouse" && !props.keeperMet) keeperHit.setInteractive({ useHandCursor: true });
+      keeperHit.setInteractive({ useHandCursor: true });
       this.keeperGraphic = keeper;
-      this.companionCaption = this.add.text(447, 316, "KEEPER", { fontFamily: "Arial", fontSize: "14px", color: "#fff0ce", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(0.5);
+      this.companionCaption = this.add.text(447, 316, props.companionIntroduced ? "TALK TO KEEPER" : "KEEPER", { fontFamily: "Arial", fontSize: "14px", color: "#fff0ce", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       const destination = MAP_DESTINATIONS[props.nextLevel ? LEVELS[props.nextLevel].destination : "openWaterway"];
@@ -295,9 +296,12 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
         props.audio?.unlock();
         if (this.locked) return;
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (props.nextLevel === "pumpHouse" && !props.keeperMet && (hit.includes(keeperHit) || (Math.abs(x - this.companionPace.x) < 30 && y >= 310 && y <= 425))) { this.target = { x: 409, y: 418 }; this.locked = true; this.walkThen(() => props.onEvent({ type: "keeper", position: { ...this.player } })); return; }
-        if (pumpReady && (hit.includes(pump) || hit.includes(this.marker!) || hit.includes(this.pumpPrompt!) ||
-          (Math.abs(x - destination.marker.x) < 40 && Math.abs(y - destination.marker.y) < 44))) {
+        if (pumpReady && (hit.includes(this.marker!) || hit.includes(this.pumpPrompt!))) {
+          this.target = { ...destination.walk }; this.locked = true;
+          this.walkThen(() => props.onEvent({ type: "pump", position: { ...this.player } })); return;
+        }
+        if (hit.includes(keeperHit) || hit.includes(this.companionCaption!) || (Math.abs(x - this.companionPace.x) < 30 && y >= 310 && y <= 425)) { this.target = { x: 409, y: 418 }; this.locked = true; this.walkThen(() => props.onEvent({ type: "keeper", position: { ...this.player } })); return; }
+        if (pumpReady && (hit.includes(pump) || (Math.abs(x - destination.marker.x) < 40 && Math.abs(y - destination.marker.y) < 44))) {
           this.target = { ...destination.walk }; this.locked = true;
           this.walkThen(() => props.onEvent({ type: "pump", position: { ...this.player } })); return;
         }
@@ -401,15 +405,15 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         this.wayfinderGlow.push(glow);
       }
       if (!props.reducedMotion) this.tweens.add({ targets: this.wayfinderGlow, alpha: 0.12, duration: 800, yoyo: true, repeat: -1 });
-      const actionAvailable = props.nextLevel === "caravanPennants";
+      const actionAvailable = props.nextLevel === "caravanPennants" && !props.companionIntroduced;
       const routeLevel = props.nextLevel && LEVELS[props.nextLevel].chapter === "caravan" && !actionAvailable ? LEVELS[props.nextLevel] : null;
       const destination = routeLevel ? MAP_DESTINATIONS[routeLevel.destination] : null;
       const hit = this.add.zone(677, 388, 82, 125);
       this.companionHit = hit;
-      if (actionAvailable) hit.setInteractive({ useHandCursor: true });
-      const caption = label(this, 677, 337, actionAvailable ? "WAYFINDER" : "ROUTE MARKED ✓", 15).setOrigin(0.5);
+      hit.setInteractive({ useHandCursor: true });
+      const caption = label(this, 677, 337, props.companionIntroduced ? "TALK TO WAYFINDER" : "WAYFINDER", 15).setOrigin(0.5);
       this.companionCaption = caption;
-      if (actionAvailable) caption.setInteractive({ useHandCursor: true });
+      caption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined;
       let routeCaption: Phaser.GameObjects.Text | undefined;
       if (destination && routeLevel) {
@@ -424,7 +428,10 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (actionAvailable && (targets.includes(hit) || targets.includes(caption) || (Math.abs(x - this.companionPace.x) < 41 && y >= 330 && y <= 447))) {
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(caption))) {
+          this.locked = true; this.target = { ...destination.walk }; this.tweens.add({ targets: this.player, x: this.target.x, y: this.target.y, duration: props.reducedMotion ? 1 : Math.hypot(this.player.x - this.target.x, this.player.y - this.target.y) * 4.4, onComplete: () => props.onEvent({ type: "pump", position: { ...this.player } }) }); return;
+        }
+        if (targets.includes(hit) || targets.includes(caption) || (Math.abs(x - this.companionPace.x) < 41 && y >= 330 && y <= 447)) {
           this.locked = true;
           this.target = { x: 607, y: 439 };
           this.tweens.add({ targets: this.player, x: this.target.x, y: this.target.y,
@@ -530,15 +537,15 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         characterPosition(glow, "gatewright", 520+dx, 452+dy); this.glows.push(glow);
       }
       if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
-      const arriving = props.nextLevel === "gatehouseApproach";
+      const arriving = props.nextLevel === "gatehouseApproach" && !props.companionIntroduced;
       const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "gatehouse" && !arriving ? LEVELS[props.nextLevel] : null;
       const destination = route ? MAP_DESTINATIONS[route.destination] : null;
       const talkHit = this.add.zone(520, 407, 84, 104);
       this.companionHit = talkHit;
-      if (arriving) talkHit.setInteractive({ useHandCursor: true });
-      const talkCaption = label(this, 520, 355, arriving ? "GATEWRIGHT" : "BRIDGE ENGINEER ✓", 15).setOrigin(.5);
+      talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 520, 355, props.companionIntroduced ? "TALK TO GATEWRIGHT" : "GATEWRIGHT", 15).setOrigin(.5);
       this.companionCaption = talkCaption;
-      if (arriving) talkCaption.setInteractive({ useHandCursor: true });
+      talkCaption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
       if (destination && route) {
         const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
@@ -552,7 +559,10 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=350 && y<=458)) {
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        if (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=350 && y<=458) {
           this.locked = true; this.target = {x:465,y:455}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"gatewright",position:{...this.player}})}); return;
         }
         if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
@@ -629,15 +639,15 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
         characterPosition(glow, "fieldkeeper", 540+dx, 430+dy); this.glows.push(glow);
       }
       if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
-      const arriving = props.nextLevel === "seedStore";
+      const arriving = props.nextLevel === "seedStore" && !props.companionIntroduced;
       const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "farmland" && !arriving ? LEVELS[props.nextLevel] : null;
       const destination = route ? MAP_DESTINATIONS[route.destination] : null;
       const talkHit = this.add.zone(540, 389, 100, 115);
       this.companionHit = talkHit;
-      if (arriving) talkHit.setInteractive({ useHandCursor: true });
-      const talkCaption = label(this, 540, 329, arriving ? "FIELDKEEPER" : "FIELDKEEPER ✓", 15).setOrigin(.5);
+      talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 540, 329, props.companionIntroduced ? "TALK TO FIELDKEEPER" : "FIELDKEEPER", 15).setOrigin(.5);
       this.companionCaption = talkCaption;
-      if (arriving) talkCaption.setInteractive({ useHandCursor: true });
+      talkCaption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
       if (destination && route) {
         const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
@@ -651,7 +661,10 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=329 && y<=445)) {
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        if (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=329 && y<=445) {
           this.locked = true; this.target = {x:488,y:447}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"fieldkeeper",position:{...this.player}})}); return;
         }
         if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {

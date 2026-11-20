@@ -678,7 +678,7 @@ let bounded=emptyArchive();for(let index=0;index<MAX_ATTEMPTS+3;index++)bounded=
 assert.equal(bounded.attempts.length,MAX_ATTEMPTS);assert.equal(bounded.droppedAttempts,3);
 const archiveItems=new Map();
 const archiveStorage={getItem:key=>archiveItems.get(key)??null,setItem:(key,value)=>archiveItems.set(key,value)};
-const guestKey=campaignArchiveKey(), accountA=campaignArchiveKey('101'), accountB=campaignArchiveKey('202');
+const guestKey=campaignArchiveKey(), accountA=campaignArchiveKey('test-account-alpha'), accountB=campaignArchiveKey('test-account-beta');
 assert.notEqual(guestKey,PLAYTEST_KEY);assert.notEqual(accountA,guestKey);assert.notEqual(accountA,accountB);
 writeArchive(addAttempt(emptyArchive(),{...attempt,id:'guest-turn',boosterMode:'campaign'}),archiveStorage,guestKey);
 writeArchive(addAttempt(emptyArchive(),{...attempt,id:'account-a-turn',boosterMode:'campaign'}),archiveStorage,accountA);
@@ -689,7 +689,7 @@ assert.equal(readArchive(archiveStorage,accountB).attempts[0].id,'account-b-turn
 assert.deepEqual(readArchive(archiveStorage),emptyArchive(),'default archive remains playtest');
 assert.equal(addAttempt(readArchive(archiveStorage,guestKey),{...attempt,id:'guest-turn'}).attempts.length,1,'checkpoints replace the same attempt');
 assert.equal(readArchive(archiveStorage,guestKey).attempts[0].boosterMode,'campaign');
-assert(!archiveJson(readArchive(archiveStorage,accountA)).includes('101'),'export has no account identifier');
+assert(!archiveJson(readArchive(archiveStorage,accountA)).includes('test-account-alpha'),'export has no account identifier');
 assert(!archiveCsv(readArchive(archiveStorage,accountA)).includes('accountId'),'CSV has no account field');
 const allTwenty=normalizeSave({...EMPTY_SAVE,completed:LEVEL_ORDER.slice(0,20),oasisTransition:'ready',companions:['keeper','wayfinder'],region:'caravan'});
 assert.deepEqual(allTwenty.transition,{from:'caravan',to:'gatehouse',stage:'film'},'v3 full campaign resumes departure');

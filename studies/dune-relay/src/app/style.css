@@ -54,6 +54,10 @@ button { font: inherit; cursor: pointer; }
 .speaker-row { display: flex; align-items: center; gap: 13px; }
 .speaker-avatar { width: clamp(44px, 8cqh, 66px); height: clamp(44px, 8cqh, 66px); object-fit: contain; border-radius: 50%; border: 2px solid #e0bd82; background: #26515a; }
 .dialog-card p { font-size: clamp(15px, 2vw, 21px); line-height: 1.45; margin: 14px 0 24px; }
+.companion-chat { width: min(440px, 76%); }
+.companion-chat p { margin-bottom: 14px; }
+.handbook-source { display: block; width: fit-content; margin: 0 0 18px; color: #9de4d4; font-size: clamp(12px, 1.5vw, 15px); text-decoration: underline; text-underline-offset: 3px; }
+.handbook-source:focus-visible { outline: 2px solid #ffe3a2; outline-offset: 3px; }
 .dialog-card h2, .finale-card h2 { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(36px, 5vw, 54px); line-height: 1; margin: 12px 0; color: #ffe3a2; }
 .booster-shop { width: min(760px, 88%); max-height: 94%; overflow-y: auto; padding: clamp(12px, 2.7cqh, 25px); }
 .booster-shop p { margin: 6px 0 9px; font-size: clamp(12px, 2.5cqh, 17px); }
