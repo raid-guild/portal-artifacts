@@ -4,11 +4,12 @@ export const GAME = 'dune-relay';
 export const content = JSON.parse(readFileSync(new URL('./dune-content.json', import.meta.url), 'utf8'));
 export const levels = new Map(content.levels.map((level, index) => [level.id, { ...level, index }]));
 export const boosterPrices = Object.freeze({ jet: 300, flywheel: 300, prism: 500 });
-export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, demoEnding: 'locked' });
+export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, demoEnding: 'locked', farmlandEnding: 'locked' });
 export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false });
 export const rewardFor = moves => 20 + 3 * moves;
 // This boundary stays at the Gatehouse finale when later chapters add levels.
 export const DEMO_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCrossing') + 1;
+export const FARMLAND_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheHarvestRoad') + 1;
 export const farmlandEligible = campaign => DEMO_LEVEL_COUNT > 0 && Array.isArray(campaign?.completed) && campaign.completed.length >= DEMO_LEVEL_COUNT && campaign.completed.slice(0,DEMO_LEVEL_COUNT).every((id,index)=>id===content.levels[index].id);
 export function fail(status, message) { return Object.assign(new Error(message), { status }); }
 export function validUuid(value) { return typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value); }
@@ -35,7 +36,7 @@ export function deriveCampaign(completed, coins, requested = {}) {
   validPrefix(completed);
   if (!Number.isSafeInteger(coins) || coins < 0 || coins > 1000000) throw fail(400, 'Invalid coin balance.');
   const count = completed.length;
-  const oasisDone = count >= 10, caravanDone = count >= 20, gatehouseDone = count >= 30;
+  const oasisDone = count >= 10, caravanDone = count >= 20, gatehouseDone = count >= 30, farmlandDone = FARMLAND_LEVEL_COUNT > 0 && count >= FARMLAND_LEVEL_COUNT;
   const oasisStages = ['locked','film','keeper','atlas','arrival','ready'];
   const endingStages = ['locked','gate','film','thanks','done'];
   const oasisTransition = oasisDone && oasisStages.includes(requested.oasisTransition) && requested.oasisTransition !== 'locked' ? requested.oasisTransition : oasisDone ? 'film' : 'locked';
@@ -52,15 +53,18 @@ export function deriveCampaign(completed, coins, requested = {}) {
     transition = { from: 'gatehouse', to: 'farmland', stage };
   }
   const demoEnding = gatehouseDone && endingStages.includes(requested.demoEnding) && requested.demoEnding !== 'locked' ? requested.demoEnding : gatehouseDone ? 'gate' : 'locked';
+  const farmlandStages = ['locked','film','thanks','done'];
+  const farmlandEnding = farmlandDone && farmlandStages.includes(requested.farmlandEnding) && requested.farmlandEnding !== 'locked' ? requested.farmlandEnding : farmlandDone ? 'film' : 'locked';
   const region = transition?.stage === 'arrival' ? transition.to
     : demoEnding !== 'locked' && demoEnding !== 'done' && transition?.to !== 'farmland' ? 'gatehouse'
+    : farmlandEnding === 'film' || farmlandEnding === 'thanks' ? 'farmland'
     : requested.region === 'farmland' && farmlandReady ? 'farmland'
     : requested.region === 'gatehouse' && gatehouseReady ? 'gatehouse'
     : requested.region === 'oasis' ? 'oasis'
     : oasisTransition === 'ready' ? 'caravan' : 'oasis';
   return { version: 5, completed, coins, region,
     companions: [ ...(oasisStages.indexOf(oasisTransition) >= 3 ? ['keeper'] : []), ...(oasisTransition === 'ready' ? ['wayfinder'] : []), ...(gatehouseReady ? ['gatewright'] : []), ...(farmlandReady ? ['fieldkeeper'] : []) ],
-    oasisTransition, transition, gatehouseReady, farmlandReady, demoEnding };
+    oasisTransition, transition, gatehouseReady, farmlandReady, demoEnding, farmlandEnding };
 }
 export function normalizeProfile(value) {
   if (!value || typeof value !== 'object') return emptyProfile();
@@ -79,7 +83,8 @@ export function guestImport(value) {
 export function applyCheckpoint(profile, requested) {
   const before = profile.campaign;
   if (!requested || !Array.isArray(requested.completed) || JSON.stringify(requested.completed) !== JSON.stringify(before.completed) || requested.coins !== before.coins) throw fail(409, 'Campaign changed. Reload your save.');
-  const after = deriveCampaign(before.completed, before.coins, requested);
+  if (before.farmlandEnding && before.farmlandEnding !== 'locked' && requested.farmlandEnding === 'locked') throw fail(400, 'Invalid Farmland ending checkpoint.');
+  const after = deriveCampaign(before.completed, before.coins, { ...requested, farmlandEnding: requested.farmlandEnding ?? before.farmlandEnding });
   const oasisStages = ['locked','film','keeper','atlas','arrival','ready'];
   const priorOasis = oasisStages.indexOf(before.oasisTransition), nextOasis = oasisStages.indexOf(after.oasisTransition);
   if (nextOasis < priorOasis || nextOasis > priorOasis + 1) throw fail(400, 'Invalid Oasis checkpoint.');
@@ -99,6 +104,9 @@ export function applyCheckpoint(profile, requested) {
   const ending = ['locked','gate','film','thanks','done'];
   const priorEnd = ending.indexOf(before.demoEnding), nextEnd = ending.indexOf(after.demoEnding);
   if (nextEnd < priorEnd || nextEnd > priorEnd + 1) throw fail(400, 'Invalid ending checkpoint.');
+  const farmlandEnding = ['locked','film','thanks','done'];
+  const priorFarmland = farmlandEnding.indexOf(before.farmlandEnding ?? 'locked'), nextFarmland = farmlandEnding.indexOf(after.farmlandEnding);
+  if (nextFarmland < priorFarmland || nextFarmland > priorFarmland + 1) throw fail(400, 'Invalid Farmland ending checkpoint.');
   if (after.gatehouseReady && !before.gatehouseReady && before.transition?.stage !== 'arrival') throw fail(400, 'Gatehouse arrival is incomplete.');
   if (after.farmlandReady && !before.farmlandReady && before.transition?.from !== 'gatehouse' || after.farmlandReady && !before.farmlandReady && before.transition?.stage !== 'arrival') throw fail(400, 'Farmland arrival is incomplete.');
   return { ...profile, revision: profile.revision + 1, campaign: after };

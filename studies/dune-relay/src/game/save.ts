@@ -10,8 +10,9 @@ export type CompanionId = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper";
 export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival" | "ready";
 export type ChapterTransition = null | { from: "oasis" | "caravan" | "gatehouse"; to: "caravan" | "gatehouse" | "farmland"; stage: "film" | "handoff" | "atlas" | "arrival" };
 export type DemoEnding = "locked" | "gate" | "film" | "thanks" | "done";
-export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; farmlandReady: boolean; demoEnding: DemoEnding };
-export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, farmlandReady: false, demoEnding: "locked" };
+export type FarmlandEnding = "locked" | "film" | "thanks" | "done";
+export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; farmlandReady: boolean; demoEnding: DemoEnding; farmlandEnding: FarmlandEnding };
+export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, farmlandReady: false, demoEnding: "locked", farmlandEnding: "locked" };
 const oasisStages: OasisTransition[] = ["locked", "film", "keeper", "atlas", "arrival", "ready"];
 const stageOrder = ["film", "handoff", "atlas", "arrival"] as const;
 function validCoins(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
@@ -42,8 +43,11 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   if (transition?.stage === "arrival") region = transition.to;
   const endingStages: DemoEnding[] = ["locked", "gate", "film", "thanks", "done"];
   const demoEnding: DemoEnding = completed.includes("openTheCrossing") ? endingStages.includes(value.demoEnding as DemoEnding) && value.demoEnding !== "locked" ? value.demoEnding as DemoEnding : "gate" : "locked";
+  const farmlandStages: FarmlandEnding[] = ["locked", "film", "thanks", "done"];
+  const farmlandEnding: FarmlandEnding = completed.includes("openTheHarvestRoad") ? farmlandStages.includes(value.farmlandEnding as FarmlandEnding) && value.farmlandEnding !== "locked" ? value.farmlandEnding as FarmlandEnding : "film" : "locked";
   if ((demoEnding === "gate" || demoEnding === "film" || demoEnding === "thanks") && transition?.to !== "farmland") region = "gatehouse";
-  return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, farmlandReady, demoEnding };
+  if (farmlandEnding === "film" || farmlandEnding === "thanks") region = "farmland";
+  return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, farmlandReady, demoEnding, farmlandEnding };
 }
 export function readSave(storage?: Pick<Storage, "getItem" | "setItem">): Save {
   try {

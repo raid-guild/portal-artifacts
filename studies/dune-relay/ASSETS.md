@@ -139,3 +139,11 @@ Use case illustration-story. Production match3 obstacle game sprite on genuinely
 ### Cracked seedpod prompt
 
 Usecase precise-object-edit. Edit the attached DuneRelay cracked armoredseedpod sprite to be MUCH MORE OBVIOUSLY DAMAGED AT40PIXELS. Keepcenter, outerwidthheight andtopstem, chestnutbrown organichusk, fineblackink flatwatercolor style, transparentbackground. Replace subtlefinecrack with ONE HUGEOPEN centraljagged SPLIT spanning almosthalfpodwidth andtophalfthroughbottomhalf, exposing a LARGE BRIGHT CREAM GOLD SEEDCORE contrastingdarkbrownshell. Visiblytwistedbroken bronze bands: middleband splitwideopen withleafemblem broken tooneside, topband snappedgap nearfront. Two attachedhusk sides displaced slightlyoutward butstillonecoherent notdestroyedpod; retainlowerbandasbase. Mainrecognition at40px: intactisdarkbrown closed; damagedisBRIGHTPALEOPENcenter withbrokenmetal. Do notjustaddhairlinecracks. No glow, no particles, no surroundingobjects, no text, no shadowsoutsideobject. Singleisolatedsprite centeredongenuinelytransparentbackground, maintain10percentmargin.
+
+## Farmland harvest ending film
+
+- User-provided source: `grok-video-c2bdde7c-e550-46a8-b41e-18caf796c10e.mp4`, 16.041667 seconds, native 736 × 400 at 24 fps, H.264/AAC with an attached MJPEG thumbnail, 14,627,959 bytes.
+- `public/cinematics/farmland-harvest.mp4`: full duration preserved, native dimensions/frame rate, H.264/yuv420p CRF 28, AAC 96 kb/s, faststart metadata, 3,482,689 bytes. Attached thumbnail stream excluded.
+- `public/cinematics/farmland-harvest-poster.webp`: first frame, WebP quality 88.
+- Sequence: level 40 coin finale → release board renderer → harvest film → Fieldkeeper closing story and Town on the Hill teaser. Uses the existing Skip, blocked-playback fallback and decoder cleanup.
+- Encoding: `ffmpeg -i <source> -map 0:v:0 -map 0:a:0? -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart farmland-harvest.mp4`.

@@ -736,13 +736,16 @@ const finalV4 = { ...arrivalDone, version:4, completed:[...LEVEL_ORDER], coins:1
 const migrationMemory = new Map([['dune-relay-campaign-v4',JSON.stringify(finalV4)]]);
 const migratedFinal = readSave({getItem:key=>migrationMemory.get(key)??null,setItem:(key,value)=>migrationMemory.set(key,value)});
 assert.equal(migratedFinal.demoEnding,'gate','completed v4 campaign resumes demo ending once');
-assert.equal(migratedFinal.region,'gatehouse');
+assert.equal(migratedFinal.farmlandEnding,'film','completed legacy save resumes the harvest film');
+assert.equal(migratedFinal.region,'farmland');
 assert.equal(migratedFinal.coins,1299); assert.deepEqual(migratedFinal.completed,LEVEL_ORDER);
 for (const stage of ['gate','film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,demoEnding:stage}).demoEnding,stage);
 const oasisOriginV4={...finalV4,region:'oasis'};
 const migratedOasisOrigin=normalizeSave(oasisOriginV4);
-assert.equal(migratedOasisOrigin.region,'gatehouse','pre-ack ending resumes at the gate even if last visited Oasis');
-assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',region:'oasis'}).region,'oasis','after acknowledgement visitor can revisit Oasis');
+assert.equal(migratedOasisOrigin.region,'farmland','unfinished harvest ending resumes in Farmland even if last visited Oasis');
+assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',farmlandEnding:'done',region:'oasis'}).region,'oasis','after acknowledgement visitor can revisit Oasis');
+for (const stage of ['film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,farmlandEnding:stage}).farmlandEnding,stage);
+assert.equal(normalizeSave({...migratedFinal,completed:LEVEL_ORDER.slice(0,39),farmlandEnding:'done'}).farmlandEnding,'locked','unfinished final level cannot unlock ending');
 assert.equal(normalizeSave({...migratedFinal,demoEnding:'done'}).coins,1299);
 console.log('Core checks passed: 40 levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.');
 
