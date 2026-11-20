@@ -4,6 +4,10 @@ Optional backend for standalone Portal artifacts. The first game is Cosmic Carni
 (scoring version `1`). API and static host deploy independently from this repository.
 Portal owns login and profile identity; this service owns only game sessions and runs.
 
+## Dune Relay cloud campaign
+
+Dune Relay uses the same service at `/leaderboard-api/dune-relay/*` with a dedicated `DUNE_RELAY_LAUNCH_SECRET`. Its additive tables are at the end of `schema.sql`; apply `ops/dune-grants.sql` with the database administrator role before enabling the Portal module. `GET /leaderboard-api/dune-relay/ready` checks the tables, columns, least-privilege runtime grants, and shared player identity sequence. `GET /leaderboard-api/dune-relay/login` issues a bounded five minute login intent and removes expired intents; callback atomically consumes the intent with the launch JTI before issuing a Dune session. Without the Dune secret, only its routes return 503. The guarded Payload module creation/update script is `ops/configure-dune-relay.ts` (dry run by default, `--apply` after receipt review). See [Dune rollout and API contract](../../studies/dune-relay/docs/portal-cloud-save.md) for the ordered steps, testing, and rollback.
+
 ## Puddle ranked gardens
 
 ### Community workshop levels

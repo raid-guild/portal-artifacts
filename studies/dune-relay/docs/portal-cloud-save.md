@@ -1,0 +1,30 @@
+# Portal launch and Dune Relay campaign save
+
+The browser game remains playable without Portal. Guest progress uses the existing `dune-relay-campaign-v5` local save. A Portal launch creates a separate, same-origin, HttpOnly Dune session and an account campaign in the leaderboard service. Signing out restores the guest save. Playtest mode continues using its separate wallet and archive and never sends campaign writes.
+
+## Rollout order
+
+1. Review the Dune schema block at the end of `services/leaderboards/schema.sql`. Apply it with the database administrator role. Apply `services/leaderboards/ops/dune-grants.sql` to the restricted service role. Existing player/session/launch grants remain required. The runtime service does not run migrations.
+2. Provision the same new, dedicated `DUNE_RELAY_LAUNCH_SECRET` on Portal and the leaderboard service without deploying yet. Generate 32 random bytes (for example, 64 hexadecimal characters) and do not reuse another game's secret.
+3. Deploy the leaderboard backend, then check its Dune readiness endpoint directly as the restricted runtime role. It must return `{ "ready": true, "missing": [] }`. Other games must still pass their health checks.
+4. Deploy the static artifact and Caddy `/leaderboard-api/dune-relay/*` proxy. Check the guest game and proxied `GET /leaderboard-api/dune-relay/ready`.
+5. Restart Portal with its secret. In the Portal checkout, run `ops/configure-dune-relay.ts` through Payload's CLI without `--apply` and review the receipt. It will create the absent `dune-relay` module as an authenticated, prototype game with an external signed launch, or update only signed launch fields on a matching existing module. Then run with `--apply` and compare its readback receipt. Both operations set `skipNotificationHooks` to avoid member notifications.
+6. Launch from Portal with a test account. Verify callback cookie, account name, fresh campaign, guest import choice, a paid booster charge, a win reward, sign out, return sign in, and another device. Keep the feature under review before advertising it.
+
+If migration or secret configuration is incomplete, guest play remains available. Do not enable a Portal module whose callback cannot pass readiness and account smoke tests.
+
+## Campaign contract
+
+Routes are under `/leaderboard-api/dune-relay`. `GET /login` creates a five minute, host-only, HttpOnly, Secure, SameSite=Lax login intent cookie and redirects to Portal login with `next=/api/modules/dune-relay/launch?state=<64 hex characters>`. Portal signs that state as the optional `launchState` claim in a short lived one-use HS256 launch for audience `dune-relay`. The Dune callback verifies the JWT first, compares state to the intent cookie, and consumes the server-side intent and Portal JTI in one transaction before creating an account session. A valid launch without `launchState` redirects to Dune `/login` to start the intent flow. Every POST requires the exact production Origin and JSON. The server derives level order, move caps, prices (Jet/Flywheel 300, Prism 500), coin rewards (`20 + 3 × spare moves`), and chapter checkpoints. The browser cannot send a balance. The server accepts only the next level after its chapter transition and awards each level once. The demo has 30 levels, with `chapter-3-3` as the current content version. The browser core check fails when authored level order, chapter, moves, prices, rewards, or companion unlocks drift from the server fixture; update both together when intentionally tuning the game.
+
+`GET /session` and `GET /campaign` identify an account and read its profile. `POST /campaign/import` moves bounded guest progress into an empty account once; a populated cloud campaign wins, and the guest save remains on the device. `POST /attempts` prepares a booster loadout without charging. `POST /attempts/:id/activate` charges under a profile lock when the board scene is ready. Retrying the same attempt ID returns its existing state and cannot charge again. `POST /attempts/:id/finish` records a bounded win and returns its reward; a free offline win may sync later. `POST /campaign/checkpoint` advances validated story state with a revision and idempotency receipt. `POST /logout` revokes only the Dune session.
+
+Cloud operation IDs and pending wins/checkpoints are cached per account before the reveal animation. A network timeout keeps the same operation for retry. A 400/409 conflict stops automatic retry and offers a JSON backup plus an explicit action to use the Portal save. The app remembers the last account ID, never its token. On reload with an unavailable or expired Portal session, it holds the account cache and blocks campaign entry until sign in succeeds; it does not silently replace it with a guest save. Account progress saves at chapter/story checkpoints. An unfinished board restarts; there is no midboard resume. Paid booster activation is confirmed before the board becomes playable.
+
+## Test and rollback
+
+Use a disposable PostgreSQL database with `TEST_DATABASE_URL` for `services/leaderboards/npm test`. Run `studies/dune-relay/npm run typecheck`, `npm run test:core`, and `npm run build:artifact`. Verify the static game and same-origin API in a browser. The backend tests cover signed launch replay and isolation, guest import, purchase and finish idempotency, level prerequisites, and legacy services.
+
+To disable cloud writes quickly, remove `DUNE_RELAY_LAUNCH_SECRET` from the leaderboard service and restart it; Dune routes become isolated 503s while guests and the other games remain available. Keep the additive Dune tables for recovery. Do not discard unsynced account backups when rolling back a client.
+
+Future storefront/PWYW access is outside this contract. It will need a separate, server-validated entitlement before locked levels; the current demo is free to play.

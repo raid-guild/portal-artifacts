@@ -66,3 +66,38 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.puddle_community_versions (
 CREATE INDEX IF NOT EXISTS puddle_community_versions_created
   ON artifact_leaderboards.puddle_community_versions (created_at DESC);
 CREATE INDEX IF NOT EXISTS rc_racers_runs_board ON artifact_leaderboards.runs (version,(run_config->>'track'),(run_config->>'direction'),(run_config->>'class')) WHERE game='rc-racers' AND submitted_at IS NOT NULL;
+
+-- Dune Relay campaign. Apply administratively before enabling its launch secret.
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_profiles (
+  player_id bigint PRIMARY KEY REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  profile jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_attempts (
+  id uuid PRIMARY KEY, player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  level_id text NOT NULL, boosters jsonb NOT NULL DEFAULT '[]'::jsonb,
+  status text NOT NULL CHECK (status IN ('prepared','active','finished')),
+  remaining_moves integer, reward integer, created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (id,player_id)
+);
+CREATE INDEX IF NOT EXISTS dune_attempts_player ON artifact_leaderboards.dune_attempts(player_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_completions (
+  player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  level_id text NOT NULL, attempt_id uuid NOT NULL REFERENCES artifact_leaderboards.dune_attempts(id),
+  reward integer NOT NULL CHECK (reward >= 0),
+  completed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(player_id,level_id)
+);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_operations (
+  player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  request_id uuid NOT NULL, kind text NOT NULL, payload_hash text NOT NULL,
+  response jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(player_id,request_id)
+);
+CREATE INDEX IF NOT EXISTS dune_operations_created ON artifact_leaderboards.dune_operations(created_at);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_launch_intents (
+  nonce_hash text PRIMARY KEY,
+  consumed_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS dune_launch_intents_expiry ON artifact_leaderboards.dune_launch_intents(expires_at);

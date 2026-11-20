@@ -4,10 +4,17 @@ import { createApp } from './app.js';
 import { createRaidApp } from './raid-app.js';
 import { createPuddleApp } from './puddle-app.js';
 import { createRcRacersApp } from './rc-racers-app.js';
+import { createDuneApp } from './dune-app.js';
 
-export function createCombinedApp({ pool, origin, issuer, cosmicSecret, raidSecret, puddleSecret, neonSecret, rcRacersSecret, secure = true }) {
+export function createCombinedApp({ pool, origin, issuer, cosmicSecret, raidSecret, puddleSecret, neonSecret, rcRacersSecret, duneSecret, secure = true }) {
   const app=express();
   const common={pool,origin,issuer,secure};
+  if (duneSecret?.length >= 32) {
+    const dune=createDuneApp({...common,launchSecret:duneSecret});
+    app.use((req,res,next)=>req.path.startsWith('/leaderboard-api/dune-relay/') ? dune(req,res,next) : next());
+  } else {
+    app.use('/leaderboard-api/dune-relay',(_req,res)=>res.status(503).set('Cache-Control','no-store').json({message:'Cloud saves are unavailable. Guest play still works.'}));
+  }
   if (raidSecret?.length >= 32) {
     const raid=createRaidApp({...common,launchSecret:raidSecret});
     // Dispatch only Raid paths: the game app owns its own routes and catch-all.

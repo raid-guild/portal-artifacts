@@ -15,15 +15,19 @@ import { COMPANIONS } from "./chapters";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
+import * as cloudApi from "./cloud";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | null;
-type PendingAttempt = { token: number; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
 export default function GameShell() {
   const [playtest, setPlaytest] = useState(false);
   const [ready, setReady] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<"checking" | "guest" | "account" | "syncing" | "pending" | "expired">("checking");
+  const [cloudMessage, setCloudMessage] = useState<string | null>(null);
+  const [portalName, setPortalName] = useState<string | null>(null);
   const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const [mode, setMode] = useState<"map" | "puzzle">("map");
   const [overlay, setOverlay] = useState<Overlay>("start");
@@ -62,6 +66,9 @@ export default function GameShell() {
   const reward = useRef(0);
   const mapPositions = useRef<Record<Region, { x: number; y: number } | null>>({ oasis: null, caravan: null, gatehouse: null });
   const saveRef = useRef<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
+  const cloudRef = useRef<{ accountId: string; profile: cloudApi.CloudProfile; pending: cloudApi.CloudOperation[]; syncing: boolean } | null>(null);
+  const cloudGeneration = useRef(0);
+  const cloudConflict = useRef(false);
   const sound = useRef<GameAudio | null>(null);
   const film = useRef<HTMLVideoElement | null>(null);
   const archive = useRef<PlaytestArchive>(emptyArchive());
@@ -69,6 +76,8 @@ export default function GameShell() {
   const activeSince = useRef<number | null>(null);
   const pendingAttempt = useRef<PendingAttempt | null>(null);
   const tokenCounter = useRef(0);
+  const launching = useRef(false);
+  const authorizing = useRef(false);
   const gateOpenedPending = useRef(false);
   const filmKind = save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
   const filmContent = {
@@ -113,6 +122,7 @@ export default function GameShell() {
     if (testing) { archive.current = readArchive(); writeArchive(archive.current); const wallet = readPlaytestWallet(); const loaded = normalizeSave({ ...saveRef.current, coins: wallet.coins }); saveRef.current = loaded; setSave(loaded); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
     setReady(true);
+    void initializeCloud(testing);
     const mixer = new GameAudio();
     sound.current = mixer;
     try {
@@ -137,6 +147,7 @@ export default function GameShell() {
       document.removeEventListener("visibilitychange", fullscreenSync);
       window.removeEventListener("error", pageError);
       window.removeEventListener("unhandledrejection", rejection);
+      cloudGeneration.current++;
     };
   }, []);
 
@@ -146,6 +157,12 @@ export default function GameShell() {
     try { localStorage.setItem("dune-relay-audio-v1", JSON.stringify({ muted, sfx: sfxVolume, ambience: ambienceVolume, music: musicVolume, track: trackPreference })); }
     catch { /* Private browsing can block storage. */ }
   }, [ready, muted, sfxVolume, ambienceVolume, musicVolume, trackPreference]);
+  useEffect(() => {
+    const retry = () => { if (cloudRef.current?.pending.length) void flushCloud(); };
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    return () => { window.removeEventListener("online", retry); window.removeEventListener("focus", retry); };
+  }, []);
 
   const unlockedTracks = getUnlockedSoundtracks(save);
   const selectedTrack = playtest ? playtestTrack : trackPreference;
@@ -215,11 +232,146 @@ export default function GameShell() {
   function abandonRecord(reason: string) { if (!activeRecord.current || activeRecord.current.outcome !== "playing") return; recordPause(); activeRecord.current = finishAttempt(activeRecord.current, "abandoned", reason); storeRecord(); activeRecord.current = null; }
   function downloadStats(format: "json" | "csv") { if (!playtest) return; recordPause(); const body = format === "json" ? archiveJson(archive.current) : archiveCsv(archive.current); const blob = new Blob([body], { type: format === "json" ? "application/json" : "text/csv" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-playtest-${new Date().toISOString().slice(0,10)}.${format}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); if (!settings) recordResume(); }
   function downloadDiagnostics() { const blob = new Blob([diagnosticsJson()], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-diagnostics-${new Date().toISOString().slice(0,10)}.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  function downloadCloudBackup() {
+    const current=cloudRef.current; if (!current) return;
+    const body=JSON.stringify({accountId:current.accountId,profile:current.profile,localSave:saveRef.current,pending:current.pending,exportedAt:new Date().toISOString()},null,2);
+    const url=URL.createObjectURL(new Blob([body],{type:"application/json"})); const link=document.createElement("a");
+    link.href=url; link.download=`dune-relay-cloud-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function usePortalSave() {
+    const current=cloudRef.current; if (!current) return;
+    try {
+      const result=await cloudApi.campaign(current.accountId); if (cloudRef.current!==current || result.accountId!==current.accountId || !result.profile) return;
+      current.profile=result.profile; current.pending=[]; cloudConflict.current=false;
+      const loaded=normalizeSave(result.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
+      setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
+    } catch (error) { setCloudMessage(`Portal save could not load: ${(error as Error).message}`); }
+  }
   function persist(next: Save) {
     if (next === saveRef.current) return;
+    const before = saveRef.current;
     saveRef.current = next; setSave(next);
     if (playtest) writePlaytestWallet({ version: 1, coins: next.coins });
-    else writeSave(next);
+    else if (cloudRef.current) {
+      cacheCloud();
+      if (before.completed.length === next.completed.length && before.coins === next.coins) {
+        cloudRef.current.pending.push({ kind: "checkpoint", requestId: cloudApi.newOperationId(), campaign: next });
+        cacheCloud(); void flushCloud();
+      }
+    } else writeSave(next);
+  }
+  function cacheCloud() {
+    const current = cloudRef.current;
+    const purchase=pendingAttempt.current?.cost && saveRef.current.completed.indexOf(pendingAttempt.current.level) === -1
+      ? {attemptId:pendingAttempt.current.cloudAttemptId,levelId:pendingAttempt.current.level,boosters:pendingAttempt.current.selected} : undefined;
+    if (current && !cloudApi.writeAccountCache(current.accountId, { profile: current.profile, localSave: saveRef.current, pending: current.pending, purchase })) setCloudMessage("This browser could not store the pending save. Keep this tab open until it syncs.");
+  }
+  async function initializeCloud(testing: boolean) {
+    if (testing) { setCloudStatus("guest"); return; }
+    const generation = ++cloudGeneration.current;
+    const remembered = cloudApi.rememberedAccount();
+    const provisional = remembered ? cloudApi.readAccountCache(remembered) : null;
+    if (remembered) {
+      setPortalName("Portal player");
+      setCloudStatus("checking");
+      if (provisional) { const loaded=normalizeSave(provisional.localSave); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
+    }
+    try {
+      const session = await cloudApi.session();
+      const result = await cloudApi.campaign(session.accountId);
+      if (result.accountId !== session.accountId) throw new Error("Portal account changed during load.");
+      if (generation !== cloudGeneration.current) return;
+      cloudApi.rememberAccount(session.accountId);
+      const cached = cloudApi.readAccountCache(session.accountId);
+      const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
+      cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
+      if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
+        try {
+          const prepared=prepareStartingBoosters(createPuzzle(LEVELS[cached.purchase.levelId]),cached.purchase.boosters);
+          pendingAttempt.current={token:0,cloudAttemptId:cached.purchase.attemptId,sceneAttempt:-1,level:cached.purchase.levelId,selected:cached.purchase.boosters,cost:boosterCost(cached.purchase.boosters),puzzle:prepared.puzzle,placements:prepared.placements,status:"failed"};
+          setCloudMessage("An earlier booster purchase needs confirmation. Retry the same loadout when you enter that level.");
+        } catch { /* A stale loadout remains in the account cache backup. */ }
+      }
+      setPortalName(session.displayName);
+      if ((!result.hasCampaign || profile.revision === 0) && readSave().completed.length && !cached?.pending.length) { setOverlay("cloudChoice"); setCloudStatus("account"); return; }
+      const loaded = cached?.pending.length ? normalizeSave(cached.localSave) : normalizeSave(profile.campaign);
+      saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse"));
+      setCloudStatus(cached?.pending.length ? "pending" : "account");
+      if (cached?.pending.length) void flushCloud();
+    } catch (error) {
+      if (generation !== cloudGeneration.current) return;
+      if (remembered) {
+        setCloudStatus("expired");
+        setCloudMessage((error as {status?:number}).status === 401 ? "Portal sign-in expired. Sign in again to continue this campaign." : "Portal save could not be checked. Reconnect or sign in again; account progress is held on this device.");
+      } else {
+        setCloudStatus("guest");
+        if ((error as {status?:number}).status !== 401 && (error as {status?:number}).status !== 503) setCloudMessage("Cloud saves could not be checked. Playing with this device's guest save.");
+        if (new URLSearchParams(window.location.search).get("login") === "failed") setCloudMessage("Portal sign-in did not finish. Guest progress is still here.");
+      }
+    }
+  }
+  async function flushCloud() {
+    const current = cloudRef.current;
+    if (!current || current.syncing || cloudConflict.current || playtest || !current.pending.length) return;
+    current.syncing = true; setCloudStatus("syncing");
+    try {
+      while (current.pending.length && cloudRef.current === current) {
+        const op = current.pending[0];
+        const response = op.kind === "finish" ? await cloudApi.finishAttempt(op,current.accountId) : await cloudApi.advanceCheckpoint(op, current.profile.revision,current.accountId);
+        current.profile = response.profile;
+        current.pending.shift();
+        cacheCloud();
+      }
+      if (cloudRef.current === current) {
+        saveRef.current = normalizeSave(current.profile.campaign); setSave(saveRef.current);
+        cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
+      }
+    } catch (error) {
+      if (cloudRef.current === current) {
+        const status=(error as {status?:number}).status;
+        if (status === 400 || status === 409) cloudConflict.current=true;
+        setCloudStatus(status === 401 ? "expired" : "pending");
+        setCloudMessage(status === 400 || status === 409 ? "This save needs attention. Download a backup in Settings before loading the Portal campaign." : "Saved on this device, waiting to sync.");
+      }
+    } finally { current.syncing = false; }
+  }
+  async function importGuestProgress() {
+    const current = cloudRef.current; if (!current) return;
+    setCloudStatus("syncing");
+    try {
+      const response = await cloudApi.importGuest(readSave(), cloudApi.guestImportId(current.accountId),current.accountId);
+      if (cloudRef.current !== current) return;
+      cloudApi.clearGuestImportId(current.accountId);
+      current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
+    } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
+  }
+  function startFreshPortalCampaign() {
+    const current=cloudRef.current; if (!current) return;
+    const fresh={...EMPTY_SAVE,completed:[],companions:[]};
+    saveRef.current=fresh; setSave(fresh); setKeeperMet(false);
+    current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh});
+    cacheCloud(); void flushCloud(); setOverlay("start");
+  }
+  async function signOut() {
+    if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
+    try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
+  }
+  function continueAsGuest() {
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
+  }
+  function commitWin(levelId: LevelId, movesRemaining: number) {
+    if (saveRef.current.completed.includes(levelId)) return;
+    reward.current=coinReward(movesRemaining);
+    persist(completeLevel(saveRef.current,levelId,reward.current));
+    const current=cloudRef.current;
+    if (current && !playtest) {
+      const attemptId=pendingAttempt.current?.cloudAttemptId ?? cloudApi.newOperationId();
+      current.pending.push({kind:"finish",attemptId,levelId,remainingMoves:movesRemaining,contentVersion:cloudApi.contentVersion});
+      cacheCloud(); void flushCloud();
+    }
   }
   function checkpoint(from: Save["oasisTransition"], to: Save["oasisTransition"]) {
     persist(advanceTransition(saveRef.current, from, to));
@@ -241,7 +393,7 @@ export default function GameShell() {
       setWipe("covered");
       let readyScene: Promise<"ready" | "failed" | "timeout"> = Promise.resolve("ready");
       if (createsScene) readyScene = new Promise(resolve => {
-        let remaining = 10_000;
+        let remaining = pendingAttempt.current?.cost && cloudRef.current ? 30_000 : 10_000;
         let last = performance.now();
         let timer: ReturnType<typeof setTimeout>;
         const settle = (status: "ready" | "failed" | "timeout") => {
@@ -252,7 +404,7 @@ export default function GameShell() {
         const check = () => {
           timers.current.delete(timer);
           const now = performance.now();
-          if (!document.hidden) remaining -= now - last;
+          if (!document.hidden && !authorizing.current) remaining -= now - last;
           last = now;
           if (remaining <= 0) settle("timeout");
           else { timer = setTimeout(check, Math.min(1000, remaining)); timers.current.add(timer); }
@@ -352,21 +504,40 @@ export default function GameShell() {
     void transitionTo(() => { setOverlay(enteringOverlay); setAttempt(value => value + 1); }, enteringOverlay !== "film");
   }
   function startLevel(id: LevelId) {
-    pendingAttempt.current = null;
-    setShopLevel(id); setShopSelected([]); setShopError(null);
+    tokenCounter.current++;
+    if (pendingAttempt.current?.level !== id || pendingAttempt.current.cost === 0) pendingAttempt.current = null;
+    setShopLevel(id); setShopSelected(pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id ? pendingAttempt.current.selected : []); setShopError(null);
     setShopReturn(overlay);
     setOverlay("shop");
   }
-  function launchLevel() {
-    if (transitioning.current) return;
+  async function launchLevel() {
+    if (transitioning.current || launching.current) return;
+    launching.current=true;
+    try { await launchLevelOnce(); } finally { launching.current=false; }
+  }
+  async function launchLevelOnce() {
     const id = shopLevel;
     const cost = boosterCost(shopSelected);
-    if (cost > saveRef.current.coins) { setShopError("Not enough coins for this loadout."); return; }
+    if (cost > saveRef.current.coins && !pendingAttempt.current?.cost) { setShopError("Not enough coins for this loadout."); return; }
     let prepared: ReturnType<typeof prepareStartingBoosters>;
     try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
-    pendingAttempt.current = { token, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
+    const unresolved = pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
+    if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...shopSelected].sort()))) {
+      setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
+    }
+    const cloudAttemptId = unresolved?.cloudAttemptId ?? cloudApi.newOperationId();
+    if (cloudRef.current && !playtest) {
+      if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
+      if (cost > 0) {
+        try { await cloudApi.prepareAttempt(cloudAttemptId,id,shopSelected,cloudRef.current.accountId); }
+        catch (error) { setShopError(`Could not prepare the purchase: ${(error as Error).message}`); return; }
+        if (token !== tokenCounter.current) return;
+      }
+    }
+    pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
+    if (cost && cloudRef.current) cacheCloud();
     setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
@@ -376,23 +547,44 @@ export default function GameShell() {
     });
   }
   function cancelShop() {
-    pendingAttempt.current = null; setShopError(null);
+    tokenCounter.current++;
+    if (!pendingAttempt.current?.cost) pendingAttempt.current = null; setShopError(null);
     if (shopReturn === null && mode === "map") void transitionTo(() => { setOverlay(null); setAttempt(value => value + 1); });
     else setOverlay(shopReturn);
   }
   function recoverShop() {
-    pendingAttempt.current = null;
+    const unresolved=pendingAttempt.current;
     setShopReturn(null);
-    setShopSelected([]);
-    setShopError("The purchase could not be saved. Choose no boosters to play for free, or try again after storage is available.");
+    if (unresolved?.cost) { setShopLevel(unresolved.level); setShopSelected(unresolved.selected); setShopError("Retry this purchase to confirm its coin charge. It will not charge twice."); }
+    else { pendingAttempt.current=null; setShopSelected([]); setShopError("The purchase could not be saved. Choose no boosters to play for free, or try again after storage is available."); }
     void transitionTo(() => { setMode("map"); setPuzzle(null); setOverlay("shop"); setAttempt(value => value + 1); });
   }
-  function authorizeSceneReady(): boolean {
+  async function authorizeSceneReady(): Promise<boolean> {
     const current = pendingAttempt.current;
     if (mode !== "puzzle") return true;
     if (!current || current.sceneAttempt !== attempt || current.level !== activeLevel || current.status === "failed") return false;
     if (current.status === "committed") return true;
-    if (current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
+    if ((!cloudRef.current || playtest) && current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
+    if (cloudRef.current && !playtest && current.cost > 0) {
+      const account = cloudRef.current;
+      authorizing.current=true;
+      try {
+        const response = await cloudApi.activateAttempt(current.cloudAttemptId,account.profile.revision,account.accountId);
+        if (cloudRef.current !== account) return false;
+        account.profile=response.profile;
+        const next={...saveRef.current,coins:response.profile.campaign.coins};
+        saveRef.current=next; setSave(next); cacheCloud();
+        if (pendingAttempt.current !== current || current.status !== "prepared" || response.status !== "active") return false;
+      } catch (error) {
+        current.status="failed";
+        setSceneIssue(`The purchase could not be confirmed: ${(error as Error).message}`);
+        return false;
+      } finally {
+        authorizing.current=false;
+      }
+      current.status="committed";
+      return true;
+    }
     if (current.cost > 0) {
       const next = { ...saveRef.current, coins: saveRef.current.coins - current.cost };
       if (!(playtest ? writePlaytestWallet({ version: 1, coins: next.coins }) : writeSave(next))) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
@@ -411,10 +603,7 @@ export default function GameShell() {
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
       // renderer is interrupted during its animation, a reload keeps the win.
-      if (event.turn.state.status === "won") {
-        reward.current = coinReward(event.turn.state.moves);
-        persist(completeLevel(saveRef.current, activeLevel, reward.current));
-      }
+      if (event.turn.state.status === "won") commitWin(activeLevel,event.turn.state.moves);
       if (playtest && activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
       return;
     }
@@ -442,8 +631,7 @@ export default function GameShell() {
     if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
     if (event.type === "revealStarted") { setRevealing(true); return; }
     if (event.type === "victory") {
-      reward.current = coinReward(event.puzzle.moves);
-      persist(completeLevel(saveRef.current, activeLevel, reward.current));
+      commitWin(activeLevel,event.puzzle.moves);
       return;
     }
     if (event.type === "win") { setRevealing(false); setOverlay("finale"); sound.current?.play("win"); }
@@ -512,7 +700,7 @@ export default function GameShell() {
     abandonRecord(reason); activeRecord.current = null;
     const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film";
     void transitionTo(() => {
-        pendingAttempt.current = null; setShopSelected([]); setShopError(null);
+        pendingAttempt.current = null; cacheCloud(); setShopSelected([]); setShopError(null);
         setMode("map"); setPuzzle(null); setAttempt(value => value + 1); setOverlay(chapterEnd ? "film" : null);
       }, !chapterEnd);
   }
@@ -534,6 +722,7 @@ export default function GameShell() {
     }, kind === "gatehouse");
   }
   function reset() {
+    if (cloudRef.current && !playtest) { setCloudMessage("Portal progress cannot be reset from the demo. Sign out to restart the guest campaign on this device."); return; }
     abandonRecord("reset"); activeRecord.current = null;
     if (playtest) setPlaytestTrack("auto"); else setTrackPreference("auto");
     void transitionTo(() => {
@@ -559,13 +748,14 @@ export default function GameShell() {
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={() => { const authorized = authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
         setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
       }} onEvent={onEvent} skipReveal={skipReveal} />}
       <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
+      {!playtest && <div className="cloud-pill" role="status">{portalName ? `${portalName} · ` : "Guest · "}{cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device"}</div>}
       <div className="top-actions" inert={wipe !== "hidden"}>
         {mode === "map" && partyUnlocked && <>
           <button className="nav-button" onClick={() => setOverlay("kingdom")}>Kingdom Map</button>
@@ -581,9 +771,20 @@ export default function GameShell() {
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
-        <button className="primary" onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        <button className="primary" disabled={cloudStatus === "checking" || (cloudStatus === "expired" && !cloudRef.current)} onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        {!playtest && (!portalName || cloudStatus === "expired") && <a className="quiet portal-login" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal →</a>}
+        {!playtest && cloudStatus === "expired" && !cloudRef.current && <button className="quiet" onClick={continueAsGuest}>Play as guest on this device</button>}
+        {cloudMessage && <small role="status">{cloudMessage}</small>}
         {save.demoEnding === "done" && !playtest && <button className="quiet" onClick={() => window.location.assign("?playtest=1")}>Playtest levels →</button>}
         <small>Touch to walk · Mobile landscape · WASD and mouse on desktop</small>
+      </div></div>}
+      {overlay === "cloudChoice" && <div className="scrim"><div className="dialog-card">
+        <span className="speaker">WELCOME TO PORTAL{portalName ? ` · ${portalName.toUpperCase()}` : ""}</span>
+        <h2>Bring this device's progress?</h2>
+        <p>Your Portal account has no Dune Relay campaign yet. You can move this guest campaign into the account once, or start a new Portal campaign. The guest save stays on this device either way.</p>
+        {cloudMessage && <p role="alert">{cloudMessage}</p>}
+        <button className="primary" disabled={cloudStatus === "syncing"} onClick={() => void importGuestProgress()}>Continue with this progress <span>→</span></button>
+        <button className="quiet" disabled={cloudStatus === "syncing"} onClick={startFreshPortalCampaign}>Start a fresh Portal campaign</button>
       </div></div>}
       {overlay === "keeper" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/keeper-avatar.png")} alt="" /><span className="speaker">THE KEEPER</span></div>
@@ -685,6 +886,10 @@ export default function GameShell() {
       </div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
+        {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
+          {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
+          {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
+          {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
@@ -692,6 +897,7 @@ export default function GameShell() {
         <label className="volume-setting">Music <span>{Math.round(musicVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(musicVolume * 100)} onChange={event => setMusicVolume(Number(event.target.value) / 100)} /></label>
         <label className="soundtrack-setting">Soundtrack<select value={effectiveTrack} onChange={event => { const choice = event.target.value as TrackPreference; if (choice !== "auto" && !unlockedTracks.includes(choice)) return; if (playtest) setPlaytestTrack(choice); else setTrackPreference(choice); }}><option value="auto">Follow chapter</option>{SOUNDTRACKS.map(track => <option key={track.id} value={track.id} disabled={!unlockedTracks.includes(track.id)}>{track.title}{unlockedTracks.includes(track.id) ? "" : ` · unlock in ${track.chapter}`}</option>)}</select></label>
         <button className="setting" onClick={() => setReducedMotion(value => !value)}>Reduced motion <strong>{reducedMotion ? "On" : "Off"}</strong></button>
+        <a className="raidguild-credit" href="https://raidguild.org" target="_blank" rel="noopener noreferrer"><img src={assetUrl("/raidguild-stamp.svg")} alt="" /><span>Built by <strong>RaidGuild</strong><small>raidguild.org <span aria-hidden="true">↗</span></small></span></a>
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {playtest ? <>
@@ -703,15 +909,16 @@ export default function GameShell() {
           <button className="setting" onClick={() => previewTransition("caravan")}>Preview desert → gatehouse transition</button>
           <button className="setting" onClick={() => previewTransition("gatehouse")}>Preview Gatehouse → demo ending</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
-        </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}<button className="reset" onClick={reset}>Reset prototype progress</button></>}
+        </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}{!portalName && <button className="reset" onClick={reset}>Reset prototype progress</button>}</>}
       </div></div>}
       {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
         <span className="speaker">SCENE INTERRUPTED</span>
         <p>{sceneIssue} Reloading returns to the path. {playtest ? "This test level restarts; recorded playtest attempts stay on this device." : "Unfinished levels restart; completed levels and coins are saved on this device."}</p>
         <button className="primary" onClick={() => window.location.reload()}>Reload game <span>↻</span></button>
-        {sceneIssue.includes("purchase") && <button className="quiet" onClick={recoverShop}>Choose a free loadout</button>}
+        {sceneIssue.includes("purchase") && <button className="quiet" onClick={recoverShop}>{pendingAttempt.current?.cost ? "Resolve booster purchase" : "Choose a free loadout"}</button>}
         <button className="quiet" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
       </div></div>}
+      {overlay !== "film" && <img className="background-watermark" src={assetUrl("/raidguild-stamp.svg")} alt="" aria-hidden="true" draggable={false} />}
       {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}
       <div className="rotate"><div className="rotate-icon">▭</div><strong>Rotate your device</strong><p>Dune Relay plays in landscape.</p></div>
     </div>
