@@ -1,6 +1,6 @@
 # Dune Relay · Oasis, Open Desert, River Gatehouse
 
-Portal signed launch and account saves are described in [docs/portal-cloud-save.md](docs/portal-cloud-save.md). Guest progress remains on this device; playtest mode remains separate.
+Portal signed launch and account saves are described in [docs/portal-cloud-save.md](docs/portal-cloud-save.md). Guest progress remains on this device; playtest mode remains separate. Settings offers JSON and CSV level stats exports for guests and Portal players. Stats stay on this device in separate guest and per-account archives; signing in or importing guest progress does not move stats into an account, and exports contain no Portal identity or cloud operations.
 
 Run `npm ci` and `npm run dev` here, then open http://localhost:3000. Mobile is optimized for landscape; desktop plays in a normal browser window. Tap or click a destination to walk there, or use WASD.
 
@@ -21,6 +21,8 @@ Campaign saves use version 5 and migrate v1–v4 progress, coins, companions, an
 Run `npm run test:core` for seeded level, rules, migration, and statistics checks; `npm run typecheck` and `npm run build` for production verification. The static build is in `out/`.
 
 For browser interaction regression checks, start `npm run dev` in one terminal, then run `npm run test:browser` in another. Set `DUNE_TEST_URL` to test a deployed artifact instead; set `CHROMIUM_EXECUTABLE` if Chrome is not on the default path. The suite uses native touch events and checks quick swipes, tap controls, mobile fullscreen reentry, and winning reveal Skip in the banner, conversion, chain, and refill phases. Failure screenshots go to ignored `test-results/` (or `DUNE_TEST_RESULTS_DIR`).
+
+Run `npm run test:stats` against the same running game to verify guest and mocked Portal gameplay stats, JSON/CSV downloads, account isolation, and HUD layout at desktop and mobile sizes. For a static artifact, set `DUNE_TEST_URL` to its game subpath, for example `DUNE_TEST_URL=http://127.0.0.1:3103/dune-relay/ npm run test:stats`. Screenshots are saved in `test-results/`.
 
 The intro and chapter films do not run Phaser behind them. A film attaches its video source after the previous game reports destruction, and releases it on exit. Mobile canvas backing pixels are capped at about two million. Scene transitions wait for the new scene and show a recovery card if assets or graphics fail. Settings can export a bounded local diagnostics JSON with scene, canvas, transition, media, and browser error events; no diagnostics are sent to a server. Playtest attempts under the updated match-origin salt rules carry `rulesVersion: gatehouse-3`.
 
@@ -51,8 +53,8 @@ npm run typecheck
 npm run build:artifact
 ```
 
-`build:artifact` creates a subpath-safe Next static export and replaces only `public/dune-relay/` in the Portal Artifacts repository after the build succeeds. The published URL is `https://portal-artifacts-production.up.railway.app/dune-relay/`; playtest replay and JSON/CSV exports are at `/dune-relay/?playtest=1`. The regular `npm run dev` remains rooted at `/` for local development.
+`build:artifact` creates a subpath-safe Next static export and replaces only `public/dune-relay/` in the Portal Artifacts repository after the build succeeds. The published URL is `https://portal-artifacts-production.up.railway.app/dune-relay/`; campaign JSON/CSV exports are in Settings, and playtest replay is at `/dune-relay/?playtest=1`. The regular `npm run dev` remains rooted at `/` for local development.
 
-The game works as a guest with local campaign saves. A Portal embed without storage access can still play in memory for its current session. For playtest file exports inside a sandboxed iframe, the embedding page must allow downloads. Portal authentication and shared saves are future integrations.
+The game works as a guest with local campaign saves. A Portal embed without storage access can still play and collect level stats in memory for its current session. For file exports inside a sandboxed iframe, the embedding page must allow downloads.
 
 The share cover `public/dune-relay-social-v1.png` is an actual title-screen screenshot at 1200 × 630. Generated game art and the source of both edited cutscenes are documented in [ASSETS.md](ASSETS.md). Barlow Condensed and DM Sans are bundled under their licenses in `public/fonts/`.

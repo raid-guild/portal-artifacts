@@ -359,10 +359,10 @@ async function checkDemo(browser) {
       await endingPage.waitForFunction(() => document.querySelector('video')?.currentSrc.includes('gatehouse-crossing.mp4') && !document.querySelector('canvas'));
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'film');
       await endingPage.getByRole('button',{name:/Skip scene/}).click();
-      await endingPage.getByText('70 new levels are coming soon, with tons of new characters, tiles, and power-ups.').waitFor();
+      await endingPage.getByText(/Unlock Farmland, Chapter 4, as a Portal login bonus/).waitFor();
       await endingPage.reload();
       await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
-      await endingPage.getByText('70 new levels are coming soon, with tons of new characters, tiles, and power-ups.').waitFor();
+      await endingPage.getByText(/Unlock Farmland, Chapter 4, as a Portal login bonus/).waitFor();
       await endingPage.getByRole('button',{name:/Explore the kingdom/}).click();
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'done');
       await endingPage.getByRole('button',{name:/Return to the path/}).click();

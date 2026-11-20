@@ -7,6 +7,9 @@ export const boosterPrices = Object.freeze({ jet: 300, flywheel: 300, prism: 500
 export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, demoEnding: 'locked' });
 export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false });
 export const rewardFor = moves => 20 + 3 * moves;
+// This boundary stays at the Gatehouse finale when later chapters add levels.
+export const DEMO_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCrossing') + 1;
+export const farmlandEligible = campaign => DEMO_LEVEL_COUNT > 0 && Array.isArray(campaign?.completed) && campaign.completed.length >= DEMO_LEVEL_COUNT && campaign.completed.slice(0,DEMO_LEVEL_COUNT).every((id,index)=>id===content.levels[index].id);
 export function fail(status, message) { return Object.assign(new Error(message), { status }); }
 export function validUuid(value) { return typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value); }
 export function validBoosters(value) {

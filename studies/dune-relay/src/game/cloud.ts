@@ -6,6 +6,7 @@ const BASE = '/leaderboard-api/dune-relay';
 export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
 export type CloudProfile = { revision: number; campaign: Save; imported: boolean };
 export type CloudSession = { accountId: string; displayName: string; contentVersion: string };
+export type FarmlandEntitlement = { accountId: string; farmland: { unlocked: boolean; eligible: boolean; unlockedAt: string | null } };
 export type CloudOperation =
   | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string }
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
@@ -32,6 +33,14 @@ const json = async (path: string, init?: RequestInit, accountId?: string) => {
 const post = (path: string, body: unknown, accountId: string) => json(path, { method:'POST',body:JSON.stringify(body) },accountId);
 export const session = (): Promise<CloudSession> => json('/session');
 export const campaign = (accountId: string): Promise<{accountId:string;hasCampaign:boolean;profile:CloudProfile|null}> => json('/campaign',undefined,accountId);
+function checkedEntitlement(value: unknown, accountId: string): FarmlandEntitlement {
+  const result=value as Partial<FarmlandEntitlement>;
+  const grant=result.farmland;
+  if (result?.accountId!==accountId || typeof grant?.unlocked!=='boolean' || typeof grant?.eligible!=='boolean' || (grant.unlocked ? typeof grant.unlockedAt!=='string' || !Number.isFinite(Date.parse(grant.unlockedAt)) : grant.unlockedAt!==null)) throw new Error('Farmland status could not be verified. Try again.');
+  return result as FarmlandEntitlement;
+}
+export const entitlements = async (accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await json('/entitlements',undefined,accountId),accountId);
+export const claimFarmland = async (requestId: string, accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await post('/entitlements/farmland/claim',{requestId},accountId),accountId);
 export const importGuest = (guestSave: Save, requestId: string, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave},accountId);
 export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string): Promise<{profile:CloudProfile}> => post('/attempts',{attemptId,levelId,boosters},accountId);
 export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared'}> => post(`/attempts/${attemptId}/activate`,{expectedRevision},accountId);

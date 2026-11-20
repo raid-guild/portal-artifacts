@@ -1,7 +1,7 @@
 import express from 'express';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtVerify } from 'jose';
-import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, fail } from './dune-rules.js';
+import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, fail } from './dune-rules.js';
 
 const BASE = `/leaderboard-api/${GAME}`;
 const COOKIE = 'dune_relay_session';
@@ -65,14 +65,14 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   }
   app.get(`${BASE}/ready`,limited(async (_req,res) => {
     const missing=[];
-    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_launch_intents:['nonce_hash','expires_at'] };
+    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_launch_intents:['nonce_hash','expires_at'], dune_entitlements:['player_id','entitlement_key','source','granted_at'] };
     const {rows:[schema]}=await pool.query("SELECT has_schema_privilege(current_user,to_regnamespace('artifact_leaderboards'),'USAGE') AS can_use");
     if (!schema?.can_use) missing.push('schema:usage');
     for (const [name,columns] of Object.entries(tables)) {
       const relation=`artifact_leaderboards.${name}`;
       const {rows:[state]}=await pool.query(`SELECT to_regclass($1) AS relation,has_table_privilege(current_user,to_regclass($1),'SELECT') AS can_select,has_table_privilege(current_user,to_regclass($1),'INSERT') AS can_insert,has_table_privilege(current_user,to_regclass($1),'UPDATE') AS can_update`,[relation]);
       if (!state?.relation) { missing.push(relation); continue; }
-      for (const op of name === 'dune_launch_intents' ? ['select','insert'] : ['select','insert','update']) if (!state[`can_${op}`]) missing.push(`${relation}:${op}`);
+      for (const op of name === 'dune_launch_intents' || name === 'dune_entitlements' ? ['select','insert'] : ['select','insert','update']) if (!state[`can_${op}`]) missing.push(`${relation}:${op}`);
       if (name === 'sessions' || name === 'launches' || name === 'dune_launch_intents') {
         const {rows:[deletion]}=await pool.query("SELECT has_table_privilege(current_user,to_regclass($1),'DELETE') AS allowed",[relation]);
         if (!deletion?.allowed) missing.push(`${relation}:delete`);
@@ -141,6 +141,29 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   app.get(`${BASE}/campaign`,authenticated,limited(async(req,res)=>{
     const {rows:[row]}=await pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[req.playerSession.player_id]);
     res.json({accountId:String(req.playerSession.player_id),hasCampaign:Boolean(row),profile:row?normalizeProfile(row.profile):null});
+  }));
+  const farmlandStatus = (accountId,profile,grant) => ({ accountId:String(accountId),farmland:{ unlocked:Boolean(grant),eligible:farmlandEligible(profile.campaign),unlockedAt:grant?.granted_at?.toISOString?.()??null } });
+  app.get(`${BASE}/entitlements`,authenticated,limited(async(req,res)=>{
+    const playerId=req.playerSession.player_id;
+    const [{rows:[profileRow]},{rows:[grant]}]=await Promise.all([
+      pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[playerId]),
+      pool.query("SELECT granted_at FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]),
+    ]);
+    res.json(farmlandStatus(playerId,profileRow?normalizeProfile(profileRow.profile):emptyProfile(),grant));
+  }));
+  app.post(`${BASE}/entitlements/farmland/claim`,authenticated,limited(async(req,res)=>{
+    const playerId=req.playerSession.player_id;
+    const requestId=req.body?.requestId;
+    const response=await transaction(playerId,async(client,profile)=>receipt(client,playerId,requestId,'farmland-claim',{entitlementKey:'farmland'},async()=>{
+      const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[playerId]);
+      if (rate.count>=240) throw fail(429,'Too many campaign changes. Try later.');
+      const {rows:[existing]}=await client.query("SELECT granted_at FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]);
+      if (!existing && !farmlandEligible(profile.campaign)) throw fail(409,'Complete all 30 demo levels on this Portal account before unlocking Farmland.');
+      if (!existing) await client.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus') ON CONFLICT(player_id,entitlement_key) DO NOTHING",[playerId]);
+      const {rows:[grant]}=existing?{rows:[existing]}:await client.query("SELECT granted_at FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]);
+      return farmlandStatus(playerId,profile,grant);
+    }));
+    res.json(response);
   }));
   app.post(`${BASE}/campaign/import`,authenticated,limited(async(req,res)=>{
     const {requestId,guestSave}=req.body??{};
