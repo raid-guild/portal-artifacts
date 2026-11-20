@@ -22,6 +22,8 @@ Campaign saves use version 5 and migrate v1–v4 progress, coins, companions, an
 
 Run `npm run test:core` for seeded level, rules, migration, and statistics checks; `npm run typecheck` and `npm run build` for production verification. The static build is in `out/`.
 
+For NPC pacing and the idle move cue, run `npm run test:play-feel` against the same running game. Set `DUNE_TEST_URL` for a static artifact (for example `http://127.0.0.1:3101/dune-relay/?playtest=1`). The check covers all four companion pace positions, the hint timer, pause in Settings, and cancellation on input.
+
 For browser interaction regression checks, start `npm run dev` in one terminal, then run `npm run test:browser` in another. Set `DUNE_TEST_URL` to test a deployed artifact instead; set `CHROMIUM_EXECUTABLE` if Chrome is not on the default path. The suite uses native touch events and checks quick swipes, tap controls, mobile fullscreen reentry, and winning reveal Skip in the banner, conversion, chain, and refill phases. Failure screenshots go to ignored `test-results/` (or `DUNE_TEST_RESULTS_DIR`).
 
 Run `npm run test:collections` against the same running game to check an actual non-reduced-motion goal flight and capture `test-results/collect-flight-desktop.png`. Set `DUNE_TEST_URL` to the game root, for example `DUNE_TEST_URL=http://127.0.0.1:3101/dune-relay/ npm run test:collections` for a static subpath export. `CHROMIUM_EXECUTABLE` overrides the default Chrome path.

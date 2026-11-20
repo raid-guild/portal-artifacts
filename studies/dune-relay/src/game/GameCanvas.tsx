@@ -1,6 +1,7 @@
 "use client";
 
 import { assetUrl } from "./assetUrl";
+import { CompanionPace } from "./companionPace";
 
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
@@ -8,7 +9,7 @@ import spriteFrames from "../../public/sprites/frames.json";
 import wayfinderFrames from "../../public/sprites/wayfinder-frames.json";
 import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
-import { BOARD_SIZE, Board, Cell, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
+import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
@@ -48,6 +49,7 @@ type Props = {
   audio: GameAudio | null;
   reducedMotion: boolean;
   transitioning: boolean;
+  interactionBlocked: boolean;
   onReady: () => boolean | Promise<boolean>;
   onFailure: (reason: string) => void;
   onEvent: (event: GameEvent) => void;
@@ -196,6 +198,30 @@ function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | 
   return key;
 }
 
+type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper";
+const GLOW_OFFSETS: [number, number][] = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]];
+
+function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phaser.GameObjects.Sprite, glows: Phaser.GameObjects.Sprite[], pace: CompanionPace, y: number, delta: number, playerX: number, playerMoving: boolean, blocked: boolean, reducedMotion: boolean) {
+  const state = pace.update(delta, playerX, playerMoving, blocked, reducedMotion);
+  const frame = state.direction === "left" ? "4" : "0";
+  if (state.walking) {
+    const animation = characterAnimation(scene, sheet, state.direction);
+    if (sprite.anims.currentAnim?.key !== animation || !sprite.anims.isPlaying) sprite.play(animation);
+  } else { sprite.stop(); sprite.setFrame(frame); }
+  const lift = reducedMotion || state.walking ? 0 : Math.sin(scene.time.now / 470);
+  characterPosition(sprite, sheet, state.x, y + lift);
+  for (const [index, glow] of glows.entries()) {
+    glow.setFrame(sprite.frame.name);
+    const [dx, dy] = GLOW_OFFSETS[index];
+    characterPosition(glow, sheet, state.x + dx, y + dy + lift);
+  }
+  if (window.location.search.includes("playtest=1")) {
+    const value = String(Math.round(state.x));
+    if (scene.game.canvas.dataset.companionX !== value) scene.game.canvas.dataset.companionX = value;
+  }
+  return state.x;
+}
+
 function makeMapScene(props: Props): typeof Phaser.Scene {
   return class MapScene extends Phaser.Scene {
     player = props.mapPosition ?? (props.nextLevel === "pumpHouse" && props.keeperMet ? { x: 409, y: 418 } : { x: 178, y: 414 });
@@ -203,6 +229,10 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
     marker?: Phaser.GameObjects.Arc;
     playerGraphic?: Phaser.GameObjects.Sprite;
     keeperGraphic?: Phaser.GameObjects.Sprite;
+    keeperShadow?: Phaser.GameObjects.Ellipse;
+    companionPace = new CompanionPace(447);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
     keeperGlow: Phaser.GameObjects.Sprite[] = [];
     facing: "left" | "right" = "right";
     previousPlayer = { ...this.player };
@@ -230,7 +260,7 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
         label(this, 40, 94, "DUNE RELAY", 28),
         label(this, 40, 124, props.nextLevel && props.nextLevel !== "pumpHouse" ? "THE NEXT STATION AWAITS" : props.repaired ? "THE WATER RUNS AGAIN" : "THE OASIS NEEDS WATER", 13, "#9de4d4"),
       ];
-      this.add.ellipse(447, 409, 42, 11, 0x132c31, 0.3);
+      this.keeperShadow = this.add.ellipse(447, 409, 42, 11, 0x132c31, 0.3);
       const keeper = this.add.sprite(447, 408, "keeper", "4").setOrigin(0.5, 1).setScale(82 / 420);
       characterPosition(keeper, "keeper", 447, 408);
       for (const [dx, dy] of [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]]) {
@@ -242,9 +272,10 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       }
       if (!props.reducedMotion) this.tweens.add({ targets: this.keeperGlow, alpha: 0.15, yoyo: true, repeat: -1, duration: 750 });
       const keeperHit = this.add.zone(447, 367, 66, 104);
+      this.companionHit = keeperHit;
       if (props.nextLevel === "pumpHouse" && !props.keeperMet) keeperHit.setInteractive({ useHandCursor: true });
       this.keeperGraphic = keeper;
-      this.add.text(447, 316, "KEEPER", { fontFamily: "Arial", fontSize: "14px", color: "#fff0ce", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(0.5);
+      this.companionCaption = this.add.text(447, 316, "KEEPER", { fontFamily: "Arial", fontSize: "14px", color: "#fff0ce", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(0.5);
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       const destination = MAP_DESTINATIONS[props.nextLevel ? LEVELS[props.nextLevel].destination : "openWaterway"];
@@ -260,11 +291,11 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       if (pumpReady) this.marker.setInteractive({ useHandCursor: true });
       this.tweens.add({ targets: this.marker, scale: 1.25, alpha: 0.5, yoyo: true, repeat: -1, duration: 750 });
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, hit: Phaser.GameObjects.GameObject[]) => {
-        if (props.transitioning) return;
+        if (props.transitioning || props.interactionBlocked) return;
         props.audio?.unlock();
         if (this.locked) return;
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (props.nextLevel === "pumpHouse" && !props.keeperMet && (hit.includes(keeperHit) || (Math.abs(x - 447) < 30 && y >= 310 && y <= 425))) { this.target = { x: 409, y: 418 }; this.locked = true; this.walkThen(() => props.onEvent({ type: "keeper", position: { ...this.player } })); return; }
+        if (props.nextLevel === "pumpHouse" && !props.keeperMet && (hit.includes(keeperHit) || (Math.abs(x - this.companionPace.x) < 30 && y >= 310 && y <= 425))) { this.target = { x: 409, y: 418 }; this.locked = true; this.walkThen(() => props.onEvent({ type: "keeper", position: { ...this.player } })); return; }
         if (pumpReady && (hit.includes(pump) || hit.includes(this.marker!) || hit.includes(this.pumpPrompt!) ||
           (Math.abs(x - destination.marker.x) < 40 && Math.abs(y - destination.marker.y) < 44))) {
           this.target = { ...destination.walk }; this.locked = true;
@@ -284,7 +315,7 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
     }
     update(_: number, delta: number) {
       if (!this.playerGraphic) return;
-      if (!this.locked && !props.transitioning) {
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
         const speed = delta * 0.19;
         const dx = Number(this.keys?.D?.isDown || this.keys?.RIGHT?.isDown) - Number(this.keys?.A?.isDown || this.keys?.LEFT?.isDown);
         const dy = Number(this.keys?.S?.isDown || this.keys?.DOWN?.isDown) - Number(this.keys?.W?.isDown || this.keys?.UP?.isDown);
@@ -308,15 +339,10 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       }
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       if (this.keeperGraphic) {
-        const keeperFacing = this.player.x < 447 ? "left" : "right";
-        const idleLift = props.reducedMotion ? 0 : Math.sin(this.time.now / 460) * 1;
-        this.keeperGraphic.setFrame(keeperFacing === "left" ? "4" : "0");
-        characterPosition(this.keeperGraphic, "keeper", 447, 408 + idleLift);
-        for (const [index, glow] of this.keeperGlow.entries()) {
-          glow.setFrame(keeperFacing === "left" ? "4" : "0");
-          const [dx, dy] = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]][index];
-          characterPosition(glow, "keeper", 447 + dx, 408 + dy + idleLift);
-        }
+        const x = poseCompanion(this, "keeper", this.keeperGraphic, this.keeperGlow, this.companionPace, 408, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
+        this.keeperShadow?.setX(x);
       }
       this.previousPlayer = { ...this.player };
     }
@@ -330,6 +356,9 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
     previous = { ...this.player };
     playerGraphic?: Phaser.GameObjects.Sprite;
     wayfinderGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(677);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
     wayfinderGlow: Phaser.GameObjects.Sprite[] = [];
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
     facing: "left" | "right" = "right";
@@ -376,8 +405,10 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       const routeLevel = props.nextLevel && LEVELS[props.nextLevel].chapter === "caravan" && !actionAvailable ? LEVELS[props.nextLevel] : null;
       const destination = routeLevel ? MAP_DESTINATIONS[routeLevel.destination] : null;
       const hit = this.add.zone(677, 388, 82, 125);
+      this.companionHit = hit;
       if (actionAvailable) hit.setInteractive({ useHandCursor: true });
       const caption = label(this, 677, 337, actionAvailable ? "WAYFINDER" : "ROUTE MARKED ✓", 15).setOrigin(0.5);
+      this.companionCaption = caption;
       if (actionAvailable) caption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined;
       let routeCaption: Phaser.GameObjects.Text | undefined;
@@ -390,10 +421,10 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
-        if (props.transitioning || this.locked) return;
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (actionAvailable && (targets.includes(hit) || targets.includes(caption) || (Math.abs(x - 677) < 41 && y >= 330 && y <= 447))) {
+        if (actionAvailable && (targets.includes(hit) || targets.includes(caption) || (Math.abs(x - this.companionPace.x) < 41 && y >= 330 && y <= 447))) {
           this.locked = true;
           this.target = { x: 607, y: 439 };
           this.tweens.add({ targets: this.player, x: this.target.x, y: this.target.y,
@@ -419,7 +450,7 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
     }
     update(_: number, delta: number) {
       if (!this.playerGraphic) return;
-      if (!this.locked && !props.transitioning) {
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
         const speed = delta * 0.19;
         const dx = Number(this.keys?.D?.isDown || this.keys?.RIGHT?.isDown) - Number(this.keys?.A?.isDown || this.keys?.LEFT?.isDown);
         const dy = Number(this.keys?.S?.isDown || this.keys?.DOWN?.isDown) - Number(this.keys?.W?.isDown || this.keys?.UP?.isDown);
@@ -439,15 +470,9 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       } else { this.playerGraphic.stop(); this.playerGraphic.setFrame(this.facing === "right" ? "0" : "4"); }
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       if (this.wayfinderGraphic) {
-        const direction = this.player.x < 677 ? "left" : "right";
-        const frame = direction === "left" ? "4" : "0";
-        const lift = props.reducedMotion ? 0 : Math.sin(this.time.now / 470) * 1;
-        this.wayfinderGraphic.setFrame(frame);
-        characterPosition(this.wayfinderGraphic, "wayfinder", 677, 433 + lift);
-        for (const [index, glow] of this.wayfinderGlow.entries()) {
-          const [dx, dy] = [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4]][index];
-          glow.setFrame(frame); characterPosition(glow, "wayfinder", 677 + dx, 433 + dy + lift);
-        }
+        const x = poseCompanion(this, "wayfinder", this.wayfinderGraphic, this.wayfinderGlow, this.companionPace, 433, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
       }
       this.previous = { ...this.player };
     }
@@ -461,6 +486,9 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
     previous = { ...this.player };
     playerGraphic?: Phaser.GameObjects.Sprite;
     gatewrightGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(520);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
     glows: Phaser.GameObjects.Sprite[] = [];
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
     facing: "left" | "right" = "right";
@@ -506,8 +534,10 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "gatehouse" && !arriving ? LEVELS[props.nextLevel] : null;
       const destination = route ? MAP_DESTINATIONS[route.destination] : null;
       const talkHit = this.add.zone(520, 407, 84, 104);
+      this.companionHit = talkHit;
       if (arriving) talkHit.setInteractive({ useHandCursor: true });
       const talkCaption = label(this, 520, 355, arriving ? "GATEWRIGHT" : "BRIDGE ENGINEER ✓", 15).setOrigin(.5);
+      this.companionCaption = talkCaption;
       if (arriving) talkCaption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
       if (destination && route) {
@@ -519,10 +549,10 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
-        if (props.transitioning || this.locked) return;
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-520)<42 && y>=350 && y<=458)) {
+        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=350 && y<=458)) {
           this.locked = true; this.target = {x:465,y:455}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"gatewright",position:{...this.player}})}); return;
         }
         if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
@@ -538,7 +568,7 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
     }
     update(_:number,delta:number) {
       if (!this.playerGraphic) return;
-      if (!this.locked && !props.transitioning) {
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
         const speed=delta*.19;
         const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
         const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
@@ -552,10 +582,10 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       const animation=characterAnimation(this,"mechanic",this.facing);
       if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
       characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
-      if(this.gatewrightGraphic){
-        const direction=this.player.x<520?"left":"right";const frame=direction==="left"?"4":"0";const lift=props.reducedMotion?0:Math.sin(this.time.now/480);
-        this.gatewrightGraphic.setFrame(frame);characterPosition(this.gatewrightGraphic,"gatewright",520,452+lift);
-        for(const [i,glow] of this.glows.entries()){const [dx,dy]=[[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]][i];glow.setFrame(frame);characterPosition(glow,"gatewright",520+dx,452+dy+lift);}
+      if (this.gatewrightGraphic) {
+        const x = poseCompanion(this, "gatewright", this.gatewrightGraphic, this.glows, this.companionPace, 452, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
       }
       this.previous={...this.player};
     }
@@ -569,6 +599,9 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
     previous = { ...this.player };
     playerGraphic?: Phaser.GameObjects.Sprite;
     fieldkeeperGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(540);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
     glows: Phaser.GameObjects.Sprite[] = [];
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
     facing: "left" | "right" = "right";
@@ -600,8 +633,10 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
       const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "farmland" && !arriving ? LEVELS[props.nextLevel] : null;
       const destination = route ? MAP_DESTINATIONS[route.destination] : null;
       const talkHit = this.add.zone(540, 389, 100, 115);
+      this.companionHit = talkHit;
       if (arriving) talkHit.setInteractive({ useHandCursor: true });
       const talkCaption = label(this, 540, 329, arriving ? "FIELDKEEPER" : "FIELDKEEPER ✓", 15).setOrigin(.5);
+      this.companionCaption = talkCaption;
       if (arriving) talkCaption.setInteractive({ useHandCursor: true });
       let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
       if (destination && route) {
@@ -613,10 +648,10 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
-        if (props.transitioning || this.locked) return;
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-540)<42 && y>=329 && y<=445)) {
+        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=329 && y<=445)) {
           this.locked = true; this.target = {x:488,y:447}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"fieldkeeper",position:{...this.player}})}); return;
         }
         if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
@@ -632,7 +667,7 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
     }
     update(_:number,delta:number) {
       if (!this.playerGraphic) return;
-      if (!this.locked && !props.transitioning) {
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
         const speed=delta*.19;
         const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
         const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
@@ -646,10 +681,10 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
       const animation=characterAnimation(this,"mechanic",this.facing);
       if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
       characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
-      if(this.fieldkeeperGraphic){
-        const direction=this.player.x<540?"left":"right";const frame=direction==="left"?"4":"0";const lift=props.reducedMotion?0:Math.sin(this.time.now/480);
-        this.fieldkeeperGraphic.setFrame(frame);characterPosition(this.fieldkeeperGraphic,"fieldkeeper",540,430+lift);
-        for(const [i,glow] of this.glows.entries()){const [dx,dy]=[[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]][i];glow.setFrame(frame);characterPosition(glow,"fieldkeeper",540+dx,430+dy+lift);}
+      if (this.fieldkeeperGraphic) {
+        const x = poseCompanion(this, "fieldkeeper", this.fieldkeeperGraphic, this.glows, this.companionPace, 430, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
       }
       this.previous={...this.player};
     }
@@ -686,6 +721,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     pendingAnimations = new Set<() => void>();
     introActive = true;
     introPending = new Set<() => void>();
+    idleHintMs = 0;
+    hintActive = false;
+    hintOutline?: Phaser.GameObjects.Graphics;
+    hintTweens: Phaser.Tweens.Tween[] = [];
+    hintGraphics: { graphic: Phaser.GameObjects.Container; x: number; y: number }[] = [];
+    cancelGesture?: () => void;
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
@@ -738,8 +779,13 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col]
           && !this.displayCrust[row][col] && this.displayBoard[row][col]?.kind !== "seedpod" ? { row, col } : null;
       };
+      const resetGesture = () => {
+        const active = gesture; gesture = null;
+        if (active && canvas.hasPointerCapture(active.id)) canvas.releasePointerCapture(active.id);
+      };
+      this.cancelGesture = resetGesture;
       const commitSwipe = (event: PointerEvent) => {
-        if (!gesture || gesture.id !== event.pointerId || gesture.committed || this.busy || props.transitioning) return;
+        if (!gesture || gesture.id !== event.pointerId || gesture.committed || this.busy || props.transitioning || props.interactionBlocked || document.hidden) return;
         const point = logical(event), dx = point.x - gesture.x, dy = point.y - gesture.y;
         if (Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
         const to = Math.abs(dx) >= Math.abs(dy)
@@ -751,7 +797,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         void this.choose(to);
       };
       const down = (event: PointerEvent) => {
-        if (this.busy || props.transitioning || gesture || event.button !== 0) return;
+        if (this.busy || props.transitioning || props.interactionBlocked || document.hidden || gesture || event.button !== 0) return;
+        this.cancelIdleHint();
         const point = logical(event), from = cellAtPoint(point.x, point.y);
         if (!from) return;
         props.audio?.unlock();
@@ -762,14 +809,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const up = (event: PointerEvent) => {
         if (!gesture || gesture.id !== event.pointerId) return;
         const current = gesture;
+        if (props.transitioning || props.interactionBlocked || document.hidden) { resetGesture(); return; }
         commitSwipe(event);
-        const tapped = !gesture.committed;
-        gesture = null;
-        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-        if (tapped && !this.busy && !props.transitioning) void this.choose(current.from);
+        const tapped = !current.committed;
+        resetGesture();
+        if (tapped && !this.busy && !props.transitioning && !props.interactionBlocked && !document.hidden) void this.choose(current.from);
       };
       const cancel = (event: PointerEvent) => {
-        if (gesture?.id === event.pointerId) gesture = null;
+        if (gesture?.id === event.pointerId) resetGesture();
       };
       canvas.addEventListener("pointerdown", down);
       canvas.addEventListener("pointermove", move);
@@ -778,6 +825,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.sceneAlive = false;
+        resetGesture(); this.cancelGesture = undefined;
+        this.cancelIdleHint();
         this.revealSkipped = true;
         this.introActive = false;
         for (const cancelIntro of this.introPending) cancelIntro();
@@ -804,6 +853,52 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       void Promise.resolve(props.onReady()).then(authorized => {
         if (authorized && this.sceneAlive && this.introActive) void this.revealGoals();
       }).catch(() => props.onFailure('authorization-failed'));
+    }
+    update(_: number, delta: number) {
+      if (props.transitioning || props.interactionBlocked || document.hidden) { this.cancelGesture?.(); this.selected = null; this.highlight(null); }
+      const blocked = this.busy || this.introActive && this.game.canvas.dataset.introPhase !== "ready" ||
+        this.revealActive || this.puzzle.status !== "playing" || props.transitioning || props.interactionBlocked || document.hidden || Boolean(this.selected);
+      if (blocked) { this.cancelIdleHint(); return; }
+      if (this.hintActive) return;
+      this.idleHintMs += delta;
+      if (this.idleHintMs >= 5000) this.showIdleHint();
+    }
+    cancelIdleHint() {
+      for (const tween of this.hintTweens) tween.remove();
+      this.hintTweens = [];
+      for (const { graphic, x, y } of this.hintGraphics) if (graphic.active) graphic.setPosition(x, y);
+      this.hintGraphics = [];
+      this.hintOutline?.destroy();
+      this.hintOutline = undefined;
+      delete this.game.canvas.dataset.idleHint;
+      this.hintActive = false;
+      this.idleHintMs = 0;
+    }
+    showIdleHint() {
+      // Use a separate board copy because legalMove swaps candidate cells while searching.
+      const board = this.puzzle.board.map(row => row.map(tile => tile ? { ...tile } : null));
+      const opening = this.lessonHint && this.puzzle.opening && playTurn(this.puzzle, ...this.puzzle.opening).valid ? this.puzzle.opening : null;
+      const pair = opening || legalMove(board);
+      if (!pair) { this.idleHintMs = 0; return; }
+      const graphics = pair.map(cell => this.pieces.get(this.puzzle.board[cell.row][cell.col]!.id)?.graphic);
+      if (!graphics[0] || !graphics[1]) { this.idleHintMs = 0; return; }
+      this.hintActive = true;
+      this.hintGraphics = graphics.map(graphic => ({ graphic: graphic!, x: graphic!.x, y: graphic!.y }));
+      const outline = this.add.graphics().setDepth(7);
+      for (const cell of pair) {
+        const center = this.center(cell);
+        outline.lineStyle(2, 0xffe5a1, .95).strokeRoundedRect(center.x - 23, center.y - 23, 46, 46, 8);
+      }
+      this.hintOutline = outline;
+      this.game.canvas.dataset.idleHint = `${pair[0].row},${pair[0].col}:${pair[1].row},${pair[1].col}`;
+      const finish = () => { if (!this.hintActive) return; this.cancelIdleHint(); delete this.game.canvas.dataset.idleHint; this.idleHintMs = -1000; };
+      if (props.reducedMotion) {
+        this.hintTweens.push(this.tweens.add({ targets: outline, alpha: .55, duration: 650, onComplete: finish }));
+        return;
+      }
+      const dx = (pair[1].col - pair[0].col) * 9, dy = (pair[1].row - pair[0].row) * 9;
+      this.hintTweens.push(this.tweens.add({ targets: graphics[0], x: graphics[0].x + dx, y: graphics[0].y + dy, duration: 230, ease: "Sine.easeInOut", yoyo: true, repeat: 1 }));
+      this.hintTweens.push(this.tweens.add({ targets: graphics[1], x: graphics[1].x - dx, y: graphics[1].y - dy, duration: 230, ease: "Sine.easeInOut", yoyo: true, repeat: 1, onComplete: finish }));
     }
     async revealGoals() {
       this.busy = true;
@@ -1405,6 +1500,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     async choose(cell: Cell) {
       if (!this.sceneAlive) return;
+      this.cancelIdleHint();
       const now = this.time.now;
       const doubleTap = this.lastTap && now - this.lastTap.time <= 400
         && this.lastTap.cell.row === cell.row && this.lastTap.cell.col === cell.col;
@@ -1564,6 +1660,8 @@ export default function GameCanvas(props: Props) {
   reducedMotion.current = props.reducedMotion;
   const transitioning = useRef(props.transitioning);
   transitioning.current = props.transitioning;
+  const interactionBlocked = useRef(props.interactionBlocked);
+  interactionBlocked.current = props.interactionBlocked;
   const onReady = useRef(props.onReady);
   onReady.current = props.onReady;
   const onFailure = useRef(props.onFailure);
@@ -1586,6 +1684,7 @@ export default function GameCanvas(props: Props) {
     const current: Props = { ...props,
       get reducedMotion() { return reducedMotion.current; },
       get transitioning() { return transitioning.current; },
+      get interactionBlocked() { return interactionBlocked.current; },
       onReady: () => !disposed && onReady.current(),
       onFailure: reason => { if (!disposed) onFailure.current(reason); },
       onEvent: event => { if (!disposed) callback.current(event); },
