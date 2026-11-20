@@ -1,7 +1,7 @@
 import express from 'express';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtVerify } from 'jose';
-import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, fail } from './dune-rules.js';
+import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, fail } from './dune-rules.js';
 
 const BASE = `/leaderboard-api/${GAME}`;
 const COOKIE = 'dune_relay_session';
@@ -226,7 +226,8 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     if (!validUuid(id)) throw fail(400,'Invalid attempt ID.');
     const {levelId,remainingMoves,contentVersion}=req.body??{};
     const level=validLevel(levelId);
-    if (!(contentVersion===content.contentVersion || level.index<30 && contentVersion==='chapter-3-3') || !Number.isSafeInteger(remainingMoves) || remainingMoves<0 || remainingMoves>level.moves) throw fail(400,'Invalid finish snapshot.');
+    const moveCap=moveCapForVersion(level,contentVersion);
+    if (moveCap===null || !Number.isSafeInteger(remainingMoves) || remainingMoves<0 || remainingMoves>moveCap) throw fail(400,'Invalid finish snapshot.');
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
       await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,level);
       let {rows:[row]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,req.playerSession.player_id]);

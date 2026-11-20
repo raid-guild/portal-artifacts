@@ -1,6 +1,6 @@
 {
   "rulesVersion": "farmland-1",
-  "contentVersion": "chapter-4-1",
+  "contentVersion": "chapter-4-2",
   "levels": [
     {
       "id": "pumpHouse",
@@ -104,12 +104,12 @@
     },
     {
       "id": "gatehouseApproach",
-      "moves": 30,
+      "moves": 22,
       "chapter": "gatehouse"
     },
     {
       "id": "gatewrightWorkshop",
-      "moves": 30,
+      "moves": 23,
       "chapter": "gatehouse"
     },
     {
@@ -124,12 +124,12 @@
     },
     {
       "id": "saltboundHinges",
-      "moves": 32,
+      "moves": 25,
       "chapter": "gatehouse"
     },
     {
       "id": "riverSluice",
-      "moves": 32,
+      "moves": 26,
       "chapter": "gatehouse"
     },
     {
@@ -154,12 +154,12 @@
     },
     {
       "id": "seedStore",
-      "moves": 28,
+      "moves": 24,
       "chapter": "farmland"
     },
     {
       "id": "threshingYard",
-      "moves": 28,
+      "moves": 26,
       "chapter": "farmland"
     },
     {
@@ -184,7 +184,7 @@
     },
     {
       "id": "sluiceGarden",
-      "moves": 31,
+      "moves": 24,
       "chapter": "farmland"
     },
     {

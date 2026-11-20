@@ -2,7 +2,18 @@ import { readFileSync } from 'node:fs';
 
 export const GAME = 'dune-relay';
 export const content = JSON.parse(readFileSync(new URL('./dune-content.json', import.meta.url), 'utf8'));
+// Frozen authoring snapshots keep older client-reported finishes within the
+// budget they saw. A submitted content version selects a cap; it does not
+// prove when an offline attempt was played or make this casual save anti-cheat.
+const legacyMoves = JSON.parse(readFileSync(new URL('./dune-legacy-moves.json', import.meta.url), 'utf8'));
 export const levels = new Map(content.levels.map((level, index) => [level.id, { ...level, index }]));
+export function moveCapForVersion(level, version) {
+  if (version === content.contentVersion) return level.moves;
+  return legacyMoves[version]?.[level.id] ?? null;
+}
+function maximumKnownMoveCap(level) {
+  return Math.max(level.moves, ...Object.values(legacyMoves).map(snapshot => snapshot[level.id] ?? 0));
+}
 export const boosterPrices = Object.freeze({ jet: 300, flywheel: 300, prism: 500 });
 export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, demoEnding: 'locked', farmlandEnding: 'locked' });
 export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false });
@@ -76,7 +87,9 @@ export function guestImport(value) {
   if (!value || value.version !== 5) throw fail(400, 'Invalid guest save.');
   const completed = validPrefix(value.completed);
   if (completed.length > DEMO_LEVEL_COUNT || value.farmlandReady || value.region === 'farmland' || value.transition?.to === 'farmland') throw fail(400, 'Farmland progress cannot be imported from a guest save.');
-  const maximum = completed.reduce((sum, id) => sum + rewardFor(levels.get(id).moves), 0);
+  // Guest saves do not record the version of each win. Accept a bounded balance
+  // earned under any known authored budget without changing the saved coins.
+  const maximum = completed.reduce((sum, id) => sum + rewardFor(maximumKnownMoveCap(levels.get(id))), 0);
   if (!Number.isSafeInteger(value.coins) || value.coins < 0 || value.coins > maximum) throw fail(400, 'Guest coin balance is outside the campaign range.');
   return deriveCampaign(completed, value.coins, value);
 }

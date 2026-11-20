@@ -19,6 +19,7 @@ const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archi
 const { applyStartingBoosters, prepareStartingBoosters, boosterCost, BOOSTERS } = require('../src/game/boosters.ts');
 const { contentVersion } = require('../src/game/cloud.ts');
 const cloudContent = require('../../../services/leaderboards/src/dune-content.json');
+const historicalCaps = require('../../../services/leaderboards/src/dune-legacy-moves.json');
 import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaign }) => {
   const fixtures = [
     { completed: 0, oasisTransition: 'locked' },
@@ -37,6 +38,7 @@ import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaig
 }).catch(error => { console.error(error); process.exitCode=1; });
 assert.equal(cloudContent.contentVersion, contentVersion, 'cloud rules version tracks the browser');
 assert.deepEqual(cloudContent.levels, LEVEL_ORDER.map(id => ({id,moves:LEVELS[id].moves,chapter:LEVELS[id].chapter ?? 'oasis'})), 'cloud level order and move caps track authored levels');
+assert.deepEqual(Object.fromEntries(LEVEL_ORDER.filter(id => LEVELS[id].moves !== historicalCaps['chapter-4-1'][id]).map(id => [id,LEVELS[id].moves])), {gatehouseApproach:22,gatewrightWorkshop:23,saltboundHinges:25,riverSluice:26,seedStore:24,threshingYard:26,sluiceGarden:24}, 'exactly seven budgets change in this balance pass');
 assert.deepEqual(Object.fromEntries(BOOSTERS.map(item=>[item.kind,item.cost])), {jet:300,flywheel:300,prism:500}, 'cloud booster prices track the shop');
 for (const moves of [0,1,10,50]) assert.equal(coinReward(moves),20+3*moves,'cloud reward formula tracks the game');
 
@@ -656,9 +658,12 @@ const statsDirectCell={row:4,col:4};const statsDirectTurn=playTurn(directPuzzle,
 assert.equal(appendTurn(startAttempt(LEVELS.gatehouseApproach,directPuzzle),statsDirectTurn,statsDirectCell,statsDirectCell).moves[0].action,'directPower');
 attempt=finishAttempt(attempt,'abandoned','test');assert.equal(finishAttempt(attempt,'won','late'),attempt);
 const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archiveJson(archive)).attempts[0].levelId,'gatehouseApproach');assert.ok(archiveCsv(archive).includes('gatehouseApproach'));
+assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-3-3','new attempts carry a distinct content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-4-2','new attempts carry the current content version');
+assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
+assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));
 assert.equal(pennantAttempt.initialMoves,25,'Pennant Line keeps its move budget');
 assert.equal(pennantAttempt.initialGoals.water,36,'new attempt exports the increased Pennant Line water goal');
