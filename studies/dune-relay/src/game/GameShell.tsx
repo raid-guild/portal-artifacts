@@ -12,13 +12,14 @@ import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
 import { addAttempt, appendTurn, archiveCsv, archiveJson, campaignArchiveKey, emptyArchive, finishAttempt, PLAYTEST_KEY, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
+import { selectCompanionLine, type CompanionLine } from "./companionDialogue";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 import * as cloudApi from "./cloud";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
@@ -36,6 +37,9 @@ export default function GameShell() {
   const [mode, setMode] = useState<"map" | "puzzle">("map");
   const [overlay, setOverlay] = useState<Overlay>("start");
   const [keeperMet, setKeeperMet] = useState(false);
+  const [companionLine, setCompanionLine] = useState<CompanionLine | null>(null);
+  const companionVisits = useRef<Record<Region, number>>({ oasis: 0, caravan: 0, gatehouse: 0, farmland: 0 });
+  const lastCompanionLine = useRef<Record<Region, string | undefined>>({ oasis: undefined, caravan: undefined, gatehouse: undefined, farmland: undefined });
   const [activeLevel, setActiveLevel] = useState<LevelId>("pumpHouse");
   const [shopLevel, setShopLevel] = useState<LevelId>("pumpHouse");
   const [shopReturn, setShopReturn] = useState<Overlay>(null);
@@ -667,24 +671,33 @@ export default function GameShell() {
       if (activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
       return;
     }
-    if (event.type === "keeper") { setOverlay("keeper"); sound.current?.play("ui"); return; }
-    if (event.type === "fieldkeeper") { setOverlay("fieldkeeper"); sound.current?.play("ui"); return; }
-    if (event.type === "gatewright") { setOverlay("gatewright"); sound.current?.play("ui"); return; }
-    if (event.type === "wayfinder") { setOverlay("wayfinder"); sound.current?.play("ui"); return; }
+    if (event.type === "keeper" || event.type === "fieldkeeper" || event.type === "gatewright" || event.type === "wayfinder") {
+      const region: Region = event.type === "keeper" ? "oasis" : event.type === "wayfinder" ? "caravan" : event.type === "gatewright" ? "gatehouse" : "farmland";
+      const introduced = region === "oasis" ? keeperMet : region === "caravan" ? saveRef.current.oasisTransition === "ready" : region === "gatehouse" ? saveRef.current.gatehouseReady : saveRef.current.farmlandReady;
+      if (introduced) {
+        const pending = nextLevel(saveRef.current.completed);
+        const regionalPending = pending && (LEVELS[pending].chapter ?? "oasis") === region ? pending : null;
+        const line = selectCompanionLine(region, regionalPending, companionVisits.current[region]++, lastCompanionLine.current[region]);
+        lastCompanionLine.current[region] = line.id;
+        setCompanionLine(line);
+        setOverlay("companionChat");
+      } else setOverlay(event.type);
+      sound.current?.play("ui"); return;
+    }
     if (event.type === "pump") {
       const next = nextLevel(saveRef.current.completed);
       if (saveRef.current.region === "farmland") {
-        if (next === "seedStore") setOverlay("fieldkeeper");
+        if (next === "seedStore" && !saveRef.current.farmlandReady) setOverlay("fieldkeeper");
         else if (next && LEVELS[next].chapter === "farmland") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
       }
       if (saveRef.current.region === "gatehouse") {
-        if (next === "gatehouseApproach") setOverlay("gatewright");
+        if (next === "gatehouseApproach" && !saveRef.current.gatehouseReady) setOverlay("gatewright");
         else if (next && LEVELS[next].chapter === "gatehouse") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
       }
       if (saveRef.current.region === "caravan") {
-        if (next === "caravanPennants") setOverlay("wayfinder");
+        if (next === "caravanPennants" && saveRef.current.oasisTransition !== "ready") setOverlay("wayfinder");
         else if (next && LEVELS[next].chapter === "caravan") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
       }
@@ -707,6 +720,11 @@ export default function GameShell() {
       if (overlay === "keeper") setKeeperMet(true);
       setOverlay(null); setAttempt(value => value + 1);
     });
+  }
+  function closeCompanionChat() {
+    setCompanionLine(null);
+    setOverlay(null);
+    setAttempt(value => value + 1);
   }
   function beginDemoFilm() {
     if (saveRef.current.demoEnding !== "gate") return;
@@ -853,6 +871,7 @@ export default function GameShell() {
   const saveStatus = cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device";
   const speakerId = isFarmland ? "fieldkeeper" : isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
   const speaker = COMPANIONS[speakerId];
+  const companionIntroduced = isFarmland ? save.farmlandReady : isGatehouse ? save.gatehouseReady : isCaravan ? save.oasisTransition === "ready" : keeperMet;
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   const demoComplete=save.completed.includes("openTheCrossing");
   const farmlandUnlocked=playtest ? farmlandPreview : Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.unlocked);
@@ -884,7 +903,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -929,6 +948,12 @@ export default function GameShell() {
       {overlay === "keeper" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/keeper-avatar.png")} alt="" /><span className="speaker">THE KEEPER</span></div>
         <p>{LEVELS.pumpHouse.briefing}</p><button className="primary" onClick={closeDialogue}>Let's do it <span>→</span></button>
+      </div></div>}
+      {overlay === "companionChat" && companionLine && <div className="scrim"><div className="dialog-card companion-chat" role="dialog" aria-label={`Talk to ${speaker.name}`}>
+        <div className="speaker-row"><img className="speaker-avatar" src={speaker.portrait} alt="" /><span className="speaker">{speaker.name.toUpperCase()}</span></div>
+        <p>{companionLine.text}</p>
+        {companionLine.source && <a className="handbook-source" href={companionLine.source} target="_blank" rel="noopener noreferrer">From the RaidGuild Handbook ↗</a>}
+        <button className="primary" onClick={closeCompanionChat}>Close</button>
       </div></div>}
       {overlay === "briefing" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={speaker.portrait} alt="" /><span className="speaker">{speaker.name.toUpperCase()} · {mapLevel ? LEVELS[mapLevel].title : isFarmland ? "FARMLAND" : isGatehouse ? "RIVER GATEHOUSE" : isCaravan ? "OPEN DESERT" : "OASIS"}</span></div>

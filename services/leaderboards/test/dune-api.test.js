@@ -5,7 +5,7 @@ import pg from 'pg';
 import { SignJWT } from 'jose';
 import { createHash, randomUUID } from 'node:crypto';
 import { createDuneApp } from '../src/dune-app.js';
-import { emptyCampaign, content, farmlandEligible, DEMO_LEVEL_COUNT, deriveCampaign } from '../src/dune-rules.js';
+import { emptyCampaign, content, farmlandEligible, DEMO_LEVEL_COUNT, deriveCampaign, moveCapForVersion } from '../src/dune-rules.js';
 const database=process.env.TEST_DATABASE_URL;
 if (!database || !['localhost','127.0.0.1'].includes(new URL(database).hostname) || !new URL(database).pathname.endsWith('_test')) throw new Error('Use local disposable *_test Postgres');
 const pool=new pg.Pool({connectionString:database});
@@ -148,7 +148,14 @@ test('Farmland requires an account grant and arrival checkpoint for every write 
   }
   const attemptId=randomUUID();const ready=await ok(await call('/attempts',cookie,{attemptId,levelId:'seedStore',boosters:[]}));
   await ok(await call(`/attempts/${attemptId}/activate`,cookie,{expectedRevision:ready.profile.revision}));
-  const done=await ok(await call(`/attempts/${attemptId}/finish`,cookie,{levelId:'seedStore',remainingMoves:4,contentVersion:content.contentVersion}));
+  const route=`/attempts/${attemptId}/finish`;
+  assert.equal((await call(route,cookie,{levelId:'seedStore',remainingMoves:28,contentVersion:content.contentVersion})).status,400,'new Farmland cap rejects an old-size finish');
+  assert.equal((await call(route,cookie,{levelId:'seedStore',remainingMoves:29,contentVersion:'chapter-4-1'})).status,400,'historical Farmland cap remains bounded');
+  assert.equal((await call(route,cookie,{levelId:'seedStore',remainingMoves:28,contentVersion:'chapter-3-3'})).status,400,'Gatehouse content cannot claim Farmland');
+  const legacyWin={levelId:'seedStore',remainingMoves:28,contentVersion:'chapter-4-1'};
+  const done=await ok(await call(route,cookie,legacyWin));
+  assert.equal(done.reward,104,'historical spare moves retain their full reward');
+  assert.equal((await ok(await call(route,cookie,legacyWin))).profile.campaign.coins,done.profile.campaign.coins,'legacy finish is idempotent');
   assert.equal(done.profile.campaign.completed.length,31);
   assert.equal(done.profile.campaign.region,'farmland');
 });
@@ -189,6 +196,30 @@ test('a prepared Chapter 3 attempt can finish after the Chapter 4 content deploy
   assert.equal((await call(`/attempts/${randomUUID()}/finish`,cookie,{levelId:'seedStore',remainingMoves:2,contentVersion:'chapter-3-3'})).status,400);
 });
 test('free offline finish can sync and cannot skip levels',async()=>{const {cookie}=await launch(),id=randomUUID(),win={levelId:'pumpHouse',remainingMoves:5,contentVersion:content.contentVersion};const first=await ok(await call(`/attempts/${id}/finish`,cookie,win));assert.equal(first.reward,35);assert.equal((await ok(await call(`/attempts/${id}/finish`,cookie,win))).profile.campaign.coins,35);assert.equal((await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:{...first.profile.campaign,completed:['pumpHouse','primePump']},expectedRevision:first.profile.revision})).status,409);assert.equal((await call(`/attempts/${randomUUID()}/finish`,cookie,{...win,levelId:'palmIntake'})).status,409);});
+test('legacy Gatehouse finishes and guest balances survive the move-cap reduction',async()=>{
+  const {cookie}=await launch();
+  const oldCaps=JSON.parse(await readFile(new URL('../src/dune-legacy-moves.json',import.meta.url),'utf8'))['chapter-4-1'];
+  const completed=content.levels.slice(0,20).map(level=>level.id);
+  const maximum=completed.reduce((sum,id)=>sum+20+3*oldCaps[id],0);
+  const guest={...emptyCampaign(),completed,coins:maximum,oasisTransition:'ready',gatehouseReady:true};
+  await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:guest}));
+  const levelId='gatehouseApproach',route=`/attempts/${randomUUID()}/finish`;
+  assert.equal(moveCapForVersion(content.levels[20],'chapter-4-1'),30);
+  assert.equal((await call(route,cookie,{levelId,remainingMoves:30,contentVersion:content.contentVersion})).status,400);
+  assert.equal((await call(route,cookie,{levelId,remainingMoves:31,contentVersion:'chapter-4-1'})).status,400);
+  assert.equal((await call(route,cookie,{levelId,remainingMoves:1,contentVersion:'unknown'})).status,400);
+  const win={levelId,remainingMoves:30,contentVersion:'chapter-3-3'};
+  const first=await ok(await call(route,cookie,win));
+  assert.equal(first.reward,110);
+  assert.equal(first.profile.campaign.coins,maximum+110);
+  assert.equal((await ok(await call(route,cookie,win))).profile.campaign.coins,maximum+110,'legacy finish pays once');
+  const secondAccount=await launch();
+  const completed21=content.levels.slice(0,21).map(level=>level.id);
+  const oldMaximum=completed21.reduce((sum,id)=>sum+20+3*oldCaps[id],0);
+  const imported=await ok(await call('/campaign/import',secondAccount.cookie,{requestId:randomUUID(),guestSave:{...guest,completed:completed21,coins:oldMaximum}}));
+  assert.equal(imported.profile.campaign.coins,oldMaximum,'historical guest coins are not clamped');
+  assert.equal((await call('/campaign/import',(await launch()).cookie,{requestId:randomUUID(),guestSave:{...guest,completed:completed21,coins:oldMaximum+1}})).status,400,'import remains bounded');
+});
 test('a switched browser cookie cannot write the previous account',async()=>{
   const a=await launch(),b=await launch(),previousAccount=accountByCookie.get(a.cookie);
   const win={levelId:'pumpHouse',remainingMoves:1,contentVersion:content.contentVersion};
