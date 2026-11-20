@@ -1,0 +1,156 @@
+{
+  "rulesVersion": "gatehouse-3",
+  "contentVersion": "chapter-3-3",
+  "levels": [
+    {
+      "id": "pumpHouse",
+      "moves": 24,
+      "chapter": "oasis"
+    },
+    {
+      "id": "primePump",
+      "moves": 25,
+      "chapter": "oasis"
+    },
+    {
+      "id": "prismTower",
+      "moves": 26,
+      "chapter": "oasis"
+    },
+    {
+      "id": "oasisRelay",
+      "moves": 27,
+      "chapter": "oasis"
+    },
+    {
+      "id": "palmIntake",
+      "moves": 22,
+      "chapter": "oasis"
+    },
+    {
+      "id": "irrigationChannels",
+      "moves": 23,
+      "chapter": "oasis"
+    },
+    {
+      "id": "twinTanks",
+      "moves": 25,
+      "chapter": "oasis"
+    },
+    {
+      "id": "pressureManifold",
+      "moves": 27,
+      "chapter": "oasis"
+    },
+    {
+      "id": "aqueductRise",
+      "moves": 27,
+      "chapter": "oasis"
+    },
+    {
+      "id": "openWaterway",
+      "moves": 27,
+      "chapter": "oasis"
+    },
+    {
+      "id": "caravanPennants",
+      "moves": 28,
+      "chapter": "caravan"
+    },
+    {
+      "id": "pennantLine",
+      "moves": 25,
+      "chapter": "caravan"
+    },
+    {
+      "id": "walkersFoot",
+      "moves": 26,
+      "chapter": "caravan"
+    },
+    {
+      "id": "caravanLaunch",
+      "moves": 25,
+      "chapter": "caravan"
+    },
+    {
+      "id": "saltSealedIntake",
+      "moves": 28,
+      "chapter": "caravan"
+    },
+    {
+      "id": "cisternFlush",
+      "moves": 25,
+      "chapter": "caravan"
+    },
+    {
+      "id": "saltwindCrossing",
+      "moves": 25,
+      "chapter": "caravan"
+    },
+    {
+      "id": "twinReservoirs",
+      "moves": 29,
+      "chapter": "caravan"
+    },
+    {
+      "id": "beaconAscent",
+      "moves": 29,
+      "chapter": "caravan"
+    },
+    {
+      "id": "lightTheRoute",
+      "moves": 30,
+      "chapter": "caravan"
+    },
+    {
+      "id": "gatehouseApproach",
+      "moves": 30,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "gatewrightWorkshop",
+      "moves": 30,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "signalBalcony",
+      "moves": 27,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "bridgeControls",
+      "moves": 30,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "saltboundHinges",
+      "moves": 32,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "riverSluice",
+      "moves": 32,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "counterweightRoom",
+      "moves": 32,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "pairedWinches",
+      "moves": 33,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "gatehouseCrown",
+      "moves": 33,
+      "chapter": "gatehouse"
+    },
+    {
+      "id": "openTheCrossing",
+      "moves": 34,
+      "chapter": "gatehouse"
+    }
+  ]
+}

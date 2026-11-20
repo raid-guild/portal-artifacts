@@ -1,5 +1,7 @@
 # Dune Relay · Oasis, Open Desert, River Gatehouse
 
+Portal signed launch and account saves are described in [docs/portal-cloud-save.md](docs/portal-cloud-save.md). Guest progress remains on this device; playtest mode remains separate.
+
 Run `npm ci` and `npm run dev` here, then open http://localhost:3000. Mobile is optimized for landscape; desktop plays in a normal browser window. Tap or click a destination to walk there, or use WASD.
 
 The thirty authored levels are defined in `src/game/levels.ts`. The first ten restore the Oasis and introduce Jets, Flywheels, Prisms, combinations, and varied board shapes. The next ten cross the Open Desert: the Wayfinder introduces coral pennants and grants two Flywheels every nine pennants; levels 15–20 introduce salt crust. At level 20 the beacon lights, the supplied caravan departure film plays, and the Wayfinder points the party toward the River Gatehouse on the bridge into farmland.

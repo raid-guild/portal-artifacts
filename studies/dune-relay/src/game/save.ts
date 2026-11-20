@@ -31,9 +31,9 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   if (caravanDone && oasisTransition === "ready" && !gatehouseReady && !transition) transition = { from: "caravan", to: "gatehouse", stage: "film" };
   if (transition?.from === "caravan" && !caravanDone) transition = null;
   const companions: CompanionId[] = [];
-  if (oasisIndex >= 3 || value.companions?.includes("keeper")) companions.push("keeper");
-  if (oasisIndex >= 5 || value.companions?.includes("wayfinder")) companions.push("wayfinder");
-  if (gatehouseReady || value.companions?.includes("gatewright")) companions.push("gatewright");
+  if (oasisIndex >= 3) companions.push("keeper");
+  if (oasisIndex >= 5) companions.push("wayfinder");
+  if (gatehouseReady) companions.push("gatewright");
   let region: Region = value.region === "oasis" ? "oasis" : value.region === "gatehouse" && gatehouseReady ? "gatehouse" : oasisIndex >= 4 ? "caravan" : "oasis";
   if (transition?.stage === "arrival") region = transition.to;
   const endingStages: DemoEnding[] = ["locked", "gate", "film", "thanks", "done"];

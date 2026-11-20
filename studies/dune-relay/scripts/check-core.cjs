@@ -16,7 +16,29 @@ const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
 const priorBoards = require('./pre-gatehouse-board-baseline.json');
 const { startAttempt, appendTurn, finishAttempt, addAttempt, emptyArchive, archiveCsv, archiveJson, readArchive, readPlaytestWallet, writePlaytestWallet, PLAYTEST_WALLET_KEY, PLAYTEST_KEY, MAX_ATTEMPTS } = require('../src/game/playtest.ts');
-const { applyStartingBoosters, prepareStartingBoosters, boosterCost } = require('../src/game/boosters.ts');
+const { applyStartingBoosters, prepareStartingBoosters, boosterCost, BOOSTERS } = require('../src/game/boosters.ts');
+const { contentVersion } = require('../src/game/cloud.ts');
+const cloudContent = require('../../../services/leaderboards/src/dune-content.json');
+import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaign }) => {
+  const fixtures = [
+    { completed: 0, oasisTransition: 'locked' },
+    { completed: 1, oasisTransition: 'locked' },
+    ...['film','keeper','atlas','arrival','ready'].map(oasisTransition => ({ completed: 10, oasisTransition })),
+    ...['film','handoff','atlas','arrival'].map(stage => ({ completed: 20, oasisTransition: 'ready', transition: { from:'caravan', to:'gatehouse', stage } })),
+    { completed: 20, oasisTransition: 'ready', gatehouseReady: true },
+    { completed: 21, oasisTransition: 'ready', gatehouseReady: true },
+  ];
+  for (const fixture of fixtures) {
+    const campaign = { ...EMPTY_SAVE, ...fixture, completed:LEVEL_ORDER.slice(0,fixture.completed), companions:['keeper','wayfinder','gatewright'] };
+    const local = normalizeSave(campaign);
+    const server = deriveCampaign(campaign.completed,0,campaign);
+    assert.deepEqual(local.companions,server.companions,`companion parity at ${fixture.completed} ${fixture.oasisTransition} ${fixture.transition?.stage ?? ''}`);
+  }
+}).catch(error => { console.error(error); process.exitCode=1; });
+assert.equal(cloudContent.contentVersion, contentVersion, 'cloud rules version tracks the browser');
+assert.deepEqual(cloudContent.levels, LEVEL_ORDER.map(id => ({id,moves:LEVELS[id].moves,chapter:LEVELS[id].chapter ?? 'oasis'})), 'cloud level order and move caps track authored levels');
+assert.deepEqual(Object.fromEntries(BOOSTERS.map(item=>[item.kind,item.cost])), {jet:300,flywheel:300,prism:500}, 'cloud booster prices track the shop');
+for (const moves of [0,1,10,50]) assert.equal(coinReward(moves),20+3*moves,'cloud reward formula tracks the game');
 
 for (const [index, id] of LEVEL_ORDER.entries()) {
   const level = LEVELS[id];

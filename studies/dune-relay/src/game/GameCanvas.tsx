@@ -46,7 +46,7 @@ type Props = {
   audio: GameAudio | null;
   reducedMotion: boolean;
   transitioning: boolean;
-  onReady: () => boolean;
+  onReady: () => boolean | Promise<boolean>;
   onFailure: (reason: string) => void;
   onEvent: (event: GameEvent) => void;
   skipReveal: { current: (() => void) | null };
@@ -694,7 +694,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       for (const placement of props.startingBoosters) this.pieces.get(placement.tileId)?.graphic.setAlpha(0);
       this.renderHud();
       this.busy = true;
-      if (props.onReady()) void this.revealGoals();
+      void Promise.resolve(props.onReady()).then(authorized => {
+        if (authorized && this.sceneAlive && this.introActive) void this.revealGoals();
+      }).catch(() => props.onFailure('authorization-failed'));
     }
     async revealGoals() {
       this.busy = true;

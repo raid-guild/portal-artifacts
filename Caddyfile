@@ -167,6 +167,15 @@
 				}
 			}
 		}
+		handle /leaderboard-api/dune-relay/* {
+			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
+				header_up Host {upstream_hostport}
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 8s
+				}
+			}
+		}
 		handle /leaderboard-api/cosmic-carnival/* {
 			reverse_proxy {$LEADERBOARD_UPSTREAM:localhost:9999} {
 				header_up Host {upstream_hostport}
