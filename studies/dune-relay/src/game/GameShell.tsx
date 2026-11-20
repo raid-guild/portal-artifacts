@@ -18,7 +18,7 @@ import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type 
 import * as cloudApi from "./cloud";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
@@ -28,6 +28,10 @@ export default function GameShell() {
   const [cloudStatus, setCloudStatus] = useState<"checking" | "guest" | "account" | "syncing" | "pending" | "expired">("checking");
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
   const [portalName, setPortalName] = useState<string | null>(null);
+  const [farmland, setFarmland] = useState<cloudApi.FarmlandEntitlement | null>(null);
+  const [farmlandState, setFarmlandState] = useState<"idle" | "loading" | "claiming" | "error">("idle");
+  const [farmlandError, setFarmlandError] = useState<string | null>(null);
+  const [farmlandPreview, setFarmlandPreview] = useState(false);
   const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const [mode, setMode] = useState<"map" | "puzzle">("map");
   const [overlay, setOverlay] = useState<Overlay>("start");
@@ -68,6 +72,9 @@ export default function GameShell() {
   const saveRef = useRef<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const cloudRef = useRef<{ accountId: string; profile: cloudApi.CloudProfile; pending: cloudApi.CloudOperation[]; syncing: boolean } | null>(null);
   const cloudGeneration = useRef(0);
+  const farmlandGeneration = useRef(0);
+  const farmlandClaimId = useRef<string | null>(null);
+  const farmlandClaiming = useRef(false);
   const cloudConflict = useRef(false);
   const sound = useRef<GameAudio | null>(null);
   const film = useRef<HTMLVideoElement | null>(null);
@@ -148,6 +155,7 @@ export default function GameShell() {
       window.removeEventListener("error", pageError);
       window.removeEventListener("unhandledrejection", rejection);
       cloudGeneration.current++;
+      farmlandGeneration.current++;
     };
   }, []);
 
@@ -245,7 +253,41 @@ export default function GameShell() {
       current.profile=result.profile; current.pending=[]; cloudConflict.current=false;
       const loaded=normalizeSave(result.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
       setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
+      void refreshFarmland(current);
     } catch (error) { setCloudMessage(`Portal save could not load: ${(error as Error).message}`); }
+  }
+  function clearFarmland() { farmlandGeneration.current++; farmlandClaimId.current=null; farmlandClaiming.current=false; setFarmland(null); setFarmlandState("idle"); setFarmlandError(null); }
+  async function refreshFarmland(current = cloudRef.current) {
+    if (!current || playtest || farmlandClaiming.current) return;
+    const generation=++farmlandGeneration.current;
+    setFarmlandState("loading"); setFarmlandError(null);
+    try {
+      const result=await cloudApi.entitlements(current.accountId);
+      if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
+      setFarmland(result); setFarmlandState("idle");
+      if (result.farmland.unlocked) farmlandClaimId.current=null;
+    } catch (error) {
+      if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
+      setFarmland(null); setFarmlandState("error"); setFarmlandError((error as Error).message);
+    }
+  }
+  async function unlockFarmland() {
+    const current=cloudRef.current;
+    if (playtest || !current || farmlandClaiming.current || farmland?.accountId!==current.accountId || !farmland.farmland.eligible || farmland.farmland.unlocked || current.syncing || current.pending.length || cloudConflict.current || cloudStatus!=="account" || !["idle","error"].includes(farmlandState)) return;
+    const generation=++farmlandGeneration.current;
+    const requestId=farmlandClaimId.current??cloudApi.newOperationId(); farmlandClaimId.current=requestId; farmlandClaiming.current=true;
+    setFarmlandState("claiming"); setFarmlandError(null);
+    try {
+      const result=await cloudApi.claimFarmland(requestId,current.accountId);
+      if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
+      setFarmland(result); setFarmlandState("idle"); farmlandClaimId.current=null;
+    } catch (error) {
+      if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
+      setFarmlandState("error"); setFarmlandError((error as Error).message);
+    } finally { if (farmlandGeneration.current===generation) farmlandClaiming.current=false; }
+  }
+  function acknowledgeDemo() {
+    if (saveRef.current.demoEnding==="thanks") persist(normalizeSave({ ...saveRef.current, demoEnding:"done" }));
   }
   function persist(next: Save) {
     if (next === saveRef.current) return;
@@ -285,6 +327,7 @@ export default function GameShell() {
       const cached = cloudApi.readAccountCache(session.accountId);
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
+      setFarmland(null); void refreshFarmland(cloudRef.current);
       if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
         try {
           const prepared=prepareStartingBoosters(createPuzzle(LEVELS[cached.purchase.levelId]),cached.purchase.boosters);
@@ -325,6 +368,7 @@ export default function GameShell() {
       if (cloudRef.current === current) {
         saveRef.current = normalizeSave(current.profile.campaign); setSave(saveRef.current);
         cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
+        void refreshFarmland(current);
       }
     } catch (error) {
       if (cloudRef.current === current) {
@@ -343,6 +387,7 @@ export default function GameShell() {
       if (cloudRef.current !== current) return;
       cloudApi.clearGuestImportId(current.accountId);
       current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
+      void refreshFarmland(current);
     } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
   }
   function startFreshPortalCampaign() {
@@ -355,11 +400,11 @@ export default function GameShell() {
   async function signOut() {
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function commitWin(levelId: LevelId, movesRemaining: number) {
@@ -746,6 +791,22 @@ export default function GameShell() {
   const speakerId = isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
   const speaker = COMPANIONS[speakerId];
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
+  const demoComplete=save.completed.includes("openTheCrossing");
+  const farmlandUnlocked=playtest ? farmlandPreview : Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.unlocked);
+  const farmlandEligible=Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.eligible);
+  const farmlandBlocked=cloudStatus==="pending" || cloudStatus==="syncing" || cloudConflict.current || Boolean(cloudRef.current?.pending.length);
+  function farmlandAccess() {
+    if (farmlandUnlocked) return <p className="farmland-status" role="status">Farmland unlocked · Chapter 4 coming soon.</p>;
+    if (playtest) return <p className="farmland-status">Farmland preview is locked. Use the Settings preview toggle to inspect the unlocked state.</p>;
+    if (!cloudRef.current) return demoComplete ? <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in to unlock Farmland →</a> : <p className="farmland-status">Complete the 30 demo levels to unlock Farmland with a Portal login.</p>;
+    if (cloudStatus==="expired") return <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in again to unlock Farmland →</a>;
+    if (farmlandBlocked) return <><p className="farmland-status">Sync progress to unlock Farmland.</p><button className="farmland-action" onClick={() => void flushCloud()} disabled={cloudStatus==="syncing" || cloudConflict.current}>Sync progress →</button></>;
+    if (farmlandState==="loading") return <p className="farmland-status" role="status">Checking Farmland access…</p>;
+    if (farmlandState==="claiming") return <p className="farmland-status" role="status">Unlocking Farmland…</p>;
+    if (farmlandState==="error" || !farmland) return <><p className="farmland-status" role="alert">{farmlandError??"Farmland access could not be checked."}</p><button className="farmland-action" onClick={() => void (farmlandClaimId.current && farmlandEligible ? unlockFarmland() : refreshFarmland())}>Retry Farmland access →</button></>;
+    if (!farmlandEligible) return <p className="farmland-status">Complete all 30 demo levels on this Portal account to unlock Farmland.</p>;
+    return <button className="farmland-action" onClick={() => void unlockFarmland()}>Unlock Farmland →</button>;
+  }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
       {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
@@ -770,10 +831,11 @@ export default function GameShell() {
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
-        <p>{isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
+        <p>{demoComplete ? "The bridge is open. Your party has cleared the way to Farmland." : isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
         <button className="primary" disabled={cloudStatus === "checking" || (cloudStatus === "expired" && !cloudRef.current)} onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
         {!playtest && (!portalName || cloudStatus === "expired") && <a className="quiet portal-login" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal →</a>}
         {!playtest && cloudStatus === "expired" && !cloudRef.current && <button className="quiet" onClick={continueAsGuest}>Play as guest on this device</button>}
+        {(demoComplete || farmlandUnlocked) && <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4</strong>{farmlandAccess()}</div>}
         {cloudMessage && <small role="status">{cloudMessage}</small>}
         {save.demoEnding === "done" && !playtest && <button className="quiet" onClick={() => window.location.assign("?playtest=1")}>Playtest levels →</button>}
         <small>Touch to walk · Mobile landscape · WASD and mouse on desktop</small>
@@ -834,8 +896,10 @@ export default function GameShell() {
         </div>
         <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
         <div className="atlas-future">{save.completed.includes("openTheCrossing") ? "The bridge is open toward the farmland. That road belongs to a later chapter." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
+        {save.completed.includes("openTheCrossing") && <button className="atlas-farmland" onClick={() => setOverlay("farmland")}>FARMLAND {farmlandUnlocked ? "✓" : "◇"}<small>{farmlandUnlocked ? "Unlocked · coming soon" : "Chapter 4 · view access"}</small></button>}
         <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
       </div>}
+      {overlay === "farmland" && <div className="scrim"><div className="dialog-card farmland-card"><span className="speaker">THE ROAD BEYOND THE BRIDGE</span><h2>Farmland · Chapter 4</h2><p>The gate is open. Farmland is the Portal login bonus for players who finish this 30-level demo. The chapter itself is coming soon.</p>{farmlandAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
       {overlay === "party" && <div className="scrim"><div className="party-card">
         <div className="eyebrow">THE RAID PARTY</div><h2>Those who keep the road open</h2>
         <div className="party-list">
@@ -867,8 +931,9 @@ export default function GameShell() {
         } as CSSProperties} />)}</div>
         <div className="dialog-card demo-thanks">
         <span className="speaker">YOUR RAID IS JUST BEGINNING</span><h2>Thanks for playing the demo.</h2>
-        <p>70 new levels are coming soon, with tons of new characters, tiles, and power-ups.</p>
+        <p>You completed all 30 demo levels. Unlock Farmland, Chapter 4, as a Portal login bonus. New characters, tiles, power-ups, and adventures are coming soon.</p>
         <p className="demo-story">The story continues…</p>
+        <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4</strong>{farmlandAccess()}</div>
         <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
         <button className="quiet" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); window.location.assign("?playtest=1"); }}>Playtest levels →</button>
       </div></div>}
@@ -890,6 +955,7 @@ export default function GameShell() {
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
           {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
+        {(demoComplete || farmlandUnlocked || playtest) && <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4{playtest ? " · PREVIEW" : ""}</strong>{farmlandAccess()}</div>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
@@ -901,6 +967,7 @@ export default function GameShell() {
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {playtest ? <>
+          <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
           <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>

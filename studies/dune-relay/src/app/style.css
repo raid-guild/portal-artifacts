@@ -139,6 +139,17 @@ button { font: inherit; cursor: pointer; }
 .atlas-route .atlas-active { border-color: #efb77f; }
 .atlas-future { position: absolute; z-index: 1; right: 3%; top: 19%; width: 24%; padding: 9px 12px; border: 1px solid #dfbe8d; background: rgba(14, 50, 61, .87); border-radius: 9px; font-size: clamp(10px, 2cqh, 15px); font-weight: 700; }
 .atlas-action { position: absolute; z-index: 2; right: 3%; top: 4%; }
+.atlas-farmland { position: absolute; z-index: 2; right: 4%; bottom: 10%; display: flex; flex-direction: column; align-items: flex-start; padding: 7px 12px; border: 2px solid #d8b4ed; border-radius: 10px; background: rgba(15, 55, 63, .96); color: #ffedc4; font: 800 clamp(15px, 3cqh, 23px) 'Barlow Condensed', Arial, sans-serif; cursor: pointer; }
+.atlas-farmland small { color: #aee8dd; font: 600 .55em 'DM Sans', Arial, sans-serif; }
+.atlas-farmland:hover { background: #27747b; }
+.farmland-entry { margin: 10px 0; padding: 10px 12px; border: 1px solid #d5b97f; border-radius: 10px; background: rgba(10, 43, 52, .82); color: #ffe5ad; line-height: 1.25; }
+.farmland-entry strong { display: block; font: 800 clamp(15px, 3.5cqh, 22px) 'Barlow Condensed', Arial, sans-serif; letter-spacing: .04em; }
+.farmland-status { margin: 5px 0 !important; font-size: clamp(12px, 2.8cqh, 16px) !important; }
+.farmland-action { display: inline-block; max-width: 100%; margin-top: 7px; padding: 8px 12px; border: 1px solid #ffe0a0; border-radius: 7px; background: #e6aa57; color: #102f39; font: 800 clamp(14px, 3.4cqh, 20px) 'Barlow Condensed', Arial, sans-serif; text-decoration: none; cursor: pointer; }
+.farmland-action:hover { background: #f6cb78; }
+.farmland-action:disabled { opacity: .5; cursor: default; }
+.intro-card { max-height: 94%; overflow-y: auto; }
+.farmland-card { max-height: 90%; overflow-y: auto; }
 .party-card { width: min(630px, 79%); max-height: 92%; overflow: auto; border: 3px solid #e0bd82; border-radius: 15px; background: #173c46; color: #fff0d0; padding: clamp(14px, 3vw, 26px); box-shadow: 0 20px 70px #001c25; }
 .party-card h2 { margin: 3px 0 14px; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(25px, 5cqh, 39px); line-height: 1; }
 .party-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }

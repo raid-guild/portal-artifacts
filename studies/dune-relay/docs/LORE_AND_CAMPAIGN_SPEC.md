@@ -8,7 +8,7 @@
 
 Use this as a shared reference for the kingdom journey, story, party, and introduction of mechanics. The broad direction was agreed in conversation; chapter names, characters, powers, obstacles, and level counts remain open to revision through writing and playtesting. This is not an implementation checklist or a commitment to build every proposed mechanic.
 
-The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 130 beyond the current thirty-level demo. That is a planning scale, not a production promise. The demo's existing “70 new levels” teaser would need reconsideration if this larger scope becomes the release plan.
+The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 130 beyond the current thirty-level demo. That is a planning scale, not a production promise. The demo teaser now promises new adventures without a fixed level count.
 
 ## Story foundation
 
@@ -64,6 +64,8 @@ Chapters 1–3 describe the current playable direction. Chapters 4–16 are prop
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
 
 ## Farmland starting concept
+
+Farmland is reserved as a free Portal login bonus after the existing thirty-level demo ends at the River Gatehouse. The player explicitly claims a separate server-side account grant after finishing the demo; the grant stays recorded even if future access rules change. This unlock currently says “Chapter 4 coming soon”; no Farmland levels or playable region are included in the unlock implementation. The story and mechanics below remain flexible for the later chapter build.
 
 The next chapter should add a companion and a distinct obstacle without expanding the matching pool immediately.
 

@@ -101,3 +101,11 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_launch_intents (
   expires_at timestamptz NOT NULL
 );
 CREATE INDEX IF NOT EXISTS dune_launch_intents_expiry ON artifact_leaderboards.dune_launch_intents(expires_at);
+
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_entitlements (
+  player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  entitlement_key text NOT NULL,
+  source text NOT NULL,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, entitlement_key)
+);
