@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs",
     "test:browser": "node scripts/check-browser.cjs",
+    "test:stats": "node scripts/check-stats-layout.cjs",
     "build:artifact": "node scripts/build-artifact.mjs"
   },
   "dependencies": {

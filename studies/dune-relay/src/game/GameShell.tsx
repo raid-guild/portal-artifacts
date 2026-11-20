@@ -10,7 +10,7 @@ import { GameAudio } from "./audio";
 import { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS, type TrackPreference } from "./soundtracks";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, type Region, type Save, writeSave } from "./save";
-import { addAttempt, appendTurn, archiveCsv, archiveJson, emptyArchive, finishAttempt, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
+import { addAttempt, appendTurn, archiveCsv, archiveJson, campaignArchiveKey, emptyArchive, finishAttempt, PLAYTEST_KEY, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
 import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
@@ -79,6 +79,7 @@ export default function GameShell() {
   const sound = useRef<GameAudio | null>(null);
   const film = useRef<HTMLVideoElement | null>(null);
   const archive = useRef<PlaytestArchive>(emptyArchive());
+  const archiveKey = useRef<string | null>(null);
   const activeRecord = useRef<AttemptRecord | null>(null);
   const activeSince = useRef<number | null>(null);
   const pendingAttempt = useRef<PendingAttempt | null>(null);
@@ -126,7 +127,7 @@ export default function GameShell() {
     window.addEventListener("pageshow", fullscreenSync);
     document.addEventListener("visibilitychange", fullscreenSync);
     setPlaytest(testing);
-    if (testing) { archive.current = readArchive(); writeArchive(archive.current); const wallet = readPlaytestWallet(); const loaded = normalizeSave({ ...saveRef.current, coins: wallet.coins }); saveRef.current = loaded; setSave(loaded); }
+    if (testing) { loadStatsArchive(PLAYTEST_KEY); const wallet = readPlaytestWallet(); const loaded = normalizeSave({ ...saveRef.current, coins: wallet.coins }); saveRef.current = loaded; setSave(loaded); }
     if (!testing) { const loaded = readSave(); saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); }
     setReady(true);
     void initializeCloud(testing);
@@ -180,12 +181,15 @@ export default function GameShell() {
   }, [ready, save.region, effectiveTrack, overlay]);
 
   useEffect(() => {
-    if (!playtest) return;
-    if (settings || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden) recordPause(); else recordResume();
-    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && overlay === null && wipe === "hidden" && mode === "puzzle") recordResume(); };
+    if (settings || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
+    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
+    const pagehide = () => recordPause();
+    const pageshow = () => { if (!document.hidden && !settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
     document.addEventListener("visibilitychange", visibility);
-    return () => document.removeEventListener("visibilitychange", visibility);
-  }, [playtest, settings, overlay, wipe, mode]);
+    window.addEventListener("pagehide", pagehide);
+    window.addEventListener("pageshow", pageshow);
+    return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("pagehide", pagehide); window.removeEventListener("pageshow", pageshow); };
+  }, [settings, overlay, wipe, mode, sceneIssue]);
 
   useEffect(() => {
     if (overlay !== "film") { setFilmReady(false); return; }
@@ -236,9 +240,11 @@ export default function GameShell() {
 
   function recordPause() { if (activeRecord.current && activeSince.current !== null) { activeRecord.current = { ...activeRecord.current, activeMs: activeRecord.current.activeMs + Math.max(0, performance.now() - activeSince.current) }; activeSince.current = null; storeRecord(); } }
   function recordResume() { if (activeRecord.current?.outcome === "playing" && activeSince.current === null && !document.hidden) activeSince.current = performance.now(); }
-  function storeRecord() { if (!playtest || !activeRecord.current) return; archive.current = addAttempt(archive.current, activeRecord.current); writeArchive(archive.current); }
+  function loadStatsArchive(key: string) { archiveKey.current = key; archive.current = readArchive(undefined, key); writeArchive(archive.current, undefined, key); activeRecord.current = null; activeSince.current = null; }
+  function switchStatsArchive(key: string) { if (archiveKey.current === key) return; abandonRecord("account-changed"); loadStatsArchive(key); }
+  function storeRecord() { if (!archiveKey.current || !activeRecord.current) return; archive.current = addAttempt(archive.current, activeRecord.current); writeArchive(archive.current, undefined, archiveKey.current); }
   function abandonRecord(reason: string) { if (!activeRecord.current || activeRecord.current.outcome !== "playing") return; recordPause(); activeRecord.current = finishAttempt(activeRecord.current, "abandoned", reason); storeRecord(); activeRecord.current = null; }
-  function downloadStats(format: "json" | "csv") { if (!playtest) return; recordPause(); const body = format === "json" ? archiveJson(archive.current) : archiveCsv(archive.current); const blob = new Blob([body], { type: format === "json" ? "application/json" : "text/csv" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-playtest-${new Date().toISOString().slice(0,10)}.${format}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); if (!settings) recordResume(); }
+  function downloadStats(format: "json" | "csv") { if (!archiveKey.current || cloudStatus === "checking" || cloudStatus === "expired" && !playtest) return; recordPause(); const body = format === "json" ? archiveJson(archive.current) : archiveCsv(archive.current); const blob = new Blob([body], { type: format === "json" ? "application/json" : "text/csv" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-${playtest ? "playtest" : "campaign"}-${new Date().toISOString().slice(0,10)}.${format}`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); if (!settings) recordResume(); }
   function downloadDiagnostics() { const blob = new Blob([diagnosticsJson()], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `dune-relay-diagnostics-${new Date().toISOString().slice(0,10)}.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
   function downloadCloudBackup() {
     const current=cloudRef.current; if (!current) return;
@@ -323,6 +329,7 @@ export default function GameShell() {
       const result = await cloudApi.campaign(session.accountId);
       if (result.accountId !== session.accountId) throw new Error("Portal account changed during load.");
       if (generation !== cloudGeneration.current) return;
+      switchStatsArchive(campaignArchiveKey(session.accountId));
       cloudApi.rememberAccount(session.accountId);
       const cached = cloudApi.readAccountCache(session.accountId);
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
@@ -347,6 +354,7 @@ export default function GameShell() {
         setCloudStatus("expired");
         setCloudMessage((error as {status?:number}).status === 401 ? "Portal sign-in expired. Sign in again to continue this campaign." : "Portal save could not be checked. Reconnect or sign in again; account progress is held on this device.");
       } else {
+        switchStatsArchive(campaignArchiveKey());
         setCloudStatus("guest");
         if ((error as {status?:number}).status !== 401 && (error as {status?:number}).status !== 503) setCloudMessage("Cloud saves could not be checked. Playing with this device's guest save.");
         if (new URLSearchParams(window.location.search).get("login") === "failed") setCloudMessage("Portal sign-in did not finish. Guest progress is still here.");
@@ -400,10 +408,12 @@ export default function GameShell() {
   async function signOut() {
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
+    switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
+    switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
@@ -643,13 +653,13 @@ export default function GameShell() {
     if (event.type === "gateOpened" && transitioning.current) { gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
-    if (event.type === "playReady") { if (playtest && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, "sandbox"); storeRecord(); recordResume(); } return; }
+    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && overlay === null && wipe === "hidden") recordResume(); } return; }
     if (event.type === "gateOpened") { if (saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
       // renderer is interrupted during its animation, a reload keeps the win.
       if (event.turn.state.status === "won") commitWin(activeLevel,event.turn.state.moves);
-      if (playtest && activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
+      if (activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
       return;
     }
     if (event.type === "keeper") { setOverlay("keeper"); sound.current?.play("ui"); return; }
@@ -672,7 +682,7 @@ export default function GameShell() {
       if (next === "pumpHouse") startLevel(next);
       return;
     }
-    if (event.type === "turn") { setPuzzle(event.puzzle); if (playtest && activeRecord.current?.outcome === "playing" && !settings) recordResume(); return; }
+    if (event.type === "turn") { setPuzzle(event.puzzle); if (activeRecord.current?.outcome === "playing" && !settings && !sceneIssue) recordResume(); return; }
     if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
     if (event.type === "revealStarted") { setRevealing(true); return; }
     if (event.type === "victory") {
@@ -788,6 +798,7 @@ export default function GameShell() {
   const partyUnlocked = save.companions.includes("keeper");
   const isCaravan = save.region === "caravan";
   const isGatehouse = save.region === "gatehouse";
+  const saveStatus = cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device";
   const speakerId = isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
   const speaker = COMPANIONS[speakerId];
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
@@ -815,8 +826,10 @@ export default function GameShell() {
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
         setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
       }} onEvent={onEvent} skipReveal={skipReveal} />}
-      <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
-      {!playtest && <div className="cloud-pill" role="status">{portalName ? `${portalName} · ` : "Guest · "}{cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device"}</div>}
+      <div className="save-hud">
+        <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
+        {!playtest && <div className="cloud-pill" role="status" title={`${portalName ?? "Guest"} · ${saveStatus}`} aria-label={`${portalName ?? "Guest"} · ${saveStatus}`}><span className="cloud-name">{portalName ?? "Guest"} · </span><span className="cloud-status">{saveStatus}</span></div>}
+      </div>
       <div className="top-actions" inert={wipe !== "hidden"}>
         {mode === "map" && partyUnlocked && <>
           <button className="nav-button" onClick={() => setOverlay("kingdom")}>Kingdom Map</button>
@@ -966,11 +979,10 @@ export default function GameShell() {
         <a className="raidguild-credit" href="https://raidguild.org" target="_blank" rel="noopener noreferrer"><img src={assetUrl("/raidguild-stamp.svg")} alt="" /><span>Built by <strong>RaidGuild</strong><small>raidguild.org <span aria-hidden="true">↗</span></small></span></a>
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
+        {archiveKey.current && cloudStatus !== "checking" && (playtest || cloudStatus !== "expired") && <><small className="setting-note">Level stats stay on this device{playtest ? " in a separate playtest archive" : cloudRef.current ? " for this Portal account" : " for this guest campaign"}. Export a copy here.</small><button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button><button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button></>}
         {playtest ? <>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
-          <button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button>
-          <button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
           <button className="setting" onClick={() => previewTransition("caravan")}>Preview desert → gatehouse transition</button>

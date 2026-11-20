@@ -3,6 +3,10 @@ import type { LevelDefinition, LevelId } from "./levels";
 import type { BoosterKind } from "./boosters";
 
 export const PLAYTEST_KEY = "dune-relay-playtest-v1";
+export const GUEST_CAMPAIGN_KEY = "dune-relay-campaign-stats-guest-v1";
+export function campaignArchiveKey(accountId?: string): string {
+  return accountId ? `dune-relay-campaign-stats-account-${encodeURIComponent(accountId)}-v1` : GUEST_CAMPAIGN_KEY;
+}
 export const PLAYTEST_WALLET_KEY = "dune-relay-playtest-wallet-v1";
 export type PlaytestWallet = { version: 1; coins: number };
 export function normalizePlaytestWallet(value: unknown): PlaytestWallet {
@@ -48,13 +52,13 @@ export function addAttempt(archive: PlaytestArchive, attempt: AttemptRecord): Pl
   const excess = Math.max(0, attempts.length - MAX_ATTEMPTS);
   return { schemaVersion: 1, droppedAttempts: archive.droppedAttempts + excess, attempts: excess ? attempts.slice(excess) : attempts };
 }
-export function readArchive(storage?: Pick<Storage, "getItem" | "setItem">): PlaytestArchive {
-  try { const data = JSON.parse((storage ?? localStorage).getItem(PLAYTEST_KEY) ?? "null"); if (data?.schemaVersion === 1 && Array.isArray(data.attempts)) {
+export function readArchive(storage?: Pick<Storage, "getItem" | "setItem">, key = PLAYTEST_KEY): PlaytestArchive {
+  try { const data = JSON.parse((storage ?? localStorage).getItem(key) ?? "null"); if (data?.schemaVersion === 1 && Array.isArray(data.attempts)) {
     return { schemaVersion: 1, droppedAttempts: Number(data.droppedAttempts) || 0, attempts: data.attempts.slice(-MAX_ATTEMPTS).map((entry: AttemptRecord) => { const normalized = { ...entry, startingBoosters: entry.startingBoosters ?? [], boosterCost: entry.boosterCost ?? 0, boosterMode: entry.boosterMode ?? "sandbox" }; return normalized.outcome === "playing" ? finishAttempt(normalized, "abandoned", "interrupted") : normalized; }) };
   }} catch {}
   return emptyArchive();
 }
-export function writeArchive(archive: PlaytestArchive, storage?: Pick<Storage, "setItem">) { try { (storage ?? localStorage).setItem(PLAYTEST_KEY, JSON.stringify(archive)); } catch {} }
+export function writeArchive(archive: PlaytestArchive, storage?: Pick<Storage, "setItem">, key = PLAYTEST_KEY) { try { (storage ?? localStorage).setItem(key, JSON.stringify(archive)); } catch {} }
 function csvCell(value: unknown): string { const content = value === undefined || value === null ? "" : typeof value === "string" ? value : JSON.stringify(value); return `"${content.replaceAll('"', '""')}"`; }
 export function archiveJson(archive: PlaytestArchive): string { return JSON.stringify(archive, null, 2); }
 export function archiveCsv(archive: PlaytestArchive): string {
