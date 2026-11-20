@@ -204,6 +204,38 @@ async function checkFarmland(browser) {
   } finally { await context.close(); }
 }
 
+async function checkFarmlandPreview(browser) {
+  const context = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  await context.addInitScript(() => localStorage.setItem('dune-relay-campaign-v5', '{"sentinel":"playtest-only"}'));
+  const page = await context.newPage();
+  const errors = [], portalRequests = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (new URL(request.url()).pathname.includes('/api/')) portalRequests.push(`${request.method()} ${request.url()}`); });
+  try {
+    await page.goto(url(true));
+    await page.getByRole('button', { name: /Enter the oasis/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Preview Gatehouse → Farmland story' }).click();
+    await page.getByText(/seed ledger is wrong/).waitFor();
+    assert.equal(await page.locator('[data-mode="map"]').count(), 1, 'handoff remains on the story map');
+    await page.getByRole('button', { name: /Open the kingdom map/ }).click();
+    await page.getByRole('button', { name: /Cross into Farmland/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.locator('[data-mode="map"]').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Start level/ }).count(), 0, 'arrival does not jump to the board');
+    await tapMap(page, 540, 389);
+    await page.getByText(/sealed seedpods have fallen through the stores/).waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: /Open the seed store/ }).click();
+    await page.getByRole('button', { name: /Start level/ }).waitFor();
+    assert.equal(await page.locator('[data-mode="map"]').count(), 1, 'Fieldkeeper conversation precedes the shop and board');
+    assert.equal(await page.evaluate(() => localStorage.getItem('dune-relay-campaign-v5')), '{"sentinel":"playtest-only"}', 'preview does not write campaign progress');
+    assert.deepEqual(portalRequests, [], 'playtest preview makes no Portal API calls');
+    assert.deepEqual(errors, [], 'Farmland story preview has no browser errors');
+    console.log('Farmland preview handoff, atlas, arrival, Fieldkeeper, shop, and sandbox isolation passed');
+  } finally { await context.close(); }
+}
+
 async function checkPortalFarmland(browser) {
   const context = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
   const page = await context.newPage();
@@ -598,6 +630,7 @@ async function checkFullscreen(browser) {
     const scope = process.env.DUNE_TEST_SCOPE || 'all';
     if (scope === 'all' || scope === 'input') await checkInput(browser);
     if (scope === 'all' || scope === 'farmland') await checkFarmland(browser);
+    if (scope === 'all' || scope === 'farmland-preview') await checkFarmlandPreview(browser);
     if (scope === 'all' || scope === 'portal-farmland') await checkPortalFarmland(browser);
     if (scope === 'all' || scope === 'fullscreen') await checkFullscreen(browser);
     if (scope === 'all' || scope === 'reveal') {

@@ -574,6 +574,10 @@ const podJet=podFixture(4,4,2);podJet.board[4][2].jet='row';
 const podBlast=playTurn(podJet,{row:4,col:2},{row:4,col:2});
 assert.equal(podBlast.state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'direct Jet strike cracks pod');
 assert.equal(podBlast.stats.seedpodHits,1,'one Jet event damages pod once');
+assert.equal(podBlast.steps.flatMap(step=>step.collections??[]).filter(credit=>credit.kind==='seedpod').length,0,'first pod crack does not fly to its goal');
+const openedPod=podFixture(4,4,1);openedPod.board[4][2].jet='row';
+const openedPodTurn=playTurn(openedPod,{row:4,col:2},{row:4,col:2});
+assert.deepEqual(firstClear(openedPodTurn).collections.filter(credit=>credit.kind==='seedpod'),[{cell:{row:4,col:4},kind:'seedpod'}],'opened pod sends one collection from its cell');
 const podWheel=podFixture(4,4,2);podWheel.board[3][4].power='flywheel';
 assert.equal(playTurn(podWheel,{row:3,col:4},{row:3,col:4}).state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Flywheel directly strikes pod');
 const podPrism=podFixture(4,4,2);podPrism.board[3][4].kind='water';podPrism.board[0][0].power='prism';
@@ -581,6 +585,22 @@ const prismPodHit=playTurn(podPrism,{row:0,col:0},{row:0,col:0});
 assert.equal(prismPodHit.state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Prism cleared symbol cracks adjacent pod once');
 const doublePrismPod=podFixture(4,4,2);doublePrismPod.board[0][0].power='prism';doublePrismPod.board[0][1].power='prism';
 assert.equal(playTurn(doublePrismPod,{row:0,col:0},{row:0,col:1}).state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Prism pair direct board sweep damages pod once');
+assert.equal(firstClear(adjacentTurn).collections.filter(credit=>credit.kind==='crust').length,0,'partial salt hit does not fly to its goal');
+assert.deepEqual(firstClear(openedTurn).collections.filter(credit=>credit.kind==='crust'),[{cell:{row:4,col:4},kind:'crust'}],'broken salt sends one collection from its cell');
+function verifyCollectionCredits(puzzle, turn) {
+  let previous={...puzzle.goals};
+  for(const step of turn.steps) {
+    const credits=step.collections??[];
+    if(step.kind!=='clear') assert.equal(credits.length,0,`${step.kind} has no collection flights`);
+    for(const kind of Object.keys(previous)) {
+      const count=credits.filter(credit=>credit.kind===kind).length;
+      assert.equal(count,(previous[kind]??0)-(step.goals[kind]??0),`${step.kind}: ${kind} flight count equals authoritative goal decrement`);
+    }
+    for(const credit of credits) assert.ok(step.cells.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col)||step.crustHits?.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col),`collection begins at a cleared tile or broken salt: ${credit.kind}`);
+    previous=step.goals;
+  }
+}
+for(const [puzzle,turn] of [[podJet,podBlast],[openedPod,openedPodTurn],[adjacent,adjacentTurn],[opened,openedTurn],[pennantPrism,pennantTurn],[prismPartner,prismPartnerTurn]]) verifyCollectionCredits(puzzle,turn);
 const blockedPod=podFixture();assert.equal(playTurn(blockedPod,{row:5,col:4},{row:5,col:5}).valid,false,'pod cannot be swapped');
 const prismOriginSalt = saltFixture([{row:5,col:4,hp:2}]); prismOriginSalt.unlocked=['flywheel','prism'];
 for (const col of [2,3,5,6]) prismOriginSalt.board[4][col].kind='water';

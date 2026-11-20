@@ -58,6 +58,7 @@ export type TurnStep = {
   board: Board;
   crust: CrustGrid;
   cells: Cell[];
+  collections?: { cell: Cell; kind: GoalKind }[];
   crustHits?: Cell[];
   podHits?: Cell[];
   podEvents?: { after: number; hits: { cell: Cell; hp: number; id: number }[] }[];
@@ -429,9 +430,9 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
   // A Prism combo transforms normal tiles before detonating them. Retain their
   // original symbol for goal and Keeper credit while the tiles are special.
   const convertedOriginals = new Map<number, SymbolKind>();
-  const record = (kind: TurnStep["kind"], cells: Cell[] = [], jets: TurnStep["jets"] = [], effects: NonNullable<TurnStep["effects"]> = [], sequence: NonNullable<TurnStep["sequence"]> = [], crustHits: Cell[] = [], crustEvents: NonNullable<TurnStep["crustEvents"]> = [], podHits: Cell[] = [], podEvents: NonNullable<TurnStep["podEvents"]> = []) => {
+  const record = (kind: TurnStep["kind"], cells: Cell[] = [], jets: TurnStep["jets"] = [], effects: NonNullable<TurnStep["effects"]> = [], sequence: NonNullable<TurnStep["sequence"]> = [], crustHits: Cell[] = [], crustEvents: NonNullable<TurnStep["crustEvents"]> = [], podHits: Cell[] = [], podEvents: NonNullable<TurnStep["podEvents"]> = [], collections: NonNullable<TurnStep["collections"]> = []) => {
     steps.push({ kind, board: copy(board), crust: copyCrust(state.crust), cells: cells.map(cell => ({ ...cell })), crustHits: crustHits.map(cell => ({ ...cell })), crustEvents, podHits: podHits.map(cell => ({ ...cell })), podEvents, jets: jets.map(jet => ({ cell: { ...jet.cell }, direction: jet.direction })), effects, sequence,
-      goals: { ...state.goals }, keeperCharge: state.keeperCharge });
+      collections: collections.map(credit => ({ cell: { ...credit.cell }, kind: credit.kind })), goals: { ...state.goals }, keeperCharge: state.keeperCharge });
   };
   if (!direct) record("swap", [from, to]);
   const createdThisTurn = new Set<number>();
@@ -577,6 +578,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     const podEvents: NonNullable<TurnStep["podEvents"]> = [];
     const openedPods: Cell[] = [];
     const crustEvents: NonNullable<TurnStep["crustEvents"]> = [];
+    const collections: NonNullable<TurnStep["collections"]> = [];
     for (const event of events) {
       const candidates = new Map(event.direct);
       if (event.kind === "match" || event.kind === "prism") for (const cell of (event.kind === "match" ? event.adjacency : event.clears).values()) {
@@ -591,7 +593,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
         stats.saltHits++;
         crustHits.set(key(cell), cell);
         hits.push({ cell: { ...cell }, hp: state.crust[cell.row][cell.col] });
-        if (state.crust[cell.row][cell.col] === 0) { stats.saltBlocksBroken++; if (state.goals.crust !== undefined) state.goals.crust--; }
+        if (state.crust[cell.row][cell.col] === 0) {
+          stats.saltBlocksBroken++;
+          if ((state.goals.crust ?? 0) > 0) { state.goals.crust!--; collections.push({ cell, kind: "crust" }); }
+        }
       }
       if (hits.length) crustEvents.push({ after: event.after, hits });
       const podCandidates = new Map(event.direct);
@@ -606,7 +611,11 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
         tile!.hp = Math.max(0, (tile!.hp ?? 2) - 1);
         stats.seedpodHits++; podHits.set(key(cell), cell);
         podDamage.push({ cell: { ...cell }, hp: tile!.hp, id: tile!.id });
-        if (tile!.hp === 0) { stats.seedpodsOpened++; if (state.goals.seedpod !== undefined) state.goals.seedpod = Math.max(0, state.goals.seedpod - 1); board[cell.row][cell.col] = null; openedPods.push(cell); }
+        if (tile!.hp === 0) {
+          stats.seedpodsOpened++;
+          if ((state.goals.seedpod ?? 0) > 0) { state.goals.seedpod!--; collections.push({ cell, kind: "seedpod" }); }
+          board[cell.row][cell.col] = null; openedPods.push(cell);
+        }
       }
       if (podDamage.length) podEvents.push({ after: event.after, hits: podDamage });
     }
@@ -620,14 +629,14 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       stats.tilesCleared++;
       if (collected) stats.symbolsCleared[collected] = (stats.symbolsCleared[collected] ?? 0) + 1;
       if (collected && collected in state.goals) {
-        const goal = collected as keyof Goals;
-        state.goals[goal] = Math.max(0, (state.goals[goal] ?? 0) - 1);
+        const goal = collected as GoalKind;
+        if ((state.goals[goal] ?? 0) > 0) { state.goals[goal]!--; collections.push({ cell, kind: goal }); }
       }
       if (collected === state.chargeSymbol) state.keeperCharge++;
       convertedOriginals.delete(tile.id);
       board[cell.row][cell.col] = null; cleared.set(key(cell), cell); removed.push(cell);
     }
-    record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents);
+    record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections);
     settle(board, state.mask, state.crust); record("fall");
     groups = matches(board); forced = [];
   }

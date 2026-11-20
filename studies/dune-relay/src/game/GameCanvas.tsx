@@ -8,7 +8,7 @@ import spriteFrames from "../../public/sprites/frames.json";
 import wayfinderFrames from "../../public/sprites/wayfinder-frames.json";
 import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
-import { BOARD_SIZE, Board, Cell, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind } from "./core";
+import { BOARD_SIZE, Board, Cell, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
@@ -671,6 +671,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     lessonPowerId?: number;
     lessonPowerHint?: Phaser.GameObjects.Graphics;
     hud: Phaser.GameObjects.GameObject[] = [];
+    displayedGoals: Goals = { ...this.puzzle.goals };
+    goalLabels = new Map<GoalKind, Phaser.GameObjects.Text>();
+    goalIcons = new Map<GoalKind, Phaser.GameObjects.GameObject>();
     selection?: Phaser.GameObjects.Graphics;
     message?: Phaser.GameObjects.Text;
     keeperPortrait?: Phaser.GameObjects.Image;
@@ -790,6 +793,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         delete canvas.dataset.revealPhase;
         delete canvas.dataset.playReady;
         delete canvas.dataset.introPhase;
+        delete canvas.dataset.collectionPhase;
         props.skipReveal.current = null;
       });
       props.skipReveal.current = () => this.skipWinningReveal();
@@ -936,8 +940,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     center(cell: Cell) { return { x: GRID_X + cell.col * CELL + CELL / 2, y: GRID_Y + cell.row * CELL + CELL / 2 }; }
     setMessage(message: string) { this.message?.setText(message); }
     renderHud(goals = this.puzzle.goals, moves = this.puzzle.moves, charge = this.puzzle.keeperCharge, fired = this.puzzle.keeperFired) {
+      this.displayedGoals = { ...goals };
       for (const object of this.hud) object.destroy();
       this.hud = [];
+      this.goalLabels.clear();
+      this.goalIcons.clear();
       this.hud.push(panel(this, 49, 145, 220, 66, 0.7));
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
@@ -945,8 +952,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
         const y = goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
-        this.hud.push(drawGoalIcon(this, 74, y, kind));
-        this.hud.push(label(this, 106, y - 15, `${goals[kind] ?? 0}  ${goalName(kind)}`, 20));
+        const icon = drawGoalIcon(this, 74, y, kind);
+        const text = label(this, 106, y - 15, `${goals[kind] ?? 0}  ${goalName(kind)}`, 20);
+        this.goalIcons.set(kind, icon);
+        this.goalLabels.set(kind, text);
+        this.hud.push(icon, text);
       });
       this.hud.push(label(this, 110, 365, props.level.chapter === "farmland" ? "FIELDKEEPER'S POWER" : props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
       const meter = this.add.graphics();
@@ -955,6 +965,67 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(meter);
       this.hud.push(label(this, 110, 415, `${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
       this.hud.push(label(this, 110, 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
+    }
+    creditGoal(kind: GoalKind, amount: number) {
+      this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
+      this.goalLabels.get(kind)?.setText(`${this.displayedGoals[kind]}  ${goalName(kind)}`);
+      const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
+      if (icon && !props.reducedMotion && this.sceneAlive) {
+        this.tweens.killTweensOf(icon);
+        icon.setScale(1);
+        this.tweens.add({ targets: icon, scale: 1.16, duration: 85, yoyo: true, ease: "Sine.easeOut" });
+      }
+    }
+    async showCollections(step: TurnStep) {
+      const credits = step.collections ?? [];
+      if (!credits.length || !this.sceneAlive) return;
+      this.game.canvas.dataset.collectionPhase = "flight";
+      const byKind = new Map<GoalKind, Cell[]>();
+      for (const credit of credits) {
+        const cells = byKind.get(credit.kind) ?? [];
+        cells.push(credit.cell);
+        byKind.set(credit.kind, cells);
+      }
+      // Large Prism clears still show every credited kind without filling the screen
+      // with sprites. Each representative carries its share of that kind's credits.
+      const flights: { kind: GoalKind; cell: Cell; amount: number }[] = [];
+      let slots = 12;
+      const kinds = [...byKind.keys()];
+      for (let index = 0; index < kinds.length; index++) {
+        const kind = kinds[index];
+        const cells = byKind.get(kind)!;
+        const take = Math.min(cells.length, Math.max(1, Math.floor(slots / (kinds.length - index))));
+        for (let flight = 0; flight < take; flight++) {
+          const from = Math.floor(flight * cells.length / take);
+          const until = Math.floor((flight + 1) * cells.length / take);
+          flights.push({ kind, cell: cells[from], amount: until - from });
+        }
+        slots -= take;
+      }
+      await Promise.all(flights.map(async ({ kind, cell, amount }, index) => {
+        const from = this.center(cell);
+        const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
+        if (!icon) { this.creditGoal(kind, amount); return; }
+        const to = { x: icon.x, y: icon.y };
+        const flight = drawGoalIcon(this, from.x, from.y, kind).setDepth(35);
+        flight.setScale(props.reducedMotion ? 0.7 : 0.9);
+        const progress = { value: 0 };
+        try {
+          await this.tween(progress, { value: 1, delay: props.reducedMotion ? 0 : Math.min(index * 23, 180), duration: props.reducedMotion ? 90 : 410,
+            ease: "Sine.easeInOut", onUpdate: () => {
+              const t = progress.value;
+              flight.setPosition(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t - (props.reducedMotion ? 0 : 68 * 4 * t * (1 - t)));
+              flight.setScale((props.reducedMotion ? 0.7 : 0.9) * (1 - 0.48 * t));
+              flight.setAlpha(1 - 0.18 * t);
+            } });
+          if (this.sceneAlive) this.creditGoal(kind, amount);
+        } finally { flight.destroy(); }
+      }));
+      if (this.sceneAlive) {
+        this.displayedGoals = { ...step.goals };
+        for (const [kind, text] of this.goalLabels) text.setText(`${this.displayedGoals[kind] ?? 0}  ${goalName(kind)}`);
+        delete this.game.canvas.dataset.collectionPhase;
+      }
     }
     highlight(cell: Cell | null) {
       this.selection?.clear();
@@ -1300,7 +1371,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (cross) this.setMessage("Jet combo! Row + column blast");
         await this.showSequence(step);
         if (!this.sceneAlive) return;
-        await this.syncTiles(step.board, short ? 70 : 180, step.kind);
+        await Promise.all([this.syncTiles(step.board, short ? 70 : 180, step.kind), this.showCollections(step)]);
         if (!this.sceneAlive) return;
         const chargeCells = step.cells.filter(cell => this.displayBoard[cell.row][cell.col]?.kind === this.puzzle.chargeSymbol && !isSpecial(this.displayBoard[cell.row][cell.col])).slice(0, 8);
         await Promise.all(chargeCells.map(async cell => {
@@ -1310,7 +1381,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           mote.destroy();
         }));
         if (!this.sceneAlive) return;
-        this.renderHud(step.goals, this.puzzle.moves, step.keeperCharge);
+        this.renderHud(this.displayedGoals, this.puzzle.moves, step.keeperCharge);
         this.displayBoard = step.board;
         return;
       }

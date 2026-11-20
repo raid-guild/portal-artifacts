@@ -789,6 +789,22 @@ export default function GameShell() {
       setMode("map"); setOverlay(kind === "gatehouse" ? null : "film"); setAttempt(value => value + 1);
     }, kind === "gatehouse");
   }
+  function previewFarmlandStory() {
+    if (!playtest || transitioning.current) return;
+    abandonRecord("preview-transition"); activeRecord.current = null;
+    setSettings(false); setRevealing(false); skipReveal.current = null;
+    setFarmlandPreview(true);
+    sound.current?.stopTransientSounds();
+    const preview = normalizeSave({ ...saveRef.current,
+      completed: LEVEL_ORDER.slice(0, 30) as LevelId[], oasisTransition: "ready",
+      gatehouseReady: true, farmlandReady: false, region: "gatehouse", demoEnding: "done",
+      transition: { from: "gatehouse", to: "farmland", stage: "handoff" },
+    });
+    void transitionTo(() => {
+      pendingAttempt.current = null; setShopSelected([]); setShopError(null); setPuzzle(null);
+      persist(preview); setMode("map"); setOverlay("handoff"); setAttempt(value => value + 1);
+    });
+  }
   function reset() {
     if (cloudRef.current && !playtest) { setCloudMessage("Portal progress cannot be reset from the demo. Sign out to restart the guest campaign on this device."); return; }
     abandonRecord("reset"); activeRecord.current = null;
@@ -821,6 +837,7 @@ export default function GameShell() {
   const farmlandEligible=Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.eligible);
   const farmlandBlocked=cloudStatus==="pending" || cloudStatus==="syncing" || cloudConflict.current || Boolean(cloudRef.current?.pending.length);
   function beginFarmland() {
+    if (playtest && !demoComplete) { previewFarmlandStory(); return; }
     if (!farmlandUnlocked || !demoComplete) return;
     if (saveRef.current.farmlandReady) { visitRegion("farmland"); return; }
     if (saveRef.current.transition?.to === "farmland") { setOverlay(overlayForSave(saveRef.current)); return; }
@@ -833,7 +850,7 @@ export default function GameShell() {
   }
   function farmlandAccess() {
     if (farmlandUnlocked) return <button className="farmland-action" onClick={beginFarmland}>Travel to Farmland →</button>;
-    if (playtest) return <button className="farmland-action" onClick={() => { setFarmlandPreview(true); replayLevel("seedStore"); }}>Preview Farmland →</button>;
+    if (playtest) return <button className="farmland-action" onClick={previewFarmlandStory}>Preview Farmland →</button>;
     if (!cloudRef.current) return demoComplete ? <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in to unlock Farmland →</a> : <p className="farmland-status">Complete the 30 demo levels to unlock Farmland with a Portal login.</p>;
     if (cloudStatus==="expired") return <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in again to unlock Farmland →</a>;
     if (farmlandBlocked) return <><p className="farmland-status">Sync progress to unlock Farmland.</p><button className="farmland-action" onClick={() => void flushCloud()} disabled={cloudStatus==="syncing" || cloudConflict.current}>Sync progress →</button></>;
@@ -1023,6 +1040,7 @@ export default function GameShell() {
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
           <button className="setting" onClick={() => previewTransition("caravan")}>Preview desert → gatehouse transition</button>
           <button className="setting" onClick={() => previewTransition("gatehouse")}>Preview Gatehouse → demo ending</button>
+          <button className="setting" onClick={previewFarmlandStory}>Preview Gatehouse → Farmland story</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
         </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}{!portalName && <button className="reset" onClick={reset}>Reset prototype progress</button>}</>}
       </div></div>}
