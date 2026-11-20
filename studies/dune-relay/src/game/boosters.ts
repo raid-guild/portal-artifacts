@@ -1,4 +1,4 @@
-import { BOARD_SIZE, isSpecial, type Cell, type Puzzle, type SymbolKind } from "./core";
+import { BOARD_SIZE, isSpecial, isPod, type Cell, type Puzzle, type SymbolKind } from "./core";
 
 export type BoosterKind = "jet" | "flywheel" | "prism";
 export const BOOSTERS: { kind: BoosterKind; title: string; cost: number; description: string; image: string }[] = [
@@ -20,11 +20,11 @@ function openingFootprint(puzzle: Puzzle): Set<string> {
   [board[from.row][from.col], board[to.row][to.col]] = [board[to.row][to.col], board[from.row][from.col]];
   const groups: Cell[][] = [];
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
-    const tile = board[row][col]; if (!tile || isSpecial(tile)) continue;
+    const tile = board[row][col]; if (!tile || isSpecial(tile) || isPod(tile)) continue;
     for (const [dr, dc] of [[0,1],[1,0]]) {
-      const previous = board[row-dr]?.[col-dc]; if (previous && !isSpecial(previous) && previous.kind === tile.kind) continue;
+      const previous = board[row-dr]?.[col-dc]; if (previous && !isSpecial(previous) && !isPod(previous) && previous.kind === tile.kind) continue;
       const group: Cell[] = []; let r = row, c = col;
-      while (board[r]?.[c] && !isSpecial(board[r][c]) && board[r][c]?.kind === tile.kind) { group.push({row:r,col:c}); r += dr; c += dc; }
+      while (board[r]?.[c] && !isSpecial(board[r][c]) && !isPod(board[r][c]) && board[r][c]?.kind === tile.kind) { group.push({row:r,col:c}); r += dr; c += dc; }
       if (group.length >= 3) groups.push(group);
     }
   }
@@ -42,7 +42,7 @@ export function prepareStartingBoosters(puzzle: Puzzle, selected: readonly Boost
   const candidates: Cell[] = [];
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
     const tile = board[row][col]; const cell = { row, col };
-    if (puzzle.mask[row][col] && !puzzle.crust[row][col] && tile && !isSpecial(tile) && !excluded.has(cellKey(cell))) candidates.push(cell);
+    if (puzzle.mask[row][col] && !puzzle.crust[row][col] && tile && !isSpecial(tile) && !isPod(tile) && !excluded.has(cellKey(cell))) candidates.push(cell);
   }
   if (candidates.length < selected.length) throw new Error("No room for starting boosters");
   // Stable, dispersed positions. Neither RNG state nor tile identity changes.

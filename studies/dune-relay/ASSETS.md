@@ -102,3 +102,48 @@ Use case: illustration-story. Asset single transparent game environmental PROP: 
 `public/raidguild-stamp.svg` reuses the existing RaidGuild mark from the Portal Artifacts Field study (`public/field/assets/raidguild-stamp.svg`), recolored to the game’s pale gold. The Settings credit links to https://raidguild.org.
 
 The same mark appears as a subtle lower-right watermark on the chapter scenery and kingdom map, anchored to the visible game frame so it stays in place across viewport sizes. It does not appear over cinematic video.
+
+## Chapter 4 · Farmland
+
+Generated with the built-in ImageGen tool, using the existing Gatehouse scenery and portrait treatment, the Field Guide's Druid, and the user's requested stocky leafy farmer design. The Fieldkeeper is a game adaptation of the guide's woodland Druid, not a human or a named Guild member. The farmer wears suspenders and work pants, with a round belly, leafy mane, root feet, seed pouch and field notebook.
+
+Production assets:
+
+- `public/farmland.webp`: new walkable farmland background, 1672 × 941, WebP quality 86 (about 566 KB).
+- `public/sprites/fieldkeeper-avatar.png`: 512 × 512 circular farmer portrait; transparent outside its cream medallion.
+- `public/sprites/fieldkeeper.png` and `fieldkeeper-frames.json`: 1024 × 512 eight-frame walking sheet, four right-facing poses then four left-facing poses; measured alpha bounds preserve feet alignment.
+- `public/sprites/seedpod.png` and `seedpod-cracked.png`: aligned intact/two-hit and cracked/one-hit armored seedpods, genuine alpha, production-sized to 256 × 256 with Lanczos resampling.
+
+The source Druid is visible in `../raidguild-field-guide/art/meet-the-party-twelve-louchi-v1.png` (bottom row, third column). The user also supplied a close view of that character. The Field Guide class describes a pattern reader; farming clothes, seed-ledger story, dialogue and Harvest Rhythm are game adaptations. No new matching symbol is introduced.
+
+### Farmland background prompt
+
+Use case illustration-story. Production background for Dune Relay browser adventure, new Chapter4 Farmland. Use attached gatehouse reference for fine black ink linework, flat watercolor color, warm sunlight, dieselpunk brass/verdigris machinery and landscape perspective. Create wide16:9 pastoral farmland beyond that bridge: river and small bridge receding at far left, rolling green terraces and golden grain, hillside town tiny in distance, cream limestone seed barn at middle right, irrigation waterwheel and teal brass sluice mechanism at middle left, canvas-covered seed stores beside barn, orchard and patchwork fields. Empty pale sandy walkable path winds across lower28percent unobstructed, branches toward barn and sluice. Landmarks distinct and well spaced for game interaction hotspots; gentle elevated groundlevel viewpoint matching reference. Verdant but still warm dry desert-edge farmland, cyan sky and cream clouds. No people, no UI, no text, no labels, no watermark. A scenic production game environment not screenshot.
+
+### Farmer identity prompt
+
+Usecase stylized-concept. Asset fullbody character sprite concept on genuinelytransparent background for DuneRelay. Use reference1 exact creature SPECIES as basis, reference2 fineblackink flatwatercolor game rendering. Create THE FIELDKEEPER as a FAT LEAFY FARMER GUY: short broad stocky male woodlandcreature with very round prominent belly, olivegreen barkskin, friendly broad rounded muzzle and darkeyes, thick bushy leafmane with tiny orangeberries around head/back/upperarms. He wears RUSTBROWN SUSPENDERS with brassbuckles over rolledsleeve creamworkshirt stretched over roundbelly, sturdy highwaisted fadedTEAL WORKPANTS with wide patchedknees and largepockets. Rootlike bare greenfeet with broadtoes. Smallcoral neckerchief, seedpouch/toolpouch and folding fieldnotebook onhip. No longcoat no robe no humanhair no humanface no glasses no hat, leafybody clearly nonhuman. Farmer practical earthy amiable confident, one hand resting onbelly, another near toolpouch. Mildthreequarterprofile facingRIGHT. Fullfigurevisible fromleafcrowntorootfeet, centeredwith10percenttransparentmargin. Crisp ink contours, restrained watercolor sameworldasreference. No text, no scenery, no shadow, no frame.
+
+### Farmer walking-sheet prompt
+
+Usecase identity-preserve. Productiongame animated walking SPRITESHEET,4columns x2rows exactly8equalsquarecells, overallaspect2:1, genuine transparentbackground. Reference1 EXACTIDENTITY samefatleafyfarmer maleFieldkeeper: olivegreen nonhuman woodlandcreature broadroundbelly, denseleafmane berries, friendlysmallroundmuzzle blackeyes, creamrolledsleeveworkshirt, rustbrownsuspenders, coralneckerchief, fadedtealpatchworkworkpants, toolpouch smallnotebook, bigrootfeet. Preserve fatbodyproportions andoutfit NOlongcoat NOhumans. Reference2 SHEETLAYOUTonly. Render8fullbodyfigures sameheight/scale feetalignedbaseline withineachcell, nooverlap. TOPROW facesRIGHT: idle; widewalk leftlegforward/rightback; passingstep legsnearcenter; widewalk rightlegforward/leftback. BOTTOMROW facesLEFT: idle; leftlegforwardstride; passing; oppositestride. Naturalarmsswing, gentlebellymovement, leafybacklightbounce. Clear sideprofile/slightthreequarter eachdirection, samecreature. Eachfigureoccupies82percentcellheight withcleantransparentgaps. Crispfineblackink flatwatercolor sameasreference1. No text no labels no grids no borders no scenery no groundshadows. Everycharacteruncropped fromleafcrowntorootfeet.
+
+### Farmer avatar prompt
+
+Usecase identity-preserve. Productiongame circularAVATAR for DuneRelay. Reference1 EXACTIDENTITY: sameFATleafyfarmer guy woodlandcreature olivegreenbarkskin, broadroundfriendlymuzzle blackeyes, denseleafmane orangeberries, creamrolledsleeveworkshirt, rustbrownsuspenders withgoldbuckles, smallcoralneckerchief. Createcloseheadandshoulderschestportrait withsuspendersvisible andgenerousroundneck/stockyshoulders conveying sameplumpfarmer. Threequarterface towardviewerLEFT, warmassuredgentlesmile. Nohumanface nohumanhair nohats nocloaks no spectacles. Reference2 circularportraitSTYLEONLY: creamopaqueinsidecircle thingoldrim, actualtransparentoutsidecircle. Preciseblackink, flatwatercolorcolors samegameworld, faceveryreadableat48pixels. No text, noglow, noscenery, no props blockingface. Preserveexactcreatureidentity fromref1.
+
+### Intact seedpod prompt
+
+Use case illustration-story. Production match3 obstacle game sprite on genuinely transparent background. ONE intact ARMORED SEEDPOD: squat oval tough chestnut-brown botanical seed husk with THREE broad weathered bronze bands around it, a tiny dry stem at top and an embossed leaf emblem in front. Recognizable organic seed storage capsule, not a metal bomb not a gear not a coconut. Broad readable silhouette fills80percent square, fine black ink contours and flat watercolor shadows same illustrated dieselpunk game style as reference. Intact tightly closed dark husk and bronze bindings, NO cracks yet. View shallow three-quarter top/front. Warm chestnut/bronze distinct from green leaves, teal canteens, gold gears. No base, no ground, no lettering, no glow, no circle no frame. Onlyoneobject isolated with10percenttransparentmargin. Readable at40pixels.
+
+### Cracked seedpod prompt
+
+Usecase precise-object-edit. Edit the attached DuneRelay cracked armoredseedpod sprite to be MUCH MORE OBVIOUSLY DAMAGED AT40PIXELS. Keepcenter, outerwidthheight andtopstem, chestnutbrown organichusk, fineblackink flatwatercolor style, transparentbackground. Replace subtlefinecrack with ONE HUGEOPEN centraljagged SPLIT spanning almosthalfpodwidth andtophalfthroughbottomhalf, exposing a LARGE BRIGHT CREAM GOLD SEEDCORE contrastingdarkbrownshell. Visiblytwistedbroken bronze bands: middleband splitwideopen withleafemblem broken tooneside, topband snappedgap nearfront. Two attachedhusk sides displaced slightlyoutward butstillonecoherent notdestroyedpod; retainlowerbandasbase. Mainrecognition at40px: intactisdarkbrown closed; damagedisBRIGHTPALEOPENcenter withbrokenmetal. Do notjustaddhairlinecracks. No glow, no particles, no surroundingobjects, no text, no shadowsoutsideobject. Singleisolatedsprite centeredongenuinelytransparentbackground, maintain10percentmargin.
+
+## Farmland harvest ending film
+
+- User-provided source: `grok-video-c2bdde7c-e550-46a8-b41e-18caf796c10e.mp4`, 16.041667 seconds, native 736 × 400 at 24 fps, H.264/AAC with an attached MJPEG thumbnail, 14,627,959 bytes.
+- `public/cinematics/farmland-harvest.mp4`: full duration preserved, native dimensions/frame rate, H.264/yuv420p CRF 28, AAC 96 kb/s, faststart metadata, 3,482,689 bytes. Attached thumbnail stream excluded.
+- `public/cinematics/farmland-harvest-poster.webp`: first frame, WebP quality 88.
+- Sequence: level 40 coin finale → release board renderer → harvest film → Fieldkeeper closing story and Town on the Hill teaser. Uses the existing Skip, blocked-playback fallback and decoder cleanup.
+- Encoding: `ffmpeg -i <source> -map 0:v:0 -map 0:a:0? -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart farmland-harvest.mp4`.

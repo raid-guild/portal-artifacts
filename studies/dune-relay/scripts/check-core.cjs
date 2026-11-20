@@ -59,13 +59,13 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (id === 'pennantLine') assert.equal(puzzle.goals.pennant, 30, 'Pennant Line requires thirty pennants');
     if (id === 'walkersFoot') assert.equal(puzzle.goals.pennant, 33, "Walker's Foot requires thirty-three pennants");
   }
-  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); }
+  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); if (index < 30) { assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); } else { assert.equal(puzzle.chargeSymbol,'leaf'); assert.equal(puzzle.grantedPower,'flywheels'); assert.equal(puzzle.grantCount,2); assert.equal(puzzle.keeperTarget,12); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'seedpod').length,level.seedpods.length); } }
   for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++) {
     assert.ok(!puzzle.crust[row][col] || (puzzle.mask[row][col] && !puzzle.board[row][col]), `${id}: crust is a solid occupied cell`);
     const tile = puzzle.board[row][col];
-    if (!tile || isSpecial(tile)) continue;
-    if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2])), `${id}: no horizontal prematch`);
-    if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col])), `${id}: no vertical prematch`);
+    if (!tile || isSpecial(tile) || tile.kind === 'seedpod') continue;
+    if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 1]?.kind !== 'seedpod' && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2]) && puzzle.board[row][col + 2]?.kind !== 'seedpod'), `${id}: no horizontal prematch`);
+    if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 1][col]?.kind !== 'seedpod' && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col]) && puzzle.board[row + 2][col]?.kind !== 'seedpod'), `${id}: no vertical prematch`);
   }
   if (level.lesson === 'practice') {
     assert.equal(puzzle.opening, undefined, `${id}: unguided`);
@@ -99,7 +99,8 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     assert.ok(turn.valid, `${id}: valid opening`);
     assert.equal(turn.state.moves, level.moves - 1);
     assert.ok(turn.steps.find(step => step.kind === 'clear'));
-    if (id === 'saltboundHinges') { assert.ok(turn.stats.saltHits > 0, 'two-hit salt lesson makes visible damage'); }
+    if (id === 'seedStore') { assert.ok(turn.stats.seedpodHits > 0, 'first pod lesson cracks an adjacent pod'); }
+    else if (id === 'saltboundHinges') { assert.ok(turn.stats.saltHits > 0, 'two-hit salt lesson makes visible damage'); }
     else if (id === 'gatehouseApproach') { assert.ok(turn.stats.symbolsCleared.key > 0, 'first gatehouse move clears keys'); }
     else if (id === 'saltSealedIntake') {
       assert.ok(turn.state.goals.crust < 12, 'first salt lesson move cracks adjacent crust');
@@ -558,6 +559,49 @@ assert.equal(newPowerTurn.stats.powersActivated.jet, 0, 'new Jet does not fire o
 assert.equal(newPowerTurn.steps[0].kind, 'swap');
 assert.equal(newPowerTurn.state.board[4][4]?.jet, 'row', 'new Jet remains on board');
 assert.equal(newPowerTurn.stats.saltHits, 1, 'one matched component causes one salt hit');
+function podFixture(row=5,col=4,hp=2) {
+  const puzzle=saltFixture([]); puzzle.board[row][col]={id:9000,kind:'seedpod',hp}; puzzle.goals={water:0,leaf:0,seedpod:1};
+  return puzzle;
+}
+const podMatch=podFixture();
+for (const col of [2,3,5]) podMatch.board[4][col].kind='water';
+podMatch.board[4][4].kind='gear';podMatch.board[3][4].kind='water';
+const podCreated=playTurn(podMatch,{row:3,col:4},{row:4,col:4});
+assert.equal(firstClear(podCreated).podEvents[0].hits[0].hp,1,'retained new Jet cracks adjacent pod once');
+assert.equal(podCreated.stats.powersActivated.jet,0,'new Jet does not fire into pod');
+assert.equal(podCreated.state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'cracked pod keeps identity through gravity');
+const podJet=podFixture(4,4,2);podJet.board[4][2].jet='row';
+const podBlast=playTurn(podJet,{row:4,col:2},{row:4,col:2});
+assert.equal(podBlast.state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'direct Jet strike cracks pod');
+assert.equal(podBlast.stats.seedpodHits,1,'one Jet event damages pod once');
+assert.equal(podBlast.steps.flatMap(step=>step.collections??[]).filter(credit=>credit.kind==='seedpod').length,0,'first pod crack does not fly to its goal');
+const openedPod=podFixture(4,4,1);openedPod.board[4][2].jet='row';
+const openedPodTurn=playTurn(openedPod,{row:4,col:2},{row:4,col:2});
+assert.deepEqual(firstClear(openedPodTurn).collections.filter(credit=>credit.kind==='seedpod'),[{cell:{row:4,col:4},kind:'seedpod'}],'opened pod sends one collection from its cell');
+const podWheel=podFixture(4,4,2);podWheel.board[3][4].power='flywheel';
+assert.equal(playTurn(podWheel,{row:3,col:4},{row:3,col:4}).state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Flywheel directly strikes pod');
+const podPrism=podFixture(4,4,2);podPrism.board[3][4].kind='water';podPrism.board[0][0].power='prism';
+const prismPodHit=playTurn(podPrism,{row:0,col:0},{row:0,col:0});
+assert.equal(prismPodHit.state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Prism cleared symbol cracks adjacent pod once');
+const doublePrismPod=podFixture(4,4,2);doublePrismPod.board[0][0].power='prism';doublePrismPod.board[0][1].power='prism';
+assert.equal(playTurn(doublePrismPod,{row:0,col:0},{row:0,col:1}).state.board.flat().find(tile=>tile?.id===9000)?.hp,1,'Prism pair direct board sweep damages pod once');
+assert.equal(firstClear(adjacentTurn).collections.filter(credit=>credit.kind==='crust').length,0,'partial salt hit does not fly to its goal');
+assert.deepEqual(firstClear(openedTurn).collections.filter(credit=>credit.kind==='crust'),[{cell:{row:4,col:4},kind:'crust'}],'broken salt sends one collection from its cell');
+function verifyCollectionCredits(puzzle, turn) {
+  let previous={...puzzle.goals};
+  for(const step of turn.steps) {
+    const credits=step.collections??[];
+    if(step.kind!=='clear') assert.equal(credits.length,0,`${step.kind} has no collection flights`);
+    for(const kind of Object.keys(previous)) {
+      const count=credits.filter(credit=>credit.kind===kind).length;
+      assert.equal(count,(previous[kind]??0)-(step.goals[kind]??0),`${step.kind}: ${kind} flight count equals authoritative goal decrement`);
+    }
+    for(const credit of credits) assert.ok(step.cells.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col)||step.crustHits?.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col),`collection begins at a cleared tile or broken salt: ${credit.kind}`);
+    previous=step.goals;
+  }
+}
+for(const [puzzle,turn] of [[podJet,podBlast],[openedPod,openedPodTurn],[adjacent,adjacentTurn],[opened,openedTurn],[pennantPrism,pennantTurn],[prismPartner,prismPartnerTurn]]) verifyCollectionCredits(puzzle,turn);
+const blockedPod=podFixture();assert.equal(playTurn(blockedPod,{row:5,col:4},{row:5,col:5}).valid,false,'pod cannot be swapped');
 const prismOriginSalt = saltFixture([{row:5,col:4,hp:2}]); prismOriginSalt.unlocked=['flywheel','prism'];
 for (const col of [2,3,5,6]) prismOriginSalt.board[4][col].kind='water';
 prismOriginSalt.board[4][4].kind='gear'; prismOriginSalt.board[3][4].kind='water';
@@ -692,15 +736,18 @@ const finalV4 = { ...arrivalDone, version:4, completed:[...LEVEL_ORDER], coins:1
 const migrationMemory = new Map([['dune-relay-campaign-v4',JSON.stringify(finalV4)]]);
 const migratedFinal = readSave({getItem:key=>migrationMemory.get(key)??null,setItem:(key,value)=>migrationMemory.set(key,value)});
 assert.equal(migratedFinal.demoEnding,'gate','completed v4 campaign resumes demo ending once');
-assert.equal(migratedFinal.region,'gatehouse');
+assert.equal(migratedFinal.farmlandEnding,'film','completed legacy save resumes the harvest film');
+assert.equal(migratedFinal.region,'farmland');
 assert.equal(migratedFinal.coins,1299); assert.deepEqual(migratedFinal.completed,LEVEL_ORDER);
 for (const stage of ['gate','film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,demoEnding:stage}).demoEnding,stage);
 const oasisOriginV4={...finalV4,region:'oasis'};
 const migratedOasisOrigin=normalizeSave(oasisOriginV4);
-assert.equal(migratedOasisOrigin.region,'gatehouse','pre-ack ending resumes at the gate even if last visited Oasis');
-assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',region:'oasis'}).region,'oasis','after acknowledgement visitor can revisit Oasis');
+assert.equal(migratedOasisOrigin.region,'farmland','unfinished harvest ending resumes in Farmland even if last visited Oasis');
+assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',farmlandEnding:'done',region:'oasis'}).region,'oasis','after acknowledgement visitor can revisit Oasis');
+for (const stage of ['film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,farmlandEnding:stage}).farmlandEnding,stage);
+assert.equal(normalizeSave({...migratedFinal,completed:LEVEL_ORDER.slice(0,39),farmlandEnding:'done'}).farmlandEnding,'locked','unfinished final level cannot unlock ending');
 assert.equal(normalizeSave({...migratedFinal,demoEnding:'done'}).coins,1299);
-console.log('Core checks passed: 30 levels, preserved boards, salt HP, Gatewright grant, saves, and playtest aggregation.');
+console.log('Core checks passed: 40 levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.');
 
 // Opaque-origin Portal embeds may deny the localStorage getter itself.
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');

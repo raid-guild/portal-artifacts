@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "gatehouse-3",
-  "contentVersion": "chapter-3-3",
+  "rulesVersion": "farmland-1",
+  "contentVersion": "chapter-4-1",
   "levels": [
     {
       "id": "pumpHouse",
@@ -151,6 +151,56 @@
       "id": "openTheCrossing",
       "moves": 34,
       "chapter": "gatehouse"
+    },
+    {
+      "id": "seedStore",
+      "moves": 28,
+      "chapter": "farmland"
+    },
+    {
+      "id": "threshingYard",
+      "moves": 28,
+      "chapter": "farmland"
+    },
+    {
+      "id": "irrigationBeds",
+      "moves": 29,
+      "chapter": "farmland"
+    },
+    {
+      "id": "terraceChannels",
+      "moves": 30,
+      "chapter": "farmland"
+    },
+    {
+      "id": "saltedFurrows",
+      "moves": 30,
+      "chapter": "farmland"
+    },
+    {
+      "id": "pairedGranaries",
+      "moves": 33,
+      "chapter": "farmland"
+    },
+    {
+      "id": "sluiceGarden",
+      "moves": 31,
+      "chapter": "farmland"
+    },
+    {
+      "id": "harvestTerraces",
+      "moves": 32,
+      "chapter": "farmland"
+    },
+    {
+      "id": "convoyStores",
+      "moves": 32,
+      "chapter": "farmland"
+    },
+    {
+      "id": "openTheHarvestRoad",
+      "moves": 34,
+      "chapter": "farmland"
     }
   ]
 }

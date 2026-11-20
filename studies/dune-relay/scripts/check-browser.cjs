@@ -164,6 +164,215 @@ async function checkInput(browser) {
     throw error;
   } finally { await context.close(); }
 }
+async function checkFarmlandEndingFilm(browser) {
+  const context = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(completed => {
+    window.__filmReleases = 0;
+    const load = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = function (...args) {
+      if (this.tagName === 'VIDEO' && !this.hasAttribute('src')) window.__filmReleases++;
+      return load.apply(this, args);
+    };
+    if (!localStorage.getItem('dune-relay-campaign-v5')) localStorage.setItem('dune-relay-campaign-v5', JSON.stringify({
+      version: 5, completed, coins: 231, region: 'farmland', oasisTransition: 'ready',
+      transition: null, gatehouseReady: true, farmlandReady: true, demoEnding: 'done',
+      // An older completed save has no farmlandEnding field and must resume at the film.
+    }));
+  }, LEVEL_ORDER);
+  try {
+    await page.goto(url());
+    await page.getByRole('button', { name: /Enter the fields/ }).click();
+    await page.locator('.film-screen video').waitFor({ timeout: 30000 });
+    assert.match(await page.locator('.film-screen video').getAttribute('poster'), /farmland-harvest-poster/);
+    await page.reload();
+    await page.getByRole('button', { name: /Enter the fields/ }).click();
+    await page.locator('.film-screen video').waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: /Skip scene/ }).click();
+    await page.getByRole('heading', { name: /convoy can move/i }).waitFor();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).farmlandEnding), 'thanks');
+    assert.ok(await page.evaluate(() => window.__filmReleases), 'leaving the film releases its video source');
+    await page.reload();
+    await page.getByRole('button', { name: /Enter the fields/ }).click();
+    await page.getByRole('heading', { name: /convoy can move/i }).waitFor();
+    await page.getByRole('button', { name: /View the kingdom/ }).click();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).farmlandEnding), 'done');
+    await page.reload();
+    await page.getByRole('button', { name: /Enter the fields/ }).click();
+    await page.locator('.film-screen').waitFor({ state: 'detached' });
+    assert.equal(await page.locator('.film-screen').count(), 0, 'completed film does not replay');
+  } finally { await context.close(); }
+  assert.deepEqual(errors, [], 'Farmland ending has no page errors');
+
+  const blocked = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+  const blockedPage = await blocked.newPage();
+  await blockedPage.route('**/cinematics/farmland-harvest.mp4', route => route.abort());
+  await blockedPage.addInitScript(completed => localStorage.setItem('dune-relay-campaign-v5', JSON.stringify({
+    version: 5, completed, coins: 231, region: 'farmland', oasisTransition: 'ready', transition: null,
+    gatehouseReady: true, farmlandReady: true, demoEnding: 'done', farmlandEnding: 'film',
+  })), LEVEL_ORDER);
+  try {
+    await blockedPage.goto(url());
+    await blockedPage.getByRole('button', { name: /Enter the fields/ }).click();
+    await blockedPage.getByRole('button', { name: /Play scene/ }).waitFor({ timeout: 30000 });
+    assert.equal(await blockedPage.locator('.film-screen').count(), 1, 'failed media keeps the film screen recoverable');
+    await blockedPage.getByRole('button', { name: /Skip scene/ }).click();
+    await blockedPage.getByRole('heading', { name: /convoy can move/i }).waitFor();
+    assert.equal(await blockedPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).farmlandEnding), 'thanks');
+  } finally { await blocked.close(); }
+  const natural = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  const naturalPage = await natural.newPage();
+  await naturalPage.addInitScript(completed => localStorage.setItem('dune-relay-campaign-v5', JSON.stringify({
+    version: 5, completed, coins: 231, region: 'farmland', oasisTransition: 'ready', transition: null,
+    gatehouseReady: true, farmlandReady: true, demoEnding: 'done', farmlandEnding: 'film',
+  })), LEVEL_ORDER);
+  try {
+    await naturalPage.goto(url());
+    await naturalPage.getByRole('button', { name: /Enter the fields/ }).click();
+    await naturalPage.locator('.film-screen video').waitFor();
+    await naturalPage.locator('.film-screen video').evaluate(video => { video.dispatchEvent(new Event('ended')); video.dispatchEvent(new Event('ended')); });
+    await naturalPage.getByRole('heading', { name: /convoy can move/i }).waitFor();
+    assert.equal(await naturalPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).farmlandEnding), 'thanks');
+  } finally { await natural.close(); }
+  const preview = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  const previewPage = await preview.newPage();
+  try {
+    await previewPage.goto(url(true));
+    await previewPage.getByRole('button', { name: /Enter the oasis/ }).click();
+    await previewPage.getByRole('button', { name: 'Settings' }).click();
+    await previewPage.getByRole('button', { name: /Preview Farmland → harvest ending/ }).click();
+    await previewPage.locator('.film-screen video').waitFor();
+    await previewPage.getByRole('button', { name: /Skip scene/ }).click();
+    await previewPage.getByRole('heading', { name: /convoy can move/i }).waitFor();
+    assert.equal(await previewPage.evaluate(() => localStorage.getItem('dune-relay-campaign-v5')), null, 'playtest ending does not write campaign progress');
+  } finally { await preview.close(); }
+  console.log('Farmland film resume, skip, blocked-media fallback, and completed-map checks passed');
+}
+
+async function checkFarmland(browser) {
+  const context = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto(url(true));
+    await page.getByRole('button', { name: /Enter the oasis/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Replay SEED STORE', exact: true }).click();
+    await page.getByRole('button', { name: /Start level/ }).click();
+    await page.locator('[data-moves="28"]').waitFor({ timeout: 30000 });
+    await page.locator('canvas[data-play-ready="true"]').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('.demo-ending').count(), 0, 'Farmland replay does not show the demo ending over the board');
+    const puzzle = createPuzzle(LEVELS.seedStore);
+    assert(puzzle.opening, 'Seed Store has a guided opening');
+    const first = playTurn(puzzle, ...puzzle.opening);
+    assert(first.valid && first.stats.seedpodHits > 0, 'guided opening cracks a pod');
+    await move(page, ...puzzle.opening);
+    await page.locator('[data-moves="27"]').waitFor({ timeout: 30000 });
+    await page.waitForFunction(() => {
+      const moves = JSON.parse(localStorage.getItem('dune-relay-playtest-v1') || '{"attempts":[]}').attempts.at(-1)?.moves;
+      return moves?.length === 1 && moves[0].seedpodHits > 0;
+    }, { timeout: 30000 });
+    assert.equal(await page.locator('.demo-ending').count(), 0, 'no demo ending appears after the pod hit');
+    await page.screenshot({ path: path.join(results, 'farmland-seed-store-mobile.png') });
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: /Return to story/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.locator('[data-mode="map"]').waitFor();
+    assert.deepEqual(errors, [], 'no browser errors in Farmland entry, move, and exit');
+    console.log('Farmland mobile entry, pod hit, stats, and story exit passed');
+  } catch (error) {
+    await page.screenshot({ path: path.join(results, 'farmland-failed.png') }).catch(() => {});
+    throw error;
+  } finally { await context.close(); }
+}
+
+async function checkFarmlandPreview(browser) {
+  const context = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  await context.addInitScript(() => localStorage.setItem('dune-relay-campaign-v5', '{"sentinel":"playtest-only"}'));
+  const page = await context.newPage();
+  const errors = [], portalRequests = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (new URL(request.url()).pathname.includes('/api/')) portalRequests.push(`${request.method()} ${request.url()}`); });
+  try {
+    await page.goto(url(true));
+    await page.getByRole('button', { name: /Enter the oasis/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'Preview Gatehouse → Farmland story' }).click();
+    await page.getByText(/seed ledger is wrong/).waitFor();
+    assert.equal(await page.locator('[data-mode="map"]').count(), 1, 'handoff remains on the story map');
+    await page.getByRole('button', { name: /Open the kingdom map/ }).click();
+    await page.getByRole('button', { name: /Cross into Farmland/ }).click();
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await page.locator('[data-mode="map"]').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Start level/ }).count(), 0, 'arrival does not jump to the board');
+    await tapMap(page, 540, 389);
+    await page.getByText(/sealed seedpods have fallen through the stores/).waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: /Open the seed store/ }).click();
+    await page.getByRole('button', { name: /Start level/ }).waitFor();
+    assert.equal(await page.locator('[data-mode="map"]').count(), 1, 'Fieldkeeper conversation precedes the shop and board');
+    assert.equal(await page.evaluate(() => localStorage.getItem('dune-relay-campaign-v5')), '{"sentinel":"playtest-only"}', 'preview does not write campaign progress');
+    assert.deepEqual(portalRequests, [], 'playtest preview makes no Portal API calls');
+    assert.deepEqual(errors, [], 'Farmland story preview has no browser errors');
+    console.log('Farmland preview handoff, atlas, arrival, Fieldkeeper, shop, and sandbox isolation passed');
+  } finally { await context.close(); }
+}
+
+async function checkPortalFarmland(browser) {
+  const context = await browser.newContext({ viewport: { width: 1100, height: 650 }, reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [], checkpoints = [];
+  page.on('pageerror', error => errors.push(error.message));
+  let grant = false;
+  let profile = { revision: 7, imported: true, campaign: {
+    version: 5, completed: LEVEL_ORDER.slice(0, 30), coins: 600, region: 'gatehouse',
+    companions: ['keeper', 'wayfinder', 'gatewright'], oasisTransition: 'ready', transition: null,
+    gatehouseReady: true, farmlandReady: false, demoEnding: 'thanks',
+  } };
+  await page.route('**/leaderboard-api/dune-relay/**', async route => {
+    const request = route.request(), path = new URL(request.url()).pathname, body = request.method() === 'POST' ? request.postDataJSON() : null;
+    let result;
+    if (path.endsWith('/session')) result = { accountId: '42', displayName: 'Farmer', contentVersion: 'chapter-4-1' };
+    else if (path.endsWith('/campaign') && request.method() === 'GET') result = { accountId: '42', hasCampaign: true, profile };
+    else if (path.endsWith('/entitlements')) result = { accountId: '42', farmland: { eligible: true, unlocked: grant, unlockedAt: grant ? '2026-11-20T12:00:00.000Z' : null } };
+    else if (path.endsWith('/entitlements/farmland/claim')) { grant = true; result = { accountId: '42', farmland: { eligible: true, unlocked: true, unlockedAt: '2026-11-20T12:00:00.000Z' } }; }
+    else if (path.endsWith('/campaign/checkpoint')) {
+      checkpoints.push({ ending: body.campaign.demoEnding, stage: body.campaign.transition?.stage ?? (body.campaign.farmlandReady ? 'ready' : null) });
+      if (body.expectedRevision !== profile.revision) return route.fulfill({ status: 409, contentType: 'application/json', body: '{"message":"Stale revision"}' });
+      profile = { ...profile, revision: profile.revision + 1, campaign: body.campaign };
+      result = { profile };
+    } else if (path.endsWith('/attempts') && request.method() === 'POST') result = { profile };
+    else if (path.endsWith('/activate')) result = { profile, status: 'active' };
+    else result = { ready: true };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(result) });
+  });
+  try {
+    await page.goto(url());
+    await page.getByRole('button', { name: /Enter the gatehouse/ }).click();
+    await page.getByRole('button', { name: /Unlock Farmland/ }).click();
+    await page.getByRole('button', { name: /Travel to Farmland/ }).click();
+    await page.getByRole('button', { name: /Open the kingdom map/ }).click();
+    await page.getByRole('button', { name: /Cross into Farmland/ }).click();
+    await page.locator('[data-mode="map"]').waitFor({ timeout: 30000 });
+    await page.locator('.awning-wipe').waitFor({ state: 'detached' });
+    await tapMap(page, 540, 389);
+    await page.getByRole('button', { name: /Open the seed store/ }).click();
+    await page.getByRole('button', { name: /Start level/ }).click();
+    await page.locator('canvas[data-play-ready="true"]').waitFor({ timeout: 30000 });
+    assert.deepEqual(checkpoints.map(item => item.stage), [null, 'handoff', 'atlas', 'arrival', 'ready'], 'Portal story checkpoints keep demo acknowledgment separate and enter Farmland in order');
+    assert.equal(profile.campaign.farmlandReady, true);
+    assert.equal(await page.locator('.demo-ending').count(), 0);
+    assert.deepEqual(errors, [], 'no browser errors in Portal Farmland handoff');
+    console.log('Portal Farmland claim, travel checkpoints, and first level passed');
+  } catch (error) {
+    await page.screenshot({ path: path.join(results, 'portal-farmland-failed.png') }).catch(() => {});
+    throw error;
+  } finally { await context.close(); }
+}
 
 function bestMove(puzzle) {
   let best, score = -Infinity;
@@ -506,6 +715,9 @@ async function checkFullscreen(browser) {
   try {
     const scope = process.env.DUNE_TEST_SCOPE || 'all';
     if (scope === 'all' || scope === 'input') await checkInput(browser);
+    if (scope === 'all' || scope === 'farmland') await checkFarmland(browser);
+    if (scope === 'all' || scope === 'farmland-preview') await checkFarmlandPreview(browser);
+    if (scope === 'all' || scope === 'portal-farmland') await checkPortalFarmland(browser);
     if (scope === 'all' || scope === 'fullscreen') await checkFullscreen(browser);
     if (scope === 'all' || scope === 'reveal') {
       const phases = process.env.DUNE_TEST_PHASE ? [process.env.DUNE_TEST_PHASE === 'normal' ? null : process.env.DUNE_TEST_PHASE] : [null, 'banner', 'conversion', 'chain', 'refill'];
@@ -521,6 +733,7 @@ async function checkFullscreen(browser) {
     }
     if (scope === 'all' || scope === 'lifecycle') await checkLifecycle(browser);
     if (scope === 'all' || scope === 'demo') await checkDemo(browser);
+    if (scope === 'all' || scope === 'farmland-ending') await checkFarmlandEndingFilm(browser);
     console.log('Browser checks passed');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
