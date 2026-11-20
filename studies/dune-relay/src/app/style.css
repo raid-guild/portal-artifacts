@@ -237,3 +237,6 @@ button { font: inherit; cursor: pointer; }
 .raidguild-credit:focus-visible { outline: 2px solid #ffe2a3; outline-offset: 2px; border-radius: 6px; }
 
 .background-watermark { position: absolute; z-index: 5; right: 2.5%; bottom: 2.5%; width: clamp(30px, 8cqh, 56px); height: auto; opacity: .28; pointer-events: none; user-select: none; filter: drop-shadow(0 1px 2px #09252d); }
+
+.level-pill { flex:none; display:inline-flex; align-items:center; justify-content:center; height:100%; padding:0 8px; border:2px solid #ddc18e; border-radius:12px; background:rgba(18,53,61,.94); color:#ffe29c; font-weight:700; font-size:clamp(11px,1.7cqw,18px); font-variant-numeric:tabular-nums; box-shadow:0 3px 0 #102a32; }
+.frame[data-mode="puzzle"] .cloud-pill { position:absolute; left:0; top:calc(100% + 2px); max-width:100%; line-height:1.15; }

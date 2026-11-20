@@ -23,7 +23,7 @@ async function checkLayout(page, label) {
     return {hud:box('.save-hud'),coin:box('.coin-pill'),cloud:box('.cloud-pill'),actions:box('.top-actions'),frame:box('.frame')};
   });
   assert(boxes.cloud.top < boxes.frame.top + boxes.frame.bottom * .15, `${label}: status stays in top row`);
-  assert(boxes.coin.right <= boxes.cloud.left + 1, `${label}: coin and badge do not overlap`);
+  assert(boxes.coin.right <= boxes.cloud.left + 1 || boxes.coin.bottom <= boxes.cloud.top, `${label}: coin and badge do not overlap`);
   assert(boxes.hud.right <= boxes.actions.left + 2, `${label}: HUD and controls do not overlap`);
   assert(boxes.cloud.bottom < boxes.frame.top + boxes.frame.bottom * .17, `${label}: badge clears the map title`);
 }

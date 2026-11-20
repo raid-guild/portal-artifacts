@@ -842,6 +842,9 @@ export default function GameShell() {
   const repaired = save.completed.includes("pumpHouse");
   const available = nextLevel(save.completed);
   const level = LEVELS[activeLevel];
+  const chapter = level.chapter ?? "oasis";
+  const chapterNumber = [...new Set(LEVEL_ORDER.map(id => LEVELS[id].chapter ?? "oasis"))].indexOf(chapter) + 1;
+  const chapterLevel = LEVEL_ORDER.filter(id => (LEVELS[id].chapter ?? "oasis") === chapter).indexOf(activeLevel) + 1;
   const mapLevel = available && (LEVELS[available].chapter ?? "oasis") === save.region ? available : null;
   const partyUnlocked = save.companions.includes("keeper");
   const isCaravan = save.region === "caravan";
@@ -888,6 +891,7 @@ export default function GameShell() {
         setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
       }} onEvent={onEvent} skipReveal={skipReveal} />}
       <div className="save-hud">
+        {mode === "puzzle" && <span className="level-pill" aria-label={`Chapter ${chapterNumber}, level ${chapterLevel}`}>{chapterNumber}.{chapterLevel}</span>}
         <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
         {!playtest && <div className="cloud-pill" role="status" title={`${portalName ?? "Guest"} · ${saveStatus}`} aria-label={`${portalName ?? "Guest"} · ${saveStatus}`}><span className="cloud-name">{portalName ?? "Guest"} · </span><span className="cloud-status">{saveStatus}</span></div>}
       </div>
