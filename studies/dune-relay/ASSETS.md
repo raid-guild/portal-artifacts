@@ -96,3 +96,7 @@ Use case: illustration-story. Asset single transparent game environmental PROP: 
 ## Booster shop icon
 
 - `public/sprites/jet-row.png` is a transparent crop of the existing horizontal Water Jet in `public/sprites/tiles.png`, used to display the complete icon in the pre-level shop without atlas clipping.
+
+## RaidGuild settings stamp
+
+`public/raidguild-stamp.svg` reuses the existing RaidGuild mark from the Portal Artifacts Field study (`public/field/assets/raidguild-stamp.svg`), recolored to the game’s pale gold. The Settings credit links to https://raidguild.org.

@@ -897,6 +897,7 @@ export default function GameShell() {
         <label className="volume-setting">Music <span>{Math.round(musicVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(musicVolume * 100)} onChange={event => setMusicVolume(Number(event.target.value) / 100)} /></label>
         <label className="soundtrack-setting">Soundtrack<select value={effectiveTrack} onChange={event => { const choice = event.target.value as TrackPreference; if (choice !== "auto" && !unlockedTracks.includes(choice)) return; if (playtest) setPlaytestTrack(choice); else setTrackPreference(choice); }}><option value="auto">Follow chapter</option>{SOUNDTRACKS.map(track => <option key={track.id} value={track.id} disabled={!unlockedTracks.includes(track.id)}>{track.title}{unlockedTracks.includes(track.id) ? "" : ` · unlock in ${track.chapter}`}</option>)}</select></label>
         <button className="setting" onClick={() => setReducedMotion(value => !value)}>Reduced motion <strong>{reducedMotion ? "On" : "Off"}</strong></button>
+        <a className="raidguild-credit" href="https://raidguild.org" target="_blank" rel="noopener noreferrer"><img src={assetUrl("/raidguild-stamp.svg")} alt="" /><span>Built by <strong>RaidGuild</strong><small>raidguild.org <span aria-hidden="true">↗</span></small></span></a>
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {playtest ? <>
