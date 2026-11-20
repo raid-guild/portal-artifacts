@@ -97,7 +97,7 @@ test('Farmland is an explicit, account-bound entitlement after all 30 canonical 
   assert.equal((await fetch(base+'/entitlements/farmland/claim',{method:'POST',headers:{Cookie:a.cookie,'X-Dune-Account-ID':accountId,'Content-Type':'application/json'},body:JSON.stringify({requestId:randomUUID()})})).status,403);
   assert.equal((await ok(await call('/entitlements',a.cookie))).farmland.eligible,false);
   assert.equal((await call('/entitlements/farmland/claim',a.cookie,{requestId:randomUUID(),eligible:true,unlocked:true})).status,409);
-  const full={...emptyCampaign(),completed:all,coins:0,gatehouseReady:true,oasisTransition:'ready',demoEnding:'done'};
+  const full={...emptyCampaign(),completed:all.slice(0,DEMO_LEVEL_COUNT),coins:0,gatehouseReady:true,oasisTransition:'ready',demoEnding:'done'};
   const imported=await ok(await call('/campaign/import',a.cookie,{requestId:randomUUID(),guestSave:full}));
   assert.deepEqual((await ok(await call('/entitlements',a.cookie))).farmland,{unlocked:false,eligible:true,unlockedAt:null});
   const id=randomUUID();
@@ -128,7 +128,41 @@ test('native final completion enables a later explicit Farmland claim',async()=>
   assert.deepEqual((await ok(await call('/entitlements',cookie))).farmland,{unlocked:false,eligible:true,unlockedAt:null});
   assert.equal((await ok(await call('/entitlements/farmland/claim',cookie,{requestId:randomUUID()}))).farmland.unlocked,true);
 });
+test('Farmland requires an account grant and arrival checkpoint for every write path',async()=>{
+  const {cookie}=await launch();
+  const demo={...emptyCampaign(),completed:content.levels.slice(0,30).map(level=>level.id),coins:100,oasisTransition:'ready',gatehouseReady:true,demoEnding:'thanks'};
+  assert.equal((await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:{...demo,completed:[...demo.completed,'seedStore']}})).status,400,'guest import cannot grant Farmland progress');
+  let profile=(await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:demo}))).profile;
+  const prepare=()=>call('/attempts',cookie,{attemptId:randomUUID(),levelId:'seedStore',boosters:[]});
+  const finish=()=>call(`/attempts/${randomUUID()}/finish`,cookie,{levelId:'seedStore',remainingMoves:4,contentVersion:content.contentVersion});
+  assert.equal((await prepare()).status,403);
+  assert.equal((await finish()).status,403);
+  assert.equal((await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:{...profile.campaign,transition:{from:'gatehouse',to:'farmland',stage:'handoff'}},expectedRevision:profile.revision})).status,400,'demo acknowledgment is required first');
+  await ok(await call('/entitlements/farmland/claim',cookie,{requestId:randomUUID()}));
+  assert.equal((await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:{...profile.campaign,demoEnding:'done',transition:{from:'gatehouse',to:'farmland',stage:'handoff'}},expectedRevision:profile.revision})).status,400,'demo acknowledgment must be a separate checkpoint');
+  profile=(await ok(await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:{...profile.campaign,demoEnding:'done'},expectedRevision:profile.revision}))).profile;
+  for(const stage of ['handoff','atlas','arrival','ready']) {
+    const campaign={...profile.campaign,transition:stage==='ready'?null:{from:'gatehouse',to:'farmland',stage},farmlandReady:stage==='ready',region:stage==='ready'?'farmland':profile.campaign.region};
+    profile=(await ok(await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign,expectedRevision:profile.revision}))).profile;
+    if(stage!=='ready') assert.equal((await prepare()).status,409,'grant alone does not skip the chapter transition');
+  }
+  const attemptId=randomUUID();const ready=await ok(await call('/attempts',cookie,{attemptId,levelId:'seedStore',boosters:[]}));
+  await ok(await call(`/attempts/${attemptId}/activate`,cookie,{expectedRevision:ready.profile.revision}));
+  const done=await ok(await call(`/attempts/${attemptId}/finish`,cookie,{levelId:'seedStore',remainingMoves:4,contentVersion:content.contentVersion}));
+  assert.equal(done.profile.campaign.completed.length,31);
+  assert.equal(done.profile.campaign.region,'farmland');
+});
 test('purchase and win are idempotent',async()=>{const {cookie}=await launch();const guest={...emptyCampaign(),completed:['pumpHouse','primePump','prismTower','oasisRelay'],coins:350};await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:guest}));const attemptId=randomUUID();const prepared=await ok(await call('/attempts',cookie,{attemptId,levelId:'palmIntake',boosters:['jet']}));assert.equal(prepared.profile.campaign.coins,350);const active=await ok(await call(`/attempts/${attemptId}/activate`,cookie,{expectedRevision:prepared.profile.revision}));assert.equal(active.profile.campaign.coins,50);assert.equal((await ok(await call(`/attempts/${attemptId}/activate`,cookie,{expectedRevision:prepared.profile.revision}))).profile.campaign.coins,50);const win={levelId:'palmIntake',remainingMoves:3,contentVersion:content.contentVersion};const done=await ok(await call(`/attempts/${attemptId}/finish`,cookie,win));assert.equal(done.reward,29);assert.equal(done.profile.campaign.coins,79);assert.equal((await ok(await call(`/attempts/${attemptId}/finish`,cookie,win))).profile.campaign.coins,79);assert.equal((await call(`/attempts/${attemptId}/finish`,cookie,{...win,remainingMoves:2})).status,409);assert.equal((await call('/attempts',cookie,{attemptId:randomUUID(),levelId:'palmIntake',boosters:[]})).status,409);});
+test('a prepared Chapter 3 attempt can finish after the Chapter 4 content deploy',async()=>{
+  const {cookie}=await launch();
+  await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:{...emptyCampaign(),completed:content.levels.slice(0,29).map(level=>level.id),oasisTransition:'ready',gatehouseReady:true,coins:0}}));
+  const attemptId=randomUUID();
+  const prepared=await ok(await call('/attempts',cookie,{attemptId,levelId:'openTheCrossing',boosters:[]}));
+  await ok(await call(`/attempts/${attemptId}/activate`,cookie,{expectedRevision:prepared.profile.revision}));
+  const finished=await ok(await call(`/attempts/${attemptId}/finish`,cookie,{levelId:'openTheCrossing',remainingMoves:2,contentVersion:'chapter-3-3'}));
+  assert.equal(finished.profile.campaign.completed.length,30);
+  assert.equal((await call(`/attempts/${randomUUID()}/finish`,cookie,{levelId:'seedStore',remainingMoves:2,contentVersion:'chapter-3-3'})).status,400);
+});
 test('free offline finish can sync and cannot skip levels',async()=>{const {cookie}=await launch(),id=randomUUID(),win={levelId:'pumpHouse',remainingMoves:5,contentVersion:content.contentVersion};const first=await ok(await call(`/attempts/${id}/finish`,cookie,win));assert.equal(first.reward,35);assert.equal((await ok(await call(`/attempts/${id}/finish`,cookie,win))).profile.campaign.coins,35);assert.equal((await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:{...first.profile.campaign,completed:['pumpHouse','primePump']},expectedRevision:first.profile.revision})).status,409);assert.equal((await call(`/attempts/${randomUUID()}/finish`,cookie,{...win,levelId:'palmIntake'})).status,409);});
 test('a switched browser cookie cannot write the previous account',async()=>{
   const a=await launch(),b=await launch(),previousAccount=accountByCookie.get(a.cookie);

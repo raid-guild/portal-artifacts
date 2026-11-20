@@ -143,6 +143,11 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     res.json({accountId:String(req.playerSession.player_id),hasCampaign:Boolean(row),profile:row?normalizeProfile(row.profile):null});
   }));
   const farmlandStatus = (accountId,profile,grant) => ({ accountId:String(accountId),farmland:{ unlocked:Boolean(grant),eligible:farmlandEligible(profile.campaign),unlockedAt:grant?.granted_at?.toISOString?.()??null } });
+  const requireFarmlandGrant = async (client,playerId,campaign,level) => {
+    if ((level === undefined || level.index < 30) && campaign?.region !== 'farmland' && campaign?.transition?.to !== 'farmland' && !campaign?.farmlandReady) return;
+    const {rows:[grant]}=await client.query("SELECT 1 FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]);
+    if (!grant) throw fail(403,'Unlock Farmland with your Portal account before entering this chapter.');
+  };
   app.get(`${BASE}/entitlements`,authenticated,limited(async(req,res)=>{
     const playerId=req.playerSession.player_id;
     const [{rows:[profileRow]},{rows:[grant]}]=await Promise.all([
@@ -183,6 +188,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     if (!validUuid(attemptId)) throw fail(400,'Invalid attempt ID.');
     const level=validLevel(levelId),selected=validBoosters(boosters);
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
+      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,level);
       const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1',[attemptId]);
       if (existing) {
         if (String(existing.player_id)!==String(req.playerSession.player_id) || existing.level_id!==levelId || JSON.stringify(existing.boosters)!==JSON.stringify(selected)) throw fail(409,'Attempt ID already belongs to another attempt.');
@@ -202,6 +208,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
       const {rows:[row]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,req.playerSession.player_id]);
       if (!row) throw fail(404,'Attempt not found.');
+      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,levels.get(row.level_id));
       if (row.status!=='prepared') return {attemptId:id,status:row.status,profile};
       const cost=validBoosters(row.boosters).reduce((sum,kind)=>sum+boosterPrices[kind],0);
       if (req.body?.expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
@@ -219,8 +226,9 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     if (!validUuid(id)) throw fail(400,'Invalid attempt ID.');
     const {levelId,remainingMoves,contentVersion}=req.body??{};
     const level=validLevel(levelId);
-    if (contentVersion!==content.contentVersion || !Number.isSafeInteger(remainingMoves) || remainingMoves<0 || remainingMoves>level.moves) throw fail(400,'Invalid finish snapshot.');
+    if (!(contentVersion===content.contentVersion || level.index<30 && contentVersion==='chapter-3-3') || !Number.isSafeInteger(remainingMoves) || remainingMoves<0 || remainingMoves>level.moves) throw fail(400,'Invalid finish snapshot.');
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
+      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,level);
       let {rows:[row]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,req.playerSession.player_id]);
       // A free level may be completed after the connection drops before start.
       // The account and campaign order are checked under the same profile lock.
@@ -265,6 +273,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       if (rate.count>=240) throw fail(429,'Too many campaign changes. Try later.');
       if (expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
       const next=applyCheckpoint(profile,campaign);
+      await requireFarmlandGrant(client,req.playerSession.player_id,next.campaign);
       await saveProfile(client,req.playerSession.player_id,next);
       return {profile:next};
     }));

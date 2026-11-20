@@ -1,7 +1,7 @@
 import type { Region } from "./save";
 import type { SoundtrackId, TrackPreference } from "./soundtracks";
 
-export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt";
+export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod";
 
 const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; melody: (number | null)[]; wave: OscillatorType }> = {
   // Sixteen bars: each four-bar phrase changes the melody register and harmony.
@@ -11,6 +11,8 @@ const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; melody:
     melody: [null, null, 67, null, null, 70, null, null, 72, null, 70, null, null, null, null, null, null, null, 67, null, 70, null, 74, null, null, 72, null, 70, null, null, null, null], wave: "sawtooth" },
   gatehouse: { bpm: 76, roots: [50, 55, 47, 52, 50, 57, 55, 47, 50, 55, 47, 52, 57, 55, 47, 50],
     melody: [74, null, 78, null, 81, null, 78, null, 76, null, 74, null, 71, null, null, null, 74, null, 78, 81, null, 83, null, 81, 78, null, 76, null, 74, null, null, null], wave: "sine" },
+  farmland: { bpm: 80, roots: [48, 55, 52, 57, 50, 57, 53, 55, 48, 55, 52, 57, 53, 55, 50, 48],
+    melody: [72, null, 76, 79, null, 76, 74, null, 69, null, 72, null, 74, 76, null, null, 72, 76, null, 79, 81, null, 79, 76, 74, null, 72, 69, 72, null, null, null], wave: "triangle" },
 };
 const noteHz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 type Voice = { source: OscillatorNode | AudioBufferSourceNode; nodes: AudioNode[] };
@@ -401,6 +403,7 @@ export class GameAudio {
       case "clear": this.tone(390 + lift, 700 + lift, 0.17, 0.13, "triangle"); this.tone(900 + lift, 510 + lift, 0.1, 0.035); break;
       case "land": this.tone(150, 82, 0.11, 0.1, "triangle"); this.burst(650, 0.07, 0.06); break;
       case "salt": this.burst(2100, 0.22, 0.13); this.tone(360, 115, 0.17, 0.09, "triangle"); break;
+      case "seedpod": this.burst(1300, 0.16, 0.09); this.tone(270, 520, 0.2, 0.07, "triangle"); break;
       case "jet": this.burst(2800, 0.36, 0.2); this.tone(190, 780, 0.25, 0.1, "sawtooth"); this.tone(330, 110, 0.32, 0.07, "triangle", 0.08); break;
       case "flywheel": this.tone(130, 480, 0.38, 0.1, "sawtooth"); this.burst(950, 0.27, 0.13); this.tone(270, 90, 0.3, 0.08, "triangle", 0.18); break;
       case "prism": [660, 830, 990, 1320].forEach((note, index) => this.tone(note, note * 1.4, 0.25, 0.055, "sine", index * 0.055)); break;

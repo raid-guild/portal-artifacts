@@ -1,6 +1,6 @@
 import type { Cell, Goals, SymbolKind } from "./core";
 
-export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing"] as const;
+export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad"] as const;
 export type LevelId = (typeof LEVEL_ORDER)[number];
 export type LevelDefinition = {
   id: LevelId;
@@ -8,17 +8,18 @@ export type LevelDefinition = {
   seed: number;
   moves: number;
   goals: Goals;
-  chapter?: "oasis" | "caravan" | "gatehouse";
+  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland";
   symbols?: SymbolKind[];
   chargeSymbol?: SymbolKind;
   grantedPower?: "jets" | "flywheels" | "prism";
   grantCount?: number;
-  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust";
+  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust" | "seedpod";
   opening?: [Cell, Cell];
   boardShape?: "clippedCorners" | "twinChambers" | "steppedBasin";
   keeperTarget?: number;
   destination: keyof typeof MAP_DESTINATIONS;
   crust?: { row: number; col: number; hp?: number }[];
+  seedpods?: { row: number; col: number; hp?: number }[];
   briefing: string;
   victoryEyebrow: string;
   victoryTitle: string;
@@ -132,7 +133,29 @@ export const LEVELS: Record<LevelId, LevelDefinition> = {
   pairedWinches: gatehouseLevel("pairedWinches", "PAIRED WINCHES", 37831, 33, { water: 36, leaf: 0, key: 0, crust: 16 }, "practice", "pairedWinches", "Two winches share a narrow passage. Flywheel combinations can strike the salt across both chambers.", "twinChambers", layeredSalt([[0,[1,7]],[1,[1,7]],[2,[1,7]],[3,[1,7]],[4,[1,7]],[5,[1,7]],[6,[1,7]],[7,[1,7]]], [[0,1],[1,7],[2,1],[3,7],[4,1],[5,7],[6,1],[7,7]])),
   gatehouseCrown: gatehouseLevel("gatehouseCrown", "GATEHOUSE CROWN", 38933, 33, { water: 0, leaf: 0, key: 36, crust: 18 }, "practice", "gatehouseCrown", "Climb the stepped crown. Break the salt and gather the keys that lift the gate.", "steppedBasin", layeredSalt([[0,[3,5]],[1,[3,5]],[2,[2,6]],[3,[2,6]],[4,[1,7]],[5,[1,7]],[6,[1,7]],[7,[1,7]],[8,[2,6]]], [[0,3],[1,5],[2,2],[2,6],[3,2],[4,7],[5,1],[6,7],[7,1],[8,6]])),
   openTheCrossing: gatehouseLevel("openTheCrossing", "OPEN THE CROSSING", 40127, 34, { water: 48, leaf: 0, key: 0, crust: 20 }, "practice", "openTheCrossing", "The crossing is close. Clear every saltbound control and send water through the gatehouse to open the bridge.", "steppedBasin", layeredSalt([[0,[3,5]],[1,[3,5]],[2,[2,4,6]],[3,[2,4,6]],[4,[1,7]],[5,[1,7]],[6,[1,7]],[7,[1,7]],[8,[0,8]]], [[0,3],[1,5],[2,2],[2,6],[3,4],[3,6],[4,1],[5,7],[6,1],[7,7],[8,0],[8,8]])),
+  seedStore: farmlandLevel("seedStore", "SEED STORE", 41131, 28, 4, 24, 0, "seedpod", "seedStore", "The sealed stores have waited through the drought. Match beside each bronze-bound pod twice to open it. Pods fall, but cannot be swapped."),
+  threshingYard: farmlandLevel("threshingYard", "THRESHING YARD", 42221, 28, 6, 0, 24, "practice", "threshingYard", "The pods tumble with the harvest. Follow their fall, then match beside them again. Twelve reeds call two Flywheels from the Fieldkeeper."),
+  irrigationBeds: farmlandLevel("irrigationBeds", "IRRIGATION BEDS", 43313, 29, 8, 30, 0, "practice", "irrigationBeds", "A Flywheel can strike pods directly. Its nine tiles count as one hit per pod, so look for a second opening.", "clippedCorners"),
+  terraceChannels: farmlandLevel("terraceChannels", "TERRACE CHANNELS", 44417, 30, 8, 36, 0, "practice", "terraceChannels", "Send Jets across the channels. A beam cracks any pod it touches, wherever the pod has fallen.", "steppedBasin"),
+  saltedFurrows: farmlandLevel("saltedFurrows", "SALTED FURROWS", 45521, 30, 8, 30, 0, "practice", "saltedFurrows", "Clear the old salt and open the seedpods together. Normal matches crack both nearby; Jets and Flywheels need direct hits.", undefined, [[1,[1,7]],[3,[1,7]]] ),
+  pairedGranaries: farmlandLevel("pairedGranaries", "PAIRED GRANARIES", 46633, 33, 8, 24, 0, "practice", "pairedGranaries", "The granaries share a narrow passage. Keep matches available on both sides as the pods fall.", "twinChambers", [[1,[1,7]],[4,[1,7]]] ),
+  sluiceGarden: farmlandLevel("sluiceGarden", "SLUICE GARDEN", 47731, 31, 10, 36, 0, "practice", "sluiceGarden", "The water gardens have layered salt around the pods. Direct your powers at the seals and nearby symbols.", "clippedCorners", [[1,[2,6]],[3,[2,6]],[5,[2,6]],[7,[2,6]]], [[1,2],[5,6]] ),
+  harvestTerraces: farmlandLevel("harvestTerraces", "HARVEST TERRACES", 48859, 32, 12, 36, 0, "practice", "harvestTerraces", "The terraces grow wider toward the road. Let falling pods reach clear match lanes before striking.", "steppedBasin", [[2,[2,6]],[4,[1,7]],[6,[1,7]],[8,[1,7]]], [[2,2],[6,7]] ),
+  convoyStores: farmlandLevel("convoyStores", "CONVOY STORES", 49937, 32, 12, 30, 0, "practice", "convoyStores", "The convoy waits for both stores. Combine powers to open the remaining pods and clear the salt.", "twinChambers", [[1,[1,7]],[3,[1,7]],[5,[1,7]],[7,[1,7]]], [[1,1],[3,7],[5,1],[7,7]] ),
+  openTheHarvestRoad: farmlandLevel("openTheHarvestRoad", "OPEN THE HARVEST ROAD", 51047, 34, 12, 48, 0, "practice", "openTheHarvestRoad", "One last surge will open the seed stores and load the harvest convoy. The Fieldkeeper's ledger points beyond the fields.", "clippedCorners", [[0,[2,6]],[2,[1,7]],[4,[1,7]],[6,[1,7]],[8,[2,6]],[3,[3,5]]], [[0,2],[2,7],[4,1],[6,7],[8,6]] ),
 };
+
+function farmlandLevel(id: LevelId, title: string, seed: number, moves: number, podCount: number, water: number, leaf: number, lesson: LevelDefinition["lesson"], destination: keyof typeof MAP_DESTINATIONS, briefing: string, boardShape?: LevelDefinition["boardShape"], saltRows: [number,number[]][] = [], thick: [number,number][] = []): LevelDefinition {
+  const candidatePods = [ [1,3],[1,5],[2,1],[2,7],[3,3],[3,5],[4,2],[4,6],[5,1],[5,7],[6,3],[6,5], ...Array.from({length:81},(_,i)=>[Math.floor(i/9),i%9]) ];
+  const mask = (row:number,col:number) => boardShape === "twinChambers" ? col <= 2 || col >= 6 || row >= 3 && row <= 5 : boardShape === "steppedBasin" ? col >= (9-(row<2?5:row<4?7:9))/2 && col < (9+(row<2?5:row<4?7:9))/2 : boardShape === "clippedCorners" ? !(row===0||row===8) || !(col===0||col===8) : true;
+  const salt = layeredSalt(saltRows, thick);
+  const occupied = new Set(salt.map(cell=>`${cell.row},${cell.col}`));
+  const used = new Set<string>();
+  const seedpods = candidatePods.filter(([row,col])=>{ const cell=`${row},${col}`; if (!mask(row,col) || occupied.has(cell) || used.has(cell)) return false; used.add(cell); return true; }).slice(0,podCount).map(([row,col])=>({row,col,hp:2}));
+  if (seedpods.length!==podCount) throw new Error(`Not enough seedpod cells for ${id}`);
+  return { id, title, seed, moves, goals:{water,leaf,seedpod:podCount,crust:salt.length}, lesson, destination, briefing, boardShape, crust:salt, seedpods, chapter:"farmland", symbols:["water","gear","leaf","pennant","key"], chargeSymbol:"leaf", grantedPower:"flywheels", grantCount:2, keeperTarget:12,
+    victoryEyebrow:"FARMLAND RECOVERS", victoryTitle:id==="openTheHarvestRoad"?"The harvest road is open!":"The fields are waking!", victoryMessage:id==="openTheHarvestRoad"?"The harvest convoy is ready. The ledger says missing deliveries began farther upstream, near the town on the hill.":"The next store needs a little more water and care." };
+}
 
 function layeredSalt(rows: [number, number[]][], thick: [number, number][]) {
   const strong = new Set(thick.map(([row, col]) => `${row},${col}`));
@@ -179,4 +202,14 @@ export const MAP_DESTINATIONS = {
   pairedWinches: { marker: { x: 770, y: 377 }, label: { x: 770, y: 330 }, walk: { x: 760, y: 454 }, hit: { x: 770, y: 391, width: 100, height: 100 } },
   gatehouseCrown: { marker: { x: 700, y: 224 }, label: { x: 700, y: 182 }, walk: { x: 685, y: 430 }, hit: { x: 700, y: 253, width: 105, height: 115 } },
   openTheCrossing: { marker: { x: 705, y: 330 }, label: { x: 706, y: 283 }, walk: { x: 690, y: 445 }, hit: { x: 705, y: 354, width: 115, height: 116 } },
+  seedStore: { marker:{x:755,y:300},label:{x:755,y:255},walk:{x:730,y:424},hit:{x:755,y:325,width:105,height:105} },
+  threshingYard: { marker:{x:626,y:337},label:{x:626,y:292},walk:{x:626,y:430},hit:{x:626,y:350,width:100,height:100} },
+  irrigationBeds: { marker:{x:240,y:323},label:{x:240,y:280},walk:{x:260,y:425},hit:{x:240,y:340,width:100,height:105} },
+  terraceChannels: { marker:{x:460,y:300},label:{x:460,y:255},walk:{x:460,y:420},hit:{x:460,y:330,width:100,height:100} },
+  saltedFurrows: { marker:{x:360,y:340},label:{x:360,y:295},walk:{x:360,y:435},hit:{x:360,y:355,width:100,height:105} },
+  pairedGranaries: { marker:{x:820,y:330},label:{x:820,y:285},walk:{x:800,y:430},hit:{x:820,y:345,width:100,height:100} },
+  sluiceGarden: { marker:{x:270,y:355},label:{x:270,y:310},walk:{x:270,y:440},hit:{x:270,y:365,width:100,height:100} },
+  harvestTerraces: { marker:{x:540,y:280},label:{x:540,y:235},walk:{x:540,y:420},hit:{x:540,y:300,width:100,height:100} },
+  convoyStores: { marker:{x:735,y:345},label:{x:735,y:300},walk:{x:735,y:435},hit:{x:735,y:365,width:105,height:100} },
+  openTheHarvestRoad: { marker:{x:875,y:360},label:{x:855,y:310},walk:{x:835,y:440},hit:{x:875,y:375,width:100,height:100} },
 } as const;

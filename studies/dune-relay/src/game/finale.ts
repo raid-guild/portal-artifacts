@@ -16,7 +16,7 @@ export function planFinale(puzzle: Puzzle): FinalePlan {
     for (let offset = 0; offset < cells.length; offset++) {
       const candidate = cells[(start + offset) % cells.length];
       const tile = board[candidate.row][candidate.col];
-      if (tile && !isSpecial(tile)) { cell = candidate; break; }
+      if (tile && tile.kind !== "seedpod" && !isSpecial(tile)) { cell = candidate; break; }
     }
     if (!cell) break;
     const tile = board[cell.row][cell.col]!;
@@ -41,7 +41,7 @@ export function planFinale(puzzle: Puzzle): FinalePlan {
     const effects: FinaleWave["effects"] = [];
     const hits = new Map<string, Cell>();
     const add = (cell: Cell) => {
-      if (!puzzle.mask[cell.row]?.[cell.col] || board[cell.row][cell.col]?.power === "prism") return;
+      if (!puzzle.mask[cell.row]?.[cell.col] || board[cell.row][cell.col]?.power === "prism" || board[cell.row][cell.col]?.kind === "seedpod") return;
       hits.set(key(cell), cell);
     };
     for (const item of wave) {

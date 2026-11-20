@@ -27,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     "--oasis-image": `url('${assetUrl("/oasis.webp")}')`,
     "--caravan-image": `url('${assetUrl("/caravan.webp")}')`,
     "--gatehouse-image": `url('${assetUrl("/gatehouse.webp")}')`,
+    "--farmland-image": `url('${assetUrl("/farmland.webp")}')`,
     "--sluice-image": `url('${assetUrl("/sluice.webp")}')`,
   } as CSSProperties;
   return <html lang="en"><body style={artwork}>{children}</body></html>;

@@ -7,6 +7,7 @@ import Phaser from "phaser";
 import spriteFrames from "../../public/sprites/frames.json";
 import wayfinderFrames from "../../public/sprites/wayfinder-frames.json";
 import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
+import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
 import { BOARD_SIZE, Board, Cell, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
@@ -21,6 +22,7 @@ export type GameEvent =
   | { type: "pump"; position: { x: number; y: number } }
   | { type: "wayfinder"; position: { x: number; y: number } }
   | { type: "gatewright"; position: { x: number; y: number } }
+  | { type: "fieldkeeper"; position: { x: number; y: number } }
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
   | { type: "playReady" }
   | { type: "gateOpened" }
@@ -32,7 +34,7 @@ export type GameEvent =
 
 type Props = {
   mode: "map" | "puzzle";
-  region: "oasis" | "caravan" | "gatehouse";
+  region: "oasis" | "caravan" | "gatehouse" | "farmland";
   mapPosition: { x: number; y: number } | null;
   repaired: boolean;
   caravanComplete: boolean;
@@ -103,11 +105,11 @@ function panel(scene: Phaser.Scene, x: number, y: number, w: number, h: number, 
   return g;
 }
 
-type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright";
+type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper";
 
 function registerFrames(scene: Phaser.Scene, sheet: SpriteSheet) {
   const texture = scene.textures.get(sheet);
-  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : spriteFrames[sheet];
+  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : spriteFrames[sheet];
   frames.forEach((cell, index) => {
     const [left, top, right, bottom] = cell.bounds;
     const crop = sheet === "tiles";
@@ -141,7 +143,11 @@ function prepareSmallTexture(scene: Phaser.Scene, sourceKey: string, targetKey: 
   return targetKey;
 }
 
-function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind, jet?: "row" | "column", pulseEnabled = true, power?: Power) {
+function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind | "seedpod", jet?: "row" | "column", pulseEnabled = true, power?: Power, hp?: number) {
+  if (kind === "seedpod") {
+    const texture = hp === 1 ? "seedpodCracked" : "seedpod";
+    return scene.add.container(x, y, [scene.add.image(0, 0, prepareSmallTexture(scene, texture, `${texture}-small`, 128)).setDisplaySize(43, 43)]);
+  }
   if (kind === "key" && !jet && !power) {
     const art = scene.add.image(0, 0, prepareSmallTexture(scene, "key", "key-small", 128)).setDisplaySize(43, 43);
     return scene.add.container(x, y, [art]);
@@ -169,21 +175,22 @@ function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind, 
 }
 
 function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind) {
+  if (kind === "seedpod") return drawPiece(scene, x, y, "seedpod", undefined, false, undefined, 2);
   if (kind === "crust") return scene.add.image(x, y, prepareSmallTexture(scene, "saltCrust", "saltCrust-small", 128)).setDisplaySize(43, 43);
   return drawPiece(scene, x, y, kind);
 }
 
-function goalName(kind: GoalKind): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind.toUpperCase(); }
+function goalName(kind: GoalKind): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind.toUpperCase(); }
 
-function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright", x: number, y: number) {
+function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", x: number, y: number) {
   const index = Number(sprite.frame.name);
-  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet][Number.isFinite(index) ? index : 0];
+  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet][Number.isFinite(index) ? index : 0];
   const [left, , right, bottom] = cell.bounds;
   const scale = sprite.scaleX;
   sprite.setPosition(x - ((left + right) / 2 - cell.w / 2) * scale, y + (cell.h - bottom) * scale);
 }
 
-function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright", direction: "left" | "right") {
+function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", direction: "left" | "right") {
   const key = `${sheet}-${direction}-walk`;
   if (!scene.anims.exists(key)) scene.anims.create({ key, frames: (direction === "right" ? [1, 2, 3] : [5, 6, 7]).map(frame => ({ key: sheet, frame: String(frame) })), frameRate: 7, repeat: -1 });
   return key;
@@ -555,6 +562,100 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
   };
 }
 
+function makeFarmlandScene(props: Props): typeof Phaser.Scene {
+  return class FarmlandScene extends Phaser.Scene {
+    player = props.mapPosition ?? { x: 190, y: 464 };
+    target = { ...this.player };
+    previous = { ...this.player };
+    playerGraphic?: Phaser.GameObjects.Sprite;
+    fieldkeeperGraphic?: Phaser.GameObjects.Sprite;
+    glows: Phaser.GameObjects.Sprite[] = [];
+    keys?: Record<string, Phaser.Input.Keyboard.Key>;
+    facing: "left" | "right" = "right";
+    locked = false;
+    constructor() { super("Farmland"); }
+    preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
+      this.load.image("farmland", assetUrl("/farmland.webp"));
+      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      this.load.image("fieldkeeper", assetUrl("/sprites/fieldkeeper.png"));
+    }
+    create() {
+      registerFrames(this, "mechanic"); registerFrames(this, "fieldkeeper");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "fieldkeeper", direction); }
+      this.add.image(480, 270, "farmland").setDisplaySize(WIDTH, HEIGHT);
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "FARMLAND", 26),
+        label(this, 40, 132, "THE SEED LEDGER", 13, "#9de4d4"),
+      ];
+      const person = this.add.sprite(540, 430, "fieldkeeper", "4").setOrigin(.5, 1).setScale(86 / 256).setDepth(2);
+      characterPosition(person, "fieldkeeper", 540, 430); this.fieldkeeperGraphic = person;
+      for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
+        const glow = this.add.sprite(540, 430, "fieldkeeper", "4").setOrigin(.5, 1).setScale(86 / 256).setTintFill(0xffe4af).setAlpha(.68).setDepth(1);
+        characterPosition(glow, "fieldkeeper", 540+dx, 430+dy); this.glows.push(glow);
+      }
+      if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
+      const arriving = props.nextLevel === "seedStore";
+      const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "farmland" && !arriving ? LEVELS[props.nextLevel] : null;
+      const destination = route ? MAP_DESTINATIONS[route.destination] : null;
+      const talkHit = this.add.zone(540, 389, 100, 115);
+      if (arriving) talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 540, 329, arriving ? "FIELDKEEPER" : "FIELDKEEPER ✓", 15).setOrigin(.5);
+      if (arriving) talkCaption.setInteractive({ useHandCursor: true });
+      let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
+      if (destination && route) {
+        const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
+        if (!props.reducedMotion) this.tweens.add({ targets: halo, alpha: .13, scale: 1.6, duration: 750, yoyo: true, repeat: -1 });
+        routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
+        routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
+      }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
+      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
+        if (props.transitioning || this.locked) return;
+        props.audio?.unlock();
+        const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        if (arriving && (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-540)<42 && y>=329 && y<=445)) {
+          this.locked = true; this.target = {x:488,y:447}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"fieldkeeper",position:{...this.player}})}); return;
+        }
+        if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        this.target = {x:Phaser.Math.Clamp(x,68,882),y:Phaser.Math.Clamp(y,420,491)};
+      });
+      this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Fieldkeeper →":route?`Walk to ${route.title} →`:"The harvest road is open ✓",14));
+      mapHud(this, hudParts);
+      props.onReady();
+    }
+    update(_:number,delta:number) {
+      if (!this.playerGraphic) return;
+      if (!this.locked && !props.transitioning) {
+        const speed=delta*.19;
+        const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
+        const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
+        if(dx||dy) this.target={x:Phaser.Math.Clamp(this.player.x+dx*speed,68,882),y:Phaser.Math.Clamp(this.player.y+dy*speed,420,491)};
+        const distance=Math.hypot(this.target.x-this.player.x,this.target.y-this.player.y);
+        if(distance>1){this.player.x+=(this.target.x-this.player.x)/distance*Math.min(speed,distance);this.player.y+=(this.target.y-this.player.y)/distance*Math.min(speed,distance);}
+      }
+      const moved=this.player.x-this.previous.x;
+      const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
+      if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
+      const animation=characterAnimation(this,"mechanic",this.facing);
+      if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
+      characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
+      if(this.fieldkeeperGraphic){
+        const direction=this.player.x<540?"left":"right";const frame=direction==="left"?"4":"0";const lift=props.reducedMotion?0:Math.sin(this.time.now/480);
+        this.fieldkeeperGraphic.setFrame(frame);characterPosition(this.fieldkeeperGraphic,"fieldkeeper",540,430+lift);
+        for(const [i,glow] of this.glows.entries()){const [dx,dy]=[[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]][i];glow.setFrame(frame);characterPosition(glow,"fieldkeeper",540+dx,430+dy+lift);}
+      }
+      this.previous={...this.player};
+    }
+  };
+}
+
 function makePuzzleScene(props: Props): typeof Phaser.Scene {
   return class PuzzleScene extends Phaser.Scene {
     puzzle: Puzzle = props.puzzle ?? createPuzzle(props.level);
@@ -565,7 +666,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     busy = false;
     clearStreak = 0;
     lastTap: { cell: Cell; time: number } | null = null;
-    pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind; jet?: "row" | "column"; power?: Power }>();
+    pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
     lessonPowerId?: number;
     lessonPowerHint?: Phaser.GameObjects.Graphics;
@@ -585,9 +686,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
-      this.load.image("backdrop", props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
+      this.load.image("backdrop", props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
       this.load.image("tiles", assetUrl("/sprites/tiles.png"));
-      this.load.image("companionAvatar", props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
+      this.load.image("companionAvatar", props.level.chapter === "farmland" ? assetUrl("/sprites/fieldkeeper-avatar.png") : props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
       this.load.image("pennant", assetUrl("/sprites/pennant.png"));
       this.load.image("key", assetUrl("/sprites/key.png"));
       this.load.image("coin", assetUrl("/sprites/coin.png"));
@@ -595,6 +696,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("prism", assetUrl("/sprites/prism.png"));
       this.load.image("saltCrust", assetUrl("/sprites/salt-crust.png"));
       this.load.image("saltCrust2", assetUrl("/sprites/salt-crust-2.png"));
+      this.load.image("seedpod", assetUrl("/sprites/seedpod.png"));
+      this.load.image("seedpodCracked", assetUrl("/sprites/seedpod-cracked.png"));
     }
     create() {
       registerFrames(this, "tiles");
@@ -630,7 +733,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const cellAtPoint = (x: number, y: number): Cell | null => {
         const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
         return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col]
-          && !this.displayCrust[row][col] && this.displayBoard[row][col] ? { row, col } : null;
+          && !this.displayCrust[row][col] && this.displayBoard[row][col]?.kind !== "seedpod" ? { row, col } : null;
       };
       const commitSwipe = (event: PointerEvent) => {
         if (!gesture || gesture.id !== event.pointerId || gesture.committed || this.busy || props.transitioning) return;
@@ -789,9 +892,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (!completed) {
         const goals = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
         goals.forEach(([kind, count], index) => {
-          const x = goals.length === 1 ? -35 : index === 0 ? -170 : 65;
+          const x = goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
           contents.push(drawGoalIcon(this, x, 91, kind));
-          contents.push(this.add.text(x + 33, 76, `${count} ${goalName(kind).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: "23px", fontStyle: "bold", color: "#21444a" }));
+          contents.push(this.add.text(x + 33, 76, `${count} ${goalName(kind).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" }));
         });
       }
       const banner = this.add.container(WIDTH / 2, -160, contents).setDepth(40);
@@ -822,13 +925,13 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
       const col = Math.floor((position.x - GRID_X) / CELL);
       const row = Math.floor((position.y - GRID_Y) / CELL);
-      return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col] && !this.displayCrust[row][col] && this.displayBoard[row][col] ? { row, col } : null;
+      return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col] && !this.displayCrust[row][col] && this.displayBoard[row][col]?.kind !== "seedpod" ? { row, col } : null;
     }
     center(cell: Cell) { return { x: GRID_X + cell.col * CELL + CELL / 2, y: GRID_Y + cell.row * CELL + CELL / 2 }; }
     setMessage(message: string) { this.message?.setText(message); }
@@ -838,14 +941,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(panel(this, 49, 145, 220, 66, 0.7));
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
-      this.hud.push(label(this, 51, 227, "COLLECT", 17, "#a2e7da"));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
+      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
-        const y = 279 + index * 55;
+        const y = goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
         this.hud.push(drawGoalIcon(this, 74, y, kind));
         this.hud.push(label(this, 106, y - 15, `${goals[kind] ?? 0}  ${goalName(kind)}`, 20));
       });
-      this.hud.push(label(this, 110, 365, props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
+      this.hud.push(label(this, 110, 365, props.level.chapter === "farmland" ? "FIELDKEEPER'S POWER" : props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
       const meter = this.add.graphics();
       meter.fillStyle(0x315568).fillRoundedRect(110, 391, 153, 17, 7);
       meter.fillStyle(GREEN).fillRoundedRect(110, 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
@@ -938,17 +1041,17 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         visible.add(tile.id);
         const position = this.center({ row, col });
         let item = this.pieces.get(tile.id);
-        if (item && (item.kind !== tile.kind || item.jet !== tile.jet || item.power !== tile.power)) {
+        if (item && (item.kind !== tile.kind || item.jet !== tile.jet || item.power !== tile.power || item.hp !== tile.hp)) {
           item.graphic.destroy(); this.pieces.delete(tile.id); item = undefined;
         }
         if (!item) {
-          const graphic = drawPiece(this, 0, 0, tile.kind, tile.jet, !props.reducedMotion, tile.power);
+          const graphic = drawPiece(this, 0, 0, tile.kind, tile.jet, !props.reducedMotion, tile.power, tile.hp);
           graphic.setDepth(5);
           let segmentTop = row;
           while (segmentTop > 0 && this.puzzle.mask[segmentTop - 1][col] && !this.displayCrust[segmentTop - 1][col]) segmentTop--;
           graphic.setPosition(position.x, kind === "refill" && duration > 0 && !props.reducedMotion ? GRID_Y + segmentTop * CELL - CELL - (stagger.get(`${row},${col}`) ?? 0) * 0.35 : position.y);
           if (kind === "refill" && duration > 0) graphic.setAlpha(0.2);
-          item = { graphic, kind: tile.kind, jet: tile.jet, power: tile.power };
+          item = { graphic, kind: tile.kind, hp: tile.hp, jet: tile.jet, power: tile.power };
           this.pieces.set(tile.id, item);
         }
         if (duration > 0) {
@@ -1072,6 +1175,26 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     async showSequence(step: TurnStep, speed = 1) {
       if (!this.sceneAlive) return;
       const revealedSalt = new Set<number>();
+      const revealedPods = new Set<number>();
+      const revealPodAt = async (after: number, jet?: TurnStep["jets"][number]) => {
+        for (const [index, event] of (step.podEvents ?? []).entries()) if (event.after === after && !revealedPods.has(index)) {
+          revealedPods.add(index);
+          await Promise.all(event.hits.map(async hit => {
+            if (jet && !props.reducedMotion) await this.wait(beamTravelDelay(jet.cell, jet.direction, hit.cell, speed));
+            const p = this.center(hit.cell);
+            props.audio?.play("seedpod");
+            const piece = this.pieces.get(hit.id);
+            if (hit.hp === 1 && piece?.kind === "seedpod") {
+              const image = piece.graphic.list[0] as Phaser.GameObjects.Image;
+              image.setTexture(prepareSmallTexture(this, "seedpodCracked", "seedpodCracked-small", 128)).setDisplaySize(43, 43);
+              piece.hp = 1;
+            }
+            const spark = this.add.circle(p.x, p.y, 18, hit.hp ? 0xffc983 : 0xa9eec4, 0.4).setDepth(18).setStrokeStyle(3, 0xffedb3);
+            await this.tween(spark, { scale: 1.6, alpha: 0, duration: props.reducedMotion ? 30 : 170 });
+            spark.destroy();
+          }));
+        }
+      };
       const revealSaltAt = async (after: number, jet?: TurnStep["jets"][number]) => {
         for (const [index, event] of (step.crustEvents ?? []).entries()) if (event.after === after && !revealedSalt.has(index)) {
           revealedSalt.add(index);
@@ -1083,7 +1206,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           }));
         }
       };
-      await revealSaltAt(-1);
+      const revealHitsAt = async (after: number, jet?: TurnStep["jets"][number]) => { await Promise.all([revealSaltAt(after, jet), revealPodAt(after, jet)]); };
+      await revealHitsAt(-1);
       if (!step.sequence?.length) { await this.showJets(step.jets, speed); await this.showPowers(step.effects ?? []); return; }
       for (let index = 0; index < step.sequence.length;) {
         const item = step.sequence[index];
@@ -1096,8 +1220,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
               wave.push({ effect: step.effects![step.sequence[index].index], sequenceIndex: index }); index++;
             }
             await Promise.all(wave.map(({ effect, sequenceIndex }, order) => this.wait(order * (props.reducedMotion ? 8 : 24))
-              .then(() => this.showPowers([effect], 2.5)).then(() => revealSaltAt(sequenceIndex))));
-          } else { await this.showPowers([effect]); await revealSaltAt(index); index++; }
+              .then(() => this.showPowers([effect], 2.5)).then(() => revealHitsAt(sequenceIndex))));
+          } else { await this.showPowers([effect]); await revealHitsAt(index); index++; }
           continue;
         }
         const first = index;
@@ -1105,9 +1229,10 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         while (index < step.sequence.length && step.sequence[index].kind === "jet") {
           wave.push(step.jets[step.sequence[index].index]); index++;
         }
-        await this.showJets(wave, speed, (local, jet) => revealSaltAt(first + local, jet));
+        await this.showJets(wave, speed, (local, jet) => revealHitsAt(first + local, jet));
       }
       for (const [index, event] of (step.crustEvents ?? []).entries()) if (!revealedSalt.has(index)) await revealSaltAt(event.after);
+      for (const [index, event] of (step.podEvents ?? []).entries()) if (!revealedPods.has(index)) await revealPodAt(event.after);
     }
     followPowerHint() {
       if (!this.lessonPowerId) return false;
@@ -1141,7 +1266,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        this.setMessage(props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels are ready." : "Keeper's power! Two Pressure Jets are ready.");
+        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's Harvest Rhythm! Two Flywheels are ready." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels are ready." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism is ready." : "Keeper's power! Two Pressure Jets are ready.");
         if (this.keeperPortrait && !short) {
           this.tweens.killTweensOf(this.keeperPortrait);
           this.keeperPortrait.setY(392).setAngle(-8);
@@ -1191,7 +1316,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "shuffle") {
         this.setMessage("Refreshing the board…");
-        const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile)).map(tile => tile!.id));
+        const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile) || tile?.kind === "seedpod").map(tile => tile!.id));
         const emptyBoard: Board = step.board.map(row => row.map(tile => tile && survivingPowers.has(tile.id) ? tile : null));
         await this.syncTiles(emptyBoard, short ? 70 : 220, "clear");
         if (!this.sceneAlive) return;
@@ -1427,7 +1552,7 @@ export default function GameCanvas(props: Props) {
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
-        scene: [props.mode === "map" ? props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
+        scene: [props.mode === "map" ? props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },
       });
       logDiagnostic("game-create", { mode: props.mode, width, height, mobile });
@@ -1483,5 +1608,5 @@ export default function GameCanvas(props: Props) {
     // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
-  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
+  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
 }

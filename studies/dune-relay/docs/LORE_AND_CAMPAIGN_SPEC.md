@@ -40,7 +40,7 @@ Sources:
 
 ## Campaign route and progression
 
-Chapters 1–3 describe the current playable direction. Chapters 4–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
+Chapters 1–4 describe the current playable direction. Chapters 5–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
 
 | Chapter | Destination | Story and reason to continue | Gameplay direction |
 | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ The river investigation leads to the second oasis because it houses water-collec
 
 ## Farmland starting concept
 
-Farmland is reserved as a free Portal login bonus after the existing thirty-level demo ends at the River Gatehouse. The player explicitly claims a separate server-side account grant after finishing the demo; the grant stays recorded even if future access rules change. This unlock currently says “Chapter 4 coming soon”; no Farmland levels or playable region are included in the unlock implementation. The story and mechanics below remain flexible for the later chapter build.
+Farmland is a free Portal login bonus after the thirty-level demo ends at the River Gatehouse. The player explicitly claims a separate server-side account grant after finishing the demo. The grant stays recorded even if future access rules change. Its ten levels are now playable; see [Chapter 4 implementation spec](CHAPTER_4_FARMLAND_SPEC.md) for the current rules.
 
 The next chapter should add a companion and a distinct obstacle without expanding the matching pool immediately.
 
@@ -85,7 +85,9 @@ Initial rules to prototype:
 
 The clearest first version falls but cannot be manually swapped. Swappability, Prism interactions, and whether overlapping effects count as separate hits remain design decisions before implementation. No existing salt behavior should change implicitly because a new obstacle is added.
 
-The Druid's reading of harvest and water patterns can reveal that the farms' problem began upstream. Their story contribution should matter beyond granting a power-up.
+The Fieldkeeper, a stocky leafy farmer of the guide's Druid species, reads harvest and water patterns and finds that the farms' problem began upstream. His story contribution matters beyond granting a power-up.
+
+The Field Guide's character range includes nonhuman creatures. Keep that variety as a design principle for future companions and local characters instead of defaulting the whole party to humans. Ground each new character in the guide's class identity, local work, and chapter story while allowing a distinct personality and silhouette.
 
 ## Party and matching symbols
 
@@ -96,7 +98,7 @@ A possible seven-companion core party is:
 | Keeper | Oasis | Water systems and Pressure Jets |
 | Wayfinder | Open Desert | Routes, travel, and Flywheels |
 | Gatewright | River Gatehouse | Mechanisms and Prisms |
-| Druid-inspired character | Farmland | Harvest patterns and recovery |
+| Fieldkeeper (Druid-inspired) | Farmland | Harvest patterns and recovery |
 | Bard-inspired character | Hill Town | Communication and coordination |
 | Artificer-inspired character | Collection Station | Balloons and automated machinery |
 | Necromancer-inspired character | Mountain Villa | Restoring old infrastructure |
