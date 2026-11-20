@@ -918,6 +918,7 @@ export default function GameShell() {
         {sceneIssue.includes("purchase") && <button className="quiet" onClick={recoverShop}>{pendingAttempt.current?.cost ? "Resolve booster purchase" : "Choose a free loadout"}</button>}
         <button className="quiet" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
       </div></div>}
+      {overlay !== "film" && <img className="background-watermark" src={assetUrl("/raidguild-stamp.svg")} alt="" aria-hidden="true" draggable={false} />}
       {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}
       <div className="rotate"><div className="rotate-icon">▭</div><strong>Rotate your device</strong><p>Dune Relay plays in landscape.</p></div>
     </div>

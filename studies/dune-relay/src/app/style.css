@@ -217,3 +217,5 @@ button { font: inherit; cursor: pointer; }
 .raidguild-credit small { display: block; margin-top: 3px; color: #a7d9cc; font-size: 12px; }
 .raidguild-credit:hover small { text-decoration: underline; }
 .raidguild-credit:focus-visible { outline: 2px solid #ffe2a3; outline-offset: 2px; border-radius: 6px; }
+
+.background-watermark { position: absolute; z-index: 5; right: 2.5%; bottom: 2.5%; width: clamp(30px, 8cqh, 56px); height: auto; opacity: .28; pointer-events: none; user-select: none; filter: drop-shadow(0 1px 2px #09252d); }

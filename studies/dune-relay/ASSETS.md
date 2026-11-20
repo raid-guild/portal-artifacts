@@ -100,3 +100,5 @@ Use case: illustration-story. Asset single transparent game environmental PROP: 
 ## RaidGuild settings stamp
 
 `public/raidguild-stamp.svg` reuses the existing RaidGuild mark from the Portal Artifacts Field study (`public/field/assets/raidguild-stamp.svg`), recolored to the game’s pale gold. The Settings credit links to https://raidguild.org.
+
+The same mark appears as a subtle lower-right watermark on the chapter scenery and kingdom map, anchored to the visible game frame so it stays in place across viewport sizes. It does not appear over cinematic video.
