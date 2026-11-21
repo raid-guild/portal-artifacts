@@ -60,7 +60,7 @@ export default function GameShell() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
   const [tutorialLibrary, setTutorialLibrary] = useState(false);
-  const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId } | null>(null);
+  const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId; selected: BoosterKind[] } | null>(null);
   const tutorialContinuing = useRef(false);
   const tutorialReturnFocus = useRef<string | null>(null);
   const tutorialBoardFocus = useRef(false);
@@ -618,7 +618,7 @@ export default function GameShell() {
       setTutorialSession(null);
       if (valid) {
         markSeen(currentTutorialScope(),current.tutorial.id);
-        if (start && !launching.current) { tutorialBoardFocus.current=true; launching.current=true; void launchLevelOnce().finally(()=>{launching.current=false;}); }
+        if (start && !launching.current) { tutorialBoardFocus.current=true; launching.current=true; void launchLevelOnce(current.selected).finally(()=>{launching.current=false;}); }
       }
     } else { tutorialReturnFocus.current=current.tutorial.id; setTutorialSession(null); setTutorialLibrary(true); }
     window.setTimeout(()=>{tutorialContinuing.current=false;},0);
@@ -626,42 +626,48 @@ export default function GameShell() {
   function openTutorialReplay(tutorial: Tutorial) {
     const scope=currentTutorialScope();
     setTutorialLibrary(false); setSettings(false);
-    setTutorialSession({tutorial,mode:"replay",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:tutorial.level});
+    setTutorialSession({tutorial,mode:"replay",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:tutorial.level,selected:[]});
   }
-  async function launchLevel() {
+  async function launchLevel(selected: BoosterKind[] = shopSelected) {
     if (tutorialSession || transitioning.current || launching.current) return;
+    const cost=boosterCost(selected);
+    const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
+    if (unresolved && (unresolved.level !== shopLevel || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
+      setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
+    }
+    if (cost > saveRef.current.coins && !unresolved) { setShopError("Not enough coins for this loadout."); return; }
     const intro=TUTORIAL_BY_LEVEL[shopLevel];
     if (intro && !saveRef.current.completed.includes(shopLevel) && !readSeen(currentTutorialScope()).has(intro.id)) {
       const scope=currentTutorialScope();
-      setTutorialSession({tutorial:intro,mode:"intro",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:shopLevel});
+      setTutorialSession({tutorial:intro,mode:"intro",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:shopLevel,selected:[...selected]});
       return;
     }
     launching.current=true;
-    try { await launchLevelOnce(); } finally { launching.current=false; }
+    try { await launchLevelOnce(selected); } finally { launching.current=false; }
   }
-  async function launchLevelOnce() {
+  async function launchLevelOnce(selected: readonly BoosterKind[]) {
     const id = shopLevel;
     if (LEVELS[id].chapter === "farmland" && !playtest && !(farmland?.farmland.unlocked && farmland.accountId === cloudRef.current?.accountId)) { setShopError("Sign in and unlock Farmland first."); return; }
-    const cost = boosterCost(shopSelected);
+    const cost = boosterCost(selected);
     if (cost > saveRef.current.coins && !pendingAttempt.current?.cost) { setShopError("Not enough coins for this loadout."); return; }
     let prepared: ReturnType<typeof prepareStartingBoosters>;
-    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
+    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), selected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
     const unresolved = pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
-    if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...shopSelected].sort()))) {
+    if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
       setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
     }
     const cloudAttemptId = unresolved?.cloudAttemptId ?? cloudApi.newOperationId();
     if (cloudRef.current && !playtest) {
       if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
       if (cost > 0 || LEVELS[id].chapter === "farmland") {
-        try { await cloudApi.prepareAttempt(cloudAttemptId,id,shopSelected,cloudRef.current.accountId); }
+        try { await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId); }
         catch (error) { setShopError(`Could not prepare this level: ${(error as Error).message}`); return; }
         if (token !== tokenCounter.current) return;
       }
     }
-    pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
+    pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...selected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
     if (cost && cloudRef.current) cacheCloud();
     setRevealing(false);
     abandonRecord("started-another-level");
@@ -676,6 +682,20 @@ export default function GameShell() {
     if (!pendingAttempt.current?.cost) pendingAttempt.current = null; setShopError(null);
     if (shopReturn === null && mode === "map") void transitionTo(() => { setOverlay(null); setAttempt(value => value + 1); });
     else setOverlay(shopReturn);
+  }
+  function toggleBooster(kind: BoosterKind) {
+    setShopSelected(current => {
+      if (pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) return current;
+      if (current.includes(kind)) return current.filter(selected => selected !== kind);
+      const proposed=[...current,kind];
+      if (boosterCost(proposed) > saveRef.current.coins) return current;
+      return proposed;
+    });
+    setShopError(null);
+  }
+  function closeBriefing() {
+    setOverlay(null);
+    setAttempt(value => value + 1);
   }
   function recoverShop() {
     const unresolved=pendingAttempt.current;
@@ -985,7 +1005,7 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && overlay === null && !settings && !tutorialLibrary && !tutorialSession && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isFarmland ? " intro-farmland" : isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
@@ -1018,19 +1038,20 @@ export default function GameShell() {
       {overlay === "briefing" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={speaker.portrait} alt="" /><span className="speaker">{speaker.name.toUpperCase()} · {mapLevel ? LEVELS[mapLevel].title : isFarmland ? "FARMLAND" : isGatehouse ? "RIVER GATEHOUSE" : isCaravan ? "OPEN DESERT" : "OASIS"}</span></div>
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
-        <button className="primary" onClick={startBriefing}>Start level <span>→</span></button>
+        <div className="briefing-actions"><button className="quiet" onClick={closeBriefing}>Back to story</button><button className="primary" onClick={startBriefing}>Start level <span>→</span></button></div>
       </div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
-        <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · STARTING BOOSTERS</span>
-        <p>Choose up to one of each. Boosters start on the board and are used for this attempt.</p>
+        <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
+        <p>You can play without boosters for free. Bought boosters start on this board and are used for this attempt.</p>
         <div className="shop-balance">{save.coins.toLocaleString("en-US")} coins available{playtest && <small>Test wallet · campaign coins stay untouched</small>}</div>
-        <div className="booster-options">{BOOSTERS.map(item => <button key={item.kind} className={`booster-option${shopSelected.includes(item.kind) ? " selected" : ""}`} aria-pressed={shopSelected.includes(item.kind)} onClick={() => { setShopError(null); setShopSelected(current => current.includes(item.kind) ? current.filter(kind => kind !== item.kind) : [...current, item.kind]); }}>
+        <div className="booster-options">{BOOSTERS.map(item => { const selected=shopSelected.includes(item.kind); const shortfall=boosterCost(shopSelected)+item.cost-save.coins; const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0; const unavailable=unresolved || !selected && shortfall > 0; return <button key={item.kind} className={`booster-option${selected ? " selected" : ""}`} aria-pressed={selected} disabled={unavailable} onClick={() => toggleBooster(item.kind)}>
           <img src={assetUrl(item.image as `/${string}`)} alt="" />
-          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>
-        </button>)}</div>
+          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>{unavailable && shortfall > 0 && <small className="booster-shortfall">Need {shortfall.toLocaleString("en-US")} more</small>}
+        </button>; })}</div>
         <div className="shop-total">Total: {boosterCost(shopSelected).toLocaleString("en-US")} coins</div>
+        {pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 && <p className="shop-error" role="status">This purchase still needs confirmation. Retry it to avoid a second charge.</p>}
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
-        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Cancel</button><button className="primary" onClick={launchLevel}>Start level <span>→</span></button></div>
+        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? "Retry purchase" : `Start level · ${shopSelected.length ? `${boosterCost(shopSelected).toLocaleString("en-US")} coins` : "Free"}`} <span>→</span></button></div></div>
       </div></div>}
       {overlay === "film" && <div className="film-screen">
         <video ref={film} src={filmReady ? assetUrl(filmContent.source as `/${string}`) : undefined} poster={assetUrl(filmContent.poster as `/${string}`)} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />

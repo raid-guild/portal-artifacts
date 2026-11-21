@@ -16,7 +16,8 @@
     "build:artifact": "node scripts/build-artifact.mjs",
     "build:preview": "node scripts/build-preview.mjs",
     "test:tutorials": "node scripts/check-tutorials.cjs",
-    "test:tutorial-browser": "node scripts/check-tutorial-browser.cjs"
+    "test:tutorial-browser": "node scripts/check-tutorial-browser.cjs",
+    "test:shop-browser": "node scripts/check-shop-browser.cjs"
   },
   "dependencies": {
     "next": "15.5.29",

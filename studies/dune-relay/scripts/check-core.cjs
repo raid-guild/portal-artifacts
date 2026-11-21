@@ -596,13 +596,18 @@ function verifyCollectionCredits(puzzle, turn) {
     if(step.kind!=='clear') assert.equal(credits.length,0,`${step.kind} has no collection flights`);
     for(const kind of Object.keys(previous)) {
       const count=credits.filter(credit=>credit.kind===kind).length;
+      assert.ok((step.goals[kind]??0)>=0 && (step.goals[kind]??0)<=(previous[kind]??0),`${step.kind}: ${kind} left to collect never rises or goes below zero`);
       assert.equal(count,(previous[kind]??0)-(step.goals[kind]??0),`${step.kind}: ${kind} flight count equals authoritative goal decrement`);
     }
     for(const credit of credits) assert.ok(step.cells.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col)||step.crustHits?.some(cell=>cell.row===credit.cell.row&&cell.col===credit.cell.col),`collection begins at a cleared tile or broken salt: ${credit.kind}`);
     previous=step.goals;
   }
 }
-for(const [puzzle,turn] of [[podJet,podBlast],[openedPod,openedPodTurn],[adjacent,adjacentTurn],[opened,openedTurn],[pennantPrism,pennantTurn],[prismPartner,prismPartnerTurn]]) verifyCollectionCredits(puzzle,turn);
+const ordinaryGoals=createPuzzle(LEVELS.pumpHouse);
+const ordinaryTurn=playTurn(ordinaryGoals,...ordinaryGoals.opening);
+for(const [puzzle,turn] of [[ordinaryGoals,ordinaryTurn],[chainPuzzle,chain],[maskedKeeper,keeperTurn],[charged,chargedTurn],[podJet,podBlast],[openedPod,openedPodTurn],[adjacent,adjacentTurn],[opened,openedTurn],[pennantPrism,pennantTurn],[prismPartner,prismPartnerTurn]]) verifyCollectionCredits(puzzle,turn);
+assert.ok(keeperTurn.steps.some(step=>step.kind==='keeper' && step.keeperCharge===0),'companion charge resets on grant');
+assert.deepEqual(keeperTurn.steps.at(-1).goals,keeperTurn.state.goals,'charge reset leaves remaining goals unchanged');
 const blockedPod=podFixture();assert.equal(playTurn(blockedPod,{row:5,col:4},{row:5,col:5}).valid,false,'pod cannot be swapped');
 const prismOriginSalt = saltFixture([{row:5,col:4,hp:2}]); prismOriginSalt.unlocked=['flywheel','prism'];
 for (const col of [2,3,5,6]) prismOriginSalt.board[4][col].kind='water';

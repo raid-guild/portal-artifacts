@@ -185,6 +185,10 @@ function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind)
 }
 
 function goalName(kind: GoalKind): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind.toUpperCase(); }
+function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
+  const remaining=Math.max(0,goals[kind] ?? 0);
+  return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
+}
 
 function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", x: number, y: number) {
   const index = Number(sprite.frame.name);
@@ -1058,11 +1062,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "COLLECT", 17, "#a2e7da"));
+      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
         const y = goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
         const icon = drawGoalIcon(this, 74, y, kind);
-        const text = label(this, 106, y - 15, `${goals[kind] ?? 0}  ${goalName(kind)}`, 20);
+        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), 20);
         this.goalIcons.set(kind, icon);
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
@@ -1072,12 +1076,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       meter.fillStyle(0x315568).fillRoundedRect(110, 391, 153, 17, 7);
       meter.fillStyle(GREEN).fillRoundedRect(110, 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
       this.hud.push(meter);
-      this.hud.push(label(this, 110, 415, `${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
+      this.hud.push(label(this, 110, 415, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
       this.hud.push(label(this, 110, 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
     }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
-      this.goalLabels.get(kind)?.setText(`${this.displayedGoals[kind]}  ${goalName(kind)}`);
+      this.goalLabels.get(kind)?.setText(remainingGoalLabel(kind,this.displayedGoals));
       const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
       if (icon && !props.reducedMotion && this.sceneAlive) {
         this.tweens.killTweensOf(icon);
@@ -1132,7 +1136,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }));
       if (this.sceneAlive) {
         this.displayedGoals = { ...step.goals };
-        for (const [kind, text] of this.goalLabels) text.setText(`${this.displayedGoals[kind] ?? 0}  ${goalName(kind)}`);
+        for (const [kind, text] of this.goalLabels) text.setText(remainingGoalLabel(kind,this.displayedGoals));
         delete this.game.canvas.dataset.collectionPhase;
       }
     }
@@ -1446,7 +1450,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's Harvest Rhythm! Two Flywheels are ready." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels are ready." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism is ready." : "Keeper's power! Two Pressure Jets are ready.");
+        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's power! Two Flywheels ready. Charge resets." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels ready. Charge resets." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism ready. Charge resets." : "Keeper's power! Two Pressure Jets ready. Charge resets.");
         if (this.keeperPortrait && !short) {
           this.tweens.killTweensOf(this.keeperPortrait);
           this.keeperPortrait.setY(392).setAngle(-8);
