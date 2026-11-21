@@ -21,9 +21,10 @@ import * as cloudApi from "./cloud";
 import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
 import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
 import { TutorialDialog } from "./TutorialDialog";
+import { chapterReplayReady, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
@@ -39,6 +40,11 @@ export default function GameShell() {
   const [farmlandPreview, setFarmlandPreview] = useState(false);
   const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const [mode, setMode] = useState<"map" | "puzzle">("map");
+  const [visitedRegion, setVisitedRegion] = useState<Region | null>(null);
+  const [replayActive, setReplayActive] = useState(false);
+  const [replayChoices, setReplayChoices] = useState<LevelId[]>([]);
+  const [replaySelection, setReplaySelection] = useState<LevelId>("pumpHouse");
+  const [replayError, setReplayError] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>("start");
   const [keeperMet, setKeeperMet] = useState(false);
   const [companionLine, setCompanionLine] = useState<CompanionLine | null>(null);
@@ -96,10 +102,13 @@ export default function GameShell() {
   const activeRecord = useRef<AttemptRecord | null>(null);
   const activeSince = useRef<number | null>(null);
   const pendingAttempt = useRef<PendingAttempt | null>(null);
+  const replaySession = useRef<{ token: number; generation: number; accountId: string | null; level: LevelId; sceneAttempt: number; farmlandUnlocked: boolean } | null>(null);
+  const replayToken = useRef(0);
   const tokenCounter = useRef(0);
   const launching = useRef(false);
   const authorizing = useRef(false);
   const gateOpenedPending = useRef(false);
+  const displayRegion=visitedRegion??save.region;
   const filmKind = save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
   const filmContent = {
     farmland: { source: "/cinematics/farmland-harvest.mp4", poster: "/cinematics/farmland-harvest-poster.webp", caption: "The seed stores open. The harvest convoy can move again.", label: "The farmland harvest route opens" },
@@ -191,8 +200,8 @@ export default function GameShell() {
   const selectedTrack = playtest ? playtestTrack : trackPreference;
   const effectiveTrack = selectedTrack === "auto" || unlockedTracks.includes(selectedTrack) ? selectedTrack : "auto";
   useEffect(() => {
-    if (ready) sound.current?.setScene(save.region, effectiveTrack, overlay === "film");
-  }, [ready, save.region, effectiveTrack, overlay]);
+    if (ready) sound.current?.setScene(displayRegion, effectiveTrack, overlay === "film");
+  }, [ready, displayRegion, effectiveTrack, overlay]);
 
   useEffect(() => {
     if (settings || tutorialLibrary || tutorialSession || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
@@ -270,6 +279,8 @@ export default function GameShell() {
     const current=cloudRef.current; if (!current) return;
     try {
       const result=await cloudApi.campaign(current.accountId); if (cloudRef.current!==current || result.accountId!==current.accountId || !result.profile) return;
+      replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+      abandonRecord("used-portal-save"); activeRecord.current=null; setRevealing(false); skipReveal.current=null;
       current.profile=result.profile; current.pending=[]; cloudConflict.current=false;
       const loaded=normalizeSave(result.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
       setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
@@ -330,6 +341,7 @@ export default function GameShell() {
   }
   async function initializeCloud(testing: boolean) {
     if (testing) { setCloudStatus("guest"); return; }
+    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
     const provisional = remembered ? cloudApi.readAccountCache(remembered) : null;
@@ -408,12 +420,14 @@ export default function GameShell() {
       const response = await cloudApi.importGuest(readSave(), cloudApi.guestImportId(current.accountId),current.accountId);
       if (cloudRef.current !== current) return;
       cloudApi.clearGuestImportId(current.accountId);
+      replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
       current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
       void refreshFarmland(current);
     } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
   }
   function startFreshPortalCampaign() {
     const current=cloudRef.current; if (!current) return;
+    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
     const fresh={...EMPTY_SAVE,completed:[],companions:[]};
     saveRef.current=fresh; setSave(fresh); setKeeperMet(false);
     current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh});
@@ -422,16 +436,19 @@ export default function GameShell() {
   async function signOut() {
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
+    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
+    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function commitWin(levelId: LevelId, movesRemaining: number) {
+    if (replayActive) return;
     if (saveRef.current.completed.includes(levelId)) return;
     reward.current=coinReward(movesRemaining);
     persist(completeLevel(saveRef.current,levelId,reward.current));
@@ -580,6 +597,7 @@ export default function GameShell() {
     }
   }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    if (visitedRegion) { setVisitedRegion(null); return; }
     setTutorialSession(null); setTutorialLibrary(false);
     tokenCounter.current++;
     if (pendingAttempt.current?.level !== id || pendingAttempt.current.cost === 0) pendingAttempt.current = null;
@@ -705,6 +723,10 @@ export default function GameShell() {
     void transitionTo(() => { setMode("map"); setPuzzle(null); setOverlay("shop"); setAttempt(value => value + 1); });
   }
   async function authorizeSceneReady(): Promise<boolean> {
+    if (replayActive) {
+      const session=replaySession.current;
+      return Boolean(mode==="puzzle" && session && session.token===replayToken.current && session.sceneAttempt===attempt && session.level===activeLevel && session.generation===cloudGeneration.current && session.accountId===(cloudRef.current?.accountId??null) && replayAllowed(saveRef.current,session.level,session.farmlandUnlocked));
+    }
     const current = pendingAttempt.current;
     if (mode !== "puzzle") return true;
     if (!current || current.sceneAttempt !== attempt || current.level !== activeLevel || current.status === "failed") return false;
@@ -741,17 +763,25 @@ export default function GameShell() {
     return true;
   }
   function onEvent(event: GameEvent) {
-    if (event.type === "gateOpened" && transitioning.current) { gateOpenedPending.current = true; return; }
+    if (event.type === "gateOpened" && transitioning.current) { if (!visitedRegion) gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
-    if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
-    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
-    if (event.type === "gateOpened") { if (saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
+    if ("position" in event) mapPositions.current[displayRegion] = event.position;
+    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), replayActive ? [] : pendingAttempt.current?.selected ?? [], replayActive ? 0 : pendingAttempt.current?.cost ?? 0, replayActive ? "replay" : playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
+    if (event.type === "gateOpened") { if (!visitedRegion && saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
       // renderer is interrupted during its animation, a reload keeps the win.
-      if (event.turn.state.status === "won") commitWin(activeLevel,event.turn.state.moves);
+      if (!replayActive && event.turn.state.status === "won") commitWin(activeLevel,event.turn.state.moves);
       if (activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
       return;
+    }
+    if (event.type === "replayDestination") {
+      const groups=replayDestinations(saveRef.current,displayRegion,Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked));
+      const group=groups.find(item=>item.destination===event.destination);
+      if (group) {setReplayChoices(group.levels);setReplaySelection(group.levels[0]);}
+      if (!group || pendingAttempt.current?.cost && !saveRef.current.completed.includes(pendingAttempt.current.level)) { setReplayError("Resolve the pending booster purchase before replaying."); setOverlay("replayBriefing"); return; }
+      setReplayError(null);
+      setOverlay(group.levels.length>1?"replayPicker":"replayBriefing"); sound.current?.play("ui"); return;
     }
     if (event.type === "keeper" || event.type === "fieldkeeper" || event.type === "gatewright" || event.type === "wayfinder") {
       const region: Region = event.type === "keeper" ? "oasis" : event.type === "wayfinder" ? "caravan" : event.type === "gatewright" ? "gatehouse" : "farmland";
@@ -768,17 +798,17 @@ export default function GameShell() {
     }
     if (event.type === "pump") {
       const next = nextLevel(saveRef.current.completed);
-      if (saveRef.current.region === "farmland") {
+      if (displayRegion === "farmland") {
         if (next === "seedStore" && !saveRef.current.farmlandReady) setOverlay("fieldkeeper");
         else if (next && LEVELS[next].chapter === "farmland") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
       }
-      if (saveRef.current.region === "gatehouse") {
+      if (displayRegion === "gatehouse") {
         if (next === "gatehouseApproach" && !saveRef.current.gatehouseReady) setOverlay("gatewright");
         else if (next && LEVELS[next].chapter === "gatehouse") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
       }
-      if (saveRef.current.region === "caravan") {
+      if (displayRegion === "caravan") {
         if (next === "caravanPennants" && saveRef.current.oasisTransition !== "ready") setOverlay("wayfinder");
         else if (next && LEVELS[next].chapter === "caravan") { setOverlay("briefing"); sound.current?.play("ui"); }
         return;
@@ -792,7 +822,7 @@ export default function GameShell() {
     if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
     if (event.type === "revealStarted") { setRevealing(true); return; }
     if (event.type === "victory") {
-      commitWin(activeLevel,event.puzzle.moves);
+      if (!replayActive) commitWin(activeLevel,event.puzzle.moves);
       return;
     }
     if (event.type === "win") { setRevealing(false); setOverlay("finale"); sound.current?.play("win"); }
@@ -838,9 +868,39 @@ export default function GameShell() {
   }
   function visitRegion(region: Region) {
     if (saveRef.current.oasisTransition !== "ready" || region === "gatehouse" && !saveRef.current.gatehouseReady || region === "farmland" && !saveRef.current.farmlandReady) return;
-    if (region === "farmland" && !playtest && !farmland?.farmland.unlocked) return;
-    persist({ ...saveRef.current, region });
+    if (region === "farmland" && !playtest && !(farmland?.accountId===cloudRef.current?.accountId && farmland?.farmland.unlocked)) return;
+    if (region!==saveRef.current.region && chapterReplayReady(saveRef.current,region,Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked))) setVisitedRegion(region);
+    else if (region===saveRef.current.region) setVisitedRegion(null);
+    else persist({ ...saveRef.current, region });
     void transitionTo(() => { setMode("map"); setOverlay(null); setAttempt(value => value + 1); });
+  }
+  function continueJourney() {
+    if (!visitedRegion || transitioning.current) return;
+    void transitionTo(()=>{ setVisitedRegion(null); setOverlay(null); setAttempt(value=>value+1); });
+  }
+  function closeReplayDialog() { setReplayError(null); setOverlay(null); setAttempt(value=>value+1); }
+  async function launchChapterReplay(id: LevelId, again = false) {
+    if (launching.current || transitioning.current || replayActive && !again) return;
+    const pending=pendingAttempt.current;
+    if (pending?.cost && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
+    const account=cloudRef.current; const generation=cloudGeneration.current; const token=++replayToken.current;
+    launching.current=true; setReplayError(null);
+    try {
+      let unlocked=Boolean(playtest ? farmlandPreview : account && farmland?.accountId===account.accountId && farmland.farmland.unlocked);
+      if (LEVELS[id].chapter==="farmland" && !playtest) {
+        if (!account) {setReplayError("Sign in to replay Farmland.");return;}
+        const result=await cloudApi.entitlements(account.accountId);
+        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
+        setFarmland(result); unlocked=result.farmland.unlocked;
+      }
+      if (cloudGeneration.current!==generation || token!==replayToken.current || !replayAllowed(saveRef.current,id,unlocked) || (LEVELS[id].chapter??"oasis")!==displayRegion) {setReplayError("This chapter is not available for replay.");return;}
+      const puzzle=createPuzzle(LEVELS[id]);
+      reward.current=0; setRevealing(false); abandonRecord("started-replay"); activeRecord.current=null;
+      replaySession.current={token,generation,accountId:account?.accountId??null,level:id,sceneAttempt:attempt+1,farmlandUnlocked:unlocked};
+      setReplayActive(true);
+      void transitionTo(()=>{setActiveLevel(id);setPuzzle(puzzle);setMode("puzzle");setOverlay(null);setAttempt(value=>value+1);});
+    } catch(error) {setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
+    finally {launching.current=false;}
   }
   function openFarmland() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("seedStore"); }
   function openGatehouse() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("gatehouseApproach"); }
@@ -852,7 +912,7 @@ export default function GameShell() {
     const next = nextLevel(saveRef.current.completed);
     if (next && (LEVELS[next].chapter ?? "oasis") === saveRef.current.region) startLevel(next);
   }
-  function retry() { abandonRecord("retry"); activeRecord.current = null; setRevealing(false); startLevel(activeLevel); }
+  function retry() { abandonRecord("retry"); activeRecord.current = null; setRevealing(false); if(replayActive) void launchChapterReplay(activeLevel,true); else startLevel(activeLevel); }
   function replayLevel(id: LevelId) {
     abandonRecord("replay"); activeRecord.current = null;
     if (playtest) {
@@ -870,6 +930,11 @@ export default function GameShell() {
     setSettings(false); setRevealing(false); skipReveal.current = null;
     sound.current?.stopTransientSounds();
     abandonRecord(reason); activeRecord.current = null;
+    if (replayActive) {
+      replaySession.current=null;setReplayActive(false);reward.current=0;
+      void transitionTo(()=>{setMode("map");setPuzzle(null);setOverlay(null);setAttempt(value=>value+1);});
+      return;
+    }
     const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film" || activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "film";
     const harvestOpen = activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "thanks";
     void transitionTo(() => {
@@ -945,11 +1010,11 @@ export default function GameShell() {
   const chapter = level.chapter ?? "oasis";
   const chapterNumber = [...new Set(LEVEL_ORDER.map(id => LEVELS[id].chapter ?? "oasis"))].indexOf(chapter) + 1;
   const chapterLevel = LEVEL_ORDER.filter(id => (LEVELS[id].chapter ?? "oasis") === chapter).indexOf(activeLevel) + 1;
-  const mapLevel = available && (LEVELS[available].chapter ?? "oasis") === save.region ? available : null;
+  const mapLevel = available && (LEVELS[available].chapter ?? "oasis") === displayRegion ? available : null;
   const partyUnlocked = save.companions.includes("keeper");
-  const isCaravan = save.region === "caravan";
-  const isGatehouse = save.region === "gatehouse";
-  const isFarmland = save.region === "farmland";
+  const isCaravan = displayRegion === "caravan";
+  const isGatehouse = displayRegion === "gatehouse";
+  const isFarmland = displayRegion === "farmland";
   const saveStatus = cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device";
   const speakerId = isFarmland ? "fieldkeeper" : isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
   const speaker = COMPANIONS[speakerId];
@@ -985,7 +1050,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}`} mode={mode} region={displayRegion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={mode === "map" ? replayDestinations(save,displayRegion,Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked)) : []} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -998,6 +1063,7 @@ export default function GameShell() {
       </div>
       <div className="top-actions" inert={wipe !== "hidden"}>
         {mode === "map" && partyUnlocked && <>
+          {visitedRegion && <button className="nav-button" onClick={continueJourney}>Continue journey</button>}
           <button className="nav-button" onClick={() => setOverlay("kingdom")}>Kingdom Map</button>
           <button className="nav-button" onClick={() => setOverlay("party")}>Raid Party</button>
         </>}
@@ -1038,6 +1104,8 @@ export default function GameShell() {
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
         <div className="briefing-actions"><button className="quiet" onClick={closeBriefing}>Back to story</button><button className="primary" onClick={startBriefing}>Start level <span>→</span></button></div>
       </div></div>}
+      {overlay === "replayPicker" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Choose a level to replay"><span className="speaker">CHAPTER REPLAY · NO REWARDS</span><h2>Choose a level</h2><div className="replay-level-list">{replayChoices.map(id=><button key={id} className="setting" onClick={()=>{setReplaySelection(id);setOverlay("replayBriefing");}}>{LEVELS[id].title} · {Math.floor(LEVEL_ORDER.indexOf(id)/10)+1}.{LEVEL_ORDER.indexOf(id)%10+1}</button>)}</div><button className="quiet" onClick={closeReplayDialog}>Back to chapter</button></div></div>}
+      {overlay === "replayBriefing" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Replay level"><span className="speaker">REPLAY · NO REWARDS</span><h2>{LEVELS[replaySelection].title}</h2><p>{LEVELS[replaySelection].briefing}</p><div className="replay-goals">{Object.entries(LEVELS[replaySelection].goals).filter(([,count])=>Number(count)>0).map(([goal,count])=>{const icon=({water:"tutorial-water.png",leaf:"tutorial-leaf.png",pennant:"pennant.png",key:"key.png",crust:"salt-crust.png",seedpod:"seedpod.png"} as Record<string,string>)[goal];return <span key={goal}>{icon&&<img src={assetUrl(`/sprites/${icon}` as `/${string}`)} alt=""/>}{goal==="leaf"?"REEDS":goal==="crust"?"SALT":goal.toUpperCase()} · {count}</span>;})}</div><p>Your progress and coins stay as they are. Starting boosters are unavailable in replay.</p>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<div className="briefing-actions"><button className="quiet" onClick={closeReplayDialog}>Back to chapter</button>{!replayError&&<button className="primary" onClick={()=>void launchChapterReplay(replaySelection)}>Replay level <span>→</span></button>}</div></div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
         <p>You can play without boosters for free. Bought boosters start on this board and are used for this attempt.</p>
@@ -1134,7 +1202,8 @@ export default function GameShell() {
         <button className="primary" onClick={retry}>Try again <span>↻</span></button>
         <button className="quiet" onClick={finish}>Back to the {level.chapter === "farmland" ? "farmland" : level.chapter === "gatehouse" ? "gatehouse" : level.chapter === "caravan" ? "caravan" : "oasis"}</button>
       </div></div>}
-      {overlay === "finale" && <div className="result-overlay"><div className="result-card">
+      {overlay === "finale" && replayActive && <div className="result-overlay"><div className="result-card"><span className="eyebrow">REPLAY · NO REWARDS</span><h2>Level complete!</h2><p>{level.title}</p><button className="primary" onClick={retry}>Replay again <span>↻</span></button><button className="quiet" onClick={finish}>Return to chapter</button></div></div>}
+      {overlay === "finale" && !replayActive && <div className="result-overlay"><div className="result-card">
         <span className="eyebrow">{level.victoryEyebrow}</span><h2>{level.victoryTitle}</h2>
         <p>{level.victoryMessage} {puzzle?.moves} spare moves fired as {puzzle?.grantedPower === "flywheels" ? "Flywheels" : "Pressure Jets"}.</p>
         <div className="coin-reveal"><img src={assetUrl("/sprites/coin.png")} alt="" />+{reward.current} coins</div>
