@@ -212,10 +212,6 @@ button { font: inherit; cursor: pointer; }
 @media (max-height: 430px) and (orientation: landscape) {
   .nav-button { padding: 0 7px; }
   .atlas-route button { padding: 5px 9px; }
-  .intro-card { width: 54%; }
-  .intro h1 { font-size: 61px; margin: 9px 0 11px; }
-  .intro p { font-size: 13px; margin: 0 0 9px; }
-  .intro small { margin-top: 10px; }
   .dialog-card { padding: 16px 24px; }
   .dialog-card p { margin: 7px 0 15px; }
   .finale-card { padding: 10px 24px; }
@@ -233,6 +229,12 @@ button { font: inherit; cursor: pointer; }
 
 @media (orientation: portrait) and (pointer: coarse) and (hover: none) {
   .rotate { display: flex; }
+}
+
+@container (max-height: 430px) {
+  .intro-card { width: 54%; }
+  .intro h1 { font-size: 61px; margin: 9px 0 11px; }
+  .intro p { font-size: 13px; margin: 0 0 9px; }
 }
 
 @container (max-height: 310px) {
