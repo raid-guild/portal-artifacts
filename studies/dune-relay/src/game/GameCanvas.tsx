@@ -16,8 +16,9 @@ import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
 import { reserveGame, enqueueGameWork } from "./gameLifecycle";
 import { logDiagnostic } from "./diagnostics";
-import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
+import { LEVELS, LEVEL_ORDER, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
 import type { BoosterPlacement } from "./boosters";
+import type { ReplayDestination } from "./chapterReplay";
 
 const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "MOST EPIC"];
 let nextChainCallout = 0;
@@ -25,6 +26,7 @@ let nextChainCallout = 0;
 export type GameEvent =
   | { type: "keeper"; position: { x: number; y: number } }
   | { type: "pump"; position: { x: number; y: number } }
+  | { type: "replayDestination"; destination: ReplayDestination["destination"]; position: { x: number; y: number } }
   | { type: "wayfinder"; position: { x: number; y: number } }
   | { type: "gatewright"; position: { x: number; y: number } }
   | { type: "fieldkeeper"; position: { x: number; y: number } }
@@ -46,6 +48,8 @@ type Props = {
   gatehouseComplete: boolean;
   gateOpening: boolean;
   nextLevel: LevelId | null;
+  replayDestinations: ReplayDestination[];
+  replayMode: boolean;
   keeperMet: boolean;
   companionIntroduced: boolean;
   level: LevelDefinition;
@@ -110,6 +114,17 @@ function panel(scene: Phaser.Scene, x: number, y: number, w: number, h: number, 
   g.fillStyle(INK, alpha).fillRoundedRect(x, y, w, h, 16);
   g.lineStyle(3, 0xe6c891, alpha).strokeRoundedRect(x, y, w, h, 16);
   return g;
+}
+
+function replayMarkers(scene: Phaser.Scene, props: Props) {
+  return props.replayDestinations.map(group => {
+    const destination = MAP_DESTINATIONS[group.destination];
+    const number = LEVEL_ORDER.indexOf(group.levels[0]) % 10 + 1;
+    const caption = group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
+    const marker = scene.add.circle(destination.marker.x,destination.marker.y,19,0x173c46,.96).setStrokeStyle(2,0xffdf9e).setDepth(12).setInteractive({useHandCursor:true});
+    const text = label(scene,destination.marker.x,destination.marker.y,caption,15).setOrigin(.5).setDepth(13).setInteractive({useHandCursor:true});
+    return {group,destination,marker,text};
+  });
 }
 
 type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper";
@@ -299,10 +314,17 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       this.marker = this.add.circle(pumpReady ? destination.marker.x : 447, pumpReady ? destination.marker.y : 246, 17, 0xffdf92, 0.28).setStrokeStyle(3, 0xfff4b8).setVisible(pumpReady);
       if (pumpReady) this.marker.setInteractive({ useHandCursor: true });
       this.tweens.add({ targets: this.marker, scale: 1.25, alpha: 0.5, yoyo: true, repeat: -1, duration: 750 });
+      const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, hit: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked) return;
-        props.audio?.unlock();
         if (this.locked) return;
+        props.audio?.unlock();
+        const replay = replayPoints.find(point => hit.includes(point.marker) || hit.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         if (pumpReady && (hit.includes(this.marker!) || hit.includes(this.pumpPrompt!))) {
           this.target = { ...destination.walk }; this.locked = true;
@@ -432,9 +454,16 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       }
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
         const { x, y } = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(caption))) {
           this.locked = true; this.target = { ...destination.walk }; this.tweens.add({ targets: this.player, x: this.target.x, y: this.target.y, duration: props.reducedMotion ? 1 : Math.hypot(this.player.x - this.target.x, this.player.y - this.target.y) * 4.4, onComplete: () => props.onEvent({ type: "pump", position: { ...this.player } }) }); return;
@@ -563,9 +592,16 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       }
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
           this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
@@ -665,9 +701,16 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
       }
       this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
       characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
         props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
         const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
           this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
@@ -874,6 +917,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.syncTiles(this.puzzle.board, 0, "refill");
       for (const placement of props.startingBoosters) this.pieces.get(placement.tileId)?.graphic.setAlpha(0);
       this.renderHud();
+      if (props.replayMode) this.add.text(960, 24, "REPLAY · NO REWARDS", { fontFamily: "Arial, sans-serif", fontSize: "13px", color: "#ffe1a2", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(1,0).setDepth(30);
       this.busy = true;
       void Promise.resolve(props.onReady()).then(authorized => {
         if (authorized && this.sceneAlive && this.introActive) void this.revealGoals();
@@ -1644,6 +1688,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const coinFlights: Promise<void>[] = [];
       const revealed = new Set<number>();
       const revealCoins = (cells: Cell[], before: Board) => {
+        if (props.replayMode) return;
         for (const cell of cells) {
           const tile = before[cell.row][cell.col];
           if (!tile || revealed.has(tile.id) || this.revealSkipped) continue;

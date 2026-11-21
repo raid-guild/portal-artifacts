@@ -30,6 +30,16 @@ button { font: inherit; cursor: pointer; }
 .fullscreen-new-tab { top: 35%; text-decoration: underline; }
 .nav-button { border: 2px solid #ddc18e; background: rgba(18, 53, 61, .94); color: #ffe5b1; border-radius: 11px; min-height: clamp(26px, 7.2vh, 40px); padding: 0 12px; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(13px, 2.1cqh, 20px); font-weight: 700; white-space: nowrap; box-shadow: 0 3px 0 #102a32; }
 .nav-button:hover { background: #285b64; }
+.replay-dialog { max-width: min(520px, 88cqw); max-height: calc(100% - 20px); overflow: auto; padding: clamp(14px, 2.5cqh, 24px); }
+.replay-dialog h2 { font-size: clamp(30px, 5cqh, 43px); margin: 7px 0; }
+.replay-dialog p { font-size: clamp(14px, 2.1cqh, 18px); line-height: 1.35; margin: 8px 0 12px; }
+.replay-dialog .replay-goals { margin: 7px 0; }
+.replay-dialog .briefing-actions .primary, .replay-dialog .briefing-actions .quiet { padding-top: 7px; padding-bottom: 7px; }
+.replay-level-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: 42cqh; overflow: auto; margin: 12px 0; }
+.replay-level-list .setting { text-align: left; }
+.replay-goals { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+.replay-goals span { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #ddc18e; border-radius: 9px; padding: 4px 8px; color: #ffe5b1; font-weight: 700; }
+.replay-goals img { width: 27px; height: 27px; object-fit: contain; }
 .coin-pill, .icon-button { border: 2px solid #ddc18e; background: rgba(18, 53, 61, .91); color: #ffe29c; height: clamp(26px, 7.2vh, 40px); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; box-shadow: 0 3px 0 #102a32; }
 .save-hud { position: absolute; left: 2.5%; top: 3.5%; z-index: 2; display: flex; align-items: center; gap: 5px; width: min(60cqh, 48cqw); min-width: 0; height: 7.4cqh; }
 .frame[data-mode="puzzle"] .save-hud { width: min(54cqh, 48cqw); }
