@@ -24,7 +24,7 @@ async function run() {
     await page.getByRole('button', { name: /Enter the oasis/ }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Replay PUMP HOUSE', exact: true }).click();
-    await page.getByRole('button', { name: /Start level · Free/ }).click();
+    await page.getByRole('button', { name: /^Start level/ }).click();
     await page.locator('canvas[data-play-ready="true"]').waitFor({ timeout: 30000 });
     assert.equal(await page.locator('.chain-callout').count(), 0, 'no callout before a cascade');
     // This authored opening move produces four clear waves, including the first match.
@@ -47,7 +47,7 @@ async function run() {
       return { fontFamily: style.fontFamily, fontStyle: style.fontStyle, stroke: style.webkitTextStrokeWidth,
         pointerEvents: style.pointerEvents, zIndex: Number(style.zIndex), duration: style.animationDuration,
         centerX: rect.x + rect.width / 2, centerY: rect.y + rect.height / 2,
-        frameX: frame.x + frame.width / 2, frameY: frame.y + frame.height / 2 };
+        boardX: frame.x + frame.width / 2 + 75 * frame.height / 540, boardY: frame.y + frame.height / 2 };
     });
     assert.match(appearance.fontFamily, /Archivo/);
     assert.equal(appearance.fontStyle, 'italic');
@@ -55,7 +55,7 @@ async function run() {
     assert.equal(appearance.pointerEvents, 'none');
     assert.ok(appearance.zIndex >= 20);
     assert.equal(appearance.duration, '1s');
-    assert.ok(Math.abs(appearance.centerX - appearance.frameX) < 45 && Math.abs(appearance.centerY - appearance.frameY) < 45, 'callout centered on the frame');
+    assert.ok(Math.abs(appearance.centerX - appearance.boardX) < 12 && Math.abs(appearance.centerY - appearance.boardY) < 12, 'callout centered on the tile grid');
     assert.equal(await page.evaluate(() => document.fonts.check('italic 900 40px Archivo')), true, 'Archivo Italic is loaded when shown');
     if (screenshot) await page.screenshot({ path: screenshot });
     await callout.evaluate(element => { element.style.animationPlayState = 'running'; });

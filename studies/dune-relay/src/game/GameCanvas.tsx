@@ -1069,6 +1069,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.clearChainCallout();
       const callout = document.createElement("div");
       callout.className = "chain-callout";
+      // Puzzle layout scales by height and centers the authored canvas horizontally.
+      callout.style.left = `calc(50% + ${(GRID_X + BOARD_SIZE * CELL / 2 - WIDTH / 2) / HEIGHT * 100}cqh)`;
+      callout.style.top = `${(GRID_Y + BOARD_SIZE * CELL / 2) / HEIGHT * 100}%`;
       callout.dataset.reducedMotion = String(props.reducedMotion);
       callout.textContent = CHAIN_CALLOUTS[nextChainCallout++ % CHAIN_CALLOUTS.length];
       callout.setAttribute("aria-live", "polite");
