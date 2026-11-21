@@ -3,6 +3,7 @@
 @font-face { font-family: 'Barlow Condensed'; src: url('../../public/fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Barlow Condensed'; src: url('../../public/fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); font-weight: 800; font-style: normal; font-display: swap; }
 @font-face { font-family: 'DM Sans'; src: url('../../public/fonts/dm-sans-latin.woff2') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Archivo'; src: url('../../public/fonts/archivo-italic.ttf') format('truetype'); font-weight: 100 900; font-style: italic; font-display: swap; }
 
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -17,6 +18,10 @@ button { font: inherit; cursor: pointer; }
   .frame[data-mode="puzzle"] .save-hud { left: max(2.5%, calc((100cqw - 177.78cqh) / 2 + 4.44cqh)); }
 }
 .game-canvas, .game-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.chain-callout { position: absolute; z-index: 30; left: 50%; top: 50%; pointer-events: none; user-select: none; white-space: nowrap; max-width: 95%; color: #ffe59e; font: italic 900 clamp(32px, 9cqh, 62px) / 1 'Archivo', sans-serif; letter-spacing: -.025em; -webkit-text-stroke: clamp(2px, .75cqh, 5px) #102b37; paint-order: stroke fill; text-shadow: 0 5px 0 #8c523c, 0 9px 18px #071f2b; animation: chain-callout-pop 1000ms ease-out both; }
+.chain-callout[data-reduced-motion="true"] { animation-name: chain-callout-still; }
+@keyframes chain-callout-pop { 0% { opacity: 0; transform: translate(-50%, -45%) scale(.72) rotate(-4deg); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(1deg); } 35% { transform: translate(-50%, -50%) scale(1) rotate(0); } 72% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -62%) scale(1.03); } }
+@keyframes chain-callout-still { 0% { opacity: 0; transform: translate(-50%, -50%); } 20%, 72% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(-50%, -50%); } }
 .top-actions { position: absolute; right: 2.6%; top: 3.5%; display: flex; align-items: center; gap: 7px; z-index: 2; }
 .skip-reveal, .fullscreen-return { position: absolute; z-index: 9; border: 2px solid #ffe0a2; border-radius: 10px; background: #173c46; color: #ffe0a2; padding: 6px 12px; font-family: 'Barlow Condensed', Arial, sans-serif; font-weight: 800; font-size: clamp(13px, 2.5cqh, 20px); box-shadow: 0 3px 0 #0b2732; }
 .skip-reveal { right: 2.6%; bottom: 4%; }

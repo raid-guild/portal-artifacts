@@ -19,6 +19,9 @@ import { logDiagnostic } from "./diagnostics";
 import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
 import type { BoosterPlacement } from "./boosters";
 
+const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "MOST EPIC"];
+let nextChainCallout = 0;
+
 export type GameEvent =
   | { type: "keeper"; position: { x: number; y: number } }
   | { type: "pump"; position: { x: number; y: number } }
@@ -718,6 +721,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     selected: Cell | null = null;
     busy = false;
     clearStreak = 0;
+    chainCallout?: HTMLDivElement;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -762,6 +766,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("seedpodCracked", assetUrl("/sprites/seedpod-cracked.png"));
     }
     create() {
+      // Warm the italic callout font while the board opens; it never delays play.
+      void document.fonts?.load("italic 900 40px Archivo").catch(() => {});
       registerFrames(this, "tiles");
       const backdrop = this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
       const veil = this.add.graphics();
@@ -843,6 +849,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.sceneAlive = false;
+        this.clearChainCallout();
         resetGesture(); this.cancelGesture = undefined;
         this.cancelIdleHint();
         this.revealSkipped = true;
@@ -1052,6 +1059,25 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     center(cell: Cell) { return { x: GRID_X + cell.col * CELL + CELL / 2, y: GRID_Y + cell.row * CELL + CELL / 2 }; }
     setMessage(message: string) { this.message?.setText(message); }
+    clearChainCallout() {
+      this.chainCallout?.remove();
+      this.chainCallout = undefined;
+    }
+    showChainCallout() {
+      const frame = this.game.canvas.closest(".frame");
+      if (!frame || !this.sceneAlive) return;
+      this.clearChainCallout();
+      const callout = document.createElement("div");
+      callout.className = "chain-callout";
+      callout.dataset.reducedMotion = String(props.reducedMotion);
+      callout.textContent = CHAIN_CALLOUTS[nextChainCallout++ % CHAIN_CALLOUTS.length];
+      callout.setAttribute("aria-live", "polite");
+      callout.addEventListener("animationend", () => {
+        if (this.chainCallout === callout) this.clearChainCallout();
+      }, { once: true });
+      frame.appendChild(callout);
+      this.chainCallout = callout;
+    }
     renderHud(goals = this.puzzle.goals, moves = this.puzzle.moves, charge = this.puzzle.keeperCharge, fired = this.puzzle.keeperFired) {
       this.displayedGoals = { ...goals };
       for (const object of this.hud) object.destroy();
@@ -1478,7 +1504,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         return;
       }
       if (step.kind === "clear") {
-        props.audio?.play("clear", this.clearStreak++);
+        props.audio?.play("clear", this.clearStreak);
+        this.clearStreak++;
+        if (this.clearStreak === 4) this.showChainCallout();
         const cross = step.jets.some((jet, index) => step.jets.slice(index + 1).some(other =>
           jet.cell.row === other.cell.row && jet.cell.col === other.cell.col && jet.direction !== other.direction));
         if (cross) this.setMessage("Jet combo! Row + column blast");
@@ -1542,6 +1570,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.busy = true;
       props.onEvent({ type: "resolvedTurn", puzzle: turn.state, turn, from, to: cell });
       if (this.lessonHint) { this.tweens.killTweensOf(this.lessonHint); this.lessonHint.destroy(); this.lessonHint = undefined; }
+      this.clearChainCallout();
       this.clearStreak = 0;
       props.audio?.play("swap");
       if (this.keeperPortrait && !props.reducedMotion) {
@@ -1566,6 +1595,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.renderHud();
       props.onEvent({ type: "turn", puzzle: turn.state, cleared: turn.cleared.length, keeper: turn.keeperJets.length > 0 });
       if (turn.state.status === "won") {
+        this.clearChainCallout();
         this.revealPlan = planFinale(turn.state);
         this.revealActive = true;
         this.game.canvas.dataset.revealPhase = "banner";
@@ -1575,7 +1605,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (!this.sceneAlive) return;
         if (!this.revealSkipped) await this.finale();
       }
-      else if (turn.state.status === "lost") props.onEvent({ type: "lose", puzzle: turn.state });
+      else if (turn.state.status === "lost") { this.clearChainCallout(); props.onEvent({ type: "lose", puzzle: turn.state }); }
       else {
         if (!this.followPowerHint()) this.setMessage(turn.keeperJets.length
           ? this.puzzle.grantedPower === "prism" ? "Swap the Prism with a symbol, or double-tap it." : this.puzzle.grantedPower === "flywheels" ? "Double-tap a Flywheel to spin it, or swap it." : "Double-tap a Jet to fire here, or swap it."

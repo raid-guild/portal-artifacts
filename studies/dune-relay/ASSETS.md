@@ -151,3 +151,5 @@ Usecase precise-object-edit. Edit the attached DuneRelay cracked armoredseedpod 
 ## Mechanic lesson sprite crops
 
 `public/sprites/tutorial-water.png`, `tutorial-leaf.png`, `tutorial-gear.png`, `tutorial-jet-row.png`, and `tutorial-jet-column.png` are deterministic transparent crops from the existing `tiles.png` sheet. Their rectangles come from `frames.json` (`tiles[0..4].bounds`) and preserve the source art's aspect ratio. The tutorial also reuses the existing Prism, Flywheel, salt, seedpod, and companion portrait sprites. No new artwork was generated for these lessons.
+
+The cascade callout uses `public/fonts/archivo-italic.ttf`, copied from this repository's Chance Pint study. Its Open Font License is retained at `public/fonts/archivo-OFL.txt`.
