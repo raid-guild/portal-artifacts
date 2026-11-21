@@ -152,6 +152,7 @@ button { font: inherit; cursor: pointer; }
 .atlas-action { position: absolute; z-index: 2; right: 3%; top: 4%; }
 .atlas-farmland { position: absolute; z-index: 2; right: 8%; bottom: 12%; display: flex; flex-direction: column; align-items: flex-start; padding: 7px 12px; border: 2px solid #d8b4ed; border-radius: 10px; background: rgba(15, 55, 63, .96); color: #ffedc4; font: 800 clamp(15px, 3cqh, 23px) 'Barlow Condensed', Arial, sans-serif; cursor: pointer; }
 .atlas-farmland small { color: #aee8dd; font: 600 .55em 'DM Sans', Arial, sans-serif; }
+.atlas-lock { display: inline-block; margin-left: .2em; font-size: .8em; vertical-align: .08em; }
 .atlas-farmland:hover { background: #27747b; }
 .farmland-entry { margin: 10px 0; padding: 10px 12px; border: 1px solid #d5b97f; border-radius: 10px; background: rgba(10, 43, 52, .82); color: #ffe5ad; line-height: 1.25; }
 .farmland-entry strong { display: block; font: 800 clamp(15px, 3.5cqh, 22px) 'Barlow Condensed', Arial, sans-serif; letter-spacing: .04em; }

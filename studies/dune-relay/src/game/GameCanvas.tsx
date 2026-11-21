@@ -2,6 +2,7 @@
 
 import { assetUrl } from "./assetUrl";
 import { CompanionPace } from "./companionPace";
+import { isPlaytestMode } from "./playtestMode";
 
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
@@ -216,7 +217,7 @@ function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phase
     const [dx, dy] = GLOW_OFFSETS[index];
     characterPosition(glow, sheet, state.x + dx, y + dy + lift);
   }
-  if (window.location.search.includes("playtest=1")) {
+  if (isPlaytestMode(window.location.search)) {
     const value = String(Math.round(state.x));
     if (scene.game.canvas.dataset.companionX !== value) scene.game.canvas.dataset.companionX = value;
   }

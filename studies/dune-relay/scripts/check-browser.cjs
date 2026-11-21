@@ -353,6 +353,8 @@ async function checkPortalFarmland(browser) {
   try {
     await page.goto(url());
     await page.getByRole('button', { name: /Enter the gatehouse/ }).click();
+    await page.getByRole('button', { name: /Explore the kingdom/ }).click();
+    await page.getByRole('button', { name: /FARMLAND.*locked/ }).click();
     await page.getByRole('button', { name: /Unlock Farmland/ }).click();
     await page.getByRole('button', { name: /Travel to Farmland/ }).click();
     await page.getByRole('button', { name: /Open the kingdom map/ }).click();
@@ -560,7 +562,7 @@ async function checkDemo(browser) {
     const endingContext = await browser.newContext({ viewport: { width:1100,height:650 }, reducedMotion:'reduce' });
     const endingPage = await endingContext.newPage();
     try {
-      const fixture = {version:4,completed:LEVEL_ORDER,coins:777,region:'gatehouse',companions:['keeper','wayfinder','gatewright'],oasisTransition:'ready',transition:null,gatehouseReady:true};
+      const fixture = {version:4,completed:LEVEL_ORDER.slice(0,30),coins:777,region:'gatehouse',companions:['keeper','wayfinder','gatewright'],oasisTransition:'ready',transition:null,gatehouseReady:true};
       await endingPage.addInitScript(value => localStorage.setItem('dune-relay-campaign-v4',JSON.stringify(value)),fixture);
       await endingPage.goto(url());
       await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
@@ -568,21 +570,20 @@ async function checkDemo(browser) {
       await endingPage.waitForFunction(() => document.querySelector('video')?.currentSrc.includes('gatehouse-crossing.mp4') && !document.querySelector('canvas'));
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'film');
       await endingPage.getByRole('button',{name:/Skip scene/}).click();
-      await endingPage.getByText(/Unlock Farmland, Chapter 4, as a Portal login bonus/).waitFor();
+      await endingPage.getByRole('heading',{name:/Thanks for playing the demo/}).waitFor();
       await endingPage.reload();
       await endingPage.getByRole('button',{name:/Enter the gatehouse/}).click();
-      await endingPage.getByText(/Unlock Farmland, Chapter 4, as a Portal login bonus/).waitFor();
+      await endingPage.getByRole('heading',{name:/Thanks for playing the demo/}).waitFor();
       await endingPage.getByRole('button',{name:/Explore the kingdom/}).click();
       assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).demoEnding),'done');
+      await endingPage.getByRole('button',{name:/FARMLAND.*locked/}).click();
+      await endingPage.getByRole('link',{name:/Sign in to unlock Farmland/}).waitFor();
+      await endingPage.getByRole('button',{name:/Back to the kingdom map/}).click();
       await endingPage.getByRole('button',{name:/Return to the path/}).click();
       await endingPage.getByRole('button',{name:'Settings'}).click();
-      await endingPage.getByRole('button',{name:'Playtest levels',exact:true}).click();
-      await endingPage.waitForURL(/playtest=1/);
-      await endingPage.getByRole('button',{name:/Enter the oasis/}).click();
-      await endingPage.getByRole('button',{name:'Settings'}).click();
-      await endingPage.getByRole('button',{name:'Return to campaign'}).click();
-      await endingPage.waitForURL(target => !target.searchParams.has('playtest'));
-      assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins),777,'sandbox navigation preserves campaign currency');
+      assert.equal(await endingPage.getByRole('button',{name:/Playtest levels|Replay .*|Preview Farmland access/}).count(),0,'campaign Settings exposes no sandbox navigation');
+      assert.equal(await endingPage.locator('.farmland-entry').count(),0,'Farmland access is only on the kingdom map');
+      assert.equal(await endingPage.evaluate(() => JSON.parse(localStorage.getItem('dune-relay-campaign-v5')).coins),777,'demo flow preserves campaign currency');
     } finally { await endingContext.close(); }
     assert.deepEqual(errors,[],'no browser errors during demo flow');
   } finally { if (!context.pages().every(page => page.isClosed())) await context.close(); }

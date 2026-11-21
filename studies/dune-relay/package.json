@@ -8,11 +8,13 @@
     "typecheck": "tsc --noEmit",
     "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs && node scripts/check-companion-dialogue.cjs",
     "test:browser": "node scripts/check-browser.cjs",
+    "test:public-access": "node scripts/check-public-access.cjs",
     "test:companion-browser": "node scripts/check-companion-browser.cjs",
     "test:play-feel": "node scripts/check-play-feel.cjs",
     "test:collections": "node scripts/check-collections.cjs",
     "test:stats": "node scripts/check-stats-layout.cjs",
-    "build:artifact": "node scripts/build-artifact.mjs"
+    "build:artifact": "node scripts/build-artifact.mjs",
+    "build:preview": "node scripts/build-preview.mjs"
   },
   "dependencies": {
     "next": "15.5.29",
