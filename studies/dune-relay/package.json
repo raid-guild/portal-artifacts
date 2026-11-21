@@ -14,7 +14,9 @@
     "test:collections": "node scripts/check-collections.cjs",
     "test:stats": "node scripts/check-stats-layout.cjs",
     "build:artifact": "node scripts/build-artifact.mjs",
-    "build:preview": "node scripts/build-preview.mjs"
+    "build:preview": "node scripts/build-preview.mjs",
+    "test:tutorials": "node scripts/check-tutorials.cjs",
+    "test:tutorial-browser": "node scripts/check-tutorial-browser.cjs"
   },
   "dependencies": {
     "next": "15.5.29",

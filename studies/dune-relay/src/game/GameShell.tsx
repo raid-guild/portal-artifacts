@@ -18,6 +18,9 @@ import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 import * as cloudApi from "./cloud";
+import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
+import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
+import { TutorialDialog } from "./TutorialDialog";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
@@ -56,6 +59,11 @@ export default function GameShell() {
   const [playtestTrack, setPlaytestTrack] = useState<TrackPreference>("auto");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [tutorialLibrary, setTutorialLibrary] = useState(false);
+  const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId } | null>(null);
+  const tutorialContinuing = useRef(false);
+  const tutorialReturnFocus = useRef<string | null>(null);
+  const tutorialBoardFocus = useRef(false);
   const [filmBlocked, setFilmBlocked] = useState(false);
   const [filmReady, setFilmReady] = useState(false);
   const [sceneIssue, setSceneIssue] = useState<string | null>(null);
@@ -187,15 +195,15 @@ export default function GameShell() {
   }, [ready, save.region, effectiveTrack, overlay]);
 
   useEffect(() => {
-    if (settings || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
-    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
+    if (settings || tutorialLibrary || tutorialSession || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
+    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
     const pagehide = () => recordPause();
-    const pageshow = () => { if (!document.hidden && !settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
+    const pageshow = () => { if (!document.hidden && !settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pagehide", pagehide);
     window.addEventListener("pageshow", pageshow);
     return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("pagehide", pagehide); window.removeEventListener("pageshow", pageshow); };
-  }, [settings, overlay, wipe, mode, sceneIssue]);
+  }, [settings, tutorialLibrary, tutorialSession, overlay, wipe, mode, sceneIssue]);
 
   useEffect(() => {
     if (overlay !== "film") { setFilmReady(false); return; }
@@ -566,15 +574,68 @@ export default function GameShell() {
     const enteringOverlay = overlayForSave(saveRef.current);
     void transitionTo(() => { setOverlay(enteringOverlay); setAttempt(value => value + 1); }, enteringOverlay !== "film");
   }
+  useEffect(() => {
+    if (tutorialSession && (tutorialSession.scopeKey !== tutorialScopeKey(currentTutorialScope()) || tutorialSession.cloudGeneration !== cloudGeneration.current)) {
+      setTutorialSession(null); setTutorialLibrary(false);
+    }
+  }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    setTutorialSession(null); setTutorialLibrary(false);
     tokenCounter.current++;
     if (pendingAttempt.current?.level !== id || pendingAttempt.current.cost === 0) pendingAttempt.current = null;
     setShopLevel(id); setShopSelected(pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id ? pendingAttempt.current.selected : []); setShopError(null);
     setShopReturn(overlay);
     setOverlay("shop");
   }
+  function currentTutorialScope(): TutorialScope {
+    return playtest ? { kind: "sandbox" } : cloudRef.current ? { kind: "account", accountId: cloudRef.current.accountId } : { kind: "guest" };
+  }
+  useEffect(() => {
+    if (!tutorialLibrary || tutorialSession) return;
+    const frame=requestAnimationFrame(()=>{
+      const id=tutorialReturnFocus.current;
+      const item=id ? document.querySelector<HTMLButtonElement>(`.tutorial-library [data-tutorial-item="${id}"]`) : null;
+      (item ?? document.querySelector<HTMLButtonElement>(".tutorial-library-list button, .tutorial-library > button"))?.focus();
+      tutorialReturnFocus.current=null;
+    });
+    return ()=>cancelAnimationFrame(frame);
+  },[tutorialLibrary,tutorialSession]);
+  useEffect(() => {
+    if (!tutorialBoardFocus.current || tutorialSession || mode !== "puzzle" || overlay !== null || wipe !== "hidden") return;
+    const frame=requestAnimationFrame(()=>{
+      const target=document.querySelector<HTMLButtonElement>('.top-actions button[aria-label="Settings"]');
+      if (target?.isConnected && !target.closest("[inert]")) target.focus();
+      tutorialBoardFocus.current=false;
+    });
+    return ()=>cancelAnimationFrame(frame);
+  },[tutorialSession,mode,overlay,wipe]);
+  function dismissTutorial(start: boolean) {
+    const current=tutorialSession;
+    if (!current || tutorialContinuing.current) return;
+    tutorialContinuing.current=true;
+    if (current.mode === "intro") {
+      const valid=overlay === "shop" && shopLevel === current.level && current.scopeKey === tutorialScopeKey(currentTutorialScope()) && current.cloudGeneration === cloudGeneration.current;
+      setTutorialSession(null);
+      if (valid) {
+        markSeen(currentTutorialScope(),current.tutorial.id);
+        if (start && !launching.current) { tutorialBoardFocus.current=true; launching.current=true; void launchLevelOnce().finally(()=>{launching.current=false;}); }
+      }
+    } else { tutorialReturnFocus.current=current.tutorial.id; setTutorialSession(null); setTutorialLibrary(true); }
+    window.setTimeout(()=>{tutorialContinuing.current=false;},0);
+  }
+  function openTutorialReplay(tutorial: Tutorial) {
+    const scope=currentTutorialScope();
+    setTutorialLibrary(false); setSettings(false);
+    setTutorialSession({tutorial,mode:"replay",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:tutorial.level});
+  }
   async function launchLevel() {
-    if (transitioning.current || launching.current) return;
+    if (tutorialSession || transitioning.current || launching.current) return;
+    const intro=TUTORIAL_BY_LEVEL[shopLevel];
+    if (intro && !saveRef.current.completed.includes(shopLevel) && !readSeen(currentTutorialScope()).has(intro.id)) {
+      const scope=currentTutorialScope();
+      setTutorialSession({tutorial:intro,mode:"intro",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:shopLevel});
+      return;
+    }
     launching.current=true;
     try { await launchLevelOnce(); } finally { launching.current=false; }
   }
@@ -663,7 +724,7 @@ export default function GameShell() {
     if (event.type === "gateOpened" && transitioning.current) { gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
-    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && overlay === null && wipe === "hidden") recordResume(); } return; }
+    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
     if (event.type === "gateOpened") { if (saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
@@ -904,7 +965,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -1060,6 +1121,8 @@ export default function GameShell() {
         <div className="coin-reveal"><img src={assetUrl("/sprites/coin.png")} alt="" />+{reward.current} coins</div>
         <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : activeLevel === "openTheHarvestRoad" ? "See the harvest road open" : level.chapter === "farmland" ? "Return to the fields" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
       </div></div>}
+      {tutorialSession && <TutorialDialog key={`${tutorialSession.mode}-${tutorialSession.tutorial.id}`} tutorial={tutorialSession.tutorial} mode={tutorialSession.mode} reducedMotion={reducedMotion} onSkip={()=>dismissTutorial(true)} onContinue={()=>dismissTutorial(true)} onBack={()=>dismissTutorial(false)} />}
+      {tutorialLibrary && !tutorialSession && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
@@ -1067,6 +1130,7 @@ export default function GameShell() {
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
           {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
+        <button className="setting" onClick={() => {setSettings(false);setTutorialLibrary(true);}}>How to play <span aria-hidden="true">→</span></button>
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
         <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
