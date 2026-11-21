@@ -27,10 +27,10 @@ async function main() {
     const card=poor.page.getByRole('button',{name:/Water Jet.*300 coins/});
     assert.equal(await card.isDisabled(),true,'65 coins cannot select a 300 coin Jet');
     assert.match(await card.innerText(),/Need 235 more/);
-    assert.equal(await poor.page.getByRole('button',{name:/Start level · Free/}).isEnabled(),true);
+    assert.equal(await poor.page.getByRole('button',{name:/^Start level/}).isEnabled(),true);
     const poorBox=await poor.page.locator('.booster-shop').boundingBox();
     assert.ok(poorBox && poorBox.y>=0 && poorBox.y+poorBox.height<=375,'small landscape shop fits vertically');
-    await poor.page.getByRole('button',{name:/Start level · Free/}).click();
+    await poor.page.getByRole('button',{name:/^Start level/}).click();
     await boardReady(poor.page);
     assert.equal(await poor.page.locator('.coin-pill').innerText(),'65','free start does not charge');
     await poor.context.close();
