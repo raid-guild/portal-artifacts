@@ -1,7 +1,8 @@
 import express from 'express';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtVerify } from 'jose';
-import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, fail } from './dune-rules.js';
+import { GAME, levels, content, boosterPrices, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, accessTierForLevel, accessTierForCampaign, fail } from './dune-rules.js';
+import { createDuneCommerce } from './dune-commerce.js';
 
 const BASE = `/leaderboard-api/${GAME}`;
 const COOKIE = 'dune_relay_session';
@@ -10,7 +11,7 @@ const SESSION_SECONDS = 12 * 60 * 60;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const boundedName = value => typeof value === 'string' ? value.trim().slice(0, 60) : '';
 
-export function createDuneApp({ pool, origin, issuer, launchSecret, secure = true }) {
+export function createDuneApp({ pool, origin, issuer, launchSecret, secure = true, commerce = createDuneCommerce() }) {
   if (!origin || !issuer || !launchSecret || launchSecret.length < 32) throw new Error('Dune auth configuration is incomplete.');
   const app = express();
   app.disable('x-powered-by');
@@ -21,6 +22,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   const cookieOptions = { httpOnly:true, secure, sameSite:'lax', path:BASE, maxAge:SESSION_SECONDS*1000 };
   const intentOptions = { httpOnly:true, secure, sameSite:'lax', path:`${BASE}/callback`, maxAge:5*60*1000 };
   const loginWindows = new Map();
+  const entitlementRefresh = new Map();
   const LOGIN_WINDOW_MS = 5*60*1000, LOGIN_LIMIT = 60, LOGIN_CLIENT_LIMIT = 10000;
   const rejectLaunch = res => { res.clearCookie(INTENT_COOKIE,{httpOnly:true,secure,sameSite:'lax',path:intentOptions.path}); return res.redirect(303,`${origin}/dune-relay/?login=failed`); };
   const limited = fn => async (req,res,next) => { try { await fn(req,res); } catch (error) { next(error); } };
@@ -28,7 +30,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     try {
     const token = req.headers.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith(`${COOKIE}=`))?.slice(COOKIE.length+1);
     if (!token || !/^[a-f0-9]{64}$/.test(token)) throw fail(401,'Sign in through Portal to sync.');
-    const { rows:[row] } = await pool.query(`SELECT s.*,p.display_name FROM artifact_leaderboards.sessions s JOIN artifact_leaderboards.players p ON p.id=s.player_id WHERE token_hash=$1 AND game=$2 AND expires_at>now()`,[hash(token),GAME]);
+    const { rows:[row] } = await pool.query(`SELECT s.*,p.display_name,p.issuer,p.subject FROM artifact_leaderboards.sessions s JOIN artifact_leaderboards.players p ON p.id=s.player_id WHERE token_hash=$1 AND game=$2 AND expires_at>now()`,[hash(token),GAME]);
     if (!row) throw fail(401,'Portal session expired. Sign in again.');
     if (req.path !== `${BASE}/session` && req.get('x-dune-account-id') !== String(row.player_id)) throw fail(409,'Portal account changed. Reload before saving.');
     req.playerSession=row;
@@ -143,18 +145,33 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     res.json({accountId:String(req.playerSession.player_id),hasCampaign:Boolean(row),profile:row?normalizeProfile(row.profile):null});
   }));
   const farmlandStatus = (accountId,profile,grant) => ({ accountId:String(accountId),farmland:{ unlocked:Boolean(grant),eligible:farmlandEligible(profile.campaign),unlockedAt:grant?.granted_at?.toISOString?.()??null } });
-  const requireFarmlandGrant = async (client,playerId,campaign,level) => {
-    if ((level === undefined || level.index < 30) && campaign?.region !== 'farmland' && campaign?.transition?.to !== 'farmland' && !campaign?.farmlandReady) return;
+  const requireChapterAccess = async (client,session,campaign,level,{ finishActive = false } = {}) => {
+    const playerId=session.player_id;
+    const tier = level ? accessTierForLevel(level) : accessTierForCampaign(campaign);
+    if (tier === 'demo') return;
     const {rows:[grant]}=await client.query("SELECT 1 FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]);
     if (!grant) throw fail(403,'Unlock Farmland with your Portal account before entering this chapter.');
+    if (tier === 'campaign-pass' && !finishActive) {
+      const pass=await commerce.check({issuer:session.issuer,subject:session.subject});
+      if (!pass.unlocked) throw fail(pass.state === 'unavailable' ? 503 : 403,pass.state === 'unavailable' ? 'Dune Pass access could not be checked. Retry when the store is available.' : 'Claim the Dune Pass through RaidGuild Commerce to enter this chapter.');
+    }
   };
   app.get(`${BASE}/entitlements`,authenticated,limited(async(req,res)=>{
     const playerId=req.playerSession.player_id;
+    const refresh=req.query.refresh === '1';
+    if (refresh) {
+      const now=Date.now(), previous=entitlementRefresh.get(playerId) ?? 0;
+      if (now-previous<5_000) throw fail(429,'Wait a few seconds before checking access again.');
+      if (entitlementRefresh.size>=10000) for (const [key,time] of entitlementRefresh) if (now-time>60_000) entitlementRefresh.delete(key);
+      if (entitlementRefresh.size>=10000 && !entitlementRefresh.has(playerId)) throw fail(429,'Access checks are busy. Try again shortly.');
+      entitlementRefresh.set(playerId,now);
+    }
     const [{rows:[profileRow]},{rows:[grant]}]=await Promise.all([
       pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[playerId]),
       pool.query("SELECT granted_at FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1 AND entitlement_key='farmland'",[playerId]),
     ]);
-    res.json(farmlandStatus(playerId,profileRow?normalizeProfile(profileRow.profile):emptyProfile(),grant));
+    const campaignPass=await commerce.check({issuer:req.playerSession.issuer,subject:req.playerSession.subject},{refresh});
+    res.json({...farmlandStatus(playerId,profileRow?normalizeProfile(profileRow.profile):emptyProfile(),grant),campaignPass});
   }));
   app.post(`${BASE}/entitlements/farmland/claim`,authenticated,limited(async(req,res)=>{
     const playerId=req.playerSession.player_id;
@@ -188,7 +205,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     if (!validUuid(attemptId)) throw fail(400,'Invalid attempt ID.');
     const level=validLevel(levelId),selected=validBoosters(boosters);
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
-      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,level);
+      await requireChapterAccess(client,req.playerSession,profile.campaign,level);
       const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1',[attemptId]);
       if (existing) {
         if (String(existing.player_id)!==String(req.playerSession.player_id) || existing.level_id!==levelId || JSON.stringify(existing.boosters)!==JSON.stringify(selected)) throw fail(409,'Attempt ID already belongs to another attempt.');
@@ -208,7 +225,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
       const {rows:[row]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,req.playerSession.player_id]);
       if (!row) throw fail(404,'Attempt not found.');
-      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,levels.get(row.level_id));
+      await requireChapterAccess(client,req.playerSession,profile.campaign,levels.get(row.level_id));
       if (row.status!=='prepared') return {attemptId:id,status:row.status,profile};
       const cost=validBoosters(row.boosters).reduce((sum,kind)=>sum+boosterPrices[kind],0);
       if (req.body?.expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
@@ -229,8 +246,9 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     const moveCap=moveCapForVersion(level,contentVersion);
     if (moveCap===null || !Number.isSafeInteger(remainingMoves) || remainingMoves<0 || remainingMoves>moveCap) throw fail(400,'Invalid finish snapshot.');
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
-      await requireFarmlandGrant(client,req.playerSession.player_id,profile.campaign,level);
       let {rows:[row]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,req.playerSession.player_id]);
+      if (accessTierForLevel(level)==='campaign-pass' && (!row || !['active','finished'].includes(row.status))) throw fail(403,'Start this chapter online with an active Dune Pass before completing a level.');
+      await requireChapterAccess(client,req.playerSession,profile.campaign,level,{finishActive:accessTierForLevel(level)==='campaign-pass' && Boolean(row)});
       // A free level may be completed after the connection drops before start.
       // The account and campaign order are checked under the same profile lock.
       if (!row) {
@@ -274,7 +292,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       if (rate.count>=240) throw fail(429,'Too many campaign changes. Try later.');
       if (expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
       const next=applyCheckpoint(profile,campaign);
-      await requireFarmlandGrant(client,req.playerSession.player_id,next.campaign);
+      await requireChapterAccess(client,req.playerSession,next.campaign);
       await saveProfile(client,req.playerSession.player_id,next);
       return {profile:next};
     }));

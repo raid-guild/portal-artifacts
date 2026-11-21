@@ -43,4 +43,19 @@ Use a disposable PostgreSQL database with `TEST_DATABASE_URL` for `services/lead
 
 To disable cloud writes quickly, remove `DUNE_RELAY_LAUNCH_SECRET` from the leaderboard service and restart it; Dune routes become isolated 503s while guests and the other games remain available. Keep the additive Dune tables for recovery. Do not discard unsynced account backups when rolling back a client.
 
-Future storefront/PWYW access is outside this contract. It will need a separate, server-validated entitlement before locked levels; the current demo is free to play.
+### Dune Pass for future chapters
+
+The first 30 levels remain a guest demo. Levels 31–40 keep the existing free Farmland Portal claim. A single Dune Pass will unlock Chapter 5 and later when those chapters are authored; the current build does not contain Chapter 5 levels. After Farmland, the kingdom map opens a Dune Pass screen. Portal players can open the store product, claim it for $0 or choose a higher PWYW amount, and check access on return. The page says “Chapter 5 is coming soon” even when access is active. Guest players are sent to Portal sign-in first. This product rule does not change guest checkout for other store products.
+
+The Dune API uses only its authenticated, stored Portal issuer and numeric `user:<ID>` subject when checking Commerce. It never accepts a browser-provided beneficiary. `GET /entitlements` retains the existing Farmland fields and adds `campaignPass` with `state` (`active`, `locked`, or `unavailable`), `unlocked`, `unlockedAt`, `checkedAt`, and a trusted configured `storeUrl`. `?refresh=1` bypasses the five-minute server cache and is limited to one account refresh every five seconds. Concurrent lookups for one identity share a request; unavailable results are cached for 20 seconds to avoid repeated store calls during an outage. A store outage or missing configuration reports `unavailable`; it does not affect the demo, Farmland, readiness, or existing saves. No paid claim is written to the Farmland grant table or guest local storage.
+
+Configure the leaderboard service only after the Commerce endpoint and dedicated key are ready:
+
+- `DUNE_COMMERCE_API_ORIGIN`: HTTPS Commerce origin (loopback HTTP is accepted only for local tests).
+- `DUNE_COMMERCE_ENTITLEMENT_API_KEY`: dedicated server-to-server bearer key, never sent to the browser.
+- `DUNE_COMMERCE_ENTITLEMENT_ENVIRONMENT`: `live` or `test`; defaults to `live`. Test grants never satisfy a live lookup.
+- `DUNE_COMMERCE_STORE_URL`: HTTPS Dune Pass product page shown to players.
+
+The server validates the fixed product `rg:digital:dune-relay-pass`, capability `dune-relay:campaign-pass`, Portal identity, environment, active flag, and timestamps in the Commerce response. New starts and activation for levels 41 onward require a current active pass. Paid levels cannot be completed by the free offline missing-attempt fallback; an already active server attempt may finish during a transient Commerce outage. The server derives the chapter tier from authored level metadata. Adding Chapter 5 content requires explicit transition authoring and client gameplay work in a later release.
+
+Rollout order: review Commerce entitlement fulfillment and refund behavior; verify the dedicated lookup on an isolated test stack; configure the Dune service key and matching environment; verify locked, $0 claim, second-device access, wrong-account isolation, and store-unavailable behavior; then publish the Dune frontend. Do not switch Commerce to live paid checkout until its payment mode and webhook verification are ready. Rollback removes only the four Dune Commerce settings; existing guest and Farmland saves remain playable.

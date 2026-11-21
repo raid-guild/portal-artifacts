@@ -24,7 +24,7 @@ import { TutorialDialog } from "./TutorialDialog";
 import { chapterReplayReady, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
@@ -38,6 +38,9 @@ export default function GameShell() {
   const [farmlandState, setFarmlandState] = useState<"idle" | "loading" | "claiming" | "error">("idle");
   const [farmlandError, setFarmlandError] = useState<string | null>(null);
   const [farmlandPreview, setFarmlandPreview] = useState(false);
+  const [campaignPass, setCampaignPass] = useState<cloudApi.CampaignPass | null>(null);
+  const [passChecking, setPassChecking] = useState(false);
+  const [passError, setPassError] = useState<string | null>(null);
   const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const [mode, setMode] = useState<"map" | "puzzle">("map");
   const [visitedRegion, setVisitedRegion] = useState<Region | null>(null);
@@ -92,6 +95,8 @@ export default function GameShell() {
   const cloudRef = useRef<{ accountId: string; profile: cloudApi.CloudProfile; pending: cloudApi.CloudOperation[]; syncing: boolean } | null>(null);
   const cloudGeneration = useRef(0);
   const farmlandGeneration = useRef(0);
+  const passGeneration = useRef(0);
+  const lastPassRefresh = useRef(0);
   const farmlandClaimId = useRef<string | null>(null);
   const farmlandClaiming = useRef(false);
   const cloudConflict = useRef(false);
@@ -180,6 +185,7 @@ export default function GameShell() {
       window.removeEventListener("unhandledrejection", rejection);
       cloudGeneration.current++;
       farmlandGeneration.current++;
+      passGeneration.current++;
     };
   }, []);
 
@@ -195,6 +201,13 @@ export default function GameShell() {
     window.addEventListener("focus", retry);
     return () => { window.removeEventListener("online", retry); window.removeEventListener("focus", retry); };
   }, []);
+  useEffect(() => {
+    if (overlay !== "dunePass") return;
+    const returned = () => { if (!document.hidden && Date.now()-lastPassRefresh.current>5_000) void refreshPass(true); };
+    window.addEventListener("focus",returned);
+    document.addEventListener("visibilitychange",returned);
+    return () => { window.removeEventListener("focus",returned); document.removeEventListener("visibilitychange",returned); };
+  }, [overlay]);
 
   const unlockedTracks = getUnlockedSoundtracks(save);
   const selectedTrack = playtest ? playtestTrack : trackPreference;
@@ -287,7 +300,22 @@ export default function GameShell() {
       void refreshFarmland(current);
     } catch (error) { setCloudMessage(`Portal save could not load: ${(error as Error).message}`); }
   }
-  function clearFarmland() { farmlandGeneration.current++; farmlandClaimId.current=null; farmlandClaiming.current=false; setFarmland(null); setFarmlandState("idle"); setFarmlandError(null); }
+  function clearFarmland() { farmlandGeneration.current++; passGeneration.current++; farmlandClaimId.current=null; farmlandClaiming.current=false; setFarmland(null); setFarmlandState("idle"); setFarmlandError(null); setCampaignPass(null); setPassError(null); setPassChecking(false); }
+  async function refreshPass(refresh = false) {
+    const current=cloudRef.current;
+    if (!current || playtest) return;
+    const generation=++passGeneration.current;
+    if (refresh) lastPassRefresh.current=Date.now();
+    setPassChecking(true); setPassError(null);
+    try {
+      const result=await cloudApi.entitlements(current.accountId,refresh);
+      if (cloudRef.current!==current || passGeneration.current!==generation) return;
+      setCampaignPass(result.campaignPass);
+    } catch (error) {
+      if (cloudRef.current!==current || passGeneration.current!==generation) return;
+      setPassError((error as Error).message);
+    } finally { if (passGeneration.current===generation) setPassChecking(false); }
+  }
   async function refreshFarmland(current = cloudRef.current) {
     if (!current || playtest || farmlandClaiming.current) return;
     const generation=++farmlandGeneration.current;
@@ -360,7 +388,7 @@ export default function GameShell() {
       const cached = cloudApi.readAccountCache(session.accountId);
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
-      setFarmland(null); void refreshFarmland(cloudRef.current);
+      setFarmland(null); setCampaignPass(null); void refreshFarmland(cloudRef.current);
       if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
         try {
           const prepared=prepareStartingBoosters(createPuzzle(LEVELS[cached.purchase.levelId]),cached.purchase.boosters);
@@ -1048,6 +1076,13 @@ export default function GameShell() {
     if (!farmlandEligible) return <p className="farmland-status">Complete all 30 demo levels on this Portal account to unlock Farmland.</p>;
     return <button className="farmland-action" onClick={() => void unlockFarmland()}>Unlock Farmland →</button>;
   }
+  function passAccess() {
+    if (!cloudRef.current || cloudStatus === "expired") return <><p>Sign in through RaidGuild Portal to claim the Dune Pass. Your guest progress stays on this device.</p><a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with Portal →</a></>;
+    if (passChecking && !campaignPass) return <p role="status">Checking Dune Pass access…</p>;
+    if (campaignPass?.state === "active") return <><p>Future chapters unlocked. Chapter 5 is coming soon.</p><button className="farmland-action" onClick={() => void refreshPass(true)} disabled={passChecking}>Check access</button></>;
+    if (campaignPass?.state === "unavailable" || passError || !campaignPass) return <><p role="status">Dune Pass access could not be checked. Your current campaign is safe.</p>{passError && <p>{passError}</p>}<button className="farmland-action" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Retry access check"}</button></>;
+    return <><p>Claim the Dune Pass in the RaidGuild store. Pay what you want, including $0 with Portal login. Chapter 5 is coming soon.</p>{campaignPass.storeUrl ? <a className="farmland-action" href={campaignPass.storeUrl}>Open the Dune Pass store →</a> : <p>The store link is not available yet.</p>}<button className="quiet" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Check access"}</button></>;
+  }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
       {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}`} mode={mode} region={displayRegion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={mode === "map" ? replayDestinations(save,displayRegion,Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked)) : []} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
@@ -1146,11 +1181,13 @@ export default function GameShell() {
           </div>
         </div>
         <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
-        <div className="atlas-future">{save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
+        <div className="atlas-future">{save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The town on the hill is next." : save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
         {save.completed.includes("openTheCrossing") && <button className="atlas-farmland" onClick={() => farmlandUnlocked ? beginFarmland() : setOverlay("farmland")}>FARMLAND {save.completed.includes("openTheHarvestRoad") ? "✓" : farmlandUnlocked ? "●" : <span className="atlas-lock" role="img" aria-label="Locked">🔒</span>}<small>{save.completed.includes("openTheHarvestRoad") ? "Harvest road open · visit" : farmlandUnlocked ? "Unlocked · travel" : "Chapter 4 · locked"}</small></button>}
+        {save.completed.includes("openTheHarvestRoad") && <button className="atlas-dune-pass" onClick={() => { setOverlay("dunePass"); void refreshPass(); }}>TOWN ON THE HILL {campaignPass?.state === "active" ? "✦" : <span className="atlas-lock" role="img" aria-label="Dune Pass">🔒</span>}<small>Chapter 5 · coming soon</small></button>}
         <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "farmland" ? "Cross into Farmland" : save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
       </div>}
       {overlay === "farmland" && <div className="scrim"><div className="dialog-card farmland-card"><span className="speaker">THE ROAD BEYOND THE BRIDGE</span><h2>Farmland · Chapter 4</h2><p>The gate is open. Farmland is the Portal login bonus for players who finish this 30-level demo. The seed stores and water terraces are ready to explore.</p>{farmlandAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
+      {overlay === "dunePass" && <div className="scrim"><div className="dialog-card farmland-card" role="dialog" aria-modal="true" aria-label="Dune Pass"><span className="speaker">THE ROAD CONTINUES</span><h2>Dune Pass</h2>{passAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
       {overlay === "party" && <div className="scrim"><div className="party-card">
         <div className="eyebrow">THE RAID PARTY</div><h2>Those who keep the road open</h2>
         <div className="party-list">
@@ -1175,7 +1212,7 @@ export default function GameShell() {
       {overlay === "harvestOpen" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/fieldkeeper-avatar.png")} alt="" /><span className="speaker">THE FIELDKEEPER · HARVEST ROAD</span></div>
         <h2>The convoy can move</h2><p>The seed stores are open and the terraces are flowing. The ledger points to missing deliveries near the town on the hill. The raid continues there in a future chapter.</p>
-        <button className="primary" onClick={() => { if (saveRef.current.farmlandEnding === "thanks") persist(normalizeSave({ ...saveRef.current, farmlandEnding: "done" })); setOverlay("kingdom"); }}>View the kingdom <span>→</span></button>
+        <button className="primary" onClick={() => { if (saveRef.current.farmlandEnding === "thanks") persist(normalizeSave({ ...saveRef.current, farmlandEnding: "done" })); setOverlay("dunePass"); void refreshPass(); }}>See what comes next <span>→</span></button>
       </div></div>}
       {overlay === "crossingOpen" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/gatewright-avatar.png")} alt="" /><span className="speaker">THE GATEWRIGHT · CROSSING OPEN</span></div>

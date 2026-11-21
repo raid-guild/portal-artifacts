@@ -174,6 +174,9 @@ button { font: inherit; cursor: pointer; }
 .atlas-farmland small { color: #aee8dd; font: 600 .55em 'DM Sans', Arial, sans-serif; }
 .atlas-lock { display: inline-block; margin-left: .2em; font-size: .8em; vertical-align: .08em; }
 .atlas-farmland:hover { background: #27747b; }
+.atlas-dune-pass { position: absolute; z-index: 2; right: 8%; bottom: 27%; display: flex; flex-direction: column; align-items: flex-start; padding: 7px 12px; border: 2px solid #e6c589; border-radius: 10px; background: rgba(15, 55, 63, .96); color: #ffedc4; font: 800 clamp(15px, 3cqh, 23px) 'Barlow Condensed', Arial, sans-serif; cursor: pointer; }
+.atlas-dune-pass small { color: #aee8dd; font: 600 .55em 'DM Sans', Arial, sans-serif; }
+.atlas-dune-pass:hover { background: #27747b; }
 .farmland-entry { margin: 10px 0; padding: 10px 12px; border: 1px solid #d5b97f; border-radius: 10px; background: rgba(10, 43, 52, .82); color: #ffe5ad; line-height: 1.25; }
 .farmland-entry strong { display: block; font: 800 clamp(15px, 3.5cqh, 22px) 'Barlow Condensed', Arial, sans-serif; letter-spacing: .04em; }
 .farmland-status { margin: 5px 0 !important; font-size: clamp(12px, 2.8cqh, 16px) !important; }
