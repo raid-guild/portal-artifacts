@@ -2,6 +2,7 @@
 
 import { assetUrl } from "./assetUrl";
 import { CompanionPace } from "./companionPace";
+import { isPlaytestMode } from "./playtestMode";
 
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
@@ -17,6 +18,9 @@ import { reserveGame, enqueueGameWork } from "./gameLifecycle";
 import { logDiagnostic } from "./diagnostics";
 import { LEVELS, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
 import type { BoosterPlacement } from "./boosters";
+
+const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "MOST EPIC"];
+let nextChainCallout = 0;
 
 export type GameEvent =
   | { type: "keeper"; position: { x: number; y: number } }
@@ -184,6 +188,10 @@ function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind)
 }
 
 function goalName(kind: GoalKind): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind.toUpperCase(); }
+function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
+  const remaining=Math.max(0,goals[kind] ?? 0);
+  return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
+}
 
 function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", x: number, y: number) {
   const index = Number(sprite.frame.name);
@@ -216,7 +224,7 @@ function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phase
     const [dx, dy] = GLOW_OFFSETS[index];
     characterPosition(glow, sheet, state.x + dx, y + dy + lift);
   }
-  if (window.location.search.includes("playtest=1")) {
+  if (isPlaytestMode(window.location.search)) {
     const value = String(Math.round(state.x));
     if (scene.game.canvas.dataset.companionX !== value) scene.game.canvas.dataset.companionX = value;
   }
@@ -713,6 +721,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     selected: Cell | null = null;
     busy = false;
     clearStreak = 0;
+    chainCallout?: HTMLDivElement;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -757,6 +766,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("seedpodCracked", assetUrl("/sprites/seedpod-cracked.png"));
     }
     create() {
+      // Warm the italic callout font while the board opens; it never delays play.
+      void document.fonts?.load("italic 900 40px Archivo").catch(() => {});
       registerFrames(this, "tiles");
       const backdrop = this.add.image(480, 270, "backdrop").setDisplaySize(WIDTH, HEIGHT).setTint(0x85949a);
       const veil = this.add.graphics();
@@ -838,6 +849,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       canvas.addEventListener("lostpointercapture", cancel);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.sceneAlive = false;
+        this.clearChainCallout();
         resetGesture(); this.cancelGesture = undefined;
         this.cancelIdleHint();
         this.revealSkipped = true;
@@ -1047,6 +1059,28 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     center(cell: Cell) { return { x: GRID_X + cell.col * CELL + CELL / 2, y: GRID_Y + cell.row * CELL + CELL / 2 }; }
     setMessage(message: string) { this.message?.setText(message); }
+    clearChainCallout() {
+      this.chainCallout?.remove();
+      this.chainCallout = undefined;
+    }
+    showChainCallout() {
+      const frame = this.game.canvas.closest(".frame");
+      if (!frame || !this.sceneAlive) return;
+      this.clearChainCallout();
+      const callout = document.createElement("div");
+      callout.className = "chain-callout";
+      // Puzzle layout scales by height and centers the authored canvas horizontally.
+      callout.style.left = `calc(50% + ${(GRID_X + BOARD_SIZE * CELL / 2 - WIDTH / 2) / HEIGHT * 100}cqh)`;
+      callout.style.top = `${(GRID_Y + BOARD_SIZE * CELL / 2) / HEIGHT * 100}%`;
+      callout.dataset.reducedMotion = String(props.reducedMotion);
+      callout.textContent = CHAIN_CALLOUTS[nextChainCallout++ % CHAIN_CALLOUTS.length];
+      callout.setAttribute("aria-live", "polite");
+      callout.addEventListener("animationend", () => {
+        if (this.chainCallout === callout) this.clearChainCallout();
+      }, { once: true });
+      frame.appendChild(callout);
+      this.chainCallout = callout;
+    }
     renderHud(goals = this.puzzle.goals, moves = this.puzzle.moves, charge = this.puzzle.keeperCharge, fired = this.puzzle.keeperFired) {
       this.displayedGoals = { ...goals };
       for (const object of this.hud) object.destroy();
@@ -1057,11 +1091,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "COLLECT", 17, "#a2e7da"));
+      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
         const y = goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
         const icon = drawGoalIcon(this, 74, y, kind);
-        const text = label(this, 106, y - 15, `${goals[kind] ?? 0}  ${goalName(kind)}`, 20);
+        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), 20);
         this.goalIcons.set(kind, icon);
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
@@ -1071,12 +1105,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       meter.fillStyle(0x315568).fillRoundedRect(110, 391, 153, 17, 7);
       meter.fillStyle(GREEN).fillRoundedRect(110, 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
       this.hud.push(meter);
-      this.hud.push(label(this, 110, 415, `${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
+      this.hud.push(label(this, 110, 415, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
       this.hud.push(label(this, 110, 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
     }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
-      this.goalLabels.get(kind)?.setText(`${this.displayedGoals[kind]}  ${goalName(kind)}`);
+      this.goalLabels.get(kind)?.setText(remainingGoalLabel(kind,this.displayedGoals));
       const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
       if (icon && !props.reducedMotion && this.sceneAlive) {
         this.tweens.killTweensOf(icon);
@@ -1131,7 +1165,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }));
       if (this.sceneAlive) {
         this.displayedGoals = { ...step.goals };
-        for (const [kind, text] of this.goalLabels) text.setText(`${this.displayedGoals[kind] ?? 0}  ${goalName(kind)}`);
+        for (const [kind, text] of this.goalLabels) text.setText(remainingGoalLabel(kind,this.displayedGoals));
         delete this.game.canvas.dataset.collectionPhase;
       }
     }
@@ -1445,7 +1479,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's Harvest Rhythm! Two Flywheels are ready." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels are ready." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism is ready." : "Keeper's power! Two Pressure Jets are ready.");
+        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's power! Two Flywheels ready. Charge resets." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels ready. Charge resets." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism ready. Charge resets." : "Keeper's power! Two Pressure Jets ready. Charge resets.");
         if (this.keeperPortrait && !short) {
           this.tweens.killTweensOf(this.keeperPortrait);
           this.keeperPortrait.setY(392).setAngle(-8);
@@ -1473,7 +1507,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         return;
       }
       if (step.kind === "clear") {
-        props.audio?.play("clear", this.clearStreak++);
+        props.audio?.play("clear", this.clearStreak);
+        this.clearStreak++;
+        if (this.clearStreak === 4) this.showChainCallout();
         const cross = step.jets.some((jet, index) => step.jets.slice(index + 1).some(other =>
           jet.cell.row === other.cell.row && jet.cell.col === other.cell.col && jet.direction !== other.direction));
         if (cross) this.setMessage("Jet combo! Row + column blast");
@@ -1537,6 +1573,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.busy = true;
       props.onEvent({ type: "resolvedTurn", puzzle: turn.state, turn, from, to: cell });
       if (this.lessonHint) { this.tweens.killTweensOf(this.lessonHint); this.lessonHint.destroy(); this.lessonHint = undefined; }
+      this.clearChainCallout();
       this.clearStreak = 0;
       props.audio?.play("swap");
       if (this.keeperPortrait && !props.reducedMotion) {
@@ -1561,6 +1598,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.renderHud();
       props.onEvent({ type: "turn", puzzle: turn.state, cleared: turn.cleared.length, keeper: turn.keeperJets.length > 0 });
       if (turn.state.status === "won") {
+        this.clearChainCallout();
         this.revealPlan = planFinale(turn.state);
         this.revealActive = true;
         this.game.canvas.dataset.revealPhase = "banner";
@@ -1570,7 +1608,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (!this.sceneAlive) return;
         if (!this.revealSkipped) await this.finale();
       }
-      else if (turn.state.status === "lost") props.onEvent({ type: "lose", puzzle: turn.state });
+      else if (turn.state.status === "lost") { this.clearChainCallout(); props.onEvent({ type: "lose", puzzle: turn.state }); }
       else {
         if (!this.followPowerHint()) this.setMessage(turn.keeperJets.length
           ? this.puzzle.grantedPower === "prism" ? "Swap the Prism with a symbol, or double-tap it." : this.puzzle.grantedPower === "flywheels" ? "Double-tap a Flywheel to spin it, or swap it." : "Double-tap a Jet to fire here, or swap it."

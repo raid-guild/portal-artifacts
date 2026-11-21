@@ -1,6 +1,7 @@
 "use client";
 
 import { assetUrl } from "./assetUrl";
+import { isPlaytestMode } from "./playtestMode";
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
@@ -17,6 +18,9 @@ import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 import * as cloudApi from "./cloud";
+import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
+import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
+import { TutorialDialog } from "./TutorialDialog";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "party" | "wayfinder" | "gatewright" | "fieldkeeper" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
@@ -55,6 +59,11 @@ export default function GameShell() {
   const [playtestTrack, setPlaytestTrack] = useState<TrackPreference>("auto");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [tutorialLibrary, setTutorialLibrary] = useState(false);
+  const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId; selected: BoosterKind[] } | null>(null);
+  const tutorialContinuing = useRef(false);
+  const tutorialReturnFocus = useRef<string | null>(null);
+  const tutorialBoardFocus = useRef(false);
   const [filmBlocked, setFilmBlocked] = useState(false);
   const [filmReady, setFilmReady] = useState(false);
   const [sceneIssue, setSceneIssue] = useState<string | null>(null);
@@ -111,7 +120,7 @@ export default function GameShell() {
   }
 
   useEffect(() => {
-    const testing = new URLSearchParams(window.location.search).get("playtest") === "1";
+    const testing = isPlaytestMode(window.location.search);
     const fullscreenChanged = () => {
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
@@ -186,15 +195,15 @@ export default function GameShell() {
   }, [ready, save.region, effectiveTrack, overlay]);
 
   useEffect(() => {
-    if (settings || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
-    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
+    if (settings || tutorialLibrary || tutorialSession || overlay !== null || wipe !== "hidden" || mode !== "puzzle" || document.hidden || sceneIssue) recordPause(); else recordResume();
+    const visibility = () => { if (document.hidden) recordPause(); else if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
     const pagehide = () => recordPause();
-    const pageshow = () => { if (!document.hidden && !settings && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
+    const pageshow = () => { if (!document.hidden && !settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden" && mode === "puzzle" && !sceneIssue) recordResume(); };
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pagehide", pagehide);
     window.addEventListener("pageshow", pageshow);
     return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("pagehide", pagehide); window.removeEventListener("pageshow", pageshow); };
-  }, [settings, overlay, wipe, mode, sceneIssue]);
+  }, [settings, tutorialLibrary, tutorialSession, overlay, wipe, mode, sceneIssue]);
 
   useEffect(() => {
     if (overlay !== "film") { setFilmReady(false); return; }
@@ -565,41 +574,100 @@ export default function GameShell() {
     const enteringOverlay = overlayForSave(saveRef.current);
     void transitionTo(() => { setOverlay(enteringOverlay); setAttempt(value => value + 1); }, enteringOverlay !== "film");
   }
+  useEffect(() => {
+    if (tutorialSession && (tutorialSession.scopeKey !== tutorialScopeKey(currentTutorialScope()) || tutorialSession.cloudGeneration !== cloudGeneration.current)) {
+      setTutorialSession(null); setTutorialLibrary(false);
+    }
+  }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    setTutorialSession(null); setTutorialLibrary(false);
     tokenCounter.current++;
     if (pendingAttempt.current?.level !== id || pendingAttempt.current.cost === 0) pendingAttempt.current = null;
     setShopLevel(id); setShopSelected(pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id ? pendingAttempt.current.selected : []); setShopError(null);
     setShopReturn(overlay);
     setOverlay("shop");
   }
-  async function launchLevel() {
-    if (transitioning.current || launching.current) return;
-    launching.current=true;
-    try { await launchLevelOnce(); } finally { launching.current=false; }
+  function currentTutorialScope(): TutorialScope {
+    return playtest ? { kind: "sandbox" } : cloudRef.current ? { kind: "account", accountId: cloudRef.current.accountId } : { kind: "guest" };
   }
-  async function launchLevelOnce() {
+  useEffect(() => {
+    if (!tutorialLibrary || tutorialSession) return;
+    const frame=requestAnimationFrame(()=>{
+      const id=tutorialReturnFocus.current;
+      const item=id ? document.querySelector<HTMLButtonElement>(`.tutorial-library [data-tutorial-item="${id}"]`) : null;
+      (item ?? document.querySelector<HTMLButtonElement>(".tutorial-library-list button, .tutorial-library > button"))?.focus();
+      tutorialReturnFocus.current=null;
+    });
+    return ()=>cancelAnimationFrame(frame);
+  },[tutorialLibrary,tutorialSession]);
+  useEffect(() => {
+    if (!tutorialBoardFocus.current || tutorialSession || mode !== "puzzle" || overlay !== null || wipe !== "hidden") return;
+    const frame=requestAnimationFrame(()=>{
+      const target=document.querySelector<HTMLButtonElement>('.top-actions button[aria-label="Settings"]');
+      if (target?.isConnected && !target.closest("[inert]")) target.focus();
+      tutorialBoardFocus.current=false;
+    });
+    return ()=>cancelAnimationFrame(frame);
+  },[tutorialSession,mode,overlay,wipe]);
+  function dismissTutorial(start: boolean) {
+    const current=tutorialSession;
+    if (!current || tutorialContinuing.current) return;
+    tutorialContinuing.current=true;
+    if (current.mode === "intro") {
+      const valid=overlay === "shop" && shopLevel === current.level && current.scopeKey === tutorialScopeKey(currentTutorialScope()) && current.cloudGeneration === cloudGeneration.current;
+      setTutorialSession(null);
+      if (valid) {
+        markSeen(currentTutorialScope(),current.tutorial.id);
+        if (start && !launching.current) { tutorialBoardFocus.current=true; launching.current=true; void launchLevelOnce(current.selected).finally(()=>{launching.current=false;}); }
+      }
+    } else { tutorialReturnFocus.current=current.tutorial.id; setTutorialSession(null); setTutorialLibrary(true); }
+    window.setTimeout(()=>{tutorialContinuing.current=false;},0);
+  }
+  function openTutorialReplay(tutorial: Tutorial) {
+    const scope=currentTutorialScope();
+    setTutorialLibrary(false); setSettings(false);
+    setTutorialSession({tutorial,mode:"replay",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:tutorial.level,selected:[]});
+  }
+  async function launchLevel(selected: BoosterKind[] = shopSelected) {
+    if (tutorialSession || transitioning.current || launching.current) return;
+    const cost=boosterCost(selected);
+    const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
+    if (unresolved && (unresolved.level !== shopLevel || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
+      setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
+    }
+    if (cost > saveRef.current.coins && !unresolved) { setShopError("Not enough coins for this loadout."); return; }
+    const intro=TUTORIAL_BY_LEVEL[shopLevel];
+    if (intro && !saveRef.current.completed.includes(shopLevel) && !readSeen(currentTutorialScope()).has(intro.id)) {
+      const scope=currentTutorialScope();
+      setTutorialSession({tutorial:intro,mode:"intro",scopeKey:tutorialScopeKey(scope),cloudGeneration:cloudGeneration.current,level:shopLevel,selected:[...selected]});
+      return;
+    }
+    launching.current=true;
+    try { await launchLevelOnce(selected); } finally { launching.current=false; }
+  }
+  async function launchLevelOnce(selected: readonly BoosterKind[]) {
     const id = shopLevel;
     if (LEVELS[id].chapter === "farmland" && !playtest && !(farmland?.farmland.unlocked && farmland.accountId === cloudRef.current?.accountId)) { setShopError("Sign in and unlock Farmland first."); return; }
-    const cost = boosterCost(shopSelected);
+    const cost = boosterCost(selected);
     if (cost > saveRef.current.coins && !pendingAttempt.current?.cost) { setShopError("Not enough coins for this loadout."); return; }
     let prepared: ReturnType<typeof prepareStartingBoosters>;
-    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), shopSelected); }
+    try { prepared = prepareStartingBoosters(createPuzzle(LEVELS[id]), selected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
     const unresolved = pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
-    if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...shopSelected].sort()))) {
+    if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
       setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
     }
     const cloudAttemptId = unresolved?.cloudAttemptId ?? cloudApi.newOperationId();
     if (cloudRef.current && !playtest) {
       if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
       if (cost > 0 || LEVELS[id].chapter === "farmland") {
-        try { await cloudApi.prepareAttempt(cloudAttemptId,id,shopSelected,cloudRef.current.accountId); }
+        try { await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId); }
         catch (error) { setShopError(`Could not prepare this level: ${(error as Error).message}`); return; }
         if (token !== tokenCounter.current) return;
       }
     }
-    pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...shopSelected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
+    pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...selected], cost, puzzle: prepared.puzzle, placements: prepared.placements, status: "prepared" };
     if (cost && cloudRef.current) cacheCloud();
     setRevealing(false);
     abandonRecord("started-another-level");
@@ -614,6 +682,20 @@ export default function GameShell() {
     if (!pendingAttempt.current?.cost) pendingAttempt.current = null; setShopError(null);
     if (shopReturn === null && mode === "map") void transitionTo(() => { setOverlay(null); setAttempt(value => value + 1); });
     else setOverlay(shopReturn);
+  }
+  function toggleBooster(kind: BoosterKind) {
+    setShopSelected(current => {
+      if (pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) return current;
+      if (current.includes(kind)) return current.filter(selected => selected !== kind);
+      const proposed=[...current,kind];
+      if (boosterCost(proposed) > saveRef.current.coins) return current;
+      return proposed;
+    });
+    setShopError(null);
+  }
+  function closeBriefing() {
+    setOverlay(null);
+    setAttempt(value => value + 1);
   }
   function recoverShop() {
     const unresolved=pendingAttempt.current;
@@ -662,7 +744,7 @@ export default function GameShell() {
     if (event.type === "gateOpened" && transitioning.current) { gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[saveRef.current.region] = event.position;
-    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && overlay === null && wipe === "hidden") recordResume(); } return; }
+    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { activeRecord.current = startAttempt(LEVELS[activeLevel], puzzle ?? createPuzzle(LEVELS[activeLevel]), new Date(), pendingAttempt.current?.selected ?? [], pendingAttempt.current?.cost ?? 0, playtest ? "sandbox" : "campaign"); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
     if (event.type === "gateOpened") { if (saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
       // Commit a terminal reward when the rule engine accepts the move. If the
@@ -903,7 +985,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${save.region}-${attempt}`} mode={mode} region={save.region} mapPosition={mapPositions.current[save.region]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={save.demoEnding === "gate"} nextLevel={mapLevel} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -923,19 +1005,15 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {fullscreenAvailable && !isFullscreen && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && overlay === null && !settings && !tutorialLibrary && !tutorialSession && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isFarmland ? " intro-farmland" : isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
-        <p>{isFarmland ? save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The next clue points to the town on the hill." : "Beyond the bridge, sealed seed stores are holding up the harvest convoy. Find the Fieldkeeper." : demoComplete ? "The bridge is open. Your party has cleared the way to Farmland." : isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
+        <p>{isFarmland ? save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The next clue points to the town on the hill." : "Beyond the bridge, sealed seed stores are holding up the harvest convoy. Find the Fieldkeeper." : demoComplete ? "The bridge is open. Your party has cleared the demo journey. Explore the kingdom to see what lies ahead." : isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
         <button className="primary" disabled={cloudStatus === "checking" || (cloudStatus === "expired" && !cloudRef.current)} onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isFarmland ? "Enter the fields" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
         {!playtest && (!portalName || cloudStatus === "expired") && <a className="quiet portal-login" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal →</a>}
         {!playtest && cloudStatus === "expired" && !cloudRef.current && <button className="quiet" onClick={continueAsGuest}>Play as guest on this device</button>}
-        {(demoComplete || farmlandUnlocked) && <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4</strong>{farmlandAccess()}</div>}
-        {cloudMessage && <small role="status">{cloudMessage}</small>}
-        {save.demoEnding === "done" && !playtest && <button className="quiet" onClick={() => window.location.assign("?playtest=1")}>Playtest levels →</button>}
-        <small>Touch to walk · Mobile landscape · WASD and mouse on desktop</small>
       </div></div>}
       {overlay === "cloudChoice" && <div className="scrim"><div className="dialog-card">
         <span className="speaker">WELCOME TO PORTAL{portalName ? ` · ${portalName.toUpperCase()}` : ""}</span>
@@ -958,19 +1036,20 @@ export default function GameShell() {
       {overlay === "briefing" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={speaker.portrait} alt="" /><span className="speaker">{speaker.name.toUpperCase()} · {mapLevel ? LEVELS[mapLevel].title : isFarmland ? "FARMLAND" : isGatehouse ? "RIVER GATEHOUSE" : isCaravan ? "OPEN DESERT" : "OASIS"}</span></div>
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
-        <button className="primary" onClick={startBriefing}>Start level <span>→</span></button>
+        <div className="briefing-actions"><button className="quiet" onClick={closeBriefing}>Back to story</button><button className="primary" onClick={startBriefing}>Start level <span>→</span></button></div>
       </div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
-        <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · STARTING BOOSTERS</span>
-        <p>Choose up to one of each. Boosters start on the board and are used for this attempt.</p>
+        <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
+        <p>You can play without boosters for free. Bought boosters start on this board and are used for this attempt.</p>
         <div className="shop-balance">{save.coins.toLocaleString("en-US")} coins available{playtest && <small>Test wallet · campaign coins stay untouched</small>}</div>
-        <div className="booster-options">{BOOSTERS.map(item => <button key={item.kind} className={`booster-option${shopSelected.includes(item.kind) ? " selected" : ""}`} aria-pressed={shopSelected.includes(item.kind)} onClick={() => { setShopError(null); setShopSelected(current => current.includes(item.kind) ? current.filter(kind => kind !== item.kind) : [...current, item.kind]); }}>
+        <div className="booster-options">{BOOSTERS.map(item => { const selected=shopSelected.includes(item.kind); const shortfall=boosterCost(shopSelected)+item.cost-save.coins; const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0; const unavailable=unresolved || !selected && shortfall > 0; return <button key={item.kind} className={`booster-option${selected ? " selected" : ""}`} aria-pressed={selected} disabled={unavailable} onClick={() => toggleBooster(item.kind)}>
           <img src={assetUrl(item.image as `/${string}`)} alt="" />
-          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>
-        </button>)}</div>
+          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>{unavailable && shortfall > 0 && <small className="booster-shortfall">Need {shortfall.toLocaleString("en-US")} more</small>}
+        </button>; })}</div>
         <div className="shop-total">Total: {boosterCost(shopSelected).toLocaleString("en-US")} coins</div>
+        {pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 && <p className="shop-error" role="status">This purchase still needs confirmation. Retry it to avoid a second charge.</p>}
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
-        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Cancel</button><button className="primary" onClick={launchLevel}>Start level <span>→</span></button></div>
+        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${boosterCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
       {overlay === "film" && <div className="film-screen">
         <video ref={film} src={filmReady ? assetUrl(filmContent.source as `/${string}`) : undefined} poster={assetUrl(filmContent.poster as `/${string}`)} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />
@@ -1000,7 +1079,7 @@ export default function GameShell() {
         </div>
         <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
         <div className="atlas-future">{save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
-        {save.completed.includes("openTheCrossing") && <button className="atlas-farmland" onClick={() => farmlandUnlocked ? beginFarmland() : setOverlay("farmland")}>FARMLAND {save.completed.includes("openTheHarvestRoad") ? "✓" : farmlandUnlocked ? "●" : "◇"}<small>{save.completed.includes("openTheHarvestRoad") ? "Harvest road open · visit" : farmlandUnlocked ? "Unlocked · travel" : "Chapter 4 · view access"}</small></button>}
+        {save.completed.includes("openTheCrossing") && <button className="atlas-farmland" onClick={() => farmlandUnlocked ? beginFarmland() : setOverlay("farmland")}>FARMLAND {save.completed.includes("openTheHarvestRoad") ? "✓" : farmlandUnlocked ? "●" : <span className="atlas-lock" role="img" aria-label="Locked">🔒</span>}<small>{save.completed.includes("openTheHarvestRoad") ? "Harvest road open · visit" : farmlandUnlocked ? "Unlocked · travel" : "Chapter 4 · locked"}</small></button>}
         <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "farmland" ? "Cross into Farmland" : save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
       </div>}
       {overlay === "farmland" && <div className="scrim"><div className="dialog-card farmland-card"><span className="speaker">THE ROAD BEYOND THE BRIDGE</span><h2>Farmland · Chapter 4</h2><p>The gate is open. Farmland is the Portal login bonus for players who finish this 30-level demo. The seed stores and water terraces are ready to explore.</p>{farmlandAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
@@ -1045,11 +1124,9 @@ export default function GameShell() {
         } as CSSProperties} />)}</div>
         <div className="dialog-card demo-thanks">
         <span className="speaker">YOUR RAID IS JUST BEGINNING</span><h2>Thanks for playing the demo.</h2>
-        <p>You completed all 30 demo levels. Unlock Farmland, Chapter 4, as a Portal login bonus. The seed stores and their new companion are ready. More characters, tiles, power-ups, and adventures are coming soon.</p>
+        <p>You completed all 30 demo levels. More characters, tiles, power-ups, and adventures are coming soon. Explore the kingdom to see where the story goes next.</p>
         <p className="demo-story">The story continues…</p>
-        <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4</strong>{farmlandAccess()}</div>
         <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
-        <button className="quiet" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); window.location.assign("?playtest=1"); }}>Playtest levels →</button>
       </div></div>}
       {overlay === "lost" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={COMPANIONS[level.chapter === "farmland" ? "fieldkeeper" : level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].portrait} alt="" /><span className="speaker">{COMPANIONS[level.chapter === "farmland" ? "fieldkeeper" : level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper"].name.toUpperCase()}</span></div><h2>{level.title} stalls</h2>
@@ -1063,14 +1140,16 @@ export default function GameShell() {
         <div className="coin-reveal"><img src={assetUrl("/sprites/coin.png")} alt="" />+{reward.current} coins</div>
         <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : activeLevel === "openTheHarvestRoad" ? "See the harvest road open" : level.chapter === "farmland" ? "Return to the fields" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
       </div></div>}
+      {tutorialSession && <TutorialDialog key={`${tutorialSession.mode}-${tutorialSession.tutorial.id}`} tutorial={tutorialSession.tutorial} mode={tutorialSession.mode} reducedMotion={reducedMotion} onSkip={()=>dismissTutorial(true)} onContinue={()=>dismissTutorial(true)} onBack={()=>dismissTutorial(false)} />}
+      {tutorialLibrary && !tutorialSession && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
           {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
-        {(demoComplete || farmlandUnlocked || playtest) && <div className="farmland-entry"><strong>FARMLAND · CHAPTER 4{playtest ? " · PREVIEW" : ""}</strong>{farmlandAccess()}</div>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
+        <button className="setting" onClick={() => {setSettings(false);setTutorialLibrary(true);}}>How to play <span aria-hidden="true">→</span></button>
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
         <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
@@ -1091,7 +1170,7 @@ export default function GameShell() {
           <button className="setting" onClick={previewFarmlandStory}>Preview Gatehouse → Farmland story</button>
           <button className="setting" onClick={previewFarmlandEnding}>Preview Farmland → harvest ending</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
-        </> : <>{save.demoEnding === "done" && <button className="setting" onClick={() => window.location.assign("?playtest=1")}>Playtest levels</button>}{!portalName && <button className="reset" onClick={reset}>Reset prototype progress</button>}</>}
+        </> : <>{!portalName && <button className="reset" onClick={reset}>Reset prototype progress</button>}</>}
       </div></div>}
       {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
         <span className="speaker">SCENE INTERRUPTED</span>

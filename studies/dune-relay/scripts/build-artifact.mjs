@@ -12,7 +12,7 @@ const staged = resolve(root, `.artifact-stage-${token}`);
 const backup = resolve(root, `.artifact-backup-${token}`);
 const build = spawnSync("npm", ["run", "build"], {
   cwd: root,
-  env: { ...process.env, NEXT_PUBLIC_BASE_PATH: "/dune-relay" },
+  env: { ...process.env, NEXT_PUBLIC_BASE_PATH: "/dune-relay", NEXT_PUBLIC_DUNE_PLAYTEST: "0" },
   stdio: "inherit",
 });
 if (build.status !== 0) process.exit(build.status ?? 1);

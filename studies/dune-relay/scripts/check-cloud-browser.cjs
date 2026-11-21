@@ -81,7 +81,7 @@ async function main(){
     await retryContext.close();
 
     const farmlandContext=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
-    const full={...empty,completed:content.levels.map(level=>level.id),region:'gatehouse',oasisTransition:'ready',gatehouseReady:true,demoEnding:'done',companions:['keeper','wayfinder','gatewright']};
+    const full={...empty,completed:content.levels.slice(0,30).map(level=>level.id),region:'gatehouse',oasisTransition:'ready',gatehouseReady:true,demoEnding:'done',companions:['keeper','wayfinder','gatewright']};
     await farmlandContext.addInitScript(save=>localStorage.setItem('dune-relay-campaign-v5',JSON.stringify(save)),full);
     const farmlandPage=await farmlandContext.newPage();
     let imported=false,claimed=false,claimCalls=0,claimIds=[];
@@ -105,15 +105,20 @@ async function main(){
     await farmlandPage.getByText('Bring this device\'s progress?').waitFor();
     assert.equal(claimCalls,0,'login never auto-claims');
     await farmlandPage.getByRole('button',{name:/Continue with this progress/}).click();
+    await farmlandPage.getByRole('button',{name:/Enter the gatehouse/}).click();
+    await farmlandPage.getByRole('button',{name:/Kingdom Map/}).click();
+    await farmlandPage.getByRole('button',{name:/FARMLAND.*locked/}).click();
     await farmlandPage.getByRole('button',{name:/Unlock Farmland/}).waitFor();
     assert.equal(claimCalls,0,'all-30 import never auto-claims');
     await farmlandPage.getByRole('button',{name:/Unlock Farmland/}).click();
     await farmlandPage.getByRole('button',{name:/Retry Farmland access/}).waitFor();
     await farmlandPage.getByRole('button',{name:/Retry Farmland access/}).click();
-    await farmlandPage.getByText('Farmland unlocked · Chapter 4 coming soon.').waitFor();
+    await farmlandPage.getByRole('button',{name:/Travel to Farmland/}).waitFor();
     assert.equal(claimCalls,2);assert.equal(claimIds[0],claimIds[1],'uncertain claim retries its original ID');
     await farmlandPage.reload();
-    await farmlandPage.getByText('Farmland unlocked · Chapter 4 coming soon.').waitFor();
+    await farmlandPage.getByRole('button',{name:/Enter the gatehouse/}).click();
+    await farmlandPage.getByRole('button',{name:/Kingdom Map/}).click();
+    await farmlandPage.getByRole('button',{name:/FARMLAND.*Unlocked/}).waitFor();
     await farmlandContext.close();
 
     const testContext=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
@@ -124,11 +129,16 @@ async function main(){
     await testPage.getByRole('button',{name:/Enter the oasis/}).click();
     await testPage.locator('.awning-wipe').waitFor({state:'detached'});
     await testPage.getByRole('button',{name:'Settings'}).click();
-    await testPage.getByRole('button',{name:/Preview Farmland access/}).click();
-    await testPage.getByText('Farmland unlocked · Chapter 4 coming soon.').waitFor();
-    assert.equal(campaignCalls,0,'playtest skips cloud API');
+    if(process.env.DUNE_EXPECT_PLAYTEST==='1'){
+      await testPage.getByRole('button',{name:/Preview Farmland access/}).click();
+      await testPage.getByRole('button',{name:/Preview Farmland access.*Unlocked/}).waitFor();
+      assert.equal(campaignCalls,0,'explicit local playtest skips cloud API');
+    }else{
+      assert.equal(await testPage.getByRole('button',{name:/Preview Farmland access|Replay /}).count(),0,'public query cannot enable sandbox controls');
+      assert(campaignCalls>0,'public query still checks Portal session');
+    }
     await testContext.close();
-    console.log('Cloud browser checks passed: import, guest isolation, account switch, offline block, win retry, explicit Farmland claim and same-ID retry, reload, playtest isolation.');
+    console.log('Cloud browser checks passed: import, guest isolation, account switch, offline block, win retry, explicit Farmland claim and same-ID retry, reload, playtest gate.');
   } finally {await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
