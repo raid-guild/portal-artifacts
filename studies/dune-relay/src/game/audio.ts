@@ -1,22 +1,9 @@
 import type { Region } from "./save";
 import type { SoundtrackId, TrackPreference } from "./soundtracks";
+import { arrangements, MUSIC_STEPS_PER_CYCLE, notesForMusicStep, scheduleMusicVoice, type MusicNote } from "./music";
 
 export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "cascade" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod" | "crate";
 
-const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; melody: (number | null)[]; wave: OscillatorType }> = {
-  // Sixteen bars: each four-bar phrase changes the melody register and harmony.
-  oasis: { bpm: 72, roots: [48, 53, 45, 55, 48, 57, 53, 55, 48, 53, 45, 55, 57, 53, 55, 48],
-    melody: [72, null, 76, null, 79, null, 76, null, 74, null, 72, null, 69, null, null, null, 72, null, 76, 79, null, 81, 79, null, 76, null, 74, null, 72, null, null, null], wave: "triangle" },
-  caravan: { bpm: 84, roots: [43, 46, 41, 43, 43, 48, 46, 41, 43, 46, 41, 43, 48, 46, 41, 43],
-    melody: [null, null, 67, null, null, 70, null, null, 72, null, 70, null, null, null, null, null, null, null, 67, null, 70, null, 74, null, null, 72, null, 70, null, null, null, null], wave: "sawtooth" },
-  gatehouse: { bpm: 76, roots: [50, 55, 47, 52, 50, 57, 55, 47, 50, 55, 47, 52, 57, 55, 47, 50],
-    melody: [74, null, 78, null, 81, null, 78, null, 76, null, 74, null, 71, null, null, null, 74, null, 78, 81, null, 83, null, 81, 78, null, 76, null, 74, null, null, null], wave: "sine" },
-  town: { bpm: 78, roots: [50, 55, 53, 57, 50, 58, 55, 53, 50, 55, 53, 57, 58, 55, 53, 50], melody: [74, null, 77, null, 79, 81, 79, null, 77, null, 74, null, 72, null, null, null, 74, null, 77, 79, null, 81, null, 79, 77, null, 74, null, 72, null, null, null], wave: "triangle" },
-  castle: { bpm: 74, roots: [48, 55, 53, 50, 48, 57, 55, 53, 50, 55, 53, 48, 46, 53, 50, 48], melody: [72, null, 74, null, 77, null, 74, null, 72, null, 69, null, 67, null, 69, null, 72, null, 74, null, 79, null, 77, null, 74, null, 72, null, 69, null, 67, null], wave: "triangle" },
-  farmland: { bpm: 80, roots: [48, 55, 52, 57, 50, 57, 53, 55, 48, 55, 52, 57, 53, 55, 50, 48],
-    melody: [72, null, 76, 79, null, 76, 74, null, 69, null, 72, null, 74, 76, null, null, 72, 76, null, 79, 81, null, 79, 76, 74, null, 72, 69, 72, null, null, null], wave: "triangle" },
-};
-const noteHz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 type Voice = { source: OscillatorNode | AudioBufferSourceNode; nodes: AudioNode[] };
 type MusicRun = { id: SoundtrackId; gain: GainNode; nextAt: number; step: number };
 
@@ -269,26 +256,16 @@ export class GameAudio {
     this.musicVoices.clear();
   }
 
-  private musicTone(run: MusicRun, midi: number, at: number, duration: number, loudness: number, type: OscillatorType) {
+  private musicTone(run: MusicRun, note: MusicNote, at: number) {
     const context = this.context;
     if (!context || this.musicVoices.size >= 32) return;
-    const oscillator = context.createOscillator();
-    const envelope = context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(noteHz(midi), at);
-    const attack = type === "sawtooth" ? 0.08 : 0.018;
-    envelope.gain.setValueAtTime(0.0001, at);
-    envelope.gain.linearRampToValueAtTime(loudness, at + attack);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-    oscillator.connect(envelope).connect(run.gain);
+    const { oscillator, envelope } = scheduleMusicVoice(context, run.gain, note, at);
     const voice: Voice = { source: oscillator, nodes: [oscillator, envelope] };
     this.musicVoices.add(voice);
     oscillator.onended = () => {
       this.musicVoices.delete(voice);
       oscillator.disconnect(); envelope.disconnect();
     };
-    oscillator.start(at);
-    oscillator.stop(at + duration + 0.02);
   }
 
   private scheduleMusic() {
@@ -301,27 +278,9 @@ export class GameAudio {
     if (run.nextAt < context.currentTime - eighth) run.nextAt = context.currentTime + 0.04;
     let scheduled = 0;
     while (run.nextAt < context.currentTime + 0.2 && scheduled++ < 3) {
-      const step = run.step % 128;
-      const bar = Math.floor(step / 8);
-      const beat = step % 8;
+      const step = run.step % MUSIC_STEPS_PER_CYCLE;
       const at = Math.max(run.nextAt, context.currentTime + 0.005);
-      const root = arrangement.roots[bar];
-      if (beat === 0) {
-        const chord = run.id === "caravan" ? [0, 7, 10] : [0, 7, 12];
-        for (const offset of chord) this.musicTone(run, root + 12 + offset, at, eighth * 6.7, 0.05, "sine");
-      }
-      if (beat === 0 || beat === 4 && (bar % 4 !== 3)) {
-        this.musicTone(run, root - 12, at, eighth * (beat === 0 ? 2.7 : 1.6), run.id === "caravan" ? 0.14 : 0.105, "triangle");
-      }
-      const melody = arrangement.melody[step % arrangement.melody.length];
-      if (melody !== null && (bar % 4 !== 3 || beat < 4)) {
-        const lift = bar >= 8 && bar < 12 ? 2 : bar >= 12 ? -2 : 0;
-        this.musicTone(run, melody + lift, at, eighth * (run.id === "gatehouse" ? 1.8 : 1.45), run.id === "caravan" ? 0.045 : 0.085, arrangement.wave);
-      }
-      if (beat === 4 && (bar % 2 === 0 || run.id === "gatehouse")) {
-        // Low, short rhythmic movement; the melody and harmony carry the piece.
-        this.musicTone(run, run.id === "gatehouse" ? 62 : 55, at, 0.09, 0.035, "triangle");
-      }
+      for (const note of notesForMusicStep(run.id, step)) this.musicTone(run, note, at);
       run.step++;
       run.nextAt += eighth;
     }

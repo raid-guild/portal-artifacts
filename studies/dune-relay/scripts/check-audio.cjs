@@ -7,7 +7,39 @@ Module._extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
 }).outputText, filename);
 
 const { EMPTY_SAVE } = require('../src/game/save.ts');
-const { getUnlockedSoundtracks, normalizeAudioPreferences } = require('../src/game/soundtracks.ts');
+const { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS } = require('../src/game/soundtracks.ts');
+const { arrangements, MUSIC_STEPS_PER_CYCLE, notesForMusicStep } = require('../src/game/music.ts');
+assert.equal(MUSIC_STEPS_PER_CYCLE, 128, 'sixteen eight-step bars form one score cycle');
+const expected = {
+  oasis: { bpm: 83, first: [60, 67, 72, 36, 72] },
+  caravan: { bpm: 97, first: [55, 62, 65, 31] },
+  gatehouse: { bpm: 87, first: [62, 69, 74, 38, 74] },
+  farmland: { bpm: 92, first: [60, 67, 72, 36, 72] },
+  town: { bpm: 90, first: [62, 69, 74, 38, 74] },
+  castle: { bpm: 85, first: [60, 67, 72, 36, 72] },
+};
+for (const [id, { bpm, first }] of Object.entries(expected)) {
+  assert.equal(arrangements[id].bpm, bpm, `${id} tempo`);
+  assert.equal(SOUNDTRACKS.find(track => track.id === id).bpm, bpm, `${id} displayed tempo`);
+  assert.deepEqual(notesForMusicStep(id, 0).map(note => note.midi), first, `${id} opening score pitches unchanged`);
+  const eighth = 30 / bpm;
+  const voiceEnds = [];
+  let maxVoices = 0;
+  for (let step = 0; step < MUSIC_STEPS_PER_CYCLE; step++) {
+    const notes = notesForMusicStep(id, step);
+    assert.deepEqual(notes, notesForMusicStep(id, step + MUSIC_STEPS_PER_CYCLE), `${id} repeats exactly after a cycle`);
+    const at = step * eighth;
+    for (let i = voiceEnds.length - 1; i >= 0; i--) if (voiceEnds[i] <= at) voiceEnds.splice(i, 1);
+    for (const note of notes) {
+      assert.ok(Number.isInteger(note.midi) && note.midi >= 0 && note.midi <= 127);
+      assert.ok(note.duration > 0 && Number.isFinite(note.duration));
+      assert.ok(note.gain > 0 && note.gain < 1);
+      voiceEnds.push(at + note.duration + 0.02);
+    }
+    maxVoices = Math.max(maxVoices, voiceEnds.length);
+  }
+  assert.ok(maxVoices < 32, `${id} score stays under the live voice cap at normal timing`);
+}
 assert.deepEqual(getUnlockedSoundtracks(EMPTY_SAVE), ['oasis']);
 assert.deepEqual(getUnlockedSoundtracks({ ...EMPTY_SAVE, completed: ['openWaterway'], oasisTransition: 'film' }), ['oasis'], 'completion before arrival does not unlock the next chapter');
 assert.deepEqual(getUnlockedSoundtracks({ ...EMPTY_SAVE, oasisTransition: 'arrival' }), ['oasis', 'caravan']);
