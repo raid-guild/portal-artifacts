@@ -204,11 +204,11 @@ Each mechanic needs readable states, movement, impact, sound, and tutorial frami
 
 - Count actual clear steps from one player move, including the first match. A two-wave cascade means the initial clear plus one follow-up clear, not a four-tile match. Refills and companion grants do not count as waves.
 - Keep the current uppercase words (NICE, BADICAL, TUBULAR, FOR REAL, GOORANGA, MOST EPIC), Archivo italic styling with an outline, and roughly one-second appearance centered over the game board rather than the full screen.
-- At two waves, add a brief board shake, a burst of particles at the clearing tiles, and a rising tone. Show one word at the third actual clear wave of the move. Keep the goal HUD steady and the falling pieces readable.
+- At two waves, add a brief board shake, bright sparks and sampled halos at the clearing tiles, and a rising tone. Increase spark count, travel, and glow through waves three, four, five, and six or more. Show one word at the third actual clear wave of the move. Keep the goal HUD steady and the falling pieces readable.
 - Use three restrained impact tiers: 2–3, 4–5, and 6+ waves. A real swapped-power combination earns the first-tier impact on its first clear even if the move has only one wave; it does not invent a second wave or show a word early. Play the tier sound only when the move reaches a higher tier.
 - Time the impact after any power beam reaches its target, immediately before the affected tiles clear and collections animate. Continue existing clear/refill movement without an extra wait or competing full-volume sounds.
 - Refresh one celebration at a time rather than stacking words, shakes, or full-screen overlays. Do not add pauses, change move/coin accounting, or make the player wait for a separate celebration sequence.
-- Preserve reduced-motion and sound settings: replace shake and large movement with a restrained static emphasis when reduced motion is enabled. Bound particles and simultaneous sound voices for mobile performance; clear effects on scene exit and pause them with the game.
+- Preserve reduced-motion and sound settings: replace shake and large movement with a few stationary fading glints when reduced motion is enabled. Cap live sparks at 48 and simultaneous glows at two for mobile performance, retiring older effects when a stronger wave arrives. Clear effects on scene exit and pause them with the game.
 - Keep this treatment for gameplay chains. The winning coin reveal already has its own spectacle and should not produce repeated cascade-callout spam.
 
 ## Transitions and final payoff
