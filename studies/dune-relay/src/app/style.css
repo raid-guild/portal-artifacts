@@ -57,6 +57,7 @@ button { font: inherit; cursor: pointer; }
 .intro.intro-caravan { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--caravan-image) center / cover; }
 .intro.intro-gatehouse { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--gatehouse-image) center / cover; }
 .intro.intro-farmland { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--farmland-image) center / cover; }
+.intro.intro-town { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--town-image) center / cover; }
 .intro-card { width: 49%; padding: 0 0 0 6%; color: #fff0d0; }
 .eyebrow, .speaker { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(12px, 2.4vw, 20px); font-weight: 700; letter-spacing: .19em; color: #78dfca; }
 .intro h1 { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(60px, 11vw, 112px); line-height: .78; letter-spacing: -.035em; margin: 15px 0 20px; color: #ffe2a5; text-shadow: 4px 5px 0 #713d31; }

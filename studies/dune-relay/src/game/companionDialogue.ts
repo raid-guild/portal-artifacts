@@ -34,6 +34,11 @@ const common: Record<CompanionId, CompanionLine[]> = {
     { id: "gatewright-weight", kind: "observation", text: "Every counterweight has another side." },
     { id: "gatewright-bridge", kind: "observation", text: "A bridge is only as useful as its next crossing." },
   ],
+  towncrier: [
+    { id: "crier-ledger", kind: "observation", text: "The market received its crates, but the castle-bound copies disagree." },
+    { id: "crier-route", kind: "observation", text: "A courier checks the exit before sending a crate downhill." },
+    { id: "crier-call", kind: "tip", text: "Gather twelve pennants and I will rally two vertical Jets. They can clear a path beneath cargo." },
+  ],
   fieldkeeper: [
     { id: "fieldkeeper-druids", kind: "handbook", text: "Druids work with research and data analysis. That suits my seed ledgers.", source: handbook.roles },
     { id: "fieldkeeper-rangers", kind: "handbook", text: "Rangers specialize in user experience and usability testing.", source: handbook.roles },
@@ -43,7 +48,7 @@ const common: Record<CompanionId, CompanionLine[]> = {
   ],
 };
 
-const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper" };
+const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier" };
 const symbolName = { water: "water", gear: "gears", leaf: "reeds", pennant: "pennants", key: "keys" } as const;
 
 export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | null): CompanionLine[] {
@@ -65,6 +70,7 @@ export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | n
     tips.push({ id: `${companion}-prism`, kind: "tip", text: "Five in a line makes a Prism. Swap it with a symbol to clear that symbol." });
   }
   if (level.crust?.length) tips.push({ id: `${companion}-salt`, kind: "tip", text: "Match beside salt to crack it. Jets and Flywheels must hit it directly." });
+  if (level.crates?.length) tips.push({ id: `${companion}-crates`, kind: "tip", text: "Crates fall into cleared gaps and deliver when they leave a bottom edge. Powers cannot destroy them." });
   if (level.seedpods?.length) tips.push({ id: `${companion}-pods`, kind: "tip", text: "Seedpods fall but won't swap. Crack each one twice with nearby matches." });
   if (level.boardShape) tips.push({ id: `${companion}-shape`, kind: "tip", text: "This board has narrow spaces. Watch where new tiles can fall." });
   const mixed: CompanionLine[] = [];
