@@ -5,11 +5,12 @@ const ts = require('typescript');
 const Module = require('node:module');
 Module._extensions['.ts'] = (module, filename) => {
   const source = fs.readFileSync(filename, 'utf8');
-  const result = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
+  const result = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } });
   module._compile(result.outputText, filename);
 };
 const { createPuzzle, playTurn, isSpecial, coinReward, legalMove, resolveFinaleRefill } = require('../src/game/core.ts');
 const { LEVELS, LEVEL_ORDER, nextLevel } = require('../src/game/levels.ts');
+const { COMPANION_ABILITIES, companionSnapshot, castleLevelForCompanion } = require('../src/game/companionAbilities.ts');
 const { completeLevel, EMPTY_SAVE, readSave, advanceTransition, advanceChapterTransition, normalizeSave } = require('../src/game/save.ts');
 const { beamTravelDelay } = require('../src/game/timing.ts');
 const { planFinale } = require('../src/game/finale.ts');
@@ -21,6 +22,39 @@ const { contentVersion } = require('../src/game/cloud.ts');
 const cloudContent = require('../../../services/leaderboards/src/dune-content.json');
 const historicalCaps = require('../../../services/leaderboards/src/dune-legacy-moves.json');
 const townWinningRoutes = require('./town-winning-routes.json');
+const firstFifty = require('./chapter-5-baseline-hashes.json');
+const fixtureHash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const canonicalAbilities = require('../../../services/leaderboards/src/dune-companions.json');
+assert.deepEqual(COMPANION_ABILITIES,canonicalAbilities,'browser and service use one companion ability catalog');
+for(const id of Object.keys(canonicalAbilities)) {
+  const snapshot=companionSnapshot(id);
+  const puzzle=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,snapshot));
+  for(const field of ['chargeSymbol','keeperTarget','grantedPower','grantCount','grantedJetDirection']) assert.equal(puzzle[field],snapshot[field],`${id}: Castle board uses the selected ability`);
+}
+const castleKeeper=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,companionSnapshot('keeper')));
+assert.equal(castleKeeper.grantedJetDirection,undefined,'Keeper keeps the alternating Jet rule');
+function chargedGift(puzzle,chargeTarget) {
+  const charged={...puzzle,keeperCharge:chargeTarget};
+  const move=legalMove(charged.board);
+  assert.ok(move,'charged companion board has a legal move');
+  const turn=playTurn(charged,...move);
+  assert.equal(turn.keeperJets.length,2,'the charged member grants two powers');
+  assert.equal(turn.state.keeperCharge,0,'companion charge resets after each gift');
+  return turn;
+}
+const keeperFirst=chargedGift(castleKeeper,9);
+assert.deepEqual(keeperFirst.keeperJets.map(cell=>keeperFirst.state.board[cell.row][cell.col]?.jet),['row','column'],'Keeper grants one horizontal and one vertical Jet');
+const keeperSecond=chargedGift(keeperFirst.state,9);
+assert.deepEqual(keeperSecond.keeperJets.map(cell=>keeperSecond.state.board[cell.row][cell.col]?.jet),['row','column'],'Keeper can grant the alternating pair again in one attempt');
+const castleCrier=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,companionSnapshot('towncrier')));
+const crierGift=chargedGift(castleCrier,12);
+assert.deepEqual(crierGift.keeperJets.map(cell=>crierGift.state.board[cell.row][cell.col]?.jet),['column','column'],'Town Crier still grants two vertical Jets');
+assert.deepEqual(LEVEL_ORDER.slice(0,50),firstFifty.ids,'first fifty level IDs remain in place');
+for(let index=0;index<50;index++) {
+  const id=LEVEL_ORDER[index];
+  assert.equal(fixtureHash(LEVELS[id]),firstFifty.levels[index],`${id}: original authored level is unchanged`);
+  assert.equal(fixtureHash(createPuzzle(LEVELS[id])),firstFifty.puzzles[index],`${id}: original seeded board is unchanged`);
+}
 import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaign }) => {
   const fixtures = [
     { completed: 0, oasisTransition: 'locked' },
@@ -769,7 +803,7 @@ const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archive
 assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-5-1','new attempts carry the current content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-6-1','new attempts carry the current content version');
 assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
 assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));
@@ -860,7 +894,7 @@ assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',farmlandEnd
 for (const stage of ['film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,farmlandEnding:stage}).farmlandEnding,stage);
 assert.equal(normalizeSave({...migratedFinal,completed:LEVEL_ORDER.slice(0,39),farmlandEnding:'done'}).farmlandEnding,'locked','unfinished final level cannot unlock ending');
 assert.equal(normalizeSave({...migratedFinal,demoEnding:'done'}).coins,1299);
-console.log('Core checks passed: 40 levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.');
+console.log(`Core checks passed: ${LEVEL_ORDER.length} levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.`);
 
 // Opaque-origin Portal embeds may deny the localStorage getter itself.
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');

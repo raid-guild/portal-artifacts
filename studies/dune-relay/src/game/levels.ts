@@ -1,6 +1,6 @@
 import type { Cell, Goals, SymbolKind } from "./core";
 
-export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad", "marketArrival", "courierSteps", "terraceDeliveries", "splitMarket", "saltedStorefronts", "awningLanes", "seedExchange", "neighborhoodRounds", "townLedger", "openTheMarket"] as const;
+export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad", "marketArrival", "courierSteps", "terraceDeliveries", "splitMarket", "saltedStorefronts", "awningLanes", "seedExchange", "neighborhoodRounds", "townLedger", "openTheMarket", "castleReceivingDock", "provisionStores", "saltboundStorehouse", "castleSeedVault", "dividedCourtyard", "terraceDispatch", "contradictoryOrders", "reservoirLedger", "reservoirControls", "openTheUpstreamRoute"] as const;
 export type LevelId = (typeof LEVEL_ORDER)[number];
 export type LevelDefinition = {
   id: LevelId;
@@ -8,7 +8,7 @@ export type LevelDefinition = {
   seed: number;
   moves: number;
   goals: Goals;
-  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland" | "town";
+  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle";
   symbols?: SymbolKind[];
   chargeSymbol?: SymbolKind;
   grantedPower?: "jets" | "flywheels" | "prism";
@@ -155,9 +155,24 @@ export const LEVELS: Record<LevelId, LevelDefinition> = {
   neighborhoodRounds: townLevel("neighborhoodRounds", "NEIGHBORHOOD ROUNDS", 59921, 30, 6, "practice", "neighborhoodRounds", "Deliver six crates, open the seedpods, and clear the salt. Gather pennants to call the Crier's vertical Jets.", "twinChambers", 6, 4, 0, 24),
   townLedger: townLevel("townLedger", "TOWN LEDGER", 61031, 30, 6, "practice", "townLedger", "The records disagree. Clear the layered salt, open the seedpods, and send the cargo to every available exit.", "steppedBasin", 8, 6, 2, 0, 30),
   openTheMarket: townLevel("openTheMarket", "OPEN THE MARKET", 62143, 32, 7, "practice", "openTheMarket", "The market opens at sunset. Deliver seven crates and clear the last seals while the Crier checks the castle-bound ledger.", "clippedCorners", 10, 6, 4, 36),
+  castleReceivingDock: castleLevel("castleReceivingDock", "RECEIVING DOCK", 63247, 24, 2, 0, 0, 0, 24, 0, "The quartermaster checks the incoming manifest. Deliver the first two crates and collect water for the castle cistern."),
+  provisionStores: castleLevel("provisionStores", "PROVISION STORES", 64373, 25, 3, 0, 0, 0, 0, 24, "The castle's provision list does not agree with the town's. Move three crates through the storehouse.", "clippedCorners"),
+  saltboundStorehouse: castleLevel("saltboundStorehouse", "SALTBOUND STOREHOUSE", 65479, 27, 3, 8, 0, 0, 0, 0, "Old salt seals the loading lanes. Clear it and get the cargo to the lower exits."),
+  castleSeedVault: castleLevel("castleSeedVault", "SEED VAULT", 66587, 28, 4, 0, 6, 0, 24, 0, "Open the seed vault while the crates descend; the water ledger is still short.", "clippedCorners"),
+  dividedCourtyard: castleLevel("dividedCourtyard", "DIVIDED COURTYARD", 67691, 29, 5, 8, 0, 0, 0, 0, "Two courtyard lanes lead to separate exits. Keep both sides moving.", "twinChambers"),
+  terraceDispatch: castleLevel("terraceDispatch", "TERRACE DISPATCH", 68797, 29, 5, 0, 6, 0, 0, 0, "The terraces are ready for dispatch. Break the pods as you deliver the cargo.", "steppedBasin", 24),
+  contradictoryOrders: castleLevel("contradictoryOrders", "CONTRADICTORY ORDERS", 69911, 30, 5, 6, 4, 2, 0, 0, "Two ledgers name different destinations. Open the seals and deliver the five crates.", "clippedCorners"),
+  reservoirLedger: castleLevel("reservoirLedger", "RESERVOIR LEDGER", 71023, 30, 6, 0, 8, 0, 36, 0, "The reservoir account is short. Bring water while the last stores move out.", "clippedCorners"),
+  reservoirControls: castleLevel("reservoirControls", "RESERVOIR CONTROLS", 72139, 31, 6, 12, 0, 6, 0, 0, "The old controls are layered with salt. Crack them open and find the upstream route.", "steppedBasin", 0, 36),
+  openTheUpstreamRoute: castleLevel("openTheUpstreamRoute", "OPEN THE UPSTREAM ROUTE", 73243, 32, 7, 10, 8, 4, 36, 0, "The castle records point upstream. Deliver the final stores and open the boat route.", "clippedCorners"),
 
 };
 
+
+function castleLevel(id: LevelId, title: string, seed: number, moves: number, crates: number, salt: number, pods: number, thick: number, water: number, leaf: number, briefing: string, shape?: LevelDefinition["boardShape"], pennant = 0, key = 0): LevelDefinition {
+  const base = townLevel(id, title, seed, moves, crates, "practice", id as keyof typeof MAP_DESTINATIONS, briefing, shape, salt, pods, thick, pennant, water);
+  return { ...base, chapter: "castle", goals: { ...base.goals, leaf, key }, victoryEyebrow: "CASTLE ISLAND", victoryTitle: id === "openTheUpstreamRoute" ? "The upstream route is open!" : "The manifest is coming together!", victoryMessage: id === "openTheUpstreamRoute" ? "The quartermaster has found a water route beyond the castle. A boat waits at the dock." : "Another delivery is accounted for." };
+}
 
 function townLevel(id: LevelId, title: string, seed: number, moves: number, crateCount: number, lesson: LevelDefinition["lesson"], destination: keyof typeof MAP_DESTINATIONS, briefing: string, boardShape?: LevelDefinition["boardShape"], saltCount = 0, podCount = 0, thickCount = 0, pennant = 0, water = 0): LevelDefinition {
   const mask = (row:number,col:number) => boardShape === "twinChambers" ? col <= 2 || col >= 6 || row >= 3 && row <= 5 : boardShape === "steppedBasin" ? col >= (9-(row<2?5:row<4?7:9))/2 && col < (9+(row<2?5:row<4?7:9))/2 : boardShape === "clippedCorners" ? !(row===0||row===8) || !(col===0||col===8) : true;
@@ -253,5 +268,15 @@ export const MAP_DESTINATIONS = {
   neighborhoodRounds: {marker:{x:700,y:300},label:{x:700,y:255},walk:{x:700,y:435},hit:{x:700,y:335,width:105,height:100}},
   townLedger: {marker:{x:600,y:310},label:{x:600,y:265},walk:{x:600,y:435},hit:{x:600,y:340,width:105,height:100}},
   openTheMarket: {marker:{x:820,y:295},label:{x:820,y:250},walk:{x:820,y:435},hit:{x:820,y:335,width:105,height:100}},
+  castleReceivingDock: {marker:{x:220,y:335},label:{x:220,y:290},walk:{x:220,y:435},hit:{x:220,y:360,width:110,height:100}},
+  provisionStores: {marker:{x:355,y:310},label:{x:355,y:265},walk:{x:355,y:430},hit:{x:355,y:345,width:110,height:100}},
+  saltboundStorehouse: {marker:{x:470,y:320},label:{x:470,y:275},walk:{x:470,y:430},hit:{x:470,y:350,width:110,height:100}},
+  castleSeedVault: {marker:{x:610,y:275},label:{x:610,y:230},walk:{x:610,y:420},hit:{x:610,y:310,width:110,height:105}},
+  dividedCourtyard: {marker:{x:740,y:320},label:{x:740,y:275},walk:{x:740,y:430},hit:{x:740,y:350,width:110,height:100}},
+  terraceDispatch: {marker:{x:840,y:340},label:{x:840,y:295},walk:{x:840,y:440},hit:{x:840,y:370,width:110,height:100}},
+  contradictoryOrders: {marker:{x:300,y:365},label:{x:300,y:320},walk:{x:300,y:450},hit:{x:300,y:390,width:110,height:100}},
+  reservoirLedger: {marker:{x:500,y:345},label:{x:500,y:300},walk:{x:500,y:440},hit:{x:500,y:375,width:110,height:100}},
+  reservoirControls: {marker:{x:690,y:350},label:{x:690,y:305},walk:{x:690,y:440},hit:{x:690,y:375,width:110,height:100}},
+  openTheUpstreamRoute: {marker:{x:870,y:295},label:{x:870,y:250},walk:{x:850,y:435},hit:{x:870,y:330,width:110,height:100}},
   openTheHarvestRoad: { marker:{x:875,y:360},label:{x:855,y:310},walk:{x:835,y:440},hit:{x:875,y:375,width:100,height:100} },
 } as const;

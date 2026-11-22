@@ -1,0 +1,33 @@
+{
+  "keeper": {
+    "chargeSymbol": "leaf",
+    "keeperTarget": 9,
+    "grantedPower": "jets",
+    "grantCount": 2
+  },
+  "wayfinder": {
+    "chargeSymbol": "pennant",
+    "keeperTarget": 9,
+    "grantedPower": "flywheels",
+    "grantCount": 2
+  },
+  "gatewright": {
+    "chargeSymbol": "key",
+    "keeperTarget": 9,
+    "grantedPower": "prism",
+    "grantCount": 1
+  },
+  "fieldkeeper": {
+    "chargeSymbol": "leaf",
+    "keeperTarget": 12,
+    "grantedPower": "flywheels",
+    "grantCount": 2
+  },
+  "towncrier": {
+    "chargeSymbol": "pennant",
+    "keeperTarget": 12,
+    "grantedPower": "jets",
+    "grantCount": 2,
+    "grantedJetDirection": "column"
+  }
+}
