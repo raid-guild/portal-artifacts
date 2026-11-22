@@ -7,8 +7,9 @@ Module._extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, filename);
 
-const { CascadeFlair, cascadeFlairTier } = require('../src/game/cascadeFlair.ts');
-assert.deepEqual([0, 3, 4, 5, 6, 7, 8, 12].map(cascadeFlairTier), [0, 0, 1, 1, 2, 2, 3, 3]);
+const { CascadeFlair, cascadeFlairTier, showCascadeWord } = require('../src/game/cascadeFlair.ts');
+assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 8].map(cascadeFlairTier), [0, 0, 1, 1, 2, 2, 3, 3]);
+assert.deepEqual([0, 1, 2, 3, 4, 6].map(showCascadeWord), [false, false, false, true, false, false], 'the word begins on wave three only');
 
 function harness(reducedMotion = false) {
   const sprites = [], tweens = [], shakes = [];
@@ -25,18 +26,20 @@ function harness(reducedMotion = false) {
 }
 
 const impact = harness();
-assert.equal(impact.flair.play(3, [{ x: 430, y: 220 }]), 0);
+assert.equal(impact.flair.play(1, [{ x: 430, y: 220 }]), 0);
 assert.equal(impact.flair.liveCount, 0, 'ordinary clears have no flair');
-impact.flair.play(4, [{ x: 430, y: 220 }, { x: 480, y: 220 }]);
+assert.equal(impact.flair.play(1, [{ x: 430, y: 220 }], true), 1, 'a real one-wave power combo gets its own impact');
 assert.equal(impact.flair.liveCount, 12);
-assert.equal(impact.shakes.length, 1);
-impact.shakes[0].config.onUpdate(impact.shakes[0]);
+impact.flair.play(2, [{ x: 430, y: 220 }, { x: 480, y: 220 }]);
+assert.equal(impact.flair.liveCount, 24);
+assert.equal(impact.shakes.length, 2);
+impact.shakes[1].config.onUpdate(impact.shakes[1]);
 assert.notDeepEqual([impact.root.x, impact.root.y], [0, 0], 'the board container receives the impact');
+impact.flair.play(3, [{ x: 430, y: 220 }]);
+assert.equal(impact.shakes[1].removed, true, 'a later wave replaces the previous shake');
+impact.flair.play(4, [{ x: 430, y: 220 }]);
 impact.flair.play(5, [{ x: 430, y: 220 }]);
-assert.equal(impact.shakes[0].removed, true, 'a later wave replaces the previous shake');
 impact.flair.play(6, [{ x: 430, y: 220 }]);
-impact.flair.play(7, [{ x: 430, y: 220 }]);
-impact.flair.play(8, [{ x: 430, y: 220 }]);
 assert.equal(impact.flair.liveCount, 48, 'overlapping wave bursts never exceed the live cap');
 assert.equal(impact.sprites.length, 48);
 impact.flair.setPaused(true);

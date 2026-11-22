@@ -12,7 +12,7 @@ import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
 import towncrierFrames from "../../public/sprites/towncrier-frames.json";
 import quartermasterFrames from "../../public/sprites/quartermaster-frames.json";
-import { CascadeFlair } from "./cascadeFlair";
+import { CascadeFlair, showCascadeWord } from "./cascadeFlair";
 import type { CompanionId, Region } from "./save";
 import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
@@ -1019,6 +1019,19 @@ function makeCastleScene(props: Props): typeof Phaser.Scene {
 }
 
 function makePuzzleScene(props: Props): typeof Phaser.Scene {
+  const goalCount = Object.values(props.level.goals).filter(count => count > 0).length;
+  const crowded = goalCount >= 4;
+  const hudLayout = {
+    movesHeight: crowded ? 54 : 66,
+    headingY: crowded ? 212 : goalCount > 2 ? 216 : 227,
+    goalY: (index: number) => crowded ? 253 + index * 34 : goalCount > 2 ? 257 + index * 38 : 279 + index * 55,
+    portraitY: crowded ? 421 : 392,
+    powerTitleY: crowded ? 388 : 365,
+    meterY: crowded ? 415 : 391,
+    chargeY: crowded ? 438 : 415,
+    rewardY: crowded ? 452 : 429,
+    messageY: crowded ? 472 : 457,
+  };
   return class PuzzleScene extends Phaser.Scene {
     puzzle: Puzzle = props.puzzle ?? createPuzzle(props.level);
     displayBoard: Board = this.puzzle.board;
@@ -1027,6 +1040,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     selected: Cell | null = null;
     busy = false;
     clearStreak = 0;
+    comboTurn = false;
+    celebratedTier = 0;
     chainCallout?: HTMLDivElement;
     boardRoot?: Phaser.GameObjects.Container;
     flair?: CascadeFlair;
@@ -1039,10 +1054,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     displayedGoals: Goals = { ...this.puzzle.goals };
     goalLabels = new Map<GoalKind, Phaser.GameObjects.Text>();
     goalIcons = new Map<GoalKind, Phaser.GameObjects.GameObject>();
+    goalIconScales = new Map<GoalKind, { x: number; y: number }>();
     selection?: Phaser.GameObjects.Graphics;
     message?: Phaser.GameObjects.Text;
     keeperPortrait?: Phaser.GameObjects.Image;
-    portraitY = Object.values(props.level.goals).filter(count => count > 0).length >= 4 ? 418 : 392;
+    portraitY = hudLayout.portraitY;
     revealPlan?: FinalePlan;
     revealActive = false;
     revealSkipped = false;
@@ -1099,7 +1115,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.selection = this.add.graphics();
       this.boardRoot.add(this.selection);
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (this.displayCrust[row][col]) this.makeCrust({ row, col }, this.displayCrust[row][col]);
-      this.message = label(this, 51, this.portraitY === 418 ? 480 : 457, "Drag or tap adjacent symbols to swap", 12, "#d2c5a5").setWordWrapWidth(220);
+      this.message = label(this, 51, hudLayout.messageY, "Drag or tap adjacent symbols to swap", crowded ? 11 : 12, "#d2c5a5").setWordWrapWidth(220).setMaxLines(crowded ? 3 : 4);
       this.add.circle(75, this.portraitY, 30, 0x264d59).setStrokeStyle(2, 0xe0bd82);
       this.keeperPortrait = this.add.image(75, this.portraitY, prepareSmallTexture(this, "companionAvatar", "companionAvatar-small", 162)).setDisplaySize(54, 54);
       // Native pointer capture keeps fast touch swipes intact even when the finger
@@ -1168,6 +1184,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.flair?.dispose();
         delete canvas.dataset.flairTier;
         delete canvas.dataset.flairParticles;
+        delete canvas.dataset.flairWaves;
         resetGesture(); this.cancelGesture = undefined;
         this.cancelIdleHint();
         this.revealSkipped = true;
@@ -1287,8 +1304,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const avatar = this.keeperPortrait;
       if (avatar && !props.reducedMotion) {
         props.audio?.play("keeper");
-        void this.introTween(avatar, { angle: 9, y: 386, yoyo: true, repeat: 2, duration: 85 }).then(() => {
-          if (this.introActive) avatar.setPosition(75, 392).setAngle(0);
+        void this.introTween(avatar, { angle: 9, y: this.portraitY - 6, yoyo: true, repeat: 2, duration: 85 }).then(() => {
+          if (this.introActive) avatar.setPosition(75, this.portraitY).setAngle(0);
         });
       }
       await Promise.all(props.startingBoosters.map(async (placement, index) => {
@@ -1304,11 +1321,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           ring.setAlpha(0.7);
           await this.introTween(ring, { alpha: 0, scale: 1.25, duration: 90 });
         } else {
-          const flight = drawPiece(this, 75, 392, tile.kind, tile.jet, false, tile.power).setDepth(42);
+          const flight = drawPiece(this, 75, this.portraitY, tile.kind, tile.jet, false, tile.power).setDepth(42);
           const motion = { t: 0 };
           await this.introTween(motion, { t: 1, duration: 480, ease: "Cubic.easeInOut", onUpdate: () => {
             const t = motion.t;
-            flight.setPosition(75 + (p.x - 75) * t, 392 + (p.y - 392) * t - Math.sin(Math.PI * t) * 80);
+            flight.setPosition(75 + (p.x - 75) * t, this.portraitY + (p.y - this.portraitY) * t - Math.sin(Math.PI * t) * 80);
             flight.setScale(0.7 + 0.3 * t);
           } });
           flight.destroy();
@@ -1325,22 +1342,28 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     async showGoalBanner(completed: boolean) {
       if (!this.sceneAlive) return;
+      const goals = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
+      const height = !completed && goals.length >= 4 ? 194 : 144;
       const background = this.add.graphics();
-      background.fillStyle(0xffedc8).fillRoundedRect(-270, 0, 540, 144, 16);
-      background.lineStyle(3, 0xc49551).strokeRoundedRect(-270, 0, 540, 144, 16);
+      background.fillStyle(0xffedc8).fillRoundedRect(-270, 0, 540, height, 16);
+      background.lineStyle(3, 0xc49551).strokeRoundedRect(-270, 0, 540, height, 16);
       const title = this.add.text(0, completed ? 48 : 20, completed ? "ALL GOALS CLEARED!" : `${props.level.title} · COLLECT`, {
         fontFamily: "Arial, sans-serif", fontSize: completed ? "32px" : "22px", fontStyle: "bold", color: "#21444a",
       }).setOrigin(0.5, 0);
       const contents: Phaser.GameObjects.GameObject[] = [background, title];
       if (!completed) {
-        const goals = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
         goals.forEach(([kind, count], index) => {
-          const x = goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : goals.length >= 4 ? -235 + index * 125 : -205 + index * 170;
-          contents.push(drawGoalIcon(this, x, 91, kind));
-          contents.push(this.add.text(x + 33, 76, `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: goals.length >= 4 ? "14px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" }));
+          const four = goals.length >= 4;
+          const x = four ? -227 + (index % 2) * 255 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
+          const y = four ? 91 + Math.floor(index / 2) * 64 : 91;
+          contents.push(drawGoalIcon(this, x, y, kind));
+          const caption = this.add.text(x + 36, y - 15, `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
+          if (four) caption.setScale(Math.min(1, 205 / caption.width));
+          contents.push(caption);
         });
       }
-      const banner = this.add.container(WIDTH / 2, -160, contents).setDepth(40);
+      const hiddenY = -height - 20;
+      const banner = this.add.container(WIDTH / 2, hiddenY, contents).setDepth(40);
       const animate = (target: object, config: Omit<Phaser.Types.Tweens.TweenBuilderConfig, "targets" | "onComplete">) => completed ? this.tween(target, config) : this.introTween(target, config);
       if (props.reducedMotion) {
         banner.setY(115).setAlpha(0);
@@ -1354,7 +1377,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       await (completed ? this.wait(1000) : this.introWait(1300));
       if (!completed && !this.introActive) return;
       if (completed && this.revealSkipped) { banner.destroy(); return; }
-      await animate(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: -160, duration: 280, ease: "Cubic.easeIn" });
+      await animate(banner, props.reducedMotion ? { alpha: 0, duration: 120 } : { y: hiddenY, duration: 280, ease: "Cubic.easeIn" });
       banner.destroy();
     }
     showLessonHint() {
@@ -1406,14 +1429,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud = [];
       this.goalLabels.clear();
       this.goalIcons.clear();
-      this.hud.push(panel(this, 49, 145, 220, 66, 0.7));
+      this.goalIconScales.clear();
+      this.hud.push(panel(this, 49, 145, 220, hudLayout.movesHeight, 0.7));
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      const crowded=goalRows.length>=4;
-      this.hud.push(label(this, 51, crowded ? 209 : goalRows.length > 2 ? 216 : 227, "LEFT TO COLLECT", 17, "#a2e7da"));
+      this.hud.push(label(this, 51, hudLayout.headingY, "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
-        const y = crowded ? 238 + index * 34 : goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
+        const y = hudLayout.goalY(index);
         const icon = drawGoalIcon(this, 74, y, kind);
         if (crowded && "setScale" in icon) {
           const scalable=icon as Phaser.GameObjects.Image | Phaser.GameObjects.Container;
@@ -1421,16 +1444,17 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         }
         const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), crowded ? 18 : 20);
         this.goalIcons.set(kind, icon);
+        this.goalIconScales.set(kind, { x: icon.scaleX, y: icon.scaleY });
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
       });
-      this.hud.push(label(this, 110, crowded ? 387 : 365, `${({keeper:"KEEPER",wayfinder:"WAYFINDER",gatewright:"GATEWRIGHT",fieldkeeper:"FIELDKEEPER",towncrier:"TOWN CRIER"} as const)[props.boardCompanion??"keeper"]}'S POWER`, 14, "#a2e7da"));
+      this.hud.push(label(this, 110, hudLayout.powerTitleY, `${({keeper:"KEEPER",wayfinder:"WAYFINDER",gatewright:"GATEWRIGHT",fieldkeeper:"FIELDKEEPER",towncrier:"TOWN CRIER"} as const)[props.boardCompanion??"keeper"]}'S POWER`, 14, "#a2e7da"));
       const meter = this.add.graphics();
-      meter.fillStyle(0x315568).fillRoundedRect(110, crowded ? 413 : 391, 153, 17, 7);
-      meter.fillStyle(GREEN).fillRoundedRect(110, crowded ? 413 : 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
+      meter.fillStyle(0x315568).fillRoundedRect(110, hudLayout.meterY, 153, 17, 7);
+      meter.fillStyle(GREEN).fillRoundedRect(110, hudLayout.meterY, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
       this.hud.push(meter);
-      this.hud.push(label(this, 110, crowded ? 437 : 415, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
-      this.hud.push(label(this, 110, crowded ? 451 : 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
+      this.hud.push(label(this, 110, hudLayout.chargeY, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
+      this.hud.push(label(this, 110, hudLayout.rewardY, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
     }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
@@ -1438,8 +1462,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
       if (icon && !props.reducedMotion && this.sceneAlive) {
         this.tweens.killTweensOf(icon);
-        icon.setScale(1);
-        this.tweens.add({ targets: icon, scale: 1.16, duration: 85, yoyo: true, ease: "Sine.easeOut" });
+        const baseline = this.goalIconScales.get(kind) ?? { x: icon.scaleX, y: icon.scaleY };
+        icon.setScale(baseline.x, baseline.y);
+        this.tweens.add({ targets: icon, scaleX: baseline.x * 1.16, scaleY: baseline.y * 1.16, duration: 85, yoyo: true, ease: "Sine.easeOut" });
       }
     }
     async showCollections(step: TurnStep) {
@@ -1825,7 +1850,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         }
         const shots: Promise<void>[] = [];
         for (const cell of step.cells) {
-          const orb = this.add.circle(76, 392, 10, 0xa8f5ce).setStrokeStyle(3, 0xffffff);
+          const orb = this.add.circle(76, this.portraitY, 10, 0xa8f5ce).setStrokeStyle(3, 0xffffff);
           const p = this.center(cell);
           shots.push(this.tween(orb, { x: p.x, y: p.y, duration: short ? 90 : 550, ease: "Cubic.easeInOut" }).then(() => orb.destroy()));
         }
@@ -1844,24 +1869,24 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         return;
       }
       if (step.kind === "clear") {
-        props.audio?.play("clear", this.clearStreak);
-        this.clearStreak++;
-        const tier=this.flair?.play(this.clearStreak,step.cells.map(cell=>this.center(cell))) ?? 0;
-        if (tier && (this.clearStreak===4 || this.clearStreak===6 || this.clearStreak===8)) props.audio?.play("cascade",tier);
-        if (isPlaytestMode(window.location.search)) { this.game.canvas.dataset.flairTier=String(tier); this.game.canvas.dataset.flairParticles=String(this.flair?.liveCount??0); }
-        if (this.clearStreak === 4) this.showChainCallout();
         const cross = step.jets.some((jet, index) => step.jets.slice(index + 1).some(other =>
           jet.cell.row === other.cell.row && jet.cell.col === other.cell.col && jet.direction !== other.direction));
         if (cross) this.setMessage("Jet combo! Row + column blast");
         await this.showSequence(step);
         if (!this.sceneAlive) return;
+        props.audio?.play("clear", this.clearStreak);
+        this.clearStreak++;
+        const tier=this.flair?.play(this.clearStreak,step.cells.map(cell=>this.center(cell)),this.comboTurn && this.clearStreak===1) ?? 0;
+        if (tier > this.celebratedTier) { this.celebratedTier=tier; props.audio?.play("cascade",tier); }
+        if (isPlaytestMode(window.location.search)) { this.game.canvas.dataset.flairTier=String(tier); this.game.canvas.dataset.flairParticles=String(this.flair?.liveCount??0); this.game.canvas.dataset.flairWaves=String(this.clearStreak); }
+        if (showCascadeWord(this.clearStreak)) this.showChainCallout();
         await Promise.all([this.syncTiles(step.board, short ? 70 : 180, step.kind), this.showCollections(step)]);
         if (!this.sceneAlive) return;
         const chargeCells = step.cells.filter(cell => this.displayBoard[cell.row][cell.col]?.kind === this.puzzle.chargeSymbol && !isSpecial(this.displayBoard[cell.row][cell.col])).slice(0, 8);
         await Promise.all(chargeCells.map(async cell => {
           const position = this.center(cell);
           const mote = this.add.circle(position.x, position.y, 5, 0xa9f5cf);
-          await this.tween(mote, { x: 225, y: 399, alpha: 0.15, duration: short ? 80 : 320, ease: "Cubic.easeIn" });
+          await this.tween(mote, { x: 225, y: hudLayout.meterY + 8, alpha: 0.15, duration: short ? 80 : 320, ease: "Cubic.easeIn" });
           mote.destroy();
         }));
         if (!this.sceneAlive) return;
@@ -1915,6 +1940,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (this.lessonHint) { this.tweens.killTweensOf(this.lessonHint); this.lessonHint.destroy(); this.lessonHint = undefined; }
       this.clearChainCallout();
       this.clearStreak = 0;
+      this.celebratedTier = 0;
+      this.comboTurn = Object.values(turn.stats.combinations).some(count => count > 0);
       props.audio?.play("swap");
       if (this.keeperPortrait && !props.reducedMotion) {
         this.tweens.killTweensOf(this.keeperPortrait);

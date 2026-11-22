@@ -200,13 +200,13 @@ Each mechanic needs readable states, movement, impact, sound, and tutorial frami
 
 ## Cascade flair across the campaign
 
-**Presentation update, November 21, 2026.** Existing 4+ cascade words have received good feedback. Brief board shakes, capped particles, and rising tones now accompany gameplay cascades. This is a campaign-wide presentation improvement, not an additional Castle Island rule or a change to rewards or difficulty.
+**Presentation update, November 22, 2026.** Brief board shakes, capped particles, and rising tones accompany gameplay cascades from the second clear wave; a word appears on the third. This is a campaign-wide presentation improvement, not an additional Castle Island rule or a change to rewards or difficulty. A deterministic replay of the November 22 export validated 658 moves: only one reached the old four-wave word threshold, while 128 reached two waves and 33 reached three. The lower thresholds let players actually see the celebration during ordinary play.
 
-- Count resolved cascade waves from one player move. A 4+ chain means reaching the fourth wave, not simply matching four tiles in a line. Keep the existing callout trigger semantics.
+- Count actual clear steps from one player move, including the first match. A two-wave cascade means the initial clear plus one follow-up clear, not a four-tile match. Refills and companion grants do not count as waves.
 - Keep the current uppercase words (NICE, BADICAL, TUBULAR, FOR REAL, GOORANGA, MOST EPIC), Archivo italic styling with an outline, and roughly one-second appearance centered over the game board rather than the full screen.
-- At four waves, accompany the word with a quick scale/pop animation, a brief board shake, and a visible burst of particles associated with the clearing tiles. Keep the goal HUD steady and the falling pieces readable.
-- Let longer chains feel increasingly energetic through stronger but capped particle bursts, animation accents, and rising audio tones. Initial presentation tiers can be 4–5, 6–7, and 8+ waves; exact strength, pitch steps, and timing require mobile playtesting.
-- Synchronize the accents with actual clear impacts and existing tile/refill animation. Extend the current rising-tone treatment rather than layering competing full-volume sounds.
+- At two waves, add a brief board shake, a burst of particles at the clearing tiles, and a rising tone. Show one word at the third actual clear wave of the move. Keep the goal HUD steady and the falling pieces readable.
+- Use three restrained impact tiers: 2–3, 4–5, and 6+ waves. A real swapped-power combination earns the first-tier impact on its first clear even if the move has only one wave; it does not invent a second wave or show a word early. Play the tier sound only when the move reaches a higher tier.
+- Time the impact after any power beam reaches its target, immediately before the affected tiles clear and collections animate. Continue existing clear/refill movement without an extra wait or competing full-volume sounds.
 - Refresh one celebration at a time rather than stacking words, shakes, or full-screen overlays. Do not add pauses, change move/coin accounting, or make the player wait for a separate celebration sequence.
 - Preserve reduced-motion and sound settings: replace shake and large movement with a restrained static emphasis when reduced motion is enabled. Bound particles and simultaneous sound voices for mobile performance; clear effects on scene exit and pause them with the game.
 - Keep this treatment for gameplay chains. The winning coin reveal already has its own spectacle and should not produce repeated cascade-callout spam.

@@ -10,11 +10,14 @@ const COLORS = [0xffd77d, 0x8ce2d3, 0xf3ad78, 0xffecb3] as const;
 
 /** A wave is one actual clear step in a turn, including the first match. */
 export function cascadeFlairTier(waves: number): CascadeFlairTier {
-  if (waves < 4) return 0;
-  if (waves < 6) return 1;
-  if (waves < 8) return 2;
+  if (waves < 2) return 0;
+  if (waves < 4) return 1;
+  if (waves < 6) return 2;
   return 3;
 }
+
+/** One word per move, on the third actual clear. Combo impacts alone do not count as waves. */
+export function showCascadeWord(waves: number): boolean { return waves === 3; }
 
 /** Board-local celebration. Its container should contain the board, but not the HUD. */
 export class CascadeFlair {
@@ -37,8 +40,8 @@ export class CascadeFlair {
   get liveCount(): number { return this.particles.size; }
 
   /** Starts an impact immediately; no turn-resolution wait is added. */
-  play(waves: number, centers: readonly FlairPoint[]): CascadeFlairTier {
-    const tier = cascadeFlairTier(waves);
+  play(waves: number, centers: readonly FlairPoint[], combo = false): CascadeFlairTier {
+    const tier = Math.max(cascadeFlairTier(waves), combo ? 1 : 0) as CascadeFlairTier;
     if (!tier || this.disposed || !centers.length) return tier;
 
     if (!this.reducedMotion) this.startShake(tier);

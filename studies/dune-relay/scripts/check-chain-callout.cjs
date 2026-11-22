@@ -41,6 +41,7 @@ async function run() {
       element.style.animationPlayState = 'paused';
       return true;
     }, undefined, { timeout: 30000 });
+    assert.equal(await page.locator('canvas').first().getAttribute('data-flair-waves'), '3', 'word arrives on the third clear, before the fourth');
     assert.equal(await callout.innerText(), 'NICE');
     const appearance = await callout.evaluate(element => {
       const style = getComputedStyle(element), rect = element.getBoundingClientRect(), frame = element.parentElement.getBoundingClientRect();
@@ -63,7 +64,7 @@ async function run() {
     assert.equal(await page.locator('.chain-callout').count(), 0);
     assert.deepEqual(errors, []);
     await context.close();
-    console.log('Four-wave callout appears centered in outlined Archivo Italic and clears after one second.');
+    console.log('Third-wave callout appears centered in outlined Archivo Italic and clears after one second.');
   } finally { await browser.close(); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
