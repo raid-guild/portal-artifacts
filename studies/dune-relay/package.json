@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs && node scripts/check-companion-dialogue.cjs",
+    "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs && node scripts/check-companion-dialogue.cjs && node scripts/check-cascade-flair.cjs && node scripts/check-crate-exits.cjs",
     "test:browser": "node scripts/check-browser.cjs",
     "test:public-access": "node scripts/check-public-access.cjs",
     "test:companion-browser": "node scripts/check-companion-browser.cjs",

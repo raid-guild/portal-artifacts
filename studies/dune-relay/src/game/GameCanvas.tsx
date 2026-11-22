@@ -12,7 +12,8 @@ import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
 import towncrierFrames from "../../public/sprites/towncrier-frames.json";
 import quartermasterFrames from "../../public/sprites/quartermaster-frames.json";
-import { CascadeFlair, showCascadeWord } from "./cascadeFlair";
+import { CascadeFlair, cascadeVisualStrength, showCascadeWord } from "./cascadeFlair";
+import { crateExitCells } from "./crateExits";
 import type { CompanionId, Region } from "./save";
 import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
@@ -1045,6 +1046,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     chainCallout?: HTMLDivElement;
     boardRoot?: Phaser.GameObjects.Container;
     flair?: CascadeFlair;
+    exitMarkers?: Phaser.GameObjects.Graphics;
+    exitPulse?: Phaser.Tweens.Tween;
+    exitPulsePaused = false;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -1115,6 +1119,19 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.selection = this.add.graphics();
       this.boardRoot.add(this.selection);
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (this.displayCrust[row][col]) this.makeCrust({ row, col }, this.displayCrust[row][col]);
+      if ((props.level.goals.crate ?? 0) > 0) {
+        const exits = crateExitCells(this.puzzle.mask);
+        this.exitMarkers = this.add.graphics().setDepth(7);
+        for (const { row, col } of exits) {
+          const x = GRID_X + col * CELL, y = GRID_Y + row * CELL + CELL - 5;
+          this.exitMarkers.lineStyle(9, 0x74f4df, 0.22).lineBetween(x + 7, y, x + CELL - 7, y);
+          this.exitMarkers.lineStyle(4, 0x84fbe3, 0.78).lineBetween(x + 8, y, x + CELL - 8, y);
+          this.exitMarkers.lineStyle(2, 0xffe8a4, 0.95).lineBetween(x + 10, y, x + CELL - 10, y);
+        }
+        this.boardRoot.add(this.exitMarkers);
+        if (!props.reducedMotion) this.exitPulse = this.tweens.add({ targets: this.exitMarkers, alpha: 0.58, duration: 1450, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.crateExitCount = String(exits.length);
+      }
       this.message = label(this, 51, hudLayout.messageY, "Drag or tap adjacent symbols to swap", crowded ? 11 : 12, "#d2c5a5").setWordWrapWidth(220).setMaxLines(crowded ? 3 : 4);
       this.add.circle(75, this.portraitY, 30, 0x264d59).setStrokeStyle(2, 0xe0bd82);
       this.keeperPortrait = this.add.image(75, this.portraitY, prepareSmallTexture(this, "companionAvatar", "companionAvatar-small", 162)).setDisplaySize(54, 54);
@@ -1182,9 +1199,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.sceneAlive = false;
         this.clearChainCallout();
         this.flair?.dispose();
+        this.exitPulse?.remove();
+        this.exitMarkers?.destroy();
         delete canvas.dataset.flairTier;
         delete canvas.dataset.flairParticles;
         delete canvas.dataset.flairWaves;
+        delete canvas.dataset.flairStrength;
+        delete canvas.dataset.flairGlows;
+        delete canvas.dataset.crateExitCount;
         resetGesture(); this.cancelGesture = undefined;
         this.cancelIdleHint();
         this.revealSkipped = true;
@@ -1216,6 +1238,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }).catch(() => props.onFailure('authorization-failed'));
     }
     update(_: number, delta: number) {
+      this.flair?.setPaused(props.transitioning || props.interactionBlocked);
+      const pauseExitPulse = props.transitioning || props.interactionBlocked || document.hidden;
+      if (this.exitPulse && pauseExitPulse !== this.exitPulsePaused) {
+        this.exitPulsePaused = pauseExitPulse;
+        pauseExitPulse ? this.exitPulse.pause() : this.exitPulse.resume();
+      }
       if (props.transitioning || props.interactionBlocked || document.hidden) { this.cancelGesture?.(); this.selected = null; this.highlight(null); }
       const blocked = this.busy || this.introActive && this.game.canvas.dataset.introPhase !== "ready" ||
         this.revealActive || this.puzzle.status !== "playing" || props.transitioning || props.interactionBlocked || document.hidden || Boolean(this.selected);
@@ -1635,6 +1663,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (duration > 0 && kind === "clear") animations.push(this.tween(item.graphic, { alpha: 0, scale: 0.2, duration }).then(() => item.graphic.destroy()));
         else item.graphic.destroy();
       }
+      if (this.exitMarkers) this.boardRoot?.bringToTop(this.exitMarkers);
+      this.flair?.bringToFront();
       await Promise.all(animations);
       if (this.sceneAlive && !this.revealSkipped && duration > 0 && (kind === "fall" || kind === "refill")) props.audio?.play("land");
     }
@@ -1878,7 +1908,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.clearStreak++;
         const tier=this.flair?.play(this.clearStreak,step.cells.map(cell=>this.center(cell)),this.comboTurn && this.clearStreak===1) ?? 0;
         if (tier > this.celebratedTier) { this.celebratedTier=tier; props.audio?.play("cascade",tier); }
-        if (isPlaytestMode(window.location.search)) { this.game.canvas.dataset.flairTier=String(tier); this.game.canvas.dataset.flairParticles=String(this.flair?.liveCount??0); this.game.canvas.dataset.flairWaves=String(this.clearStreak); }
+        if (isPlaytestMode(window.location.search)) { this.game.canvas.dataset.flairTier=String(tier); this.game.canvas.dataset.flairParticles=String(this.flair?.liveCount??0); this.game.canvas.dataset.flairWaves=String(this.clearStreak); this.game.canvas.dataset.flairStrength=String(cascadeVisualStrength(this.clearStreak,this.comboTurn && this.clearStreak===1)); this.game.canvas.dataset.flairGlows=String(this.flair?.glowCount??0); }
         if (showCascadeWord(this.clearStreak)) this.showChainCallout();
         await Promise.all([this.syncTiles(step.board, short ? 70 : 180, step.kind), this.showCollections(step)]);
         if (!this.sceneAlive) return;

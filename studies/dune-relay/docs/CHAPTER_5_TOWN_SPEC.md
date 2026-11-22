@@ -13,6 +13,7 @@ The first thirty levels remain playable as a guest. Farmland requires its existi
 - The five existing matching symbols remain unchanged. A crate is a separate, square, nonmatching cargo piece with a finite authored starting count.
 - It cannot be swapped or matched. Jets, Flywheels, Prisms, and combinations clear around it without destroying or changing it.
 - Gravity moves crates when tiles below clear. The next animation step shows the crate disappear at any bottom edge of the static board mask. A masked cell below is an exit, including on shaped boards. Salt below a crate is support, not an exit.
+- On crate-goal boards, a softly pulsing teal and gold line marks the bottom edge of every playable exit cell, including ledges above masked gaps. The line stays beneath transient tile effects and becomes static in reduced-motion mode.
 - A delivery credits one crate goal and is shown by a short fade and an arc toward the goal meter. Delivery does not itself count as a normal tile clear, salt hit, or companion charge.
 - If one crate rests on another at an exit, the lower crate leaves first, then the upper one settles and leaves. Both have distinct delivery steps and stable identities.
 - Crates never spawn in refills or no-move rescue. The authored initial positions are topward and validated against the mask, salt, and pods.
