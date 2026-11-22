@@ -1,16 +1,17 @@
 import type { Save } from "./save";
 import { LEVEL_ORDER } from "./levels";
+import { arrangements } from "./music";
 
 export type SoundtrackId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle";
 export type TrackPreference = "auto" | SoundtrackId;
 
 export const SOUNDTRACKS: ReadonlyArray<{ id: SoundtrackId; title: string; chapter: string; bpm: number }> = [
-  { id: "oasis", title: "Water Finds a Way", chapter: "Oasis", bpm: 72 },
-  { id: "caravan", title: "The Walker's Road", chapter: "Open Desert", bpm: 84 },
-  { id: "gatehouse", title: "River and Counterweight", chapter: "Bridge Gatehouse", bpm: 76 },
-  { id: "town", title: "Lanterns at the Market", chapter: "Town on the Hill", bpm: 78 },
-  { id: "castle", title: "The Ledger at Dusk", chapter: "Castle Island", bpm: 74 },
-  { id: "farmland", title: "Seeds After Rain", chapter: "Farmland", bpm: 80 },
+  { id: "oasis", title: "Water Finds a Way", chapter: "Oasis", bpm: arrangements.oasis.bpm },
+  { id: "caravan", title: "The Walker's Road", chapter: "Open Desert", bpm: arrangements.caravan.bpm },
+  { id: "gatehouse", title: "River and Counterweight", chapter: "Bridge Gatehouse", bpm: arrangements.gatehouse.bpm },
+  { id: "town", title: "Lanterns at the Market", chapter: "Town on the Hill", bpm: arrangements.town.bpm },
+  { id: "castle", title: "The Ledger at Dusk", chapter: "Castle Island", bpm: arrangements.castle.bpm },
+  { id: "farmland", title: "Seeds After Rain", chapter: "Farmland", bpm: arrangements.farmland.bpm },
 ];
 
 export function getUnlockedSoundtracks(save: Save): SoundtrackId[] {
