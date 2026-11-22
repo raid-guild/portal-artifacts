@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "town-1",
-  "contentVersion": "chapter-5-1",
+  "rulesVersion": "castle-1",
+  "contentVersion": "chapter-6-1",
   "levels": [
     {
       "id": "pumpHouse",
@@ -251,6 +251,56 @@
       "id": "openTheMarket",
       "moves": 32,
       "chapter": "town"
+    },
+    {
+      "id": "castleReceivingDock",
+      "moves": 24,
+      "chapter": "castle"
+    },
+    {
+      "id": "provisionStores",
+      "moves": 25,
+      "chapter": "castle"
+    },
+    {
+      "id": "saltboundStorehouse",
+      "moves": 27,
+      "chapter": "castle"
+    },
+    {
+      "id": "castleSeedVault",
+      "moves": 28,
+      "chapter": "castle"
+    },
+    {
+      "id": "dividedCourtyard",
+      "moves": 29,
+      "chapter": "castle"
+    },
+    {
+      "id": "terraceDispatch",
+      "moves": 29,
+      "chapter": "castle"
+    },
+    {
+      "id": "contradictoryOrders",
+      "moves": 30,
+      "chapter": "castle"
+    },
+    {
+      "id": "reservoirLedger",
+      "moves": 30,
+      "chapter": "castle"
+    },
+    {
+      "id": "reservoirControls",
+      "moves": 31,
+      "chapter": "castle"
+    },
+    {
+      "id": "openTheUpstreamRoute",
+      "moves": 32,
+      "chapter": "castle"
     }
   ]
 }

@@ -1,7 +1,7 @@
 import type { Region } from "./save";
 import type { SoundtrackId, TrackPreference } from "./soundtracks";
 
-export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod" | "crate";
+export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "cascade" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod" | "crate";
 
 const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; melody: (number | null)[]; wave: OscillatorType }> = {
   // Sixteen bars: each four-bar phrase changes the melody register and harmony.
@@ -12,6 +12,7 @@ const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; melody:
   gatehouse: { bpm: 76, roots: [50, 55, 47, 52, 50, 57, 55, 47, 50, 55, 47, 52, 57, 55, 47, 50],
     melody: [74, null, 78, null, 81, null, 78, null, 76, null, 74, null, 71, null, null, null, 74, null, 78, 81, null, 83, null, 81, 78, null, 76, null, 74, null, null, null], wave: "sine" },
   town: { bpm: 78, roots: [50, 55, 53, 57, 50, 58, 55, 53, 50, 55, 53, 57, 58, 55, 53, 50], melody: [74, null, 77, null, 79, 81, 79, null, 77, null, 74, null, 72, null, null, null, 74, null, 77, 79, null, 81, null, 79, 77, null, 74, null, 72, null, null, null], wave: "triangle" },
+  castle: { bpm: 74, roots: [48, 55, 53, 50, 48, 57, 55, 53, 50, 55, 53, 48, 46, 53, 50, 48], melody: [72, null, 74, null, 77, null, 74, null, 72, null, 69, null, 67, null, 69, null, 72, null, 74, null, 79, null, 77, null, 74, null, 72, null, 69, null, 67, null], wave: "triangle" },
   farmland: { bpm: 80, roots: [48, 55, 52, 57, 50, 57, 53, 55, 48, 55, 52, 57, 53, 55, 50, 48],
     melody: [72, null, 76, 79, null, 76, 74, null, 69, null, 72, null, 74, 76, null, null, 72, 76, null, 79, 81, null, 79, 76, 74, null, 72, 69, 72, null, null, null], wave: "triangle" },
 };
@@ -402,6 +403,7 @@ export class GameAudio {
       case "swap": this.tone(360, 480, 0.13, 0.13, "triangle"); this.tone(730, 600, 0.11, 0.035, "sine", 0.035); break;
       case "invalid": this.tone(220, 130, 0.17, 0.16, "sawtooth"); break;
       case "clear": this.tone(390 + lift, 700 + lift, 0.17, 0.13, "triangle"); this.tone(900 + lift, 510 + lift, 0.1, 0.035); break;
+      case "cascade": this.tone(620 + variation * 95, 880 + variation * 110, 0.16, 0.07, "sine"); break;
       case "land": this.tone(150, 82, 0.11, 0.1, "triangle"); this.burst(650, 0.07, 0.06); break;
       case "salt": this.burst(2100, 0.22, 0.13); this.tone(360, 115, 0.17, 0.09, "triangle"); break;
       case "crate": this.burst(700, 0.09, 0.05); this.tone(210, 115, 0.13, 0.1, "triangle"); this.tone(700, 940, 0.15, 0.04, "sine", 0.09); break;

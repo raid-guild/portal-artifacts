@@ -1,6 +1,8 @@
 import type { Save } from './save';
 import type { BoosterKind } from './boosters';
 import type { LevelId } from './levels';
+import type { CompanionId } from './save';
+import type { CompanionSnapshot } from './companionAbilities';
 
 const BASE = '/leaderboard-api/dune-relay';
 export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
@@ -12,7 +14,7 @@ export type AccountEntitlements = FarmlandEntitlement & { campaignPass: Campaign
 export type CloudOperation =
   | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string }
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
-export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[] } };
+export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; companionSnapshot?: CompanionSnapshot | null } };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
 const cacheKey = (id: string) => `dune-relay-cloud-${id}-v1`;
 const lastAccountKey = 'dune-relay-last-portal-account-v1';
@@ -49,8 +51,8 @@ export const entitlements = async (accountId: string, refresh = false): Promise<
 };
 export const claimFarmland = async (requestId: string, accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await post('/entitlements/farmland/claim',{requestId},accountId),accountId);
 export const importGuest = (guestSave: Save, requestId: string, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave},accountId);
-export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string): Promise<{profile:CloudProfile}> => post('/attempts',{attemptId,levelId,boosters},accountId);
-export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared'}> => post(`/attempts/${attemptId}/activate`,{expectedRevision},accountId);
+export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string, companionId?: CompanionId | null): Promise<{profile:CloudProfile;companionSnapshot:CompanionSnapshot|null}> => post('/attempts',{attemptId,levelId,boosters,...(companionId ? { companionId } : {})},accountId);
+export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared';companionSnapshot:CompanionSnapshot|null}> => post(`/attempts/${attemptId}/activate`,{expectedRevision},accountId);
 export const finishAttempt = (op: Extract<CloudOperation,{kind:'finish'}>, accountId: string): Promise<{profile:CloudProfile;reward:number}> => post(`/attempts/${op.attemptId}/finish`,{levelId:op.levelId,remainingMoves:op.remainingMoves,contentVersion:op.contentVersion},accountId);
 export const advanceCheckpoint = (op: Extract<CloudOperation,{kind:'checkpoint'}>, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/checkpoint',{requestId:op.requestId,campaign:op.campaign,expectedRevision},accountId);
 export const logout = (accountId: string): Promise<void> => post('/logout',{},accountId).then(()=>undefined);
@@ -74,4 +76,4 @@ export function guestImportId(accountId: string): string {
 export function clearGuestImportId(accountId: string): void {
   try { localStorage.removeItem(`dune-relay-import-${accountId}-v1`); } catch { /* Storage may be unavailable. */ }
 }
-export const contentVersion = 'chapter-5-1';
+export const contentVersion = 'chapter-6-1';
