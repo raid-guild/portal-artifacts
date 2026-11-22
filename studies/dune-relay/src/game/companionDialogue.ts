@@ -48,7 +48,7 @@ const common: Record<CompanionId, CompanionLine[]> = {
   ],
 };
 
-const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier" };
+const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier", castle: "towncrier" };
 const symbolName = { water: "water", gear: "gears", leaf: "reeds", pennant: "pennants", key: "keys" } as const;
 
 export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | null): CompanionLine[] {

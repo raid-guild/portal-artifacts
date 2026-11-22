@@ -61,7 +61,7 @@ Chapters 1–5 describe the current playable direction. Chapters 6–16 are prop
 | 15 | Lava Pool | Build a crossing through machinery that drains neighboring systems to keep itself running. | Candidate lava spread with visible warnings, bounded growth, and a clear prevention action. |
 | 16 | Moloch | Break the mechanism that keeps the kingdom working against itself. | A multi-phase finale built from learned mechanics and party contributions. |
 
-Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island remains a story clue and a locked future chapter.
+Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island is implemented as Chapter 6; see the [Chapter 6 implementation spec](CHAPTER_6_CASTLE_SPEC.md).
 
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
 
@@ -200,7 +200,7 @@ Each mechanic needs readable states, movement, impact, sound, and tutorial frami
 
 ## Cascade flair across the campaign
 
-**Agreed presentation direction, November 21, 2026; extension planned, not implemented.** Existing 4+ cascade words have received good feedback. Build on them with more active animation, particles, brief shakes, and rising tones. This is a campaign-wide presentation improvement, not an additional Castle Island rule or a change to rewards or difficulty.
+**Presentation update, November 21, 2026.** Existing 4+ cascade words have received good feedback. Brief board shakes, capped particles, and rising tones now accompany gameplay cascades. This is a campaign-wide presentation improvement, not an additional Castle Island rule or a change to rewards or difficulty.
 
 - Count resolved cascade waves from one player move. A 4+ chain means reaching the fourth wave, not simply matching four tiles in a line. Keep the existing callout trigger semantics.
 - Keep the current uppercase words (NICE, BADICAL, TUBULAR, FOR REAL, GOORANGA, MOST EPIC), Archivo italic styling with an outline, and roughly one-second appearance centered over the game board rather than the full screen.

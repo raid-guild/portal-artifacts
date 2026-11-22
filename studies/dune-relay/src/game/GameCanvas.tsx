@@ -11,6 +11,9 @@ import wayfinderFrames from "../../public/sprites/wayfinder-frames.json";
 import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
 import towncrierFrames from "../../public/sprites/towncrier-frames.json";
+import quartermasterFrames from "../../public/sprites/quartermaster-frames.json";
+import { CascadeFlair } from "./cascadeFlair";
+import type { CompanionId, Region } from "./save";
 import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
@@ -25,6 +28,7 @@ const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "M
 let nextChainCallout = 0;
 
 export type GameEvent =
+  | { type: "position"; position: { x: number; y: number } }
   | { type: "keeper"; position: { x: number; y: number } }
   | { type: "pump"; position: { x: number; y: number } }
   | { type: "replayDestination"; destination: ReplayDestination["destination"]; position: { x: number; y: number } }
@@ -32,6 +36,7 @@ export type GameEvent =
   | { type: "gatewright"; position: { x: number; y: number } }
   | { type: "towncrier"; position: { x: number; y: number } }
   | { type: "fieldkeeper"; position: { x: number; y: number } }
+  | { type: "quartermaster"; position: { x: number; y: number } }
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
   | { type: "playReady" }
   | { type: "gateOpened" }
@@ -43,7 +48,9 @@ export type GameEvent =
 
 type Props = {
   mode: "map" | "puzzle";
-  region: "oasis" | "caravan" | "gatehouse" | "farmland" | "town";
+  region: Region;
+  activeCompanion: CompanionId | null;
+  boardCompanion: CompanionId | null;
   mapPosition: { x: number; y: number } | null;
   repaired: boolean;
   caravanComplete: boolean;
@@ -129,11 +136,35 @@ function replayMarkers(scene: Phaser.Scene, props: Props) {
   });
 }
 
-type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
+type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster";
+function playerSheet(props: Props): SpriteSheet { return props.activeCompanion ?? "mechanic"; }
+function playerScale(props: Props): number {
+  const sheet = playerSheet(props);
+  const height = sheet === "wayfinder" ? wayfinderFrames[0].h : sheet === "gatewright" ? gatewrightFrames[0].h : sheet === "fieldkeeper" ? fieldkeeperFrames[0].h : sheet === "towncrier" ? towncrierFrames[0].h : sheet === "keeper" ? spriteFrames.keeper[0].h : spriteFrames.mechanic[0].h;
+  return 70 / height;
+}
+function loadPlayerSheet(scene: Phaser.Scene, props: Props) {
+  const sheet=playerSheet(props);
+  const localNpc={oasis:"keeper",caravan:"wayfinder",gatehouse:"gatewright",farmland:"fieldkeeper",town:"towncrier",castle:"quartermaster"}[props.region];
+  if (sheet===localNpc) return;
+  scene.load.image(sheet,assetUrl(`/sprites/${sheet}.png`));
+}
+const lastPublishedPosition=new WeakMap<Phaser.Scene,{x:number;y:number}>();
+function publishPlayerPosition(scene: Phaser.Scene, props: Props, position: {x:number;y:number}) {
+  const previous=lastPublishedPosition.get(scene);
+  if (previous && Math.abs(previous.x-position.x)<1 && Math.abs(previous.y-position.y)<1) return;
+  lastPublishedPosition.set(scene,{...position});
+  props.onEvent({type:"position",position:{...position}});
+  if (isPlaytestMode(window.location.search)) {
+    scene.game.canvas.dataset.playerCompanion=props.activeCompanion??"mechanic";
+    scene.game.canvas.dataset.playerX=String(Math.round(position.x));
+    scene.game.canvas.dataset.playerY=String(Math.round(position.y));
+  }
+}
 
 function registerFrames(scene: Phaser.Scene, sheet: SpriteSheet) {
   const texture = scene.textures.get(sheet);
-  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : sheet === "towncrier" ? towncrierFrames : spriteFrames[sheet];
+  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : sheet === "towncrier" ? towncrierFrames : sheet === "quartermaster" ? quartermasterFrames : spriteFrames[sheet];
   frames.forEach((cell, index) => {
     const [left, top, right, bottom] = cell.bounds;
     const crop = sheet === "tiles";
@@ -212,21 +243,21 @@ function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
   return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
 }
 
-function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier", x: number, y: number) {
+function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: SpriteSheet, x: number, y: number) {
   const index = Number(sprite.frame.name);
-  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : sheet === "towncrier" ? towncrierFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet][Number.isFinite(index) ? index : 0];
+  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : sheet === "towncrier" ? towncrierFrames[Number.isFinite(index) ? index : 0] : sheet === "quartermaster" ? quartermasterFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet as keyof typeof spriteFrames][Number.isFinite(index) ? index : 0];
   const [left, , right, bottom] = cell.bounds;
   const scale = sprite.scaleX;
   sprite.setPosition(x - ((left + right) / 2 - cell.w / 2) * scale, y + (cell.h - bottom) * scale);
 }
 
-function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier", direction: "left" | "right") {
+function characterAnimation(scene: Phaser.Scene, sheet: SpriteSheet, direction: "left" | "right") {
   const key = `${sheet}-${direction}-walk`;
   if (!scene.anims.exists(key)) scene.anims.create({ key, frames: (direction === "right" ? [1, 2, 3] : [5, 6, 7]).map(frame => ({ key: sheet, frame: String(frame) })), frameRate: 7, repeat: -1 });
   return key;
 }
 
-type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
+type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster";
 const GLOW_OFFSETS: [number, number][] = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]];
 
 function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phaser.GameObjects.Sprite, glows: Phaser.GameObjects.Sprite[], pace: CompanionPace, y: number, delta: number, playerX: number, playerMoving: boolean, blocked: boolean, reducedMotion: boolean) {
@@ -272,14 +303,14 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("oasis", assetUrl("/oasis.webp"));
-      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      loadPlayerSheet(this, props);
       this.load.image("keeper", assetUrl("/sprites/keeper.png"));
     }
     create() {
-      registerFrames(this, "mechanic");
+      registerFrames(this, playerSheet(props));
       registerFrames(this, "keeper");
-      characterAnimation(this, "mechanic", "left");
-      characterAnimation(this, "mechanic", "right");
+      characterAnimation(this, playerSheet(props), "left");
+      characterAnimation(this, playerSheet(props), "right");
       characterAnimation(this, "keeper", "left");
       characterAnimation(this, "keeper", "right");
       this.add.image(480, 270, "oasis").setDisplaySize(WIDTH, HEIGHT);
@@ -304,8 +335,9 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       keeperHit.setInteractive({ useHandCursor: true });
       this.keeperGraphic = keeper;
       this.companionCaption = this.add.text(447, 316, props.companionIntroduced ? "TALK TO KEEPER" : "KEEPER", { fontFamily: "Arial", fontSize: "14px", color: "#fff0ce", fontStyle: "bold", stroke: "#173440", strokeThickness: 3 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      if (props.activeCompanion === "keeper") { keeper.setVisible(false); this.keeperGlow.forEach(glow=>glow.setVisible(false)); keeperHit.disableInteractive(); this.companionCaption?.setVisible(false).disableInteractive(); }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(0.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       const destination = MAP_DESTINATIONS[props.nextLevel ? LEVELS[props.nextLevel].destination : "openWaterway"];
       const pump = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height);
       const pumpReady = (props.nextLevel !== null && props.nextLevel !== "pumpHouse") || (props.nextLevel === "pumpHouse" && props.keeperMet);
@@ -368,20 +400,21 @@ function makeMapScene(props: Props): typeof Phaser.Scene {
       const movedY = this.player.y - this.previousPlayer.y;
       const moving = Math.abs(movedX) + Math.abs(movedY) > 0.08;
       if (Math.abs(movedX) > 0.08) this.facing = movedX > 0 ? "right" : "left";
-      const animation = characterAnimation(this, "mechanic", this.facing);
+      const animation = characterAnimation(this, playerSheet(props), this.facing);
       if (moving) {
         if (this.playerGraphic.anims.currentAnim?.key !== animation || !this.playerGraphic.anims.isPlaying) this.playerGraphic.play(animation);
       } else {
         this.playerGraphic.stop();
         this.playerGraphic.setFrame(this.facing === "right" ? "0" : "4");
       }
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       if (this.keeperGraphic) {
         const x = poseCompanion(this, "keeper", this.keeperGraphic, this.keeperGlow, this.companionPace, 408, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
         this.companionHit?.setX(x);
         this.companionCaption?.setX(x);
         this.keeperShadow?.setX(x);
       }
+      publishPlayerPosition(this,props,this.player);
       this.previousPlayer = { ...this.player };
     }
   };
@@ -405,15 +438,15 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("caravan", assetUrl("/caravan.webp"));
-      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      loadPlayerSheet(this, props);
       this.load.image("wayfinder", assetUrl("/sprites/wayfinder.png"));
       this.load.image("routeBeacon", assetUrl("/sprites/route-beacon.png"));
     }
     create() {
-      registerFrames(this, "mechanic");
+      registerFrames(this, playerSheet(props));
       registerFrames(this, "wayfinder");
       for (const direction of ["left", "right"] as const) {
-        characterAnimation(this, "mechanic", direction);
+        characterAnimation(this, playerSheet(props), direction);
         characterAnimation(this, "wayfinder", direction);
       }
       this.add.image(480, 270, "caravan").setDisplaySize(WIDTH, HEIGHT);
@@ -456,8 +489,9 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
         routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
         routeCaption = label(this, destination.label.x, destination.label.y, routeLevel.title, 14).setOrigin(0.5).setDepth(4).setInteractive({ useHandCursor: true });
       }
-      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(0.5, 1).setScale(70 / 420);
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      if (props.activeCompanion === "wayfinder") { person.setVisible(false); this.wayfinderGlow.forEach(glow=>glow.setVisible(false)); hit.disableInteractive(); caption?.setVisible(false).disableInteractive(); }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(0.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
@@ -512,11 +546,11 @@ function makeCaravanScene(props: Props): typeof Phaser.Scene {
       const moved = this.player.x - this.previous.x;
       const moving = Math.abs(moved) + Math.abs(this.player.y - this.previous.y) > 0.08;
       if (Math.abs(moved) > 0.08) this.facing = moved > 0 ? "right" : "left";
-      const animation = characterAnimation(this, "mechanic", this.facing);
+      const animation = characterAnimation(this, playerSheet(props), this.facing);
       if (moving) {
         if (this.playerGraphic.anims.currentAnim?.key !== animation || !this.playerGraphic.anims.isPlaying) this.playerGraphic.play(animation);
       } else { this.playerGraphic.stop(); this.playerGraphic.setFrame(this.facing === "right" ? "0" : "4"); }
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       if (this.wayfinderGraphic) {
         const x = poseCompanion(this, "wayfinder", this.wayfinderGraphic, this.wayfinderGlow, this.companionPace, 433, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
         this.companionHit?.setX(x);
@@ -545,13 +579,13 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("gatehouse", assetUrl("/gatehouse.webp"));
-      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      loadPlayerSheet(this, props);
       this.load.image("gatewright", assetUrl("/sprites/gatewright.png"));
       this.load.image("bridgeGate", assetUrl("/sprites/bridge-gate.png"));
     }
     create() {
-      registerFrames(this, "mechanic"); registerFrames(this, "gatewright");
-      for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "gatewright", direction); }
+      registerFrames(this, playerSheet(props)); registerFrames(this, "gatewright");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, playerSheet(props), direction); characterAnimation(this, "gatewright", direction); }
       this.add.image(480, 270, "gatehouse").setDisplaySize(WIDTH, HEIGHT);
       if (!props.gatehouseComplete) {
         const gate = this.add.image(704, 296, "bridgeGate").setDisplaySize(153, 145).setDepth(1);
@@ -594,8 +628,9 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
         routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
         routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
       }
-      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      if (props.activeCompanion === "gatewright") { person.setVisible(false); this.glows.forEach(glow=>glow.setVisible(false)); talkHit.disableInteractive(); talkCaption?.setVisible(false).disableInteractive(); }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
@@ -637,14 +672,15 @@ function makeGatehouseScene(props: Props): typeof Phaser.Scene {
       const moved=this.player.x-this.previous.x;
       const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
       if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
-      const animation=characterAnimation(this,"mechanic",this.facing);
+      const animation=characterAnimation(this,playerSheet(props),this.facing);
       if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
-      characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
+      characterPosition(this.playerGraphic,playerSheet(props),this.player.x,this.player.y);
       if (this.gatewrightGraphic) {
         const x = poseCompanion(this, "gatewright", this.gatewrightGraphic, this.glows, this.companionPace, 452, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
         this.companionHit?.setX(x);
         this.companionCaption?.setX(x);
       }
+      publishPlayerPosition(this,props,this.player);
       this.previous={...this.player};
     }
   };
@@ -668,12 +704,12 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("farmland", assetUrl("/farmland.webp"));
-      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      loadPlayerSheet(this, props);
       this.load.image("fieldkeeper", assetUrl("/sprites/fieldkeeper.png"));
     }
     create() {
-      registerFrames(this, "mechanic"); registerFrames(this, "fieldkeeper");
-      for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "fieldkeeper", direction); }
+      registerFrames(this, playerSheet(props)); registerFrames(this, "fieldkeeper");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, playerSheet(props), direction); characterAnimation(this, "fieldkeeper", direction); }
       this.add.image(480, 270, "farmland").setDisplaySize(WIDTH, HEIGHT);
       const hudParts: Phaser.GameObjects.GameObject[] = [
         panel(this, 22, 91, 302, 66, .92),
@@ -703,8 +739,9 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
         routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
         routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
       }
-      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      if (props.activeCompanion === "fieldkeeper") { person.setVisible(false); this.glows.forEach(glow=>glow.setVisible(false)); talkHit.disableInteractive(); talkCaption?.setVisible(false).disableInteractive(); }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
@@ -746,14 +783,15 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
       const moved=this.player.x-this.previous.x;
       const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
       if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
-      const animation=characterAnimation(this,"mechanic",this.facing);
+      const animation=characterAnimation(this,playerSheet(props),this.facing);
       if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
-      characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
+      characterPosition(this.playerGraphic,playerSheet(props),this.player.x,this.player.y);
       if (this.fieldkeeperGraphic) {
         const x = poseCompanion(this, "fieldkeeper", this.fieldkeeperGraphic, this.glows, this.companionPace, 430, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
         this.companionHit?.setX(x);
         this.companionCaption?.setX(x);
       }
+      publishPlayerPosition(this,props,this.player);
       this.previous={...this.player};
     }
   };
@@ -777,12 +815,12 @@ function makeTownScene(props: Props): typeof Phaser.Scene {
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
       this.load.image("town", assetUrl("/town.webp"));
-      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      loadPlayerSheet(this, props);
       this.load.image("towncrier", assetUrl("/sprites/towncrier.png"));
     }
     create() {
-      registerFrames(this, "mechanic"); registerFrames(this, "towncrier");
-      for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "towncrier", direction); }
+      registerFrames(this, playerSheet(props)); registerFrames(this, "towncrier");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, playerSheet(props), direction); characterAnimation(this, "towncrier", direction); }
       this.add.image(480, 270, "town").setDisplaySize(WIDTH, HEIGHT);
       const hudParts: Phaser.GameObjects.GameObject[] = [
         panel(this, 22, 91, 302, 66, .92),
@@ -812,8 +850,9 @@ function makeTownScene(props: Props): typeof Phaser.Scene {
         routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
         routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
       }
-      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
-      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      if (props.activeCompanion === "towncrier") { person.setVisible(false); this.glows.forEach(glow=>glow.setVisible(false)); talkHit.disableInteractive(); talkCaption?.setVisible(false).disableInteractive(); }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
       const replayPoints = replayMarkers(this,props);
       this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
         if (props.transitioning || props.interactionBlocked || this.locked) return;
@@ -855,14 +894,125 @@ function makeTownScene(props: Props): typeof Phaser.Scene {
       const moved=this.player.x-this.previous.x;
       const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
       if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
-      const animation=characterAnimation(this,"mechanic",this.facing);
+      const animation=characterAnimation(this,playerSheet(props),this.facing);
       if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
-      characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
+      characterPosition(this.playerGraphic,playerSheet(props),this.player.x,this.player.y);
       if (this.towncrierGraphic) {
         const x = poseCompanion(this, "towncrier", this.towncrierGraphic, this.glows, this.companionPace, 430, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
         this.companionHit?.setX(x);
         this.companionCaption?.setX(x);
       }
+      publishPlayerPosition(this,props,this.player);
+      this.previous={...this.player};
+    }
+  };
+}
+
+function makeCastleScene(props: Props): typeof Phaser.Scene {
+  return class CastleScene extends Phaser.Scene {
+    player = props.mapPosition ?? { x: 190, y: 464 };
+    target = { ...this.player };
+    previous = { ...this.player };
+    playerGraphic?: Phaser.GameObjects.Sprite;
+    quartermasterGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(540);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
+    glows: Phaser.GameObjects.Sprite[] = [];
+    keys?: Record<string, Phaser.Input.Keyboard.Key>;
+    facing: "left" | "right" = "right";
+    locked = false;
+    constructor() { super("Castle"); }
+    preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
+      this.load.image("castle", assetUrl("/castle.webp"));
+      loadPlayerSheet(this, props);
+      this.load.image("quartermaster", assetUrl("/sprites/quartermaster.png"));
+    }
+    create() {
+      registerFrames(this, playerSheet(props)); registerFrames(this, "quartermaster");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, playerSheet(props), direction); characterAnimation(this, "quartermaster", direction); }
+      this.add.image(480, 270, "castle").setDisplaySize(WIDTH, HEIGHT);
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "CASTLE ISLAND", 26),
+        label(this, 40, 132, "THE DOCK MANIFEST", 13, "#9de4d4"),
+      ];
+      const person = this.add.sprite(540, 430, "quartermaster", "4").setOrigin(.5, 1).setScale(86 / 256).setDepth(2);
+      characterPosition(person, "quartermaster", 540, 430); this.quartermasterGraphic = person;
+      for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
+        const glow = this.add.sprite(540, 430, "quartermaster", "4").setOrigin(.5, 1).setScale(86 / 256).setTintFill(0xffe4af).setAlpha(.68).setDepth(1);
+        characterPosition(glow, "quartermaster", 540+dx, 430+dy); this.glows.push(glow);
+      }
+      if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
+      const arriving = props.nextLevel === "castleReceivingDock" && !props.companionIntroduced;
+      const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "castle" && !arriving ? LEVELS[props.nextLevel] : null;
+      const destination = route ? MAP_DESTINATIONS[route.destination] : null;
+      const talkHit = this.add.zone(540, 389, 100, 115);
+      this.companionHit = talkHit;
+      talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 540, 329, props.companionIntroduced ? "TALK TO QUARTERMASTER" : "QUARTERMASTER", 15).setOrigin(.5);
+      this.companionCaption = talkCaption;
+      talkCaption.setInteractive({ useHandCursor: true });
+      let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
+      if (destination && route) {
+        const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
+        if (!props.reducedMotion) this.tweens.add({ targets: halo, alpha: .13, scale: 1.6, duration: 750, yoyo: true, repeat: -1 });
+        routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
+        routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
+      }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
+      this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
+        props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
+        const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        if (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=329 && y<=445) {
+          this.locked = true; this.target = {x:488,y:447}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"quartermaster",position:{...this.player}})}); return;
+        }
+        if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        this.target = {x:Phaser.Math.Clamp(x,68,882),y:Phaser.Math.Clamp(y,420,491)};
+      });
+      this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Quartermaster →":route?`Walk to ${route.title} →`:"The upstream route is open ✓",14));
+      mapHud(this, hudParts);
+      props.onReady();
+    }
+    update(_:number,delta:number) {
+      if (!this.playerGraphic) return;
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
+        const speed=delta*.19;
+        const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
+        const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
+        if(dx||dy) this.target={x:Phaser.Math.Clamp(this.player.x+dx*speed,68,882),y:Phaser.Math.Clamp(this.player.y+dy*speed,420,491)};
+        const distance=Math.hypot(this.target.x-this.player.x,this.target.y-this.player.y);
+        if(distance>1){this.player.x+=(this.target.x-this.player.x)/distance*Math.min(speed,distance);this.player.y+=(this.target.y-this.player.y)/distance*Math.min(speed,distance);}
+      }
+      const moved=this.player.x-this.previous.x;
+      const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
+      if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
+      const animation=characterAnimation(this,playerSheet(props),this.facing);
+      if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
+      characterPosition(this.playerGraphic,playerSheet(props),this.player.x,this.player.y);
+      if (this.quartermasterGraphic) {
+        const x = poseCompanion(this, "quartermaster", this.quartermasterGraphic, this.glows, this.companionPace, 430, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
+      }
+      publishPlayerPosition(this,props,this.player);
       this.previous={...this.player};
     }
   };
@@ -878,6 +1028,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     busy = false;
     clearStreak = 0;
     chainCallout?: HTMLDivElement;
+    boardRoot?: Phaser.GameObjects.Container;
+    flair?: CascadeFlair;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -890,6 +1042,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     selection?: Phaser.GameObjects.Graphics;
     message?: Phaser.GameObjects.Text;
     keeperPortrait?: Phaser.GameObjects.Image;
+    portraitY = Object.values(props.level.goals).filter(count => count > 0).length >= 4 ? 418 : 392;
     revealPlan?: FinalePlan;
     revealActive = false;
     revealSkipped = false;
@@ -908,9 +1061,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
-      this.load.image("backdrop", props.level.chapter === "town" ? assetUrl("/town.webp") : props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
+      this.load.image("backdrop", props.level.chapter === "castle" ? assetUrl("/castle.webp") : props.level.chapter === "town" ? assetUrl("/town.webp") : props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
       this.load.image("tiles", assetUrl("/sprites/tiles.png"));
-      this.load.image("companionAvatar", props.level.chapter === "town" ? assetUrl("/sprites/towncrier-avatar.png") : props.level.chapter === "farmland" ? assetUrl("/sprites/fieldkeeper-avatar.png") : props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
+      this.load.image("companionAvatar", assetUrl(`/sprites/${props.boardCompanion ?? "keeper"}-avatar.png`));
       this.load.image("pennant", assetUrl("/sprites/pennant.png"));
       this.load.image("key", assetUrl("/sprites/key.png"));
       this.load.image("coin", assetUrl("/sprites/coin.png"));
@@ -932,18 +1085,23 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       layoutScene(this, Number(this.game.config.width), Number(this.game.config.height));
       panel(this, 24, 92, 271, 424, 0.96);
       panel(this, 318, 20, 474, 500, 0.98);
-      label(this, 50, 106, props.level.title, props.level.title.length > 15 ? 19 : props.level.title.length > 13 ? 21 : 24);
+      const title=label(this, 50, 106, props.level.title, props.level.title.length > 15 ? 19 : props.level.title.length > 13 ? 21 : 24);
+      title.setScale(Math.min(1, 225 / title.width));
+      this.boardRoot=this.add.container(0,0);
+      this.flair=new CascadeFlair(this,this.boardRoot,props.reducedMotion);
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
         if (!this.puzzle.mask[row][col]) continue;
         const x = GRID_X + col * CELL, y = GRID_Y + row * CELL;
         const cell = this.add.graphics();
         cell.fillStyle((row + col) % 2 ? 0x28515d : 0x2c5a64).fillRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
+        this.boardRoot.add(cell);
       }
       this.selection = this.add.graphics();
+      this.boardRoot.add(this.selection);
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (this.displayCrust[row][col]) this.makeCrust({ row, col }, this.displayCrust[row][col]);
-      this.message = label(this, 51, 457, "Drag or tap adjacent symbols to swap", 12, "#d2c5a5").setWordWrapWidth(220);
-      this.add.circle(75, 392, 30, 0x264d59).setStrokeStyle(2, 0xe0bd82);
-      this.keeperPortrait = this.add.image(75, 392, prepareSmallTexture(this, "companionAvatar", "companionAvatar-small", 162)).setDisplaySize(54, 54);
+      this.message = label(this, 51, this.portraitY === 418 ? 480 : 457, "Drag or tap adjacent symbols to swap", 12, "#d2c5a5").setWordWrapWidth(220);
+      this.add.circle(75, this.portraitY, 30, 0x264d59).setStrokeStyle(2, 0xe0bd82);
+      this.keeperPortrait = this.add.image(75, this.portraitY, prepareSmallTexture(this, "companionAvatar", "companionAvatar-small", 162)).setDisplaySize(54, 54);
       // Native pointer capture keeps fast touch swipes intact even when the finger
       // leaves the board or canvas. Move across one dominant axis, one cell only.
       const canvas = this.game.canvas;
@@ -1007,6 +1165,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.sceneAlive = false;
         this.clearChainCallout();
+        this.flair?.dispose();
+        delete canvas.dataset.flairTier;
+        delete canvas.dataset.flairParticles;
         resetGesture(); this.cancelGesture = undefined;
         this.cancelIdleHint();
         this.revealSkipped = true;
@@ -1249,22 +1410,27 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      this.hud.push(label(this, 51, goalRows.length > 2 ? 216 : 227, "LEFT TO COLLECT", 17, "#a2e7da"));
+      const crowded=goalRows.length>=4;
+      this.hud.push(label(this, 51, crowded ? 209 : goalRows.length > 2 ? 216 : 227, "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
-        const y = goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
+        const y = crowded ? 238 + index * 34 : goalRows.length > 2 ? 257 + index * 38 : 279 + index * 55;
         const icon = drawGoalIcon(this, 74, y, kind);
-        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), 20);
+        if (crowded && "setScale" in icon) {
+          const scalable=icon as Phaser.GameObjects.Image | Phaser.GameObjects.Container;
+          scalable.setScale(scalable.scaleX * 0.82, scalable.scaleY * 0.82);
+        }
+        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), crowded ? 18 : 20);
         this.goalIcons.set(kind, icon);
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
       });
-      this.hud.push(label(this, 110, 365, props.level.chapter === "town" ? "TOWN CRIER'S POWER" : props.level.chapter === "farmland" ? "FIELDKEEPER'S POWER" : props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
+      this.hud.push(label(this, 110, crowded ? 387 : 365, `${({keeper:"KEEPER",wayfinder:"WAYFINDER",gatewright:"GATEWRIGHT",fieldkeeper:"FIELDKEEPER",towncrier:"TOWN CRIER"} as const)[props.boardCompanion??"keeper"]}'S POWER`, 14, "#a2e7da"));
       const meter = this.add.graphics();
-      meter.fillStyle(0x315568).fillRoundedRect(110, 391, 153, 17, 7);
-      meter.fillStyle(GREEN).fillRoundedRect(110, 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
+      meter.fillStyle(0x315568).fillRoundedRect(110, crowded ? 413 : 391, 153, 17, 7);
+      meter.fillStyle(GREEN).fillRoundedRect(110, crowded ? 413 : 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
       this.hud.push(meter);
-      this.hud.push(label(this, 110, 415, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
-      this.hud.push(label(this, 110, 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
+      this.hud.push(label(this, 110, crowded ? 437 : 415, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
+      this.hud.push(label(this, 110, crowded ? 451 : 429, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
     }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
@@ -1350,6 +1516,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const contents: Phaser.GameObjects.GameObject[] = [image];
       if (hp > 1) contents.push(this.add.text(13, 10, String(hp), { fontFamily: "Arial, sans-serif", fontSize: "16px", fontStyle: "bold", color: "#493f33", stroke: "#fff2d5", strokeThickness: 3 }).setOrigin(0.5));
       const piece = this.add.container(p.x, p.y, contents).setDepth(6);
+      this.boardRoot?.add(piece);
       this.crustPieces.set(`${cell.row},${cell.col}`, piece);
       return piece;
     }
@@ -1417,6 +1584,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         }
         if (!item) {
           const graphic = drawPiece(this, 0, 0, tile.kind, tile.jet, !props.reducedMotion, tile.power, tile.hp);
+          this.boardRoot?.add(graphic);
           graphic.setDepth(5);
           let segmentTop = row;
           while (segmentTop > 0 && this.puzzle.mask[segmentTop - 1][col] && !this.displayCrust[segmentTop - 1][col]) segmentTop--;
@@ -1646,10 +1814,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        this.setMessage(props.level.chapter === "town" ? "Town Crier's Rally Call! Two vertical Jets ready. Charge resets." : props.level.chapter === "farmland" ? "Fieldkeeper's power! Two Flywheels ready. Charge resets." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels ready. Charge resets." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism ready. Charge resets." : "Keeper's power! Two Pressure Jets ready. Charge resets.");
+        const who=({keeper:"Keeper",wayfinder:"Wayfinder",gatewright:"Gatewright",fieldkeeper:"Fieldkeeper",towncrier:"Town Crier"} as const)[props.boardCompanion??"keeper"];
+        const grant=props.level.grantedPower==="prism"?"a Prism":props.level.grantedPower==="flywheels"?"two Flywheels":"two Pressure Jets";
+        this.setMessage(`${who}'s power! ${grant} ready. Charge resets.`);
         if (this.keeperPortrait && !short) {
           this.tweens.killTweensOf(this.keeperPortrait);
-          this.keeperPortrait.setY(392).setAngle(-8);
+          this.keeperPortrait.setY(this.portraitY).setAngle(-8);
           this.tweens.add({ targets: this.keeperPortrait, angle: 8, yoyo: true, repeat: 2, duration: 90,
             onComplete: () => this.keeperPortrait?.setAngle(0) });
         }
@@ -1676,6 +1846,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (step.kind === "clear") {
         props.audio?.play("clear", this.clearStreak);
         this.clearStreak++;
+        const tier=this.flair?.play(this.clearStreak,step.cells.map(cell=>this.center(cell))) ?? 0;
+        if (tier && (this.clearStreak===4 || this.clearStreak===6 || this.clearStreak===8)) props.audio?.play("cascade",tier);
+        if (isPlaytestMode(window.location.search)) { this.game.canvas.dataset.flairTier=String(tier); this.game.canvas.dataset.flairParticles=String(this.flair?.liveCount??0); }
         if (this.clearStreak === 4) this.showChainCallout();
         const cross = step.jets.some((jet, index) => step.jets.slice(index + 1).some(other =>
           jet.cell.row === other.cell.row && jet.cell.col === other.cell.col && jet.direction !== other.direction));
@@ -1745,9 +1918,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       props.audio?.play("swap");
       if (this.keeperPortrait && !props.reducedMotion) {
         this.tweens.killTweensOf(this.keeperPortrait);
-        this.keeperPortrait.setY(392).setAngle(0);
-        this.tweens.add({ targets: this.keeperPortrait, y: 386, yoyo: true, duration: 110,
-          onComplete: () => this.keeperPortrait?.setY(392) });
+        this.keeperPortrait.setY(this.portraitY).setAngle(0);
+        this.tweens.add({ targets: this.keeperPortrait, y: this.portraitY - 6, yoyo: true, duration: 110,
+          onComplete: () => this.keeperPortrait?.setY(this.portraitY) });
       }
       this.setMessage("Watch the swap, clear, and refill…");
       for (const step of turn.steps) await this.animateStep(step);
@@ -1941,7 +2114,7 @@ export default function GameCanvas(props: Props) {
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
-        scene: [props.mode === "map" ? props.region === "town" ? makeTownScene(current) : props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
+        scene: [props.mode === "map" ? props.region === "castle" ? makeCastleScene(current) : props.region === "town" ? makeTownScene(current) : props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },
       });
       logDiagnostic("game-create", { mode: props.mode, width, height, mobile });
@@ -1997,5 +2170,5 @@ export default function GameCanvas(props: Props) {
     // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
-  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
+  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "castle" ? "Walkable Castle Island" : props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
 }

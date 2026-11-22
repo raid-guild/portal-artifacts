@@ -58,6 +58,7 @@ button { font: inherit; cursor: pointer; }
 .intro.intro-gatehouse { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--gatehouse-image) center / cover; }
 .intro.intro-farmland { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--farmland-image) center / cover; }
 .intro.intro-town { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--town-image) center / cover; }
+.intro.intro-castle { background: linear-gradient(90deg, rgba(6, 31, 40, .92), rgba(6, 31, 40, .28) 72%), var(--castle-image) center / cover; }
 .intro-card { width: 49%; padding: 0 0 0 6%; color: #fff0d0; }
 .eyebrow, .speaker { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(12px, 2.4vw, 20px); font-weight: 700; letter-spacing: .19em; color: #78dfca; }
 .intro h1 { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(60px, 11vw, 112px); line-height: .78; letter-spacing: -.035em; margin: 15px 0 20px; color: #ffe2a5; text-shadow: 4px 5px 0 #713d31; }
@@ -195,6 +196,20 @@ button { font: inherit; cursor: pointer; }
 .party-member strong { font-family: 'Barlow Condensed', Arial, sans-serif; color: #ffe3a2; font-size: clamp(18px, 3.5cqh, 26px); }
 .party-member p { font-size: clamp(11px, 1.8cqh, 14px); line-height: 1.3; margin: 4px 0 0; }
 .party-member.unknown { opacity: .72; }
+.atlas-castle { position: absolute; z-index: 2; right: 19%; top: 43%; display: flex; flex-direction: column; align-items: flex-start; padding: 7px 12px; border: 2px solid #e6c589; border-radius: 10px; background: rgba(15, 55, 63, .96); color: #ffedc4; font: 800 clamp(15px, 3cqh, 23px) 'Barlow Condensed', Arial, sans-serif; cursor: pointer; }
+.atlas-castle small { color: #aee8dd; font: 600 .55em 'DM Sans', Arial, sans-serif; }
+.atlas-castle:hover { background: #27747b; }
+@container (max-height: 430px) and (min-width: 600px) {
+  .party-card { width: min(94%, 810px); max-height: 96%; padding: 9px 12px; }
+  .party-card h2 { margin: 0 0 6px; font-size: 25px; }
+  .party-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-bottom: 6px; }
+  .party-member { gap: 5px; padding: 4px; align-items: flex-start; }
+  .party-member img, .party-member > span { width: 38px; height: 38px; }
+  .party-member strong { display: block; font-size: 16px; line-height: 1; }
+  .party-member p { font-size: 10px; line-height: 1.13; margin-top: 2px; }
+  .party-select { padding: 1px 4px; min-height: 21px; font-size: 10px; }
+  .party-card > .primary { padding: 4px 9px; font-size: 17px; }
+}
 .rotate-icon { font-size: 70px; transform: rotate(-30deg); }
 .rotate strong { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 30px; }
 .rotate p { font-size: 14px; margin: 5px 0; }
