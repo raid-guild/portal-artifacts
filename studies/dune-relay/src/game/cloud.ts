@@ -7,6 +7,8 @@ export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
 export type CloudProfile = { revision: number; campaign: Save; imported: boolean };
 export type CloudSession = { accountId: string; displayName: string; contentVersion: string };
 export type FarmlandEntitlement = { accountId: string; farmland: { unlocked: boolean; eligible: boolean; unlockedAt: string | null } };
+export type CampaignPass = { state: 'active' | 'locked' | 'unavailable'; unlocked: boolean; unlockedAt: string | null; checkedAt: string | null; storeUrl: string | null };
+export type AccountEntitlements = FarmlandEntitlement & { campaignPass: CampaignPass };
 export type CloudOperation =
   | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string }
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
@@ -39,7 +41,12 @@ function checkedEntitlement(value: unknown, accountId: string): FarmlandEntitlem
   if (result?.accountId!==accountId || typeof grant?.unlocked!=='boolean' || typeof grant?.eligible!=='boolean' || (grant.unlocked ? typeof grant.unlockedAt!=='string' || !Number.isFinite(Date.parse(grant.unlockedAt)) : grant.unlockedAt!==null)) throw new Error('Farmland status could not be verified. Try again.');
   return result as FarmlandEntitlement;
 }
-export const entitlements = async (accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await json('/entitlements',undefined,accountId),accountId);
+export const entitlements = async (accountId: string, refresh = false): Promise<AccountEntitlements> => {
+  const result=checkedEntitlement(await json(`/entitlements${refresh ? '?refresh=1' : ''}`,undefined,accountId),accountId) as AccountEntitlements;
+  const pass=result.campaignPass;
+  if (!pass || !['active','locked','unavailable'].includes(pass.state) || typeof pass.unlocked!=='boolean' || pass.unlocked !== (pass.state==='active') || pass.unlockedAt!==null && (typeof pass.unlockedAt!=='string' || !Number.isFinite(Date.parse(pass.unlockedAt))) || pass.checkedAt!==null && (typeof pass.checkedAt!=='string' || !Number.isFinite(Date.parse(pass.checkedAt))) || pass.storeUrl!==null && (typeof pass.storeUrl!=='string' || !/^https:\/\//.test(pass.storeUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(pass.storeUrl))) throw new Error('Dune Pass access could not be verified. Try again.');
+  return result;
+};
 export const claimFarmland = async (requestId: string, accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await post('/entitlements/farmland/claim',{requestId},accountId),accountId);
 export const importGuest = (guestSave: Save, requestId: string, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave},accountId);
 export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string): Promise<{profile:CloudProfile}> => post('/attempts',{attemptId,levelId,boosters},accountId);

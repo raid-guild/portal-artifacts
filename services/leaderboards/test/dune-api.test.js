@@ -108,16 +108,20 @@ test('Farmland is an explicit, account-bound entitlement after all 30 canonical 
   assert.deepEqual(await ok(await call('/entitlements/farmland/claim',a.cookie,{requestId:randomUUID()})),grant);
   assert.equal((await pool.query("SELECT count(*)::int AS n, min(source) AS source FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1",[accountId])).rows[0].n,1);
   assert.deepEqual((await ok(await call('/campaign',a.cookie))).profile,imported.profile,'claim never changes coins, revision or story');
-  assert.deepEqual(await ok(await call('/entitlements',a.cookie)),grant,'a fresh read sees the grant');
+  const entitlementRead=await ok(await call('/entitlements',a.cookie));
+  assert.deepEqual({accountId:entitlementRead.accountId,farmland:entitlementRead.farmland},grant,'a fresh read sees the grant');
+  assert.equal(entitlementRead.campaignPass.state,'unavailable','an unconfigured store does not affect Farmland');
   const secondSession=await launch({sub:'user:42424242'});
   assert.equal(accountByCookie.get(secondSession.cookie),accountId);
-  assert.deepEqual(await ok(await call('/entitlements',secondSession.cookie)),grant,'a second session sees the account grant');
+  const secondRead=await ok(await call('/entitlements',secondSession.cookie));
+  assert.deepEqual({accountId:secondRead.accountId,farmland:secondRead.farmland},grant,'a second session sees the account grant');
   assert.equal((await ok(await call('/entitlements',b.cookie))).farmland.unlocked,false,'another account cannot see it');
   assert.equal((await call('/entitlements/farmland/claim',b.cookie,{requestId:id})).status,409,'request ID is account scoped but progress is required');
   assert.equal((await call('/campaign/checkpoint',a.cookie,{requestId:id,campaign:imported.profile.campaign,expectedRevision:imported.profile.revision})).status,409,'request IDs cannot cross operation types');
   const checkpoint=await ok(await call('/campaign/checkpoint',a.cookie,{requestId:randomUUID(),campaign:imported.profile.campaign,expectedRevision:imported.profile.revision}));
   assert.equal(checkpoint.profile.revision,imported.profile.revision+1);
-  assert.deepEqual(await ok(await call('/entitlements',a.cookie)),grant,'checkpoint leaves entitlement intact');
+  const afterCheckpoint=await ok(await call('/entitlements',a.cookie));
+  assert.deepEqual({accountId:afterCheckpoint.accountId,farmland:afterCheckpoint.farmland},grant,'checkpoint leaves entitlement intact');
 });
 test('native final completion enables a later explicit Farmland claim',async()=>{
   const {cookie}=await launch();
@@ -250,4 +254,39 @@ test('login issuance cleans expired intents and bounds requests per client',asyn
     assert.equal((await fetch(loginUrl,{redirect:'manual'})).status,429);
     assert.equal((await pool.query('SELECT 1 FROM artifact_leaderboards.dune_launch_intents WHERE nonce_hash=$1',[stale])).rowCount,0);
   } finally { await new Promise(resolve=>limitedServer.close(resolve)); }
+});
+test('future chapter starts require a Portal-bound pass; an active attempt can finish through a store outage',async()=>{
+  const fixture={id:'futureFixture',index:40,moves:20,chapter:'town'};
+  const {cookie}=await launch({sub:'user:90818091'});
+  const accountId=accountByCookie.get(cookie);
+  const complete=content.levels.map(level=>level.id);
+  const campaign=deriveCampaign(complete,0,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,demoEnding:'done',farmlandEnding:'done'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  let allowed=false;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async identity=>{
+    assert.equal(identity.issuer,issuer);assert.equal(identity.subject,'user:90818091');
+    return {state:allowed?'active':'unavailable',unlocked:allowed,unlockedAt:null,checkedAt:null,storeUrl:null};
+  }}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const futureBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const futureCall=(route,body)=>fetch(futureBase+route,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  // The fixture exists only inside this test. Production content still has 40 levels.
+  content.levels.push(fixture);
+  const {levels}=await import('../src/dune-rules.js');levels.set(fixture.id,fixture);
+  try {
+    const attemptId=randomUUID();
+    assert.equal((await futureCall('/attempts',{attemptId,levelId:fixture.id,boosters:[]})).status,503);
+    assert.equal((await futureCall(`/attempts/${attemptId}/finish`,{levelId:fixture.id,remainingMoves:10,contentVersion:content.contentVersion})).status,403,'no offline synthesis for paid chapters');
+    allowed=true;
+    assert.equal((await futureCall('/attempts',{attemptId,levelId:fixture.id,boosters:[]})).status,200);
+    allowed=false;
+    assert.equal((await futureCall(`/attempts/${attemptId}/activate`,{expectedRevision:1})).status,503,'prepared attempt must recheck access');
+    allowed=true;
+    assert.equal((await futureCall(`/attempts/${attemptId}/activate`,{expectedRevision:1})).status,200);
+    allowed=false;
+    const finish=await ok(await futureCall(`/attempts/${attemptId}/finish`,{levelId:fixture.id,remainingMoves:10,contentVersion:content.contentVersion}));
+    assert.equal(finish.profile.campaign.completed.at(-1),fixture.id);
+    assert.equal((await futureCall(`/attempts/${randomUUID()}/finish`,{levelId:fixture.id,remainingMoves:10,contentVersion:content.contentVersion})).status,403);
+  } finally { levels.delete(fixture.id);content.levels.pop();await new Promise(resolve=>service.close(resolve)); }
 });

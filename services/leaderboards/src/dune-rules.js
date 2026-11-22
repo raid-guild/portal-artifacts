@@ -21,6 +21,19 @@ export const rewardFor = moves => 20 + 3 * moves;
 // This boundary stays at the Gatehouse finale when later chapters add levels.
 export const DEMO_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCrossing') + 1;
 export const FARMLAND_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheHarvestRoad') + 1;
+export const PASS_LEVEL_START = FARMLAND_LEVEL_COUNT;
+// Authoring metadata, not a browser-supplied unlock flag, decides the access tier.
+export function accessTierForLevel(level) {
+  if (!level || !Number.isInteger(level.index) || level.index < 0) throw fail(400,'Unknown level.');
+  if (level.index < DEMO_LEVEL_COUNT) return 'demo';
+  if (level.index < PASS_LEVEL_START) return 'farmland';
+  return 'campaign-pass';
+}
+export function accessTierForCampaign(campaign) {
+  if (campaign?.region && !['oasis','caravan','gatehouse','farmland'].includes(campaign.region) || campaign?.transition?.to && !['caravan','gatehouse','farmland'].includes(campaign.transition.to)) return 'campaign-pass';
+  if (campaign?.region === 'farmland' || campaign?.transition?.to === 'farmland' || campaign?.farmlandReady) return 'farmland';
+  return 'demo';
+}
 export const farmlandEligible = campaign => DEMO_LEVEL_COUNT > 0 && Array.isArray(campaign?.completed) && campaign.completed.length >= DEMO_LEVEL_COUNT && campaign.completed.slice(0,DEMO_LEVEL_COUNT).every((id,index)=>id===content.levels[index].id);
 export function fail(status, message) { return Object.assign(new Error(message), { status }); }
 export function validUuid(value) { return typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value); }
@@ -37,7 +50,8 @@ export function requireCurrentLevel(campaign, level) {
   if (level.index !== campaign.completed.length) throw fail(409, 'This level is not the current campaign level.');
   if (level.index === 10 && campaign.oasisTransition !== 'ready') throw fail(409, 'Finish the Oasis transition before entering Caravan.');
   if (level.index === 20 && !campaign.gatehouseReady) throw fail(409, 'Finish the Caravan transition before entering Gatehouse.');
-  if (level.index >= DEMO_LEVEL_COUNT && !campaign.farmlandReady) throw fail(409, 'Finish the Farmland transition before entering Farmland.');
+  if (level.index >= DEMO_LEVEL_COUNT && level.index < PASS_LEVEL_START && !campaign.farmlandReady) throw fail(409, 'Finish the Farmland transition before entering Farmland.');
+  if (level.index >= PASS_LEVEL_START && campaign.completed.length === PASS_LEVEL_START && campaign.farmlandEnding !== 'done') throw fail(409, 'Finish the Farmland transition before entering the next chapter.');
 }
 export function validPrefix(value) {
   if (!Array.isArray(value) || value.length > content.levels.length || value.some((id, index) => id !== content.levels[index].id)) throw fail(400, 'Invalid completed levels.');
