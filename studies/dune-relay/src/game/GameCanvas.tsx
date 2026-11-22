@@ -10,6 +10,7 @@ import spriteFrames from "../../public/sprites/frames.json";
 import wayfinderFrames from "../../public/sprites/wayfinder-frames.json";
 import gatewrightFrames from "../../public/sprites/gatewright-frames.json";
 import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
+import towncrierFrames from "../../public/sprites/towncrier-frames.json";
 import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
@@ -29,6 +30,7 @@ export type GameEvent =
   | { type: "replayDestination"; destination: ReplayDestination["destination"]; position: { x: number; y: number } }
   | { type: "wayfinder"; position: { x: number; y: number } }
   | { type: "gatewright"; position: { x: number; y: number } }
+  | { type: "towncrier"; position: { x: number; y: number } }
   | { type: "fieldkeeper"; position: { x: number; y: number } }
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
   | { type: "playReady" }
@@ -41,7 +43,7 @@ export type GameEvent =
 
 type Props = {
   mode: "map" | "puzzle";
-  region: "oasis" | "caravan" | "gatehouse" | "farmland";
+  region: "oasis" | "caravan" | "gatehouse" | "farmland" | "town";
   mapPosition: { x: number; y: number } | null;
   repaired: boolean;
   caravanComplete: boolean;
@@ -127,11 +129,11 @@ function replayMarkers(scene: Phaser.Scene, props: Props) {
   });
 }
 
-type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper";
+type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
 
 function registerFrames(scene: Phaser.Scene, sheet: SpriteSheet) {
   const texture = scene.textures.get(sheet);
-  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : spriteFrames[sheet];
+  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : sheet === "towncrier" ? towncrierFrames : spriteFrames[sheet];
   frames.forEach((cell, index) => {
     const [left, top, right, bottom] = cell.bounds;
     const crop = sheet === "tiles";
@@ -165,7 +167,8 @@ function prepareSmallTexture(scene: Phaser.Scene, sourceKey: string, targetKey: 
   return targetKey;
 }
 
-function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind | "seedpod", jet?: "row" | "column", pulseEnabled = true, power?: Power, hp?: number) {
+function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind | "seedpod" | "crate", jet?: "row" | "column", pulseEnabled = true, power?: Power, hp?: number) {
+  if (kind === "crate") return scene.add.container(x, y, [scene.add.image(0, 0, prepareSmallTexture(scene, "deliveryCrate", "deliveryCrate-small", 128)).setDisplaySize(44, 44)]);
   if (kind === "seedpod") {
     const texture = hp === 1 ? "seedpodCracked" : "seedpod";
     return scene.add.container(x, y, [scene.add.image(0, 0, prepareSmallTexture(scene, texture, `${texture}-small`, 128)).setDisplaySize(43, 43)]);
@@ -197,32 +200,33 @@ function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind |
 }
 
 function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind) {
+  if (kind === "crate") return drawPiece(scene, x, y, "crate", undefined, false);
   if (kind === "seedpod") return drawPiece(scene, x, y, "seedpod", undefined, false, undefined, 2);
   if (kind === "crust") return scene.add.image(x, y, prepareSmallTexture(scene, "saltCrust", "saltCrust-small", 128)).setDisplaySize(43, 43);
   return drawPiece(scene, x, y, kind);
 }
 
-function goalName(kind: GoalKind): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind.toUpperCase(); }
+function goalName(kind: GoalKind, amount = 2): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind === "crate" ? amount === 1 ? "DELIVERY" : "DELIVERIES" : kind.toUpperCase(); }
 function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
   const remaining=Math.max(0,goals[kind] ?? 0);
   return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
 }
 
-function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", x: number, y: number) {
+function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier", x: number, y: number) {
   const index = Number(sprite.frame.name);
-  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet][Number.isFinite(index) ? index : 0];
+  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : sheet === "towncrier" ? towncrierFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet][Number.isFinite(index) ? index : 0];
   const [left, , right, bottom] = cell.bounds;
   const scale = sprite.scaleX;
   sprite.setPosition(x - ((left + right) / 2 - cell.w / 2) * scale, y + (cell.h - bottom) * scale);
 }
 
-function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper", direction: "left" | "right") {
+function characterAnimation(scene: Phaser.Scene, sheet: "mechanic" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier", direction: "left" | "right") {
   const key = `${sheet}-${direction}-walk`;
   if (!scene.anims.exists(key)) scene.anims.create({ key, frames: (direction === "right" ? [1, 2, 3] : [5, 6, 7]).map(frame => ({ key: sheet, frame: String(frame) })), frameRate: 7, repeat: -1 });
   return key;
 }
 
-type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper";
+type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
 const GLOW_OFFSETS: [number, number][] = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]];
 
 function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phaser.GameObjects.Sprite, glows: Phaser.GameObjects.Sprite[], pace: CompanionPace, y: number, delta: number, playerX: number, playerMoving: boolean, blocked: boolean, reducedMotion: boolean) {
@@ -755,6 +759,115 @@ function makeFarmlandScene(props: Props): typeof Phaser.Scene {
   };
 }
 
+function makeTownScene(props: Props): typeof Phaser.Scene {
+  return class TownScene extends Phaser.Scene {
+    player = props.mapPosition ?? { x: 190, y: 464 };
+    target = { ...this.player };
+    previous = { ...this.player };
+    playerGraphic?: Phaser.GameObjects.Sprite;
+    towncrierGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(540);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
+    glows: Phaser.GameObjects.Sprite[] = [];
+    keys?: Record<string, Phaser.Input.Keyboard.Key>;
+    facing: "left" | "right" = "right";
+    locked = false;
+    constructor() { super("Town"); }
+    preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
+      this.load.image("town", assetUrl("/town.webp"));
+      this.load.image("mechanic", assetUrl("/sprites/mechanic.png"));
+      this.load.image("towncrier", assetUrl("/sprites/towncrier.png"));
+    }
+    create() {
+      registerFrames(this, "mechanic"); registerFrames(this, "towncrier");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, "mechanic", direction); characterAnimation(this, "towncrier", direction); }
+      this.add.image(480, 270, "town").setDisplaySize(WIDTH, HEIGHT);
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "TOWN ON THE HILL", 26),
+        label(this, 40, 132, "THE EVENING MARKET", 13, "#9de4d4"),
+      ];
+      const person = this.add.sprite(540, 430, "towncrier", "4").setOrigin(.5, 1).setScale(86 / 256).setDepth(2);
+      characterPosition(person, "towncrier", 540, 430); this.towncrierGraphic = person;
+      for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
+        const glow = this.add.sprite(540, 430, "towncrier", "4").setOrigin(.5, 1).setScale(86 / 256).setTintFill(0xffe4af).setAlpha(.68).setDepth(1);
+        characterPosition(glow, "towncrier", 540+dx, 430+dy); this.glows.push(glow);
+      }
+      if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
+      const arriving = props.nextLevel === "marketArrival" && !props.companionIntroduced;
+      const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "town" && !arriving ? LEVELS[props.nextLevel] : null;
+      const destination = route ? MAP_DESTINATIONS[route.destination] : null;
+      const talkHit = this.add.zone(540, 389, 100, 115);
+      this.companionHit = talkHit;
+      talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 540, 329, props.companionIntroduced ? "TALK TO TOWN CRIER" : "TOWN CRIER", 15).setOrigin(.5);
+      this.companionCaption = talkCaption;
+      talkCaption.setInteractive({ useHandCursor: true });
+      let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
+      if (destination && route) {
+        const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
+        if (!props.reducedMotion) this.tweens.add({ targets: halo, alpha: .13, scale: 1.6, duration: 750, yoyo: true, repeat: -1 });
+        routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
+        routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
+      }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, "mechanic", "0").setOrigin(.5, 1).setScale(70 / 420);
+      characterPosition(this.playerGraphic, "mechanic", this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
+      this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
+        props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
+        const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        if (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=329 && y<=445) {
+          this.locked = true; this.target = {x:488,y:447}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"towncrier",position:{...this.player}})}); return;
+        }
+        if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        this.target = {x:Phaser.Math.Clamp(x,68,882),y:Phaser.Math.Clamp(y,420,491)};
+      });
+      this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Town Crier →":route?`Walk to ${route.title} →`:"The market is open ✓",14));
+      mapHud(this, hudParts);
+      props.onReady();
+    }
+    update(_:number,delta:number) {
+      if (!this.playerGraphic) return;
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
+        const speed=delta*.19;
+        const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
+        const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
+        if(dx||dy) this.target={x:Phaser.Math.Clamp(this.player.x+dx*speed,68,882),y:Phaser.Math.Clamp(this.player.y+dy*speed,420,491)};
+        const distance=Math.hypot(this.target.x-this.player.x,this.target.y-this.player.y);
+        if(distance>1){this.player.x+=(this.target.x-this.player.x)/distance*Math.min(speed,distance);this.player.y+=(this.target.y-this.player.y)/distance*Math.min(speed,distance);}
+      }
+      const moved=this.player.x-this.previous.x;
+      const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
+      if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
+      const animation=characterAnimation(this,"mechanic",this.facing);
+      if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
+      characterPosition(this.playerGraphic,"mechanic",this.player.x,this.player.y);
+      if (this.towncrierGraphic) {
+        const x = poseCompanion(this, "towncrier", this.towncrierGraphic, this.glows, this.companionPace, 430, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
+      }
+      this.previous={...this.player};
+    }
+  };
+}
+
 function makePuzzleScene(props: Props): typeof Phaser.Scene {
   return class PuzzleScene extends Phaser.Scene {
     puzzle: Puzzle = props.puzzle ?? createPuzzle(props.level);
@@ -766,7 +879,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     clearStreak = 0;
     chainCallout?: HTMLDivElement;
     lastTap: { cell: Cell; time: number } | null = null;
-    pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod"; hp?: number; jet?: "row" | "column"; power?: Power }>();
+    pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
     lessonPowerId?: number;
     lessonPowerHint?: Phaser.GameObjects.Graphics;
@@ -795,9 +908,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
-      this.load.image("backdrop", props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
+      this.load.image("backdrop", props.level.chapter === "town" ? assetUrl("/town.webp") : props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
       this.load.image("tiles", assetUrl("/sprites/tiles.png"));
-      this.load.image("companionAvatar", props.level.chapter === "farmland" ? assetUrl("/sprites/fieldkeeper-avatar.png") : props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
+      this.load.image("companionAvatar", props.level.chapter === "town" ? assetUrl("/sprites/towncrier-avatar.png") : props.level.chapter === "farmland" ? assetUrl("/sprites/fieldkeeper-avatar.png") : props.level.chapter === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : props.level.chapter === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png"));
       this.load.image("pennant", assetUrl("/sprites/pennant.png"));
       this.load.image("key", assetUrl("/sprites/key.png"));
       this.load.image("coin", assetUrl("/sprites/coin.png"));
@@ -807,6 +920,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.load.image("saltCrust2", assetUrl("/sprites/salt-crust-2.png"));
       this.load.image("seedpod", assetUrl("/sprites/seedpod.png"));
       this.load.image("seedpodCracked", assetUrl("/sprites/seedpod-cracked.png"));
+      this.load.image("deliveryCrate", assetUrl("/sprites/delivery-crate.png"));
     }
     create() {
       // Warm the italic callout font while the board opens; it never delays play.
@@ -844,7 +958,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const cellAtPoint = (x: number, y: number): Cell | null => {
         const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
         return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col]
-          && !this.displayCrust[row][col] && this.displayBoard[row][col]?.kind !== "seedpod" ? { row, col } : null;
+          && !this.displayCrust[row][col] && !(["seedpod","crate"].includes(this.displayBoard[row][col]?.kind ?? "")) ? { row, col } : null;
       };
       const resetGesture = () => {
         const active = gesture; gesture = null;
@@ -1060,9 +1174,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (!completed) {
         const goals = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
         goals.forEach(([kind, count], index) => {
-          const x = goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
+          const x = goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : goals.length >= 4 ? -235 + index * 125 : -205 + index * 170;
           contents.push(drawGoalIcon(this, x, 91, kind));
-          contents.push(this.add.text(x + 33, 76, `${count} ${goalName(kind).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" }));
+          contents.push(this.add.text(x + 33, 76, `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: goals.length >= 4 ? "14px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" }));
         });
       }
       const banner = this.add.container(WIDTH / 2, -160, contents).setDepth(40);
@@ -1093,13 +1207,13 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
       const col = Math.floor((position.x - GRID_X) / CELL);
       const row = Math.floor((position.y - GRID_Y) / CELL);
-      return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col] && !this.displayCrust[row][col] && this.displayBoard[row][col]?.kind !== "seedpod" ? { row, col } : null;
+      return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col] && !this.displayCrust[row][col] && !(["seedpod","crate"].includes(this.displayBoard[row][col]?.kind ?? "")) ? { row, col } : null;
     }
     center(cell: Cell) { return { x: GRID_X + cell.col * CELL + CELL / 2, y: GRID_Y + cell.row * CELL + CELL / 2 }; }
     setMessage(message: string) { this.message?.setText(message); }
@@ -1144,7 +1258,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
       });
-      this.hud.push(label(this, 110, 365, props.level.chapter === "farmland" ? "FIELDKEEPER'S POWER" : props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
+      this.hud.push(label(this, 110, 365, props.level.chapter === "town" ? "TOWN CRIER'S POWER" : props.level.chapter === "farmland" ? "FIELDKEEPER'S POWER" : props.level.chapter === "gatehouse" ? "GATEWRIGHT'S POWER" : props.level.chapter === "caravan" ? "WAYFINDER'S POWER" : "KEEPER'S POWER", 14, "#a2e7da"));
       const meter = this.add.graphics();
       meter.fillStyle(0x315568).fillRoundedRect(110, 391, 153, 17, 7);
       meter.fillStyle(GREEN).fillRoundedRect(110, 391, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
@@ -1521,9 +1635,18 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.displayBoard = step.board;
         return;
       }
+      if (step.kind === "deliver") {
+        props.audio?.play("crate");
+        await this.syncTiles(step.board, short ? 70 : 180, "clear");
+        if (!this.sceneAlive) return;
+        await this.showCollections(step);
+        this.displayBoard = step.board;
+        this.renderHud(this.displayedGoals, this.puzzle.moves, step.keeperCharge);
+        return;
+      }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        this.setMessage(props.level.chapter === "farmland" ? "Fieldkeeper's power! Two Flywheels ready. Charge resets." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels ready. Charge resets." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism ready. Charge resets." : "Keeper's power! Two Pressure Jets ready. Charge resets.");
+        this.setMessage(props.level.chapter === "town" ? "Town Crier's Rally Call! Two vertical Jets ready. Charge resets." : props.level.chapter === "farmland" ? "Fieldkeeper's power! Two Flywheels ready. Charge resets." : props.level.chapter === "caravan" ? "Wayfinder's power! Two Flywheels ready. Charge resets." : props.level.chapter === "gatehouse" ? "Gatewright's power! A Prism ready. Charge resets." : "Keeper's power! Two Pressure Jets ready. Charge resets.");
         if (this.keeperPortrait && !short) {
           this.tweens.killTweensOf(this.keeperPortrait);
           this.keeperPortrait.setY(392).setAngle(-8);
@@ -1575,7 +1698,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "shuffle") {
         this.setMessage("Refreshing the board…");
-        const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile) || tile?.kind === "seedpod").map(tile => tile!.id));
+        const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile) || (tile?.kind === "seedpod" || tile?.kind === "crate")).map(tile => tile!.id));
         const emptyBoard: Board = step.board.map(row => row.map(tile => tile && survivingPowers.has(tile.id) ? tile : null));
         await this.syncTiles(emptyBoard, short ? 70 : 220, "clear");
         if (!this.sceneAlive) return;
@@ -1818,7 +1941,7 @@ export default function GameCanvas(props: Props) {
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
-        scene: [props.mode === "map" ? props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
+        scene: [props.mode === "map" ? props.region === "town" ? makeTownScene(current) : props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },
       });
       logDiagnostic("game-create", { mode: props.mode, width, height, mobile });
@@ -1874,5 +1997,5 @@ export default function GameCanvas(props: Props) {
     // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
-  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
+  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
 }

@@ -22,6 +22,8 @@ async function replay(page, level, moves) {
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('button', { name: `Replay ${level}`, exact: true }).click();
   await page.getByRole('button', { name: /Start level/ }).click();
+  const lesson = page.getByRole('dialog', { name: /lesson/i });
+  if (await lesson.isVisible().catch(() => false)) await lesson.getByRole('button', { name: 'Skip lesson' }).click();
   await page.locator(`[data-moves="${moves}"]`).waitFor({ timeout: 30000 });
   await page.locator('canvas[data-play-ready="true"]').waitFor({ timeout: 30000 });
 }

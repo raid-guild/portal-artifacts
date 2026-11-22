@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "farmland-1",
-  "contentVersion": "chapter-4-2",
+  "rulesVersion": "town-1",
+  "contentVersion": "chapter-5-1",
   "levels": [
     {
       "id": "pumpHouse",
@@ -201,6 +201,56 @@
       "id": "openTheHarvestRoad",
       "moves": 34,
       "chapter": "farmland"
+    },
+    {
+      "id": "marketArrival",
+      "moves": 22,
+      "chapter": "town"
+    },
+    {
+      "id": "courierSteps",
+      "moves": 24,
+      "chapter": "town"
+    },
+    {
+      "id": "terraceDeliveries",
+      "moves": 25,
+      "chapter": "town"
+    },
+    {
+      "id": "splitMarket",
+      "moves": 26,
+      "chapter": "town"
+    },
+    {
+      "id": "saltedStorefronts",
+      "moves": 27,
+      "chapter": "town"
+    },
+    {
+      "id": "awningLanes",
+      "moves": 28,
+      "chapter": "town"
+    },
+    {
+      "id": "seedExchange",
+      "moves": 28,
+      "chapter": "town"
+    },
+    {
+      "id": "neighborhoodRounds",
+      "moves": 30,
+      "chapter": "town"
+    },
+    {
+      "id": "townLedger",
+      "moves": 30,
+      "chapter": "town"
+    },
+    {
+      "id": "openTheMarket",
+      "moves": 32,
+      "chapter": "town"
     }
   ]
 }

@@ -8,7 +8,7 @@
 
 Use this as a shared reference for the kingdom journey, story, party, and introduction of mechanics. The broad direction was agreed in conversation; chapter names, characters, powers, obstacles, and level counts remain open to revision through writing and playtesting. This is not an implementation checklist or a commitment to build every proposed mechanic.
 
-The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 130 beyond the current thirty-level demo. That is a planning scale, not a production promise. The demo teaser now promises new adventures without a fixed level count.
+The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 110 beyond the current fifty authored levels. That is a planning scale, not a production promise. The demo teaser promises new adventures without a fixed level count.
 
 ## Story foundation
 
@@ -40,7 +40,7 @@ Sources:
 
 ## Campaign route and progression
 
-Chapters 1–4 describe the current playable direction. Chapters 5–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
+Chapters 1–5 describe the current playable direction. Chapters 6–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
 
 | Chapter | Destination | Story and reason to continue | Gameplay direction |
 | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ Chapters 1–4 describe the current playable direction. Chapters 5–16 are prop
 | 2 | Open Desert | Get the desert walker caravan moving toward the river. | Existing fourth matching symbol and salt crust. |
 | 3 | River Gatehouse | Raise the gate and open the bridge into farmland. This is the river crossing, not the coastal fort. | Existing fifth symbol, stronger crust, and shaped boards. |
 | 4 | Farmland | Water has returned, but stored seeds and neglected channels need attention before the farms recover. Meet a Druid-inspired companion. | Falling, multi-hit armored seedpods; retain five symbols. |
-| 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a Bard-inspired companion. | Delivery goals: guide supply pieces to marked exits. |
+| 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a birdlike Bard town crier. | Falling delivery crates; every bottom edge of the playable board is an exit. Retain five matching symbols. |
 | 6 | Castle Island | Discover that reservoir records and actual deliveries disagree; organize an upstream investigation. | A milestone combining familiar mechanics rather than another obstacle. |
 | 7 | River Journey | Follow the missing water upstream aboard a repair boat. | Clearly marked currents that shift pieces after a turn. |
 | 8 | Second Oasis and Water Collection Station | Repair the collection balloons and discover why shipments stopped. Meet an Artificer-inspired companion. | Sixth symbol, with a balloon-themed power introduced later if useful. |
@@ -60,6 +60,8 @@ Chapters 1–4 describe the current playable direction. Chapters 5–16 are prop
 | 14 | Gates of Moloch | Reconnect defenses that have become isolated and obstructive. | Staged locks and coordinated objectives using established mechanics. |
 | 15 | Lava Pool | Build a crossing through machinery that drains neighboring systems to keep itself running. | Candidate lava spread with visible warnings, bounded growth, and a clear prevention action. |
 | 16 | Moloch | Break the mechanism that keeps the kingdom working against itself. | A multi-phase finale built from learned mechanics and party contributions. |
+
+Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island remains a story clue and a locked future chapter.
 
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
 
@@ -88,6 +90,34 @@ The clearest first version falls but cannot be manually swapped. Swappability, P
 The Fieldkeeper, a stocky leafy farmer of the guide's Druid species, reads harvest and water patterns and finds that the farms' problem began upstream. His story contribution matters beyond granting a power-up.
 
 The Field Guide's character range includes nonhuman creatures. Keep that variety as a design principle for future companions and local characters instead of defaulting the whole party to humans. Ground each new character in the guide's class identity, local work, and chapter story while allowing a distinct personality and silhouette.
+
+## Chapter 5: Town on the Hill
+
+**Working direction updated November 21, 2026.** These details extend the flexible campaign plan; this chapter is not implemented yet.
+
+### Story and companion
+
+The party brings the Farmland harvest convoy into the hill town, but the market is jammed. Neighborhoods have conflicting delivery instructions, supplies are piling up, and everyone thinks someone else is handling the distribution. Helping the town move its supplies introduces the kingdom's coordination problem through a practical local adventure.
+
+A Bard-inspired town crier joins the party: a small, expressive bird creature with an oversized courier coat, a brass speaking horn, and a backpack covered in delivery tags. This is a proposed game adaptation of the Field Guide's Bard, whose role connects useful work with its audience; the individual character is not established Field Guide lore. Name and final artwork remain open.
+
+The chapter ends with the market moving again and the convoy dispatched. Conflicting delivery records show that Castle Island has requested supplies it claims never arrived, giving the party a reason to travel there in Chapter 6.
+
+### Delivery crates: agreed simple rules
+
+- Keep the existing five matching symbols. A delivery crate is a separate nonmatching piece with a distinct square silhouette.
+- Crates cannot be swapped or matched. They fall when tiles beneath them clear.
+- Crates may start anywhere on the board, usually toward the top. Use a finite, authored supply so finishing does not depend on random crate refills.
+- Every bottom edge of the playable board is an exit, including shaped boards. Board layouts must give every crate a reachable bottom exit and avoid gravity pockets that could trap cargo permanently.
+- When a crate reaches a bottom exit, it disappears and advances the delivery goal. Keep the presentation simple: no rolling onto a cart or other delivery cutscene.
+- Powers clear around crates without damaging or destroying them, including Prism + Prism. Crates remain cargo that must reach the bottom.
+- There are no designated delivery lanes or special exit columns to introduce in this chapter.
+
+### Companion power and teaching direction
+
+The working power is **Rally Call**: collect twelve pennants to receive two vertical Pressure Jets. They use normal eligible placement, remain on the board until the player activates them, and the charge resets so the ability can be earned repeatedly. Twelve pennants is a starting value to tune, not a fixed balance commitment; crate delivery does not require a separate lane-targeting system.
+
+Begin with one crate on a simple board. The visual lesson shows clearing beneath it, the crate falling, and the crate disappearing at the bottom exit. Practice multiple crates and shaped boards before adding salt, then seedpods and collection goals. Keep the ten-level route flexible until the delivery mechanic has been prototyped and playtested.
 
 ## Party and matching symbols
 
