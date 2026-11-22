@@ -92,9 +92,9 @@ export function deriveCampaign(completed, coins, requested = {}) {
   const demoEnding = gatehouseDone && endingStages.includes(requested.demoEnding) && requested.demoEnding !== 'locked' ? requested.demoEnding : gatehouseDone ? 'gate' : 'locked';
   const farmlandStages = ['locked','film','thanks','done'];
   const farmlandEnding = farmlandDone && farmlandStages.includes(requested.farmlandEnding) && requested.farmlandEnding !== 'locked' ? requested.farmlandEnding : farmlandDone ? 'film' : 'locked';
-  const townStages = ['locked','thanks','done'];
-  const townEnding = townDone && townStages.includes(requested.townEnding) && requested.townEnding !== 'locked' ? requested.townEnding : townDone ? 'thanks' : 'locked';
-  const castleEnding = castleDone && townStages.includes(requested.castleEnding) && requested.castleEnding !== 'locked' ? requested.castleEnding : castleDone ? 'thanks' : 'locked';
+  const townStages = ['locked','film','thanks','done'];
+  const townEnding = townDone && townStages.includes(requested.townEnding) && requested.townEnding !== 'locked' ? requested.townEnding : townDone ? 'film' : 'locked';
+  const castleEnding = castleDone && townStages.includes(requested.castleEnding) && requested.castleEnding !== 'locked' ? requested.castleEnding : castleDone ? 'film' : 'locked';
   const companions = [ ...(oasisStages.indexOf(oasisTransition) >= 3 ? ['keeper'] : []), ...(oasisTransition === 'ready' ? ['wayfinder'] : []), ...(gatehouseReady ? ['gatewright'] : []), ...(farmlandReady ? ['fieldkeeper'] : []), ...(townReady ? ['towncrier'] : []) ];
   const activeCompanion = castleReady && companions.includes(requested.activeCompanion) ? requested.activeCompanion : null;
   const region = transition?.stage === 'arrival' ? transition.to
@@ -133,6 +133,7 @@ export function applyCheckpoint(profile, requested) {
   if (requested.transition?.from === 'town' && requested.transition?.to === 'castle' && before.transition?.from !== 'town' && before.townEnding !== 'done') throw fail(400, 'Finish Town before travelling to Castle Island.');
   if (before.farmlandEnding && before.farmlandEnding !== 'locked' && requested.farmlandEnding === 'locked') throw fail(400, 'Invalid Farmland ending checkpoint.');
   if (before.townEnding && before.townEnding !== 'locked' && requested.townEnding === 'locked') throw fail(400, 'Invalid Town ending checkpoint.');
+  if (before.castleEnding && before.castleEnding !== 'locked' && requested.castleEnding === 'locked') throw fail(400, 'Invalid Castle ending checkpoint.');
   const after = deriveCampaign(before.completed, before.coins, { ...before, ...requested, farmlandEnding: requested.farmlandEnding ?? before.farmlandEnding, townEnding: requested.townEnding ?? before.townEnding, castleEnding: requested.castleEnding ?? before.castleEnding, townReady: requested.townReady ?? before.townReady, castleReady: requested.castleReady ?? before.castleReady, activeCompanion: requested.activeCompanion === undefined ? before.activeCompanion : requested.activeCompanion, transition: requested.transition === undefined ? before.transition : requested.transition });
   const oasisStages = ['locked','film','keeper','atlas','arrival','ready'];
   const priorOasis = oasisStages.indexOf(before.oasisTransition), nextOasis = oasisStages.indexOf(after.oasisTransition);
@@ -172,11 +173,11 @@ export function applyCheckpoint(profile, requested) {
   const farmlandEnding = ['locked','film','thanks','done'];
   const priorFarmland = farmlandEnding.indexOf(before.farmlandEnding ?? 'locked'), nextFarmland = farmlandEnding.indexOf(after.farmlandEnding);
   if (nextFarmland < priorFarmland || nextFarmland > priorFarmland + 1) throw fail(400, 'Invalid Farmland ending checkpoint.');
-  const townEnding = ['locked','thanks','done'];
+  const townEnding = ['locked','film','thanks','done'];
   const priorTown = townEnding.indexOf(before.townEnding ?? 'locked'), nextTown = townEnding.indexOf(after.townEnding);
-  if (nextTown < priorTown || nextTown > priorTown + 1) throw fail(400, 'Invalid Town ending checkpoint.');
+  if (nextTown < priorTown || nextTown > priorTown + 1 && !(before.townEnding === 'film' && after.townEnding === 'done')) throw fail(400, 'Invalid Town ending checkpoint.');
   const priorCastle = townEnding.indexOf(before.castleEnding ?? 'locked'), nextCastle = townEnding.indexOf(after.castleEnding);
-  if (nextCastle < priorCastle || nextCastle > priorCastle + 1) throw fail(400, 'Invalid Castle ending checkpoint.');
+  if (nextCastle < priorCastle || nextCastle > priorCastle + 1 && !(before.castleEnding === 'film' && after.castleEnding === 'done')) throw fail(400, 'Invalid Castle ending checkpoint.');
   if (after.gatehouseReady && !before.gatehouseReady && before.transition?.stage !== 'arrival') throw fail(400, 'Gatehouse arrival is incomplete.');
   if (after.farmlandReady && !before.farmlandReady && before.transition?.from !== 'gatehouse' || after.farmlandReady && !before.farmlandReady && before.transition?.stage !== 'arrival') throw fail(400, 'Farmland arrival is incomplete.');
   if (after.townReady && !before.townReady && (before.transition?.from !== 'farmland' || before.transition?.stage !== 'arrival')) throw fail(400, 'Town arrival is incomplete.');

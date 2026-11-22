@@ -148,6 +148,12 @@ Usecase precise-object-edit. Edit the attached DuneRelay cracked armoredseedpod 
 - Sequence: level 40 coin finale → release board renderer → harvest film → Fieldkeeper closing story and Town on the Hill teaser. Uses the existing Skip, blocked-playback fallback and decoder cleanup.
 - Encoding: `ffmpeg -i <source> -map 0:v:0 -map 0:a:0? -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart farmland-harvest.mp4`.
 
+## Town and Castle chapter films
+
+- User sources: `grok-video-2d50c4b7-67cb-4c8d-9731-fd860ba27566.mp4` (Town market, 10.041667 seconds) and `grok-video-07d7e29f-5541-4d63-8661-874f80202c11.mp4` (Castle dock, 16.041667 seconds). Both are native 736 × 400.
+- `public/cinematics/town-market-opens.mp4` (2,621,438 bytes) plays after level 50's coin finale and before the Crier's closing dialogue. `public/cinematics/castle-upstream-departure.mp4` (2,837,462 bytes) plays after level 60's finale and before the Quartermaster's closing dialogue. First-frame WebP posters at quality 88 use matching `-poster.webp` names.
+- Full durations are preserved. Encoding uses H.264/yuv420p CRF 28 at the native dimensions, AAC 96 kb/s, and faststart metadata, mapping only the main video and audio streams. The films reuse the existing metadata preload, renderer release, Skip, blocked-playback fallback, and decoder cleanup.
+
 ## Mechanic lesson sprite crops
 
 `public/sprites/tutorial-water.png`, `tutorial-leaf.png`, `tutorial-gear.png`, `tutorial-jet-row.png`, and `tutorial-jet-column.png` are deterministic transparent crops from the existing `tiles.png` sheet. Their rectangles come from `frames.json` (`tiles[0..4].bounds`) and preserve the source art's aspect ratio. The tutorial also reuses the existing Prism, Flywheel, salt, seedpod, and companion portrait sprites. No new artwork was generated for these lessons.

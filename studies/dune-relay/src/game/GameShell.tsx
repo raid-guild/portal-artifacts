@@ -115,8 +115,10 @@ export default function GameShell() {
   const authorizing = useRef(false);
   const gateOpenedPending = useRef(false);
   const displayRegion=visitedRegion??save.region;
-  const filmKind = save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
+  const filmKind = save.castleEnding === "film" ? "castle" : save.townEnding === "film" ? "town" : save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
   const filmContent = {
+    castle: { source: "/cinematics/castle-upstream-departure.mp4", poster: "/cinematics/castle-upstream-departure-poster.webp", caption: "The upstream route opens. The raid’s journey will continue.", label: "The boat departs Castle Island for the upstream route" },
+    town: { source: "/cinematics/town-market-opens.mp4", poster: "/cinematics/town-market-opens-poster.webp", caption: "The market opens. The next delivery crosses to Castle Island.", label: "The Town market opens for deliveries" },
     farmland: { source: "/cinematics/farmland-harvest.mp4", poster: "/cinematics/farmland-harvest-poster.webp", caption: "The seed stores open. The harvest convoy can move again.", label: "The farmland harvest route opens" },
     gatehouse: { source: "/cinematics/gatehouse-crossing.mp4", poster: "/cinematics/gatehouse-crossing-poster.webp", caption: "The bridge opens. The road carries on into farmland.", label: "The gate rises and the bridge opens into farmland" },
     caravan: { source: "/cinematics/caravan-departure.mp4", poster: "/cinematics/caravan-departure-poster.webp", caption: "The beacon lights the path. The walkers depart for the river.", label: "The walker train departs for the river" },
@@ -560,7 +562,9 @@ export default function GameShell() {
     }
   }
   function overlayForSave(value: Save): Overlay {
-    return value.castleEnding === "thanks" ? "castleOpen"
+    return value.castleEnding === "film" ? "film"
+      : value.castleEnding === "thanks" ? "castleOpen"
+      : value.townEnding === "film" ? "film"
       : value.townEnding === "thanks" ? "townOpen"
       : value.farmlandEnding === "film" ? "film"
       : value.farmlandEnding === "thanks" ? "harvestOpen"
@@ -903,6 +907,10 @@ export default function GameShell() {
     setOverlay("film");
   }
   function finishFilm() {
+    if (saveRef.current.castleEnding === "film") { persist(normalizeSave({ ...saveRef.current, castleEnding: "thanks" })); setOverlay("castleOpen"); return; }
+    if (saveRef.current.castleEnding === "thanks") return;
+    if (saveRef.current.townEnding === "film") { persist(normalizeSave({ ...saveRef.current, townEnding: "thanks" })); setOverlay("townOpen"); return; }
+    if (saveRef.current.townEnding === "thanks") return;
     if (saveRef.current.farmlandEnding === "film") { persist(normalizeSave({ ...saveRef.current, farmlandEnding: "thanks" })); setOverlay("harvestOpen"); return; }
     if (saveRef.current.farmlandEnding === "thanks") return;
     if (saveRef.current.demoEnding === "film") { persist(normalizeSave({ ...saveRef.current, demoEnding: "thanks" })); setOverlay("demoThanks"); return; }
@@ -1008,7 +1016,7 @@ export default function GameShell() {
       void transitionTo(()=>{setMode("map");setPuzzle(null);setOverlay(null);setAttempt(value=>value+1);});
       return;
     }
-    const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film" || activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "film";
+    const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film" || activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "film" || activeLevel === "openTheMarket" && saveRef.current.townEnding === "film" || activeLevel === "openTheUpstreamRoute" && saveRef.current.castleEnding === "film";
     const harvestOpen = activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "thanks";
     const townOpen = activeLevel === "openTheMarket" && saveRef.current.townEnding === "thanks";
     const castleOpen = activeLevel === "openTheUpstreamRoute" && saveRef.current.castleEnding === "thanks";
@@ -1086,13 +1094,13 @@ export default function GameShell() {
     sound.current?.stopTransientSounds();
     const preview = normalizeSave({ ...saveRef.current,
       completed: LEVEL_ORDER.slice(0,50) as LevelId[], oasisTransition: "ready", gatehouseReady: true,
-      farmlandReady: true, demoEnding: "done", farmlandEnding: "done", townReady: true, townEnding: "thanks",
+      farmlandReady: true, demoEnding: "done", farmlandEnding: "done", townReady: true, townEnding: "film",
       region: "town", transition: null,
     });
     void transitionTo(() => {
       pendingAttempt.current = null; setShopSelected([]); setShopError(null); setPuzzle(null);
-      persist(preview); setMode("map"); setOverlay("townOpen"); setAttempt(value => value + 1);
-    });
+      persist(preview); setMode("map"); setOverlay("film"); setAttempt(value => value + 1);
+    }, false);
   }
   function previewCastleStory() {
     if (!playtest || transitioning.current) return;
@@ -1105,8 +1113,8 @@ export default function GameShell() {
     if (!playtest || transitioning.current) return;
     abandonRecord("preview-transition"); activeRecord.current=null;
     setSettings(false); setRevealing(false); skipReveal.current=null;
-    const preview=normalizeSave({...saveRef.current,completed:[...LEVEL_ORDER] as LevelId[],oasisTransition:"ready",gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:saveRef.current.activeCompanion??"keeper",demoEnding:"done",farmlandEnding:"done",townEnding:"done",castleEnding:"thanks",region:"castle",transition:null});
-    void transitionTo(()=>{pendingAttempt.current=null;setShopSelected([]);setShopError(null);setPuzzle(null);persist(preview);setMode("map");setOverlay("castleOpen");setAttempt(value=>value+1);});
+    const preview=normalizeSave({...saveRef.current,completed:[...LEVEL_ORDER] as LevelId[],oasisTransition:"ready",gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:saveRef.current.activeCompanion??"keeper",demoEnding:"done",farmlandEnding:"done",townEnding:"done",castleEnding:"film",region:"castle",transition:null});
+    void transitionTo(()=>{pendingAttempt.current=null;setShopSelected([]);setShopError(null);setPuzzle(null);persist(preview);setMode("map");setOverlay("film");setAttempt(value=>value+1);},false);
   }
   function reset() {
     if (cloudRef.current && !playtest) { setCloudMessage("Portal progress cannot be reset from the demo. Sign out to restart the guest campaign on this device."); return; }

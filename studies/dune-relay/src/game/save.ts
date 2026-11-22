@@ -11,8 +11,8 @@ export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival"
 export type ChapterTransition = null | { from: "oasis" | "caravan" | "gatehouse" | "farmland" | "town"; to: "caravan" | "gatehouse" | "farmland" | "town" | "castle"; stage: "film" | "handoff" | "atlas" | "arrival" };
 export type DemoEnding = "locked" | "gate" | "film" | "thanks" | "done";
 export type FarmlandEnding = "locked" | "film" | "thanks" | "done";
-export type TownEnding = "locked" | "thanks" | "done";
-export type CastleEnding = "locked" | "thanks" | "done";
+export type TownEnding = "locked" | "film" | "thanks" | "done";
+export type CastleEnding = "locked" | "film" | "thanks" | "done";
 export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; farmlandReady: boolean; townReady: boolean; castleReady: boolean; activeCompanion: CompanionId | null; demoEnding: DemoEnding; farmlandEnding: FarmlandEnding; townEnding: TownEnding; castleEnding: CastleEnding };
 export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, activeCompanion: null, demoEnding: "locked", farmlandEnding: "locked", townEnding: "locked", castleEnding: "locked" };
 const oasisStages: OasisTransition[] = ["locked", "film", "keeper", "atlas", "arrival", "ready"];
@@ -56,8 +56,9 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   const demoEnding: DemoEnding = completed.includes("openTheCrossing") ? endingStages.includes(value.demoEnding as DemoEnding) && value.demoEnding !== "locked" ? value.demoEnding as DemoEnding : "gate" : "locked";
   const farmlandStages: FarmlandEnding[] = ["locked", "film", "thanks", "done"];
   const farmlandEnding: FarmlandEnding = farmlandDone ? farmlandStages.includes(value.farmlandEnding as FarmlandEnding) && value.farmlandEnding !== "locked" ? value.farmlandEnding as FarmlandEnding : "film" : "locked";
-  const townEnding: TownEnding = townDone ? value.townEnding === "done" ? "done" : "thanks" : "locked";
-  const castleEnding: CastleEnding = castleDone ? value.castleEnding === "done" ? "done" : "thanks" : "locked";
+  const chapterEndings: TownEnding[] = ["film", "thanks", "done"];
+  const townEnding: TownEnding = townDone ? chapterEndings.includes(value.townEnding as TownEnding) ? value.townEnding as TownEnding : "film" : "locked";
+  const castleEnding: CastleEnding = castleDone ? chapterEndings.includes(value.castleEnding as CastleEnding) ? value.castleEnding as CastleEnding : "film" : "locked";
   if ((demoEnding === "gate" || demoEnding === "film" || demoEnding === "thanks") && transition?.to !== "farmland") region = "gatehouse";
   if ((farmlandEnding === "film" || farmlandEnding === "thanks") && transition?.to !== "town") region = "farmland";
   return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, farmlandReady, townReady, castleReady, activeCompanion, demoEnding, farmlandEnding, townEnding, castleEnding };

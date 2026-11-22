@@ -15,6 +15,7 @@ const intersects = (a,b) => Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x)>
       await page.getByRole('button',{name:'Settings',exact:true}).click();
       await page.getByRole('button',{name:'Preview Castle → upstream ending',exact:true}).click();
       await page.locator('.awning-wipe').waitFor({state:'detached',timeout:30000});
+      await page.getByRole('button',{name:/Skip scene/}).click();
       await page.getByRole('button',{name:'Kingdom Map',exact:true}).last().click();
       const plane=await page.locator('.atlas-plane').boundingBox();
       assert(plane);

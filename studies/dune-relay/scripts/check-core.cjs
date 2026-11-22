@@ -12,6 +12,16 @@ const { createPuzzle, playTurn, isSpecial, coinReward, legalMove, resolveFinaleR
 const { LEVELS, LEVEL_ORDER, nextLevel } = require('../src/game/levels.ts');
 const { COMPANION_ABILITIES, companionSnapshot, castleLevelForCompanion } = require('../src/game/companionAbilities.ts');
 const { completeLevel, EMPTY_SAVE, readSave, advanceTransition, advanceChapterTransition, normalizeSave } = require('../src/game/save.ts');
+for (const [count, ending, id] of [[50, 'townEnding', 'openTheMarket'], [60, 'castleEnding', 'openTheUpstreamRoute']]) {
+  const before = normalizeSave({ completed: LEVEL_ORDER.slice(0, count - 1), oasisTransition: 'ready', demoEnding: 'done', farmlandEnding: 'done', townEnding: count === 60 ? 'done' : 'locked', region: count === 60 ? 'castle' : 'town' });
+  const fresh = completeLevel(before, id, 12);
+  assert.equal(fresh[ending], 'film', `${id}: new wins start with a film`);
+  assert.equal(completeLevel(fresh, id, 12).coins, fresh.coins, 'replayed finale grants no extra coins');
+  for (const stage of ['film', 'thanks', 'done']) {
+    const restored = normalizeSave({ ...fresh, [ending]: stage });
+    assert.equal(restored[ending], stage, `${id}: saved ${stage} checkpoint survives reload`);
+  }
+}
 const { beamTravelDelay } = require('../src/game/timing.ts');
 const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
