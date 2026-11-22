@@ -2,7 +2,7 @@
 
 **Status:** Flexible starting point for future development
 
-**Date:** November 19, 2026
+**Updated:** November 21, 2026
 
 ## Purpose and working agreement
 
@@ -49,7 +49,7 @@ Chapters 1–5 describe the current playable direction. Chapters 6–16 are prop
 | 3 | River Gatehouse | Raise the gate and open the bridge into farmland. This is the river crossing, not the coastal fort. | Existing fifth symbol, stronger crust, and shaped boards. |
 | 4 | Farmland | Water has returned, but stored seeds and neglected channels need attention before the farms recover. Meet a Druid-inspired companion. | Falling, multi-hit armored seedpods; retain five symbols. |
 | 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a birdlike Bard town crier. | Falling delivery crates; every bottom edge of the playable board is an exit. Retain five matching symbols. |
-| 6 | Castle Island | Discover that reservoir records and actual deliveries disagree; organize an upstream investigation. | A milestone combining familiar mechanics rather than another obstacle. |
+| 6 | Castle Island | Discover that reservoir records and actual deliveries disagree; meet a beetle quartermaster and organize an upstream investigation. | Introduce active raid-member selection; combine familiar mechanics, retain five symbols, and add no new obstacle. |
 | 7 | River Journey | Follow the missing water upstream aboard a repair boat. | Clearly marked currents that shift pieces after a turn. |
 | 8 | Second Oasis and Water Collection Station | Repair the collection balloons and discover why shipments stopped. Meet an Artificer-inspired companion. | Sixth symbol, with a balloon-themed power introduced later if useful. |
 | 9 | Balloon Landing Zone | Ride to the twin towers and prepare an ascent into the clouds. | Develop balloon powers, delivery goals, and currents without another symbol. |
@@ -93,7 +93,7 @@ The Field Guide's character range includes nonhuman creatures. Keep that variety
 
 ## Chapter 5: Town on the Hill
 
-**Working direction updated November 21, 2026.** These details extend the flexible campaign plan; this chapter is not implemented yet.
+**Working direction updated November 21, 2026.** The ten-level implementation is available for review; these notes retain the broader story direction. See the Chapter 5 implementation spec for authored rules and level budgets.
 
 ### Story and companion
 
@@ -117,7 +117,56 @@ The chapter ends with the market moving again and the convoy dispatched. Conflic
 
 The working power is **Rally Call**: collect twelve pennants to receive two vertical Pressure Jets. They use normal eligible placement, remain on the board until the player activates them, and the charge resets so the ability can be earned repeatedly. Twelve pennants is a starting value to tune, not a fixed balance commitment; crate delivery does not require a separate lane-targeting system.
 
-Begin with one crate on a simple board. The visual lesson shows clearing beneath it, the crate falling, and the crate disappearing at the bottom exit. Practice multiple crates and shaped boards before adding salt, then seedpods and collection goals. Keep the ten-level route flexible until the delivery mechanic has been prototyped and playtested.
+Begin with one crate on a simple board. The visual lesson shows clearing beneath it, the crate falling, and the crate disappearing at the bottom exit. Practice multiple crates and shaped boards before adding salt, then seedpods and collection goals. Use exported playtests to refine the authored ten-level route.
+
+## Chapter 6: Castle Island
+
+**Agreed starting direction, November 21, 2026; not implemented.** This chapter makes the collected party useful through player choice, while exploring the existing board rules rather than adding another obstacle or matching symbol.
+
+### Story, setting, and local character
+
+The Town Crier's conflicting delivery records lead the party to Castle Island. The market says supplies were sent; the castle says they never arrived. Different departments are following conflicting instructions. Individually sensible work has produced a system that is failing, making the larger coordination story more visible without revealing the entire Moloch explanation at once.
+
+Continue the journey from the Town's sunset into a proposed blue-hour castle setting: warm windows, teal river water, brass machinery, and a dock below the walls. Story destinations can move through the receiving dock, storehouse, courtyard, reservoir controls, and river landing.
+
+Meet a small, serious **beetle quartermaster**, surrounded by oversized ledgers and brass measuring instruments. This is a proposed game character, not an established individual from the Field Guide. The beetle remains an NPC and appears in the Raid Party dialogue with **NPC · Castle Quartermaster**, a portrait, and a short biography, but no active-selection button. The birdlike Town Crier remains a playable companion.
+
+The ending reveals that the missing-water problem begins upstream. The quartermaster helps provision a boat, giving the party a concrete reason to begin Chapter 7's river journey.
+
+### Active raid member: agreed simple behavior
+
+- Introduce selection at the start of Chapter 6 and carry the feature into later chapters. Chapters 1–5 retain their authored companions during the initial playthrough so their introductions and tutorials remain coherent.
+- Select **Make active** on a playable character's Raid Party card. Mark that card **ACTIVE** and persist the choice between levels and sessions using the existing guest/account save model.
+- The active raid member is the character the player walks around as in story mode, using that character's left/right sprites and walking animations. Their portrait, charge symbol, and ability also appear on the game board.
+- Change the leader through Raid Party while in story mode. Keep the selection fixed during a level. A separate companion picker on every level startup is not part of this plan.
+- Give a short introduction to choosing a leader. Do not show recommended-companion badges or automatically change the player's choice.
+- Keep NPC cards in the same dialogue, clearly labelled and without **Make active**. Meeting a character need not make them a playable party member.
+- Retain the existing charging and power-up rules. Do not add targeted placement, seedpod-specific attacks, or extra character mechanics just to make selection distinct. Charge symbols and Jet directions already offer useful differences; tune charge thresholds when companions become interchangeable.
+
+Current abilities to preserve as the selection baseline:
+
+| Playable member | Charge symbol | Existing reward |
+| --- | --- | --- |
+| Keeper | Reeds | Two Pressure Jets, one horizontal and one vertical |
+| Wayfinder | Pennants | Two Flywheels |
+| Gatewright | Keys | One Prism |
+| Fieldkeeper | Reeds | Two Flywheels |
+| Town Crier | Pennants | Two vertical Pressure Jets |
+
+Existing thresholds were authored for separate chapters: Keeper usually nine reeds, increasing to twelve in later Oasis levels; Wayfinder nine pennants; Gatewright nine keys; Fieldkeeper twelve reeds; Crier twelve pennants. These are a balance starting point, not locked selection costs. Repeated rewards are intentional: a different charging symbol changes which matches a player pursues. Human playtests should establish whether each choice is useful without making one the automatic best option.
+
+### Ten-level working arc
+
+| Levels | Focus |
+| --- | --- |
+| 6.1–6.2 | Introduce party selection and receive deliveries through approachable crate puzzles. |
+| 6.3–6.4 | Clear salt and seedpods beneath cargo. |
+| 6.5–6.6 | Explore shaped boards with several bottom delivery exits. |
+| 6.7–6.8 | Combine deliveries, collection goals, and opportunities to build or combine powers. |
+| 6.9 | Restore the reservoir controls with familiar mechanics. |
+| 6.10 | Open the upstream route in a chapter finale, then provision the boat. |
+
+Retain five matching symbols throughout. Exact board masks, goals, budgets, and destinations remain open for authoring and playtesting.
 
 ## Party and matching symbols
 
@@ -129,11 +178,13 @@ A possible seven-companion core party is:
 | Wayfinder | Open Desert | Routes, travel, and Flywheels |
 | Gatewright | River Gatehouse | Mechanisms and Prisms |
 | Fieldkeeper (Druid-inspired) | Farmland | Harvest patterns and recovery |
-| Bard-inspired character | Hill Town | Communication and coordination |
+| Town Crier (Bard-inspired) | Hill Town | Communication and coordination |
 | Artificer-inspired character | Collection Station | Balloons and automated machinery |
 | Necromancer-inspired character | Mountain Villa | Restoring old infrastructure |
 
 Queen Raida remains a major story character without needing to become a selectable companion. Other guide classes can appear as local contacts without expanding the permanent party.
+
+The Raid Party dialogue also records nonplayable contacts, beginning with Castle Island's beetle quartermaster. NPC cards remain visibly distinct from selectable members. The active-member feature begins in Chapter 6 as described above; a new chapter does not require a new playable character or a unique power mechanic.
 
 A new companion does not require a new matching symbol. Hold at five through farmland, town, castle, and river. Consider the sixth at the collection station and the seventh in the mountains. Six or seven is the working endgame range, not a requirement to use seven if six plays better. New companions may charge from existing symbols or objectives; their exact abilities remain open.
 
@@ -147,6 +198,19 @@ When introducing a symbol, simplify board shape, obstacles, or move pressure. Wh
 
 Each mechanic needs readable states, movement, impact, sound, and tutorial framing. Preserve the game's dynamic character through distinct power effects, companion reactions, and chapter finales. Boss phases and hazards should remain legible within deliberate turn-based play rather than introducing surprise real-time pressure.
 
+## Cascade flair across the campaign
+
+**Agreed presentation direction, November 21, 2026; extension planned, not implemented.** Existing 4+ cascade words have received good feedback. Build on them with more active animation, particles, brief shakes, and rising tones. This is a campaign-wide presentation improvement, not an additional Castle Island rule or a change to rewards or difficulty.
+
+- Count resolved cascade waves from one player move. A 4+ chain means reaching the fourth wave, not simply matching four tiles in a line. Keep the existing callout trigger semantics.
+- Keep the current uppercase words (NICE, BADICAL, TUBULAR, FOR REAL, GOORANGA, MOST EPIC), Archivo italic styling with an outline, and roughly one-second appearance centered over the game board rather than the full screen.
+- At four waves, accompany the word with a quick scale/pop animation, a brief board shake, and a visible burst of particles associated with the clearing tiles. Keep the goal HUD steady and the falling pieces readable.
+- Let longer chains feel increasingly energetic through stronger but capped particle bursts, animation accents, and rising audio tones. Initial presentation tiers can be 4–5, 6–7, and 8+ waves; exact strength, pitch steps, and timing require mobile playtesting.
+- Synchronize the accents with actual clear impacts and existing tile/refill animation. Extend the current rising-tone treatment rather than layering competing full-volume sounds.
+- Refresh one celebration at a time rather than stacking words, shakes, or full-screen overlays. Do not add pauses, change move/coin accounting, or make the player wait for a separate celebration sequence.
+- Preserve reduced-motion and sound settings: replace shake and large movement with a restrained static emphasis when reduced motion is enabled. Bound particles and simultaneous sound voices for mobile performance; clear effects on scene exit and pause them with the game.
+- Keep this treatment for gameplay chains. The winning coin reveal already has its own spectacle and should not produce repeated cascade-callout spam.
+
 ## Transitions and final payoff
 
 A chapter ending should resolve a local problem, show the change in the world, and provide a concrete reason to travel. Use the kingdom map to make the journey understandable. New backgrounds, music, story scenes, and selected cinematics can mark regional changes without requiring a large movie after every chapter.
@@ -155,6 +219,6 @@ Earlier repairs should visibly contribute to the finale: the oasis pumps, the ca
 
 ## Decisions to revisit
 
-Before building a chapter, refine its local story, companion identity, goals, and one primary gameplay lesson. Prototype new mechanics before locking later chapters around them. Revisit travel geography against the actual kingdom image, final symbol count, companion powers and selection, obstacle damage rules, boss phases, and the campaign's production scope.
+Before building a chapter, refine its local story, companion identity, goals, and one primary gameplay lesson. Prototype new mechanics before locking later chapters around them. Revisit travel geography against the actual kingdom image, final symbol count, companion charge balance, obstacle damage rules, boss phases, and the campaign's production scope. The Chapter 6 selection behavior above is agreed; its implementation details and balance remain to be tested.
 
 Retain the route and cooperative story as the starting direction while allowing the details to evolve with art, lore review, and playtesting.
