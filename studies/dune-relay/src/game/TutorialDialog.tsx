@@ -4,9 +4,9 @@ import { assetUrl } from "./assetUrl";
 import { COMPANIONS } from "./chapters";
 import type { Tutorial, TutorialId } from "./tutorials";
 
-type Cell = "W" | "L" | "G" | "H" | "V" | "F" | "R" | "S" | "S2" | "P" | "PC" | ".";
+type Cell = "W" | "L" | "G" | "H" | "V" | "F" | "R" | "S" | "S2" | "P" | "PC" | "C" | ".";
 const art: Record<Exclude<Cell,".">,string> = {
-  W:"tutorial-water.png", L:"tutorial-leaf.png", G:"tutorial-gear.png", H:"tutorial-jet-row.png", V:"tutorial-jet-column.png", F:"flywheel.png", R:"prism.png", S:"salt-crust.png", S2:"salt-crust-2.png", P:"seedpod.png", PC:"seedpod-cracked.png",
+  W:"tutorial-water.png", L:"tutorial-leaf.png", G:"tutorial-gear.png", H:"tutorial-jet-row.png", V:"tutorial-jet-column.png", F:"flywheel.png", R:"prism.png", S:"salt-crust.png", S2:"salt-crust-2.png", P:"seedpod.png", PC:"seedpod-cracked.png", C:"delivery-crate.png",
 };
 const base: Cell[][] = [
   ["G","L","W","G","L"], ["L","G","L","W","G"],
@@ -40,6 +40,11 @@ function boardFor(id: TutorialId, step: number): { board: Cell[][]; hot: number[
     if(step>=2){put(1,1,".");put(1,2,".");put(1,3,".");put(2,2,id==="salt"?".":"S");hot=[12];}
     if(id==="layeredSalt"&&step>=2){put(3,1,"W");put(3,2,step===2?"G":"W");put(3,3,"W");put(4,2,step===2?"W":"G");if(step===3){hot=[12,16,17,18,22];arrow=[22,17];}}else if(step>=3&&id==="salt"){hot=[];}
     if(step>=4&&id==="layeredSalt"){put(2,2,".");put(3,1,".");put(3,2,".");put(3,3,".");hot=[];}
+  } else if(id==="crate") {
+    put(1,2,"C"); put(2,1,"W"); put(2,2,"G"); put(2,3,"W"); put(3,2,"W"); hot=[7,11,12,13,17];
+    if(step>=1){put(2,2,"W");put(3,2,"G");hot=[7,11,12,13];}
+    if(step>=2){put(1,2,".");put(2,2,".");put(3,2,"C");hot=[17];if(step===2)fall=[7,17];}
+    if(step>=3){put(3,2,".");put(4,2,".");hot=[22];}
   } else if(id==="seedpod") {
     put(2,2,"P");put(3,1,"L");put(3,2,"W");put(3,3,"W");put(4,1,"W");put(4,2,"G");hot=[12,16,17,18,21];arrow=[21,16];
     if(step>=1){put(3,1,"W");put(4,1,"L");put(2,2,"PC");hot=[12,16,17,18];arrow=[21,16];}
@@ -77,7 +82,7 @@ export function TutorialDialog({tutorial,mode,reducedMotion,onSkip,onContinue,on
   },[hidden,finished,step,run,reducedMotion,tutorial.stages.length]);
   const scene=boardFor(tutorial.id,step);
   const moving=scene.fall ?? scene.arrow;
-  const motionArt=scene.fall ? "seedpod-cracked.png" : tutorial.id==="prism"&&step===2 ? "prism.png" : tutorial.id==="salt"||tutorial.id==="layeredSalt"||tutorial.id==="seedpod"&&step!==2 ? "tutorial-water.png" : scene.arrow ? art[scene.board[Math.floor(scene.arrow[0]/5)][scene.arrow[0]%5] as Exclude<Cell,".">] : null;
+  const motionArt=scene.fall ? tutorial.id==="crate" ? "delivery-crate.png" : "seedpod-cracked.png" : tutorial.id==="prism"&&step===2 ? "prism.png" : tutorial.id==="salt"||tutorial.id==="layeredSalt"||tutorial.id==="seedpod"&&step!==2 ? "tutorial-water.png" : scene.arrow ? art[scene.board[Math.floor(scene.arrow[0]/5)][scene.arrow[0]%5] as Exclude<Cell,".">] : null;
   const direction=scene.arrow ? scene.arrow[1]-scene.arrow[0]===1 ? "→" : scene.arrow[1]-scene.arrow[0]===-1 ? "←" : scene.arrow[1]>scene.arrow[0] ? "↓" : "↑" : "";
   const motionStyle=moving ? {"--from-c":moving[0]%5,"--from-r":Math.floor(moving[0]/5),"--to-c":moving[1]%5,"--to-r":Math.floor(moving[1]/5)} as CSSProperties : undefined;
   return <div className="scrim tutorial-scrim" onKeyDown={event=>{if(event.key!=="Tab")return; const controls=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));if(!controls.length)return;const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}>

@@ -1,7 +1,7 @@
 export type SymbolKind = "water" | "gear" | "leaf" | "pennant" | "key";
 export type Direction = "row" | "column";
 export type Power = "flywheel" | "prism";
-export type Tile = { id: number; kind: SymbolKind | "seedpod"; jet?: Direction; power?: Power; hp?: number };
+export type Tile = { id: number; kind: SymbolKind | "seedpod" | "crate"; jet?: Direction; power?: Power; hp?: number };
 export type Board = (Tile | null)[][];
 export type BoardMask = boolean[][];
 export type CrustGrid = number[][];
@@ -18,7 +18,7 @@ export function boardMask(shape?: "clippedCorners" | "twinChambers" | "steppedBa
 }
 export function playable(mask: BoardMask, cell: Cell): boolean { return inside(cell) && mask[cell.row][cell.col]; }
 export type Cell = { row: number; col: number };
-export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number };
+export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number; crate?: number };
 export type GoalKind = keyof Goals;
 import type { LevelDefinition } from "./levels";
 export type Puzzle = {
@@ -32,6 +32,7 @@ export type Puzzle = {
   chargeSymbol: SymbolKind;
   grantedPower: "jets" | "flywheels" | "prism";
   grantCount: number;
+  grantedJetDirection?: Direction;
   keeperTarget: number;
   keeperFired: boolean;
   seed: number;
@@ -51,14 +52,15 @@ export type Turn = {
   steps: TurnStep[];
   stats: TurnStats;
 };
-export type TurnStats = { symbolsCleared: Partial<Record<SymbolKind, number>>; powersCreated: Record<"jet" | Power, number>; powersActivated: Record<"jet" | Power, number>; combinations: Record<string, number>; companionGrants: number; saltHits: number; saltBlocksBroken: number; seedpodHits: number; seedpodsOpened: number; reshuffles: number; tilesCleared: number };
-function emptyTurnStats(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, seedpodHits: 0, seedpodsOpened: 0, reshuffles: 0, tilesCleared: 0 }; }
+export type TurnStats = { symbolsCleared: Partial<Record<SymbolKind, number>>; powersCreated: Record<"jet" | Power, number>; powersActivated: Record<"jet" | Power, number>; combinations: Record<string, number>; companionGrants: number; saltHits: number; saltBlocksBroken: number; seedpodHits: number; seedpodsOpened: number; cratesDelivered: number; reshuffles: number; tilesCleared: number };
+function emptyTurnStats(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, seedpodHits: 0, seedpodsOpened: 0, cratesDelivered: 0, reshuffles: 0, tilesCleared: 0 }; }
 export type TurnStep = {
-  kind: "swap" | "convert" | "clear" | "fall" | "refill" | "keeper" | "shuffle";
+  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle";
   board: Board;
   crust: CrustGrid;
   cells: Cell[];
   collections?: { cell: Cell; kind: GoalKind }[];
+  deliveries?: { cell: Cell; id: number }[];
   crustHits?: Cell[];
   podHits?: Cell[];
   podEvents?: { after: number; hits: { cell: Cell; hp: number; id: number }[] }[];
@@ -86,8 +88,9 @@ function inside(cell: Cell): boolean { return cell.row >= 0 && cell.row < BOARD_
 function orthogonal(cell: Cell): Cell[] { return [{ row: cell.row - 1, col: cell.col }, { row: cell.row + 1, col: cell.col }, { row: cell.row, col: cell.col - 1 }, { row: cell.row, col: cell.col + 1 }].filter(inside); }
 function at(board: Board, cell: Cell): Tile | null { return board[cell.row][cell.col]; }
 export function isPod(tile: Tile | null | undefined): boolean { return tile?.kind === "seedpod"; }
+export function isCrate(tile: Tile | null | undefined): boolean { return tile?.kind === "crate"; }
 export function isSpecial(tile: Tile | null | undefined): boolean { return Boolean(tile?.jet || tile?.power); }
-function isSymbol(tile: Tile | null | undefined): tile is Tile & { kind: SymbolKind } { return Boolean(tile && !isPod(tile) && !isSpecial(tile)); }
+function isSymbol(tile: Tile | null | undefined): tile is Tile & { kind: SymbolKind } { return Boolean(tile && ["water", "gear", "leaf", "pennant", "key"].includes(tile.kind) && !isSpecial(tile)); }
 function copy(board: Board): Board { return board.map(row => row.map(tile => tile && { ...tile })); }
 function copyCrust(crust: CrustGrid): CrustGrid { return crust.map(row => [...row]); }
 function emptyCrust(): CrustGrid { return Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0)); }
@@ -117,10 +120,10 @@ function hasLegalMove(board: Board): boolean {
   for (let row = 0; row < BOARD_SIZE; row++) {
     for (let col = 0; col < BOARD_SIZE; col++) {
       const here = board[row][col];
-      if (!here || isPod(here)) continue;
+      if (!here || isPod(here) || isCrate(here)) continue;
       if (isSpecial(here)) return true;
       for (const neighbor of [{ row: row + 1, col }, { row, col: col + 1 }]) {
-        if (!inside(neighbor) || !at(board, neighbor) || isPod(at(board, neighbor)) || here.kind === at(board, neighbor)?.kind) continue;
+        if (!inside(neighbor) || !at(board, neighbor) || isPod(at(board, neighbor)) || isCrate(at(board, neighbor)) || here.kind === at(board, neighbor)?.kind) continue;
         [board[row][col], board[neighbor.row][neighbor.col]] = [board[neighbor.row][neighbor.col], board[row][col]];
         const legal = matches(board).length > 0;
         [board[row][col], board[neighbor.row][neighbor.col]] = [board[neighbor.row][neighbor.col], board[row][col]];
@@ -135,9 +138,9 @@ export function legalMove(board: Board): [Cell, Cell] | null {
   for (let row = 0; row < BOARD_SIZE; row++) {
     for (let col = 0; col < BOARD_SIZE; col++) {
       const from = { row, col };
-      if (!at(board, from) || isPod(at(board, from))) continue;
+      if (!at(board, from) || isPod(at(board, from)) || isCrate(at(board, from))) continue;
       for (const to of [{ row, col: col + 1 }, { row: row + 1, col }]) {
-        if (!inside(to) || !at(board, to) || isPod(at(board, to))) continue;
+        if (!inside(to) || !at(board, to) || isPod(at(board, to)) || isCrate(at(board, to))) continue;
         if (isSpecial(at(board, from)) || isSpecial(at(board, to))) return [from, to];
         if (at(board, from)?.kind === at(board, to)?.kind) continue;
         [board[row][col], board[to.row][to.col]] = [board[to.row][to.col], board[row][col]];
@@ -203,7 +206,7 @@ function fill(board: Board, mask: BoardMask, seed: number, nextId: number, requi
   // (and every tile ID) in place so their special behavior survives a rescue.
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
     const tile = board[row][col];
-    if (!mask[row][col] || crust[row][col] || isSpecial(tile) || isPod(tile)) continue;
+    if (!mask[row][col] || crust[row][col] || isSpecial(tile) || isPod(tile) || isCrate(tile)) continue;
     board[row][col] = { id: tile?.id ?? nextId++, kind: symbols[(row + col) % symbols.length] };
   }
   if (requireMove && !hasLegalMove(board)) {
@@ -229,7 +232,7 @@ function settle(board: Board, mask: BoardMask, crust: CrustGrid = emptyCrust()):
 }
 
 function newBoard(seed: number, nextId: number, mask: BoardMask, symbols: SymbolKind[] = kinds, crust: CrustGrid = emptyCrust(), carry?: Board): { board: Board; seed: number; nextId: number } {
-  const board: Board = Array.from({ length: BOARD_SIZE }, (_, row) => Array.from({ length: BOARD_SIZE }, (_, col) => carry?.[row][col] && (isPod(carry[row][col]) || isSpecial(carry[row][col])) ? { ...carry[row][col]! } : null));
+  const board: Board = Array.from({ length: BOARD_SIZE }, (_, row) => Array.from({ length: BOARD_SIZE }, (_, col) => carry?.[row][col] && (isPod(carry[row][col]) || isCrate(carry[row][col]) || isSpecial(carry[row][col])) ? { ...carry[row][col]! } : null));
   const result = fill(board, mask, seed, nextId, true, symbols, crust);
   return { board, ...result };
 }
@@ -238,7 +241,7 @@ function lessonMove(board: Board, lesson: LevelDefinition["lesson"], crust: Crus
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
     const from = { row, col };
     for (const to of [{ row, col: col + 1 }, { row: row + 1, col }]) {
-      if (!inside(to) || !at(board, from) || !at(board, to) || isSpecial(at(board, from)) || isSpecial(at(board, to)) || isPod(at(board, from)) || isPod(at(board, to)) || at(board, from)?.kind === at(board, to)?.kind) continue;
+      if (!inside(to) || !at(board, from) || !at(board, to) || isSpecial(at(board, from)) || isSpecial(at(board, to)) || isPod(at(board, from)) || isPod(at(board, to)) || isCrate(at(board, from)) || isCrate(at(board, to)) || at(board, from)?.kind === at(board, to)?.kind) continue;
       [board[from.row][from.col], board[to.row][to.col]] = [board[to.row][to.col], board[from.row][from.col]];
       const groups = matches(board);
       const components = matchComponents(groups);
@@ -277,23 +280,34 @@ export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() 
   };
   if (level?.goals.seedpod !== undefined && level.goals.seedpod !== (level.seedpods?.length ?? 0)) throw new Error(`Seedpod goal differs from placed pods in ${level.id}`);
   if (level?.seedpods?.length) fresh = placePods(fresh);
+  if (level?.goals.crate !== undefined && level.goals.crate !== (level.crates?.length ?? 0)) throw new Error(`Crate goal differs from placed cargo in ${level.id}`);
+  const placeCrates = (fresh: { board: Board; seed: number; nextId: number }) => {
+    const occupied = new Set<string>();
+    for (const cell of level?.crates ?? []) {
+      if (!playable(mask, cell) || crust[cell.row][cell.col] || isPod(fresh.board[cell.row][cell.col]) || occupied.has(key(cell)) || !playable(mask, { row: cell.row + 1, col: cell.col })) throw new Error(`Invalid crate at ${cell.row},${cell.col}`);
+      occupied.add(key(cell)); fresh.board[cell.row][cell.col] = { id: fresh.nextId++, kind: "crate" };
+    }
+    return fresh;
+  };
+  if (level?.crates?.length) fresh = placeCrates(fresh);
   let opening: [Cell, Cell] | undefined;
   if (level?.lesson === "combo") {
     fresh.board[3][3] = { ...fresh.board[3][3]!, jet: "row" };
     fresh.board[3][4] = { ...fresh.board[3][4]!, power: "flywheel" };
     opening = [{ row: 3, col: 3 }, { row: 3, col: 4 }];
-  } else if (level && level.lesson !== "practice") {
+  } else if (level && level.lesson !== "practice" && level.lesson !== "crate") {
     opening = lessonMove(fresh.board, level.lesson, crust);
     for (let attempt = 1; !opening && attempt < 50; attempt++) {
       fresh = newBoard((seed + attempt * 7919) >>> 0, 1, mask, symbols, crust);
       if (level.seedpods?.length) fresh = placePods(fresh);
+      if (level.crates?.length) fresh = placeCrates(fresh);
       opening = lessonMove(fresh.board, level.lesson, crust);
     }
   }
-  if (level?.seedpods?.length && !hasLegalMove(fresh.board)) fresh = newBoard(fresh.seed, fresh.nextId, mask, symbols, crust, fresh.board);
+  if ((level?.seedpods?.length || level?.crates?.length) && !hasLegalMove(fresh.board)) fresh = newBoard(fresh.seed, fresh.nextId, mask, symbols, crust, fresh.board);
   return { ...fresh, mask, crust, symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
     goals: level ? { ...level.goals } : { ...TARGETS },
-    keeperCharge: 0, keeperTarget: level?.keeperTarget ?? KEEPER_TARGET, keeperFired: false, status: "playing",
+    keeperCharge: 0, keeperTarget: level?.keeperTarget ?? KEEPER_TARGET, keeperFired: false, grantedJetDirection: level?.grantedJetDirection, status: "playing",
     unlocked: level?.lesson === "jet" ? [] : level?.lesson === "flywheel" ? ["flywheel"] : ["flywheel", "prism"], opening };
 }
 
@@ -333,12 +347,12 @@ export function resolveFinaleRefill(previous: Puzzle, clearedBoard: Board): { bo
       if (!tile?.jet || fired.has(key(cell))) continue;
       fired.add(key(cell));
       jets.push({ cell, direction: tile.jet });
-      for (const hit of jetCells(cell, tile.jet, previous.mask)) if (at(board, hit)?.power !== "prism" && !isPod(at(board,hit)) && !removal.has(key(hit))) {
+      for (const hit of jetCells(cell, tile.jet, previous.mask)) if (at(board, hit)?.power !== "prism" && !isPod(at(board,hit)) && !isCrate(at(board,hit)) && !removal.has(key(hit))) {
         removal.set(key(hit), hit);
         queue.push(hit);
       }
     }
-    for (const cell of removal.values()) if (at(board, cell)?.power !== "prism" && !isPod(at(board,cell))) board[cell.row][cell.col] = null;
+    for (const cell of removal.values()) if (at(board, cell)?.power !== "prism" && !isPod(at(board,cell)) && !isCrate(at(board,cell))) board[cell.row][cell.col] = null;
     record("clear", [...removal.values()], jets);
     settle(board, previous.mask, previous.crust);
     record("fall");
@@ -403,7 +417,7 @@ function matchComponents(groups: Cell[][]): Cell[][][] {
 
 export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
   const invalid: Turn = { state: previous, valid: false, cleared: [], jetsCreated: [], powersCreated: [], keeperJets: [], shuffled: false, steps: [], stats: emptyTurnStats() };
-  if (previous.status !== "playing" || !playable(previous.mask, from) || !playable(previous.mask, to) || !at(previous.board, from) || !at(previous.board, to) || isPod(at(previous.board, from)) || isPod(at(previous.board, to))) return invalid;
+  if (previous.status !== "playing" || !playable(previous.mask, from) || !playable(previous.mask, to) || !at(previous.board, from) || !at(previous.board, to) || isPod(at(previous.board, from)) || isPod(at(previous.board, to)) || isCrate(at(previous.board, from)) || isCrate(at(previous.board, to))) return invalid;
   const distance = Math.abs(from.row - to.row) + Math.abs(from.col - to.col);
   const direct = distance === 0 && isSpecial(at(previous.board, from));
   if (distance !== 1 && !direct) return invalid;
@@ -495,7 +509,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       for (const hit of hits) {
         if (state.crust[hit.row][hit.col] > 0 || isPod(at(board, hit))) event.direct.set(key(hit), hit);
         const occupant = at(board, hit);
-        if (isPod(occupant)) continue;
+        if (isPod(occupant) || isCrate(occupant)) continue;
         if (occupant?.power === "prism" && !selectedPrisms.has(occupant.id)) continue;
         if (!removal.has(key(hit))) removal.set(key(hit), hit);
         claim(hit, event);
@@ -625,6 +639,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       const tile = at(board, cell);
       if (!tile) continue;
       if (tile.power === "prism" && !selectedPrisms.has(tile.id)) continue;
+      if (isCrate(tile)) continue;
       const collected = convertedOriginals.get(tile.id) ?? (isSymbol(tile) ? tile.kind : undefined);
       stats.tilesCleared++;
       if (collected) stats.symbolsCleared[collected] = (stats.symbolsCleared[collected] ?? 0) + 1;
@@ -638,6 +653,23 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
     record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections);
     settle(board, state.mask, state.crust); record("fall");
+    // Cargo exits at every bottom edge of the authored board mask. Salt is
+    // support, not an exit: a crate resting on it waits until it is broken.
+    for (let deliveryRound = 0; deliveryRound < BOARD_SIZE; deliveryRound++) {
+      const deliveries: { cell: Cell; id: number }[] = [];
+      const credits: NonNullable<TurnStep["collections"]> = [];
+      for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
+        const cell = { row, col }, cargo = board[row][col];
+        if (!isCrate(cargo) || playable(state.mask, { row: row + 1, col })) continue;
+        deliveries.push({ cell, id: cargo!.id }); board[row][col] = null;
+        stats.cratesDelivered++;
+        if ((state.goals.crate ?? 0) > 0) { state.goals.crate!--; credits.push({ cell, kind: "crate" }); }
+      }
+      if (!deliveries.length) break;
+      record("deliver", deliveries.map(item => item.cell), [], [], [], [], [], [], [], credits);
+      steps[steps.length - 1].deliveries = deliveries;
+      settle(board, state.mask, state.crust); record("fall");
+    }
     groups = matches(board); forced = [];
   }
   const refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
@@ -652,7 +684,7 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
         const cell = positions.splice(Math.floor(roll * positions.length), 1)[0];
         if (state.grantedPower === "flywheels") board[cell.row][cell.col]!.power = "flywheel";
         else if (state.grantedPower === "prism") board[cell.row][cell.col]!.power = "prism";
-        else board[cell.row][cell.col]!.jet = index === 0 ? "row" : "column";
+        else board[cell.row][cell.col]!.jet = state.grantedJetDirection ?? (index === 0 ? "row" : "column");
         keeperJets.push(cell);
       }
       state.keeperFired = true; state.keeperCharge = 0; stats.companionGrants++; record("keeper", keeperJets);

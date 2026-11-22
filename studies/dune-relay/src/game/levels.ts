@@ -1,6 +1,6 @@
 import type { Cell, Goals, SymbolKind } from "./core";
 
-export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad"] as const;
+export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad", "marketArrival", "courierSteps", "terraceDeliveries", "splitMarket", "saltedStorefronts", "awningLanes", "seedExchange", "neighborhoodRounds", "townLedger", "openTheMarket"] as const;
 export type LevelId = (typeof LEVEL_ORDER)[number];
 export type LevelDefinition = {
   id: LevelId;
@@ -8,18 +8,20 @@ export type LevelDefinition = {
   seed: number;
   moves: number;
   goals: Goals;
-  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland";
+  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland" | "town";
   symbols?: SymbolKind[];
   chargeSymbol?: SymbolKind;
   grantedPower?: "jets" | "flywheels" | "prism";
   grantCount?: number;
-  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust" | "seedpod";
+  grantedJetDirection?: "row" | "column";
+  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust" | "seedpod" | "crate";
   opening?: [Cell, Cell];
   boardShape?: "clippedCorners" | "twinChambers" | "steppedBasin";
   keeperTarget?: number;
   destination: keyof typeof MAP_DESTINATIONS;
   crust?: { row: number; col: number; hp?: number }[];
   seedpods?: { row: number; col: number; hp?: number }[];
+  crates?: Cell[];
   briefing: string;
   victoryEyebrow: string;
   victoryTitle: string;
@@ -143,7 +145,36 @@ export const LEVELS: Record<LevelId, LevelDefinition> = {
   harvestTerraces: farmlandLevel("harvestTerraces", "HARVEST TERRACES", 48859, 32, 12, 36, 0, "practice", "harvestTerraces", "The terraces grow wider toward the road. Let falling pods reach clear match lanes before striking.", "steppedBasin", [[2,[2,6]],[4,[1,7]],[6,[1,7]],[8,[1,7]]], [[2,2],[6,7]] ),
   convoyStores: farmlandLevel("convoyStores", "CONVOY STORES", 49937, 32, 12, 30, 0, "practice", "convoyStores", "The convoy waits for both stores. Combine powers to open the remaining pods and clear the salt.", "twinChambers", [[1,[1,7]],[3,[1,7]],[5,[1,7]],[7,[1,7]]], [[1,1],[3,7],[5,1],[7,7]] ),
   openTheHarvestRoad: farmlandLevel("openTheHarvestRoad", "OPEN THE HARVEST ROAD", 51047, 34, 12, 48, 0, "practice", "openTheHarvestRoad", "One last surge will open the seed stores and load the harvest convoy. The Fieldkeeper's ledger points beyond the fields.", "clippedCorners", [[0,[2,6]],[2,[1,7]],[4,[1,7]],[6,[1,7]],[8,[2,6]],[3,[3,5]]], [[0,2],[2,7],[4,1],[6,7],[8,6]] ),
+  marketArrival: townLevel("marketArrival", "MARKET ARRIVAL", 52153, 22, 1, "crate", "marketArrival", "The first cargo box waits above the market. Clear tiles beneath it and let it fall off any bottom edge to deliver it."),
+  courierSteps: townLevel("courierSteps", "COURIER STEPS", 53267, 24, 2, "practice", "courierSteps", "Two deliveries are waiting. Open a path below each crate; a power can clear tiles but cannot break the cargo."),
+  terraceDeliveries: townLevel("terraceDeliveries", "TERRACE DELIVERIES", 54371, 25, 3, "practice", "terraceDeliveries", "The clipped terraces have several bottom edges. Deliver three crates from the upper market.", "clippedCorners"),
+  splitMarket: townLevel("splitMarket", "SPLIT MARKET", 55489, 26, 4, "practice", "splitMarket", "Two stalls share a narrow crossing. Move cargo down either side to the open exits.", "twinChambers"),
+  saltedStorefronts: townLevel("saltedStorefronts", "SALTED STOREFRONTS", 56591, 27, 4, "practice", "saltedStorefronts", "Salt slows the loading line. Break the crust to open a route for the crates.", undefined, 6),
+  awningLanes: townLevel("awningLanes", "AWNING LANES", 57709, 28, 5, "practice", "awningLanes", "The market broadens below the awnings. Crates leave at each open lower edge; two salt blocks need two hits.", "steppedBasin", 8, 0, 2),
+  seedExchange: townLevel("seedExchange", "SEED EXCHANGE", 58831, 28, 5, "practice", "seedExchange", "Open the seedpods while the cargo descends; pods and crates both fall but only crates leave at the market exit.", "clippedCorners", 0, 4),
+  neighborhoodRounds: townLevel("neighborhoodRounds", "NEIGHBORHOOD ROUNDS", 59921, 30, 6, "practice", "neighborhoodRounds", "Deliver six crates, open the seedpods, and clear the salt. Gather pennants to call the Crier's vertical Jets.", "twinChambers", 6, 4, 0, 24),
+  townLedger: townLevel("townLedger", "TOWN LEDGER", 61031, 30, 6, "practice", "townLedger", "The records disagree. Clear the layered salt, open the seedpods, and send the cargo to every available exit.", "steppedBasin", 8, 6, 2, 0, 30),
+  openTheMarket: townLevel("openTheMarket", "OPEN THE MARKET", 62143, 32, 7, "practice", "openTheMarket", "The market opens at sunset. Deliver seven crates and clear the last seals while the Crier checks the castle-bound ledger.", "clippedCorners", 10, 6, 4, 36),
+
 };
+
+
+function townLevel(id: LevelId, title: string, seed: number, moves: number, crateCount: number, lesson: LevelDefinition["lesson"], destination: keyof typeof MAP_DESTINATIONS, briefing: string, boardShape?: LevelDefinition["boardShape"], saltCount = 0, podCount = 0, thickCount = 0, pennant = 0, water = 0): LevelDefinition {
+  const mask = (row:number,col:number) => boardShape === "twinChambers" ? col <= 2 || col >= 6 || row >= 3 && row <= 5 : boardShape === "steppedBasin" ? col >= (9-(row<2?5:row<4?7:9))/2 && col < (9+(row<2?5:row<4?7:9))/2 : boardShape === "clippedCorners" ? !(row===0||row===8) || !(col===0||col===8) : true;
+  const candidates: [number,number][] = [[1,1],[1,7],[1,3],[1,5],[2,2],[2,6],[2,0],[2,8],[2,3],[2,5],[1,4],[2,4],[3,1],[3,7]];
+  const crates = candidates.filter(([r,c]) => mask(r,c) && mask(r+1,c)).slice(0,crateCount).map(([row,col])=>({row,col}));
+  if (crates.length!==crateCount) throw new Error(`Not enough crate cells for ${id}`);
+  const occupied=new Set(crates.map(({row,col})=>`${row},${col}`));
+  const saltCandidates: [number,number][] = [[4,1],[4,7],[5,2],[5,6],[6,1],[6,7],[7,2],[7,6],[3,2],[3,6],[5,3],[5,5]];
+  const crust=saltCandidates.filter(([r,c])=>mask(r,c)&&!occupied.has(`${r},${c}`)).slice(0,saltCount).map(([row,col],i)=>({row,col,hp:i<thickCount?2:1}));
+  if(crust.length!==saltCount) throw new Error(`Not enough salt cells for ${id}`);
+  crust.forEach(({row,col})=>occupied.add(`${row},${col}`));
+  const podCandidates: [number,number][] = [[3,3],[3,5],[4,2],[4,6],[5,1],[5,7],[6,3],[6,5],[4,4]];
+  const seedpods=podCandidates.filter(([r,c])=>mask(r,c)&&!occupied.has(`${r},${c}`)).slice(0,podCount).map(([row,col])=>({row,col,hp:2}));
+  if(seedpods.length!==podCount) throw new Error(`Not enough pod cells for ${id}`);
+  return { id,title,seed,moves,goals:{water,leaf:0,pennant,crate:crateCount,crust:saltCount,seedpod:podCount},lesson,destination,briefing,boardShape,crust,seedpods,crates,chapter:"town",symbols:["water","gear","leaf","pennant","key"],chargeSymbol:"pennant",grantedPower:"jets",grantedJetDirection:"column",grantCount:2,keeperTarget:12,
+    victoryEyebrow:"TOWN ON THE HILL",victoryTitle:id==="openTheMarket"?"The market is open!":"A delivery reaches the market!",victoryMessage:id==="openTheMarket"?"The cargo arrived, but the castle-bound records still disagree. The Crier will follow the trail to Castle Island.":"The next neighborhood still needs its delivery." };
+}
 
 function farmlandLevel(id: LevelId, title: string, seed: number, moves: number, podCount: number, water: number, leaf: number, lesson: LevelDefinition["lesson"], destination: keyof typeof MAP_DESTINATIONS, briefing: string, boardShape?: LevelDefinition["boardShape"], saltRows: [number,number[]][] = [], thick: [number,number][] = []): LevelDefinition {
   const candidatePods = [ [1,3],[1,5],[2,1],[2,7],[3,3],[3,5],[4,2],[4,6],[5,1],[5,7],[6,3],[6,5], ...Array.from({length:81},(_,i)=>[Math.floor(i/9),i%9]) ];
@@ -211,5 +242,16 @@ export const MAP_DESTINATIONS = {
   sluiceGarden: { marker:{x:270,y:355},label:{x:270,y:310},walk:{x:270,y:440},hit:{x:270,y:365,width:100,height:100} },
   harvestTerraces: { marker:{x:540,y:280},label:{x:540,y:235},walk:{x:540,y:420},hit:{x:540,y:300,width:100,height:100} },
   convoyStores: { marker:{x:735,y:345},label:{x:735,y:300},walk:{x:735,y:435},hit:{x:735,y:365,width:105,height:100} },
+
+  marketArrival: {marker:{x:300,y:303},label:{x:300,y:258},walk:{x:300,y:430},hit:{x:300,y:340,width:110,height:100}},
+  courierSteps: {marker:{x:430,y:295},label:{x:430,y:250},walk:{x:430,y:430},hit:{x:430,y:335,width:105,height:100}},
+  terraceDeliveries: {marker:{x:230,y:340},label:{x:230,y:295},walk:{x:230,y:440},hit:{x:230,y:365,width:105,height:100}},
+  splitMarket: {marker:{x:670,y:325},label:{x:670,y:280},walk:{x:670,y:440},hit:{x:670,y:355,width:105,height:100}},
+  saltedStorefronts: {marker:{x:770,y:340},label:{x:770,y:295},walk:{x:770,y:445},hit:{x:770,y:365,width:105,height:100}},
+  awningLanes: {marker:{x:360,y:330},label:{x:360,y:285},walk:{x:360,y:440},hit:{x:360,y:355,width:105,height:100}},
+  seedExchange: {marker:{x:550,y:305},label:{x:550,y:260},walk:{x:550,y:435},hit:{x:550,y:335,width:105,height:100}},
+  neighborhoodRounds: {marker:{x:700,y:300},label:{x:700,y:255},walk:{x:700,y:435},hit:{x:700,y:335,width:105,height:100}},
+  townLedger: {marker:{x:600,y:310},label:{x:600,y:265},walk:{x:600,y:435},hit:{x:600,y:340,width:105,height:100}},
+  openTheMarket: {marker:{x:820,y:295},label:{x:820,y:250},walk:{x:820,y:435},hit:{x:820,y:335,width:105,height:100}},
   openTheHarvestRoad: { marker:{x:875,y:360},label:{x:855,y:310},walk:{x:835,y:440},hit:{x:875,y:375,width:100,height:100} },
 } as const;
