@@ -5,12 +5,23 @@ const ts = require('typescript');
 const Module = require('node:module');
 Module._extensions['.ts'] = (module, filename) => {
   const source = fs.readFileSync(filename, 'utf8');
-  const result = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
+  const result = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } });
   module._compile(result.outputText, filename);
 };
 const { createPuzzle, playTurn, isSpecial, coinReward, legalMove, resolveFinaleRefill } = require('../src/game/core.ts');
 const { LEVELS, LEVEL_ORDER, nextLevel } = require('../src/game/levels.ts');
+const { COMPANION_ABILITIES, companionSnapshot, castleLevelForCompanion } = require('../src/game/companionAbilities.ts');
 const { completeLevel, EMPTY_SAVE, readSave, advanceTransition, advanceChapterTransition, normalizeSave } = require('../src/game/save.ts');
+for (const [count, ending, id] of [[50, 'townEnding', 'openTheMarket'], [60, 'castleEnding', 'openTheUpstreamRoute']]) {
+  const before = normalizeSave({ completed: LEVEL_ORDER.slice(0, count - 1), oasisTransition: 'ready', demoEnding: 'done', farmlandEnding: 'done', townEnding: count === 60 ? 'done' : 'locked', region: count === 60 ? 'castle' : 'town' });
+  const fresh = completeLevel(before, id, 12);
+  assert.equal(fresh[ending], 'film', `${id}: new wins start with a film`);
+  assert.equal(completeLevel(fresh, id, 12).coins, fresh.coins, 'replayed finale grants no extra coins');
+  for (const stage of ['film', 'thanks', 'done']) {
+    const restored = normalizeSave({ ...fresh, [ending]: stage });
+    assert.equal(restored[ending], stage, `${id}: saved ${stage} checkpoint survives reload`);
+  }
+}
 const { beamTravelDelay } = require('../src/game/timing.ts');
 const { planFinale } = require('../src/game/finale.ts');
 const oasisBaseline = require('./oasis-board-baseline.json');
@@ -20,6 +31,40 @@ const { applyStartingBoosters, prepareStartingBoosters, boosterCost, BOOSTERS } 
 const { contentVersion } = require('../src/game/cloud.ts');
 const cloudContent = require('../../../services/leaderboards/src/dune-content.json');
 const historicalCaps = require('../../../services/leaderboards/src/dune-legacy-moves.json');
+const townWinningRoutes = require('./town-winning-routes.json');
+const firstFifty = require('./chapter-5-baseline-hashes.json');
+const fixtureHash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const canonicalAbilities = require('../../../services/leaderboards/src/dune-companions.json');
+assert.deepEqual(COMPANION_ABILITIES,canonicalAbilities,'browser and service use one companion ability catalog');
+for(const id of Object.keys(canonicalAbilities)) {
+  const snapshot=companionSnapshot(id);
+  const puzzle=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,snapshot));
+  for(const field of ['chargeSymbol','keeperTarget','grantedPower','grantCount','grantedJetDirection']) assert.equal(puzzle[field],snapshot[field],`${id}: Castle board uses the selected ability`);
+}
+const castleKeeper=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,companionSnapshot('keeper')));
+assert.equal(castleKeeper.grantedJetDirection,undefined,'Keeper keeps the alternating Jet rule');
+function chargedGift(puzzle,chargeTarget) {
+  const charged={...puzzle,keeperCharge:chargeTarget};
+  const move=legalMove(charged.board);
+  assert.ok(move,'charged companion board has a legal move');
+  const turn=playTurn(charged,...move);
+  assert.equal(turn.keeperJets.length,2,'the charged member grants two powers');
+  assert.equal(turn.state.keeperCharge,0,'companion charge resets after each gift');
+  return turn;
+}
+const keeperFirst=chargedGift(castleKeeper,9);
+assert.deepEqual(keeperFirst.keeperJets.map(cell=>keeperFirst.state.board[cell.row][cell.col]?.jet),['row','column'],'Keeper grants one horizontal and one vertical Jet');
+const keeperSecond=chargedGift(keeperFirst.state,9);
+assert.deepEqual(keeperSecond.keeperJets.map(cell=>keeperSecond.state.board[cell.row][cell.col]?.jet),['row','column'],'Keeper can grant the alternating pair again in one attempt');
+const castleCrier=createPuzzle(castleLevelForCompanion(LEVELS.castleReceivingDock,companionSnapshot('towncrier')));
+const crierGift=chargedGift(castleCrier,12);
+assert.deepEqual(crierGift.keeperJets.map(cell=>crierGift.state.board[cell.row][cell.col]?.jet),['column','column'],'Town Crier still grants two vertical Jets');
+assert.deepEqual(LEVEL_ORDER.slice(0,50),firstFifty.ids,'first fifty level IDs remain in place');
+for(let index=0;index<50;index++) {
+  const id=LEVEL_ORDER[index];
+  assert.equal(fixtureHash(LEVELS[id]),firstFifty.levels[index],`${id}: original authored level is unchanged`);
+  assert.equal(fixtureHash(createPuzzle(LEVELS[id])),firstFifty.puzzles[index],`${id}: original seeded board is unchanged`);
+}
 import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaign }) => {
   const fixtures = [
     { completed: 0, oasisTransition: 'locked' },
@@ -38,7 +83,8 @@ import('../../../services/leaderboards/src/dune-rules.js').then(({ deriveCampaig
 }).catch(error => { console.error(error); process.exitCode=1; });
 assert.equal(cloudContent.contentVersion, contentVersion, 'cloud rules version tracks the browser');
 assert.deepEqual(cloudContent.levels, LEVEL_ORDER.map(id => ({id,moves:LEVELS[id].moves,chapter:LEVELS[id].chapter ?? 'oasis'})), 'cloud level order and move caps track authored levels');
-assert.deepEqual(Object.fromEntries(LEVEL_ORDER.filter(id => LEVELS[id].moves !== historicalCaps['chapter-4-1'][id]).map(id => [id,LEVELS[id].moves])), {gatehouseApproach:22,gatewrightWorkshop:23,saltboundHinges:25,riverSluice:26,seedStore:24,threshingYard:26,sluiceGarden:24}, 'exactly seven budgets change in this balance pass');
+assert.deepEqual(Object.fromEntries(LEVEL_ORDER.slice(0,40).filter(id => LEVELS[id].moves !== historicalCaps['chapter-4-1'][id]).map(id => [id,LEVELS[id].moves])), {gatehouseApproach:22,gatewrightWorkshop:23,saltboundHinges:25,riverSluice:26,seedStore:24,threshingYard:26,sluiceGarden:24}, 'exactly seven budgets change in this balance pass');
+assert.deepEqual(Object.fromEntries(LEVEL_ORDER.slice(0,40).map(id=>[id,LEVELS[id].moves])),historicalCaps['chapter-4-2'],'first forty budgets remain frozen');
 assert.deepEqual(Object.fromEntries(BOOSTERS.map(item=>[item.kind,item.cost])), {jet:300,flywheel:300,prism:500}, 'cloud booster prices track the shop');
 for (const moves of [0,1,10,50]) assert.equal(coinReward(moves),20+3*moves,'cloud reward formula tracks the game');
 
@@ -61,15 +107,15 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (id === 'pennantLine') assert.equal(puzzle.goals.pennant, 30, 'Pennant Line requires thirty pennants');
     if (id === 'walkersFoot') assert.equal(puzzle.goals.pennant, 33, "Walker's Foot requires thirty-three pennants");
   }
-  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); if (index < 30) { assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); } else { assert.equal(puzzle.chargeSymbol,'leaf'); assert.equal(puzzle.grantedPower,'flywheels'); assert.equal(puzzle.grantCount,2); assert.equal(puzzle.keeperTarget,12); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'seedpod').length,level.seedpods.length); } }
+  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); if (index < 30) { assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); } else if(index<40) { assert.equal(puzzle.chargeSymbol,'leaf'); assert.equal(puzzle.grantedPower,'flywheels'); assert.equal(puzzle.grantCount,2); assert.equal(puzzle.keeperTarget,12); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'seedpod').length,level.seedpods.length); } else { assert.equal(puzzle.chargeSymbol,'pennant'); assert.equal(puzzle.grantedPower,'jets'); assert.equal(puzzle.grantedJetDirection,'column'); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'crate').length,level.crates.length); } }
   for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++) {
     assert.ok(!puzzle.crust[row][col] || (puzzle.mask[row][col] && !puzzle.board[row][col]), `${id}: crust is a solid occupied cell`);
     const tile = puzzle.board[row][col];
-    if (!tile || isSpecial(tile) || tile.kind === 'seedpod') continue;
+    if (!tile || isSpecial(tile) || tile.kind === 'seedpod' || tile.kind === 'crate') continue;
     if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 1]?.kind !== 'seedpod' && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2]) && puzzle.board[row][col + 2]?.kind !== 'seedpod'), `${id}: no horizontal prematch`);
     if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 1][col]?.kind !== 'seedpod' && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col]) && puzzle.board[row + 2][col]?.kind !== 'seedpod'), `${id}: no vertical prematch`);
   }
-  if (level.lesson === 'practice') {
+  if (level.lesson === 'practice' || level.lesson === 'crate') {
     assert.equal(puzzle.opening, undefined, `${id}: unguided`);
     assert.ok(legalMove(puzzle.board), `${id}: legal opening`);
     const expected = (level.boardShape === "clippedCorners" ? 77 : level.boardShape === "twinChambers" ? 63 : level.boardShape === "steppedBasin" ? 69 : 81) - (level.crust?.length ?? 0);
@@ -128,6 +174,107 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
   assert.equal(nextLevel(completed), LEVEL_ORDER[index + 1] ?? null);
 }
 
+for (const id of LEVEL_ORDER.slice(40)) {
+  const route=townWinningRoutes[id];
+  assert.ok(Array.isArray(route)&&route.length>0,`${id}: authored winning route exists`);
+  let puzzle=createPuzzle(LEVELS[id]);
+  const originalCrates=new Set(puzzle.board.flat().filter(tile=>tile?.kind==='crate').map(tile=>tile.id));
+  const delivered=new Set();
+  for(const [fromRow,fromCol,toRow,toCol] of route){
+    const turn=playTurn(puzzle,{row:fromRow,col:fromCol},{row:toRow,col:toCol});
+    assert.ok(turn.valid,`${id}: recorded move is legal`);
+    for(const item of turn.steps.filter(step=>step.kind==='deliver').flatMap(step=>step.deliveries??[])){
+      assert.ok(originalCrates.has(item.id),`${id}: only authored cargo can be delivered`);
+      assert.ok(!delivered.has(item.id),`${id}: cargo cannot deliver twice`);
+      delivered.add(item.id);
+    }
+    const survivors=turn.state.board.flat().filter(tile=>tile?.kind==='crate').map(tile=>tile.id);
+    assert.deepEqual(new Set([...delivered,...survivors]),originalCrates,`${id}: every authored crate is accounted for`);
+    puzzle=turn.state;
+  }
+  assert.equal(puzzle.status,'won',`${id}: legitimate win within ${LEVELS[id].moves} moves`);
+  assert.equal(puzzle.goals.crate,0,`${id}: all crates delivered`);
+}
+
+// Crate identity and exit behavior across powers, salt supports, and ledges.
+function cargoFixture(shape = 'marketArrival', spots = [{row:2,col:4}], salt = []) {
+  const level = { ...LEVELS[shape], lesson:'practice', crates:[], crust:salt, goals:{crate:0,crust:salt.length} };
+  const puzzle = createPuzzle(level), ids=[]; puzzle.goals.crate=spots.length;
+  for (const cell of spots) { const id=puzzle.nextId++; puzzle.board[cell.row][cell.col]={id,kind:'crate'}; ids.push(id); }
+  return {puzzle,ids};
+}
+function cargoTurn(puzzle, from, to) {
+  const move = from ? [from,to] : legalMove(puzzle.board);
+  assert.ok(move,'fixture has a legal move');
+  const turn=playTurn(puzzle,...move);
+  assert.ok(turn.valid,'fixture move is valid');
+  return turn;
+}
+function assertCargoAccounted(turn,ids) {
+  const deliveries=turn.steps.filter(step=>step.kind==='deliver').flatMap(step=>step.deliveries??[]).map(item=>item.id);
+  const remaining=turn.state.board.flat().filter(tile=>tile?.kind==='crate').map(tile=>tile.id);
+  assert.deepEqual([...deliveries,...remaining].sort((a,b)=>a-b),[...ids].sort((a,b)=>a-b),'cargo IDs remain unique');
+  const live=new Set(ids);
+  for (const step of turn.steps) {
+    if(step.kind==='deliver') for(const item of step.deliveries??[]) live.delete(item.id);
+    if(step.kind==='clear') assert.ok([...live].every(id=>step.board.flat().some(tile=>tile?.id===id)),'clear cannot destroy cargo');
+  }
+}
+for (const power of ['jet','flywheel','prism-prism']) {
+  const {puzzle,ids}=cargoFixture(); const origin={row:4,col:3};
+  if(power==='jet')puzzle.board[4][3]={...puzzle.board[4][3],jet:'column'};
+  else if(power==='flywheel')puzzle.board[4][3]={...puzzle.board[4][3],power:'flywheel'};
+  else { puzzle.board[4][3]={...puzzle.board[4][3],power:'prism'}; puzzle.board[4][4]={...puzzle.board[4][4],power:'prism'}; }
+  assertCargoAccounted(cargoTurn(puzzle,origin,power==='prism-prism'?{row:4,col:4}:origin),ids);
+}
+{
+  const {puzzle,ids}=cargoFixture('marketArrival',[{row:7,col:4}],[{row:8,col:4}]);
+  const turn=cargoTurn(puzzle); assertCargoAccounted(turn,ids);
+  assert.equal(turn.stats.cratesDelivered,0,'salt supports cargo');
+  assert.equal(turn.state.board[7][4]?.id,ids[0]);
+}
+{
+  const {puzzle,ids}=cargoFixture('terraceDeliveries',[{row:7,col:0}]);
+  const turn=cargoTurn(puzzle); assertCargoAccounted(turn,ids);
+  assert.equal(turn.stats.cratesDelivered,1,'masked lower ledge is an exit');
+  assert.equal(turn.state.goals.crate,0);
+}
+{
+  const {puzzle,ids}=cargoFixture('marketArrival',[{row:7,col:4},{row:8,col:4}]);
+  const turn=cargoTurn(puzzle); assertCargoAccounted(turn,ids);
+  assert.equal(turn.stats.cratesDelivered,2,'stacked cargo delivers sequentially');
+  assert.ok(turn.steps.filter(step=>step.kind==='deliver').length>=2);
+}
+{
+  const {puzzle,ids}=cargoFixture('marketArrival',[{row:8,col:4}]); puzzle.moves=1;
+  const turn=cargoTurn(puzzle); assertCargoAccounted(turn,ids);
+  assert.equal(turn.state.status,'won','delivery on final move beats move exhaustion');
+  assert.equal(turn.state.goals.crate,0);
+}
+{
+  const {puzzle}=cargoFixture(); puzzle.keeperCharge=12;
+  const first=cargoTurn(puzzle); assert.equal(first.keeperJets.length,2);
+  assert.ok(first.keeperJets.every(cell=>first.state.board[cell.row][cell.col]?.jet==='column'),'Rally Jets are vertical');
+  const second=cargoTurn({...first.state,keeperCharge:12}); assert.equal(second.keeperJets.length,2);
+  assert.ok(second.keeperJets.every(cell=>second.state.board[cell.row][cell.col]?.jet==='column'),'repeat Rally Jets stay vertical');
+}
+{
+  // Packing every upper cell with cargo eliminates ordinary swaps. The
+  // starting-board rescue must retain all authored IDs and add a playable Jet.
+  const crates=[];for(let row=0;row<8;row++)for(let col=0;col<9;col++)crates.push({row,col});
+  const crust=Array.from({length:9},(_,col)=>({row:8,col,hp:2})).filter(cell=>cell.col!==4);
+  const base=createPuzzle({...LEVELS.marketArrival,lesson:'practice',crates:[],crust,goals:{crate:0,crust:crust.length}});
+  const puzzle=createPuzzle({...LEVELS.marketArrival,lesson:'practice',crates,crust,goals:{crate:crates.length,crust:crust.length}});
+  const ids=puzzle.board.flat().filter(tile=>tile?.kind==='crate').map(tile=>tile.id);
+  assert.equal(ids.length,crates.length,'rescue preserves every authored crate');
+  assert.deepEqual(ids,Array.from({length:crates.length},(_,index)=>base.nextId+index),'rescue preserves original cargo IDs');
+  const rescue={row:8,col:4};assert.equal(puzzle.board[8][4]?.jet,'row','rescue adds a playable Jet');
+  const turn=cargoTurn(puzzle,rescue,rescue);assertCargoAccounted(turn,ids);
+  assert.equal(turn.stats.cratesDelivered,8,'first Jet sends only the open column to its exit');
+  assert.equal(turn.state.goals.crate,crates.length-8);
+  assert.ok(turn.steps.some(step=>step.kind==='shuffle'),'turn-time no-move rescue also runs');
+  assert.equal(turn.stats.reshuffles,1,'turn-time rescue is counted once');
+}
 function setup(first, second) {
   const puzzle = createPuzzle(51);
   puzzle.board[4][4] = { ...puzzle.board[4][4], ...first };
@@ -259,7 +406,7 @@ const saved = readSave({getItem:key => key==='dune-relay-campaign-v2' ? JSON.str
 assert.equal(nextLevel(saved.completed), 'twinTanks', 'existing six-level save advances to level seven');
 assert.equal(saved.coins, 481);
 assert.equal(nextLevel(LEVEL_ORDER), null, 'all available clears complete');
-for (const id of ['palmIntake','irrigationChannels','twinTanks','pressureManifold','aqueductRise','openWaterway',...LEVEL_ORDER.slice(10)]) {
+for (const id of ['palmIntake','irrigationChannels','twinTanks','pressureManifold','aqueductRise','openWaterway',...LEVEL_ORDER.slice(10,40)]) {
   let puzzle = createPuzzle(LEVELS[id]);
   let opening = puzzle.opening;
   while (puzzle.status === 'playing') {
@@ -270,7 +417,7 @@ for (const id of ['palmIntake','irrigationChannels','twinTanks','pressureManifol
         if (to.row >= 9 || to.col >= 9) continue;
         const turn = playTurn(puzzle, from, to);
         if (!turn.valid) continue;
-        const value = Object.keys(puzzle.goals).reduce((score, kind) => score + (puzzle.goals[kind] - turn.state.goals[kind]) * (kind === 'crust' ? 3 : 1), 0) + turn.powersCreated.length * 2 + turn.keeperJets.length * 2;
+        const value = Object.keys(puzzle.goals).reduce((score, kind) => score + (puzzle.goals[kind] - turn.state.goals[kind]) * (kind === 'crate' ? 8 : kind === 'seedpod' || kind === 'crust' ? 3 : 1), 0) + turn.powersCreated.length * 2 + turn.keeperJets.length * 2;
         if (opening && from.row === opening[0].row && from.col === opening[0].col && to.row === opening[1].row && to.col === opening[1].col) { chosen = turn.state; best = Infinity; }
         if (value > best) {best = value; chosen = turn.state;}
       }
@@ -666,7 +813,7 @@ const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archive
 assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-4-2','new attempts carry the current content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-6-1','new attempts carry the current content version');
 assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
 assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));
@@ -757,7 +904,7 @@ assert.equal(normalizeSave({...migratedOasisOrigin,demoEnding:'done',farmlandEnd
 for (const stage of ['film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,farmlandEnding:stage}).farmlandEnding,stage);
 assert.equal(normalizeSave({...migratedFinal,completed:LEVEL_ORDER.slice(0,39),farmlandEnding:'done'}).farmlandEnding,'locked','unfinished final level cannot unlock ending');
 assert.equal(normalizeSave({...migratedFinal,demoEnding:'done'}).coins,1299);
-console.log('Core checks passed: 40 levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.');
+console.log(`Core checks passed: ${LEVEL_ORDER.length} levels, preserved boards, salt and seedpod HP, companion grants, saves, and playtest aggregation.`);
 
 // Opaque-origin Portal embeds may deny the localStorage getter itself.
 const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');

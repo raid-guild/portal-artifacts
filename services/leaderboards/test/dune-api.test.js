@@ -5,7 +5,7 @@ import pg from 'pg';
 import { SignJWT } from 'jose';
 import { createHash, randomUUID } from 'node:crypto';
 import { createDuneApp } from '../src/dune-app.js';
-import { emptyCampaign, content, farmlandEligible, DEMO_LEVEL_COUNT, deriveCampaign, moveCapForVersion } from '../src/dune-rules.js';
+import { emptyCampaign, content, farmlandEligible, DEMO_LEVEL_COUNT, deriveCampaign, moveCapForVersion, applyCheckpoint, accessTierForCampaign, accessTierForLevel } from '../src/dune-rules.js';
 const database=process.env.TEST_DATABASE_URL;
 if (!database || !['localhost','127.0.0.1'].includes(new URL(database).hostname) || !new URL(database).pathname.endsWith('_test')) throw new Error('Use local disposable *_test Postgres');
 const pool=new pg.Pool({connectionString:database});
@@ -166,7 +166,7 @@ test('Farmland requires an account grant and arrival checkpoint for every write 
 test('Farmland finale awards once and advances only through film, dialogue, then map',async()=>{
   const {cookie}=await launch();
   const playerId=accountByCookie.get(cookie);
-  const completed=content.levels.slice(0,-1).map(level=>level.id);
+  const completed=content.levels.slice(0,39).map(level=>level.id);
   const campaign=deriveCampaign(completed,120,{...emptyCampaign(),oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,demoEnding:'done',region:'farmland'});
   await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[playerId,{revision:1,campaign,imported:false}]);
   await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','test')",[playerId]);
@@ -255,12 +255,12 @@ test('login issuance cleans expired intents and bounds requests per client',asyn
     assert.equal((await pool.query('SELECT 1 FROM artifact_leaderboards.dune_launch_intents WHERE nonce_hash=$1',[stale])).rowCount,0);
   } finally { await new Promise(resolve=>limitedServer.close(resolve)); }
 });
-test('future chapter starts require a Portal-bound pass; an active attempt can finish through a store outage',async()=>{
-  const fixture={id:'futureFixture',index:40,moves:20,chapter:'town'};
+test('Town starts require a Portal-bound pass; an active attempt can finish through a store outage',async()=>{
+  const fixture=content.levels[40];
   const {cookie}=await launch({sub:'user:90818091'});
   const accountId=accountByCookie.get(cookie);
-  const complete=content.levels.map(level=>level.id);
-  const campaign=deriveCampaign(complete,0,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,demoEnding:'done',farmlandEnding:'done'});
+  const complete=content.levels.slice(0,40).map(level=>level.id);
+  const campaign=deriveCampaign(complete,0,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,demoEnding:'done',farmlandEnding:'done',region:'town'});
   await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
   await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
   let allowed=false;
@@ -271,9 +271,6 @@ test('future chapter starts require a Portal-bound pass; an active attempt can f
   await new Promise(resolve=>service.once('listening',resolve));
   const futureBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
   const futureCall=(route,body)=>fetch(futureBase+route,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
-  // The fixture exists only inside this test. Production content still has 40 levels.
-  content.levels.push(fixture);
-  const {levels}=await import('../src/dune-rules.js');levels.set(fixture.id,fixture);
   try {
     const attemptId=randomUUID();
     assert.equal((await futureCall('/attempts',{attemptId,levelId:fixture.id,boosters:[]})).status,503);
@@ -288,5 +285,78 @@ test('future chapter starts require a Portal-bound pass; an active attempt can f
     const finish=await ok(await futureCall(`/attempts/${attemptId}/finish`,{levelId:fixture.id,remainingMoves:10,contentVersion:content.contentVersion}));
     assert.equal(finish.profile.campaign.completed.at(-1),fixture.id);
     assert.equal((await futureCall(`/attempts/${randomUUID()}/finish`,{levelId:fixture.id,remainingMoves:10,contentVersion:content.contentVersion})).status,403);
-  } finally { levels.delete(fixture.id);content.levels.pop();await new Promise(resolve=>service.close(resolve)); }
+  } finally { await new Promise(resolve=>service.close(resolve)); }
+});
+test('Town checkpoints require the finished Farmland ending and a stepwise arrival; old clients preserve Town fields',()=>{
+  const completed=content.levels.slice(0,40).map(level=>level.id);
+  let profile={revision:1,campaign:deriveCampaign(completed,200,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,demoEnding:'done',farmlandEnding:'done',region:'farmland'})};
+  assert.equal(accessTierForLevel({ ...content.levels[40],index:40 }),'campaign-pass');
+  assert.equal(accessTierForCampaign(profile.campaign),'farmland');
+  const step=campaign=>{ profile=applyCheckpoint(profile,campaign); return profile.campaign; };
+  assert.throws(()=>step({...profile.campaign,townReady:true}),{status:400});
+  assert.throws(()=>step({...profile.campaign,transition:{from:'farmland',to:'town',stage:'arrival'}}),{status:400});
+  let next=step({...profile.campaign,transition:{from:'farmland',to:'town',stage:'handoff'}});
+  assert.equal(accessTierForCampaign(next),'campaign-pass');
+  next=step({...next,transition:{...next.transition,stage:'atlas'}});
+  next=step({...next,transition:{...next.transition,stage:'arrival'}});
+  next=step({...next,townReady:true,region:'town',transition:null});
+  assert.equal(next.region,'town');assert.ok(next.companions.includes('towncrier'));
+  const oldClient={...next};delete oldClient.townReady;delete oldClient.townEnding;
+  next=step(oldClient);
+  assert.equal(next.townReady,true,'old client omission retains arrived Town');
+  assert.equal(next.townEnding,'locked');
+});
+
+test('Castle attempts freeze the selected ability, including a zero-booster retry',async()=>{
+  const {cookie}=await launch({sub:'user:90818163'});
+  const accountId=accountByCookie.get(cookie);
+  const completed=content.levels.slice(0,50).map(level=>level.id);
+  const campaign=deriveCampaign(completed,800,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',region:'castle',activeCompanion:'fieldkeeper'});
+  assert.equal(campaign.activeCompanion,'fieldkeeper');
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  let allowed=false;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async()=>({state:allowed?'active':'unavailable',unlocked:allowed,unlockedAt:null,checkedAt:null,storeUrl:null})}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const localBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const post=(path,body)=>fetch(localBase+path,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const levelId=content.levels[50].id,attemptId=randomUUID();
+  try {
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'})).status,503,'a paid chapter has no free fallback');
+    allowed=true;
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'keeper'})).status,409,'selection must match the saved profile');
+    const prepared=await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'}));
+    assert.deepEqual(prepared.companionSnapshot,{id:'fieldkeeper',chargeSymbol:'leaf',keeperTarget:12,grantedPower:'flywheels',grantCount:2});
+    const retry=await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'}));
+    assert.deepEqual(retry.companionSnapshot,prepared.companionSnapshot,'zero-booster prepare survives a retry');
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'towncrier'})).status,409,'idempotency cannot switch the ability');
+    const activated=await ok(await post(`/attempts/${attemptId}/activate`,{expectedRevision:1}));
+    assert.deepEqual(activated.companionSnapshot,prepared.companionSnapshot);
+    allowed=false;
+    const finished=await ok(await post(`/attempts/${attemptId}/finish`,{levelId,remainingMoves:10,contentVersion:content.contentVersion}));
+    assert.equal(finished.profile.campaign.completed.at(-1),levelId,'an active Castle attempt finishes through a store outage');
+    assert.equal((await post(`/attempts/${randomUUID()}/finish`,{levelId:content.levels[51].id,remainingMoves:10,contentVersion:content.contentVersion})).status,403);
+  } finally { await new Promise(resolve=>service.close(resolve)); }
+});
+test('Castle arrival and leader selection are stepwise; older checkpoints retain Castle state',()=>{
+  const completed=content.levels.slice(0,50).map(level=>level.id);
+  let profile={revision:1,campaign:deriveCampaign(completed,230,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'thanks',region:'town'})};
+  const step=campaign=>{profile=applyCheckpoint(profile,campaign);return profile.campaign;};
+  assert.equal(accessTierForLevel({...content.levels[50],index:50}),'campaign-pass');
+  assert.throws(()=>step({...profile.campaign,castleReady:true}),{status:400});
+  assert.throws(()=>step({...profile.campaign,transition:{from:'town',to:'castle',stage:'handoff'}}),{status:400});
+  let next=step({...profile.campaign,townEnding:'done'});
+  next=step({...next,transition:{from:'town',to:'castle',stage:'handoff'}});
+  next=step({...next,transition:{...next.transition,stage:'atlas'}});
+  next=step({...next,transition:{...next.transition,stage:'arrival'}});
+  next=step({...next,castleReady:true,region:'castle',transition:null});
+  assert.equal(next.activeCompanion,null);
+  assert.throws(()=>step({...next,activeCompanion:'quartermaster'}),{status:400});
+  next=step({...next,activeCompanion:'wayfinder'});
+  assert.equal(next.activeCompanion,'wayfinder');
+  const oldClient={...next};delete oldClient.castleReady;delete oldClient.activeCompanion;delete oldClient.castleEnding;
+  next=step(oldClient);
+  assert.equal(next.castleReady,true);
+  assert.equal(next.activeCompanion,'wayfinder');
+  assert.equal(next.castleEnding,'locked');
 });

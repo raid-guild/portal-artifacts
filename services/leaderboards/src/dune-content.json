@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "farmland-1",
-  "contentVersion": "chapter-4-2",
+  "rulesVersion": "castle-1",
+  "contentVersion": "chapter-6-1",
   "levels": [
     {
       "id": "pumpHouse",
@@ -201,6 +201,106 @@
       "id": "openTheHarvestRoad",
       "moves": 34,
       "chapter": "farmland"
+    },
+    {
+      "id": "marketArrival",
+      "moves": 22,
+      "chapter": "town"
+    },
+    {
+      "id": "courierSteps",
+      "moves": 24,
+      "chapter": "town"
+    },
+    {
+      "id": "terraceDeliveries",
+      "moves": 25,
+      "chapter": "town"
+    },
+    {
+      "id": "splitMarket",
+      "moves": 26,
+      "chapter": "town"
+    },
+    {
+      "id": "saltedStorefronts",
+      "moves": 27,
+      "chapter": "town"
+    },
+    {
+      "id": "awningLanes",
+      "moves": 28,
+      "chapter": "town"
+    },
+    {
+      "id": "seedExchange",
+      "moves": 28,
+      "chapter": "town"
+    },
+    {
+      "id": "neighborhoodRounds",
+      "moves": 30,
+      "chapter": "town"
+    },
+    {
+      "id": "townLedger",
+      "moves": 30,
+      "chapter": "town"
+    },
+    {
+      "id": "openTheMarket",
+      "moves": 32,
+      "chapter": "town"
+    },
+    {
+      "id": "castleReceivingDock",
+      "moves": 24,
+      "chapter": "castle"
+    },
+    {
+      "id": "provisionStores",
+      "moves": 25,
+      "chapter": "castle"
+    },
+    {
+      "id": "saltboundStorehouse",
+      "moves": 27,
+      "chapter": "castle"
+    },
+    {
+      "id": "castleSeedVault",
+      "moves": 28,
+      "chapter": "castle"
+    },
+    {
+      "id": "dividedCourtyard",
+      "moves": 29,
+      "chapter": "castle"
+    },
+    {
+      "id": "terraceDispatch",
+      "moves": 29,
+      "chapter": "castle"
+    },
+    {
+      "id": "contradictoryOrders",
+      "moves": 30,
+      "chapter": "castle"
+    },
+    {
+      "id": "reservoirLedger",
+      "moves": 30,
+      "chapter": "castle"
+    },
+    {
+      "id": "reservoirControls",
+      "moves": 31,
+      "chapter": "castle"
+    },
+    {
+      "id": "openTheUpstreamRoute",
+      "moves": 32,
+      "chapter": "castle"
     }
   ]
 }

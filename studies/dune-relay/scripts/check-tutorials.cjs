@@ -9,8 +9,8 @@ Module._extensions['.ts'] = (module, filename) => {
 const { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable } = require('../src/game/tutorials.ts');
 const { tutorialScopeKey, readSeen, markSeen } = require('../src/game/tutorialProgress.ts');
 const { LEVEL_ORDER } = require('../src/game/levels.ts');
-assert.deepEqual(TUTORIALS.map(t=>t.level),['pumpHouse','primePump','prismTower','oasisRelay','saltSealedIntake','saltboundHinges','seedStore']);
-assert.equal(new Set(TUTORIALS.map(t=>t.id)).size,7);
+assert.deepEqual(TUTORIALS.map(t=>t.level),['pumpHouse','primePump','prismTower','oasisRelay','saltSealedIntake','saltboundHinges','marketArrival','seedStore']);
+assert.equal(new Set(TUTORIALS.map(t=>t.id)).size,8);
 for(const t of TUTORIALS){assert.equal(TUTORIAL_BY_LEVEL[t.level],t);assert.ok(LEVEL_ORDER.includes(t.level));assert.ok(t.stages.length>=4);}
 const memory=new Map();
 const store={getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)};
@@ -36,4 +36,4 @@ assert.equal(tutorialAvailable(jet,[],null,false),false);
 assert.equal(tutorialAvailable(jet,[],'pumpHouse',false),true);
 assert.equal(tutorialAvailable(jet,['pumpHouse'],null,false),true);
 assert.equal(tutorialAvailable(jet,[],null,false,false,new Set(['jet'])),true);
-console.log('Seven tutorial mappings, chapter gate, scope isolation, validation, and blocked-storage fallback passed.');
+console.log('Eight tutorial mappings, chapter gate, scope isolation, validation, and blocked-storage fallback passed.');

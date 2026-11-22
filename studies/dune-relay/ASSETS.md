@@ -148,8 +148,51 @@ Usecase precise-object-edit. Edit the attached DuneRelay cracked armoredseedpod 
 - Sequence: level 40 coin finale → release board renderer → harvest film → Fieldkeeper closing story and Town on the Hill teaser. Uses the existing Skip, blocked-playback fallback and decoder cleanup.
 - Encoding: `ffmpeg -i <source> -map 0:v:0 -map 0:a:0? -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart farmland-harvest.mp4`.
 
+## Town and Castle chapter films
+
+- User sources: `grok-video-2d50c4b7-67cb-4c8d-9731-fd860ba27566.mp4` (Town market, 10.041667 seconds) and `grok-video-07d7e29f-5541-4d63-8661-874f80202c11.mp4` (Castle dock, 16.041667 seconds). Both are native 736 × 400.
+- `public/cinematics/town-market-opens.mp4` (2,621,438 bytes) plays after level 50's coin finale and before the Crier's closing dialogue. `public/cinematics/castle-upstream-departure.mp4` (2,837,462 bytes) plays after level 60's finale and before the Quartermaster's closing dialogue. First-frame WebP posters at quality 88 use matching `-poster.webp` names.
+- Full durations are preserved. Encoding uses H.264/yuv420p CRF 28 at the native dimensions, AAC 96 kb/s, and faststart metadata, mapping only the main video and audio streams. The films reuse the existing metadata preload, renderer release, Skip, blocked-playback fallback, and decoder cleanup.
+
 ## Mechanic lesson sprite crops
 
 `public/sprites/tutorial-water.png`, `tutorial-leaf.png`, `tutorial-gear.png`, `tutorial-jet-row.png`, and `tutorial-jet-column.png` are deterministic transparent crops from the existing `tiles.png` sheet. Their rectangles come from `frames.json` (`tiles[0..4].bounds`) and preserve the source art's aspect ratio. The tutorial also reuses the existing Prism, Flywheel, salt, seedpod, and companion portrait sprites. No new artwork was generated for these lessons.
 
 The cascade callout uses `public/fonts/archivo-italic.ttf`, copied from this repository's Chance Pint study. Its Open Font License is retained at `public/fonts/archivo-OFL.txt`.
+
+## Hill Town / Chapter 5 generated art (2026-11-21)
+
+Generated with the built-in ImageGen tool using the established game art as references. Source PNGs are retained in the session generated-images directory; runtime assets are copied into this study and require no external image service.
+
+- `public/town.webp`: 1672 × 941 sunset Hill Town; WebP quality 88. Town layout generated against `farmland.webp`, then lighting edited to early evening without moving landmarks. Cream stone, teal roofs, market awnings on the left, delivery depot centrally, bell/horn hall on the right, open walkable foreground. Orange-pink/lavender sky, golden windows and lanterns; foreground remains readable.
+- `public/sprites/towncrier.png`: genuine-alpha 1024 × 512, four right-facing poses then four left-facing poses (idle, stride, passing, opposite stride). Blue-teal nonhuman bird Bard with orange beak, oversized cream courier coat, vermilion scarf, teal trousers, brass horn and delivery-tag backpack. Uniformly resized from the generated 1774 × 887 sheet. `towncrier-frames.json` records eight 256 × 256 cells and measured alpha bounds (threshold 8).
+- `public/sprites/towncrier-avatar.png`: 512 × 512 circular parchment/brass portrait, transparent exterior, same bird identity facing left. Generated from the walking-sheet identity and Fieldkeeper portrait layout references.
+- `public/sprites/delivery-crate.png`: 256 × 256 genuine-alpha cargo sprite, resized from a generated square PNG. Honey-brown timber, broad X-bracing, bronze corners, muted teal cloth binding and a blank ivory delivery tag. No damage variants: this cargo cannot be destroyed.
+
+### Generation prompts and edits
+
+Town: Production illustrated environment for Dune Relay, using farmland reference for precise black ink contours, flat watercolor, cream limestone, teal roofs, brass dieselpunk fittings and warm landscape perspective. Hill Town market plaza with distinct awnings, depot and bell/horn hall, empty connected foreground paths, no people, labels, UI or logo. Follow-up precise lighting edit: preserve the complete layout and objects, change only time of day to a readable early-evening sunset, orange-pink/lavender sky, warm lit windows and lanterns, gentle cool shadows, no dark nighttime foreground.
+
+Crier sheet: Production animated character sheet, exactly four columns by two rows, equal square cells, transparent background. Friendly nonhuman blue-teal bird Bard, orange beak, oversized cream courier coat, vermilion scarf/lining, patched teal trousers, brass horn, delivery-tag backpack and golden bird feet. Top four face right; bottom four face left. Idle, broad stride, passing step, opposite stride; consistent scale and feet baseline, full figures, no scenery/shadows/text/grid. Fine black ink and flat watercolor matching the Fieldkeeper reference. Avatar: preserve this exact identity in the existing circular parchment/gold portrait format, clear head-and-shoulders view facing left, transparent outside the medallion.
+
+Crate: Single match-three cargo tile sprite on true transparent background. Seedpod reference for ink/rendering style only. Sturdy square delivery crate, honey-brown timber and broad X-bracing, small bronze corners, muted teal cloth binding, large blank ivory tag at upper right. Instantly readable at 45 pixels and distinct from round seedpods and powers. Slight three-quarter front with a little top visible, strong simple square filling about 85 percent of canvas. No ground shadow, text, numbers, UI, glow, damage, locks, gems or coins.
+
+Source generation IDs: town daylight `c5357ea7-b0cc-4c87-aed3-dbed5b2f1a68`; sunset edit `d9c25163-7275-4a3b-948d-38f441ef50e9`; walking sheet `d1580fe3-b553-4e03-8939-4624665dd799`; portrait `88fbac2b-b940-4982-8312-99bf45fef13a`; crate `9cfc05c0-500a-429f-accb-4e87a13c943d`. Deterministic resizing/compression uses Sharp with alpha preserved.
+
+## Castle Island / Chapter 6 generated art (November 21, 2026)
+
+Generated with the built-in ImageGen tool. Selected source PNGs are retained in the session generated-images directory; runtime copies below live in this study. Sharp performs only deterministic resizing, alpha-bound measurement, and WebP compression.
+
+- `public/castle.webp`: 1672 × 941, WebP quality 88. Blue-hour river-island castle receiving courtyard, with repair boat/dock at left, storehouse centrally, castle gate/towers above right, and brass reservoir machinery at right. Open foreground paving supports walking. Style reference: `town.webp`; geography/architecture reference: the central river-island castle in `kingdom.webp`.
+- `public/sprites/quartermaster.png`: genuine-alpha 1024 × 512, four right-facing then four left-facing poses: idle, broad stride, passing step, opposite stride. Olive-bronze beetle NPC with navy/teal gold-trimmed coat, cream cravat, rust waistcoat, brass measuring caliper and oversized oxblood ledger. `quartermaster-frames.json` records eight 256 × 256 frames and measured alpha bounds (threshold 8).
+- `public/sprites/quartermaster-avatar.png`: genuine-alpha 512 × 512 circular parchment/brass-rim portrait. Same beetle identity facing left, with antennae and ledger visible. The quartermaster is an NPC, not a selectable companion.
+
+### Prompt set
+
+Background (`illustration-story`): Production wide 16:9 walkable Dune Relay background. Reference Town for fine crisp black ink, flat watercolor, detailed cream stone and teal/brass dieselpunk mechanisms; reference Kingdom for the central river-island white castle with copper-orange conical roofs, excluding sky castles and coastal fort. View from riverside receiving courtyard at gently elevated ground level: river and small timber dock with one modest repair boat at left, limestone courtyard and low storehouse/archive with delivery crates center-left, grand cream gate and orange-roofed towers above center-right, brass reservoir valves and pipes at right. Broad connected pale paving across lower thirty percent, paths to landmarks, foreground on land. Blue hour after sunset, lavender-blue sky with peach horizon, amber windows/lanterns, crisp visible foreground. No people, creatures, UI, lettering, logo, watermark or foreground clutter.
+
+Walking sheet (`stylized-concept`): Production four-column/two-row sheet with eight equal square cells, overall 2:1, transparent background. Fieldkeeper reference supplies layout/rendering only. Small stout serious but charming nonhuman beetle quartermaster, olive-bronze segmented chitin and hard back carapace, curled antennae, black eyes, no human features. Two main arms, two tucked auxiliary arms, two sturdy booted legs. Navy/teal coat with gold trim, cream shirt/cravat, rust waistcoat, brass-button utility belt and caliper, oversized closed oxblood ledger with blank brass corners. Top row right-facing and bottom left-facing: idle, broad stride, passing, opposite stride. Consistent identity/scale/feet baseline, uncropped figures, clear cell gaps, crisp ink and flat watercolor readable at 85 pixels high. No text, grid, scenery, shadow or glow.
+
+Portrait (`identity-preserve`): Exact same beetle from generated sheet; Fieldkeeper portrait supplies circular parchment/gold-rim format only. Clear close head-and-shoulders view facing left, curled antennae inside medallion, olive-bronze chitin, black eyes, navy coat, cream cravat, rust waistcoat and edge of oxblood ledger below face. Serious helpful expression, crisp ink and flat watercolor readable at 48 pixels. Transparent outside circle; no lettering, labels, scenery or glow.
+
+Source generation IDs: castle `e5aad0b4-b9aa-4eee-9b92-75206a4ae808`; walking sheet `e18abb57-deb8-4d5c-8cd6-b74b27b8203d`; portrait `4846fe6b-0b0e-4809-a070-50c9c55467f3`. No existing asset was overwritten.

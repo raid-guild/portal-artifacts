@@ -1,13 +1,15 @@
 import type { Save } from "./save";
 import { LEVEL_ORDER } from "./levels";
 
-export type SoundtrackId = "oasis" | "caravan" | "gatehouse" | "farmland";
+export type SoundtrackId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle";
 export type TrackPreference = "auto" | SoundtrackId;
 
 export const SOUNDTRACKS: ReadonlyArray<{ id: SoundtrackId; title: string; chapter: string; bpm: number }> = [
   { id: "oasis", title: "Water Finds a Way", chapter: "Oasis", bpm: 72 },
   { id: "caravan", title: "The Walker's Road", chapter: "Open Desert", bpm: 84 },
   { id: "gatehouse", title: "River and Counterweight", chapter: "Bridge Gatehouse", bpm: 76 },
+  { id: "town", title: "Lanterns at the Market", chapter: "Town on the Hill", bpm: 78 },
+  { id: "castle", title: "The Ledger at Dusk", chapter: "Castle Island", bpm: 74 },
   { id: "farmland", title: "Seeds After Rain", chapter: "Farmland", bpm: 80 },
 ];
 
@@ -23,6 +25,8 @@ export function getUnlockedSoundtracks(save: Save): SoundtrackId[] {
     || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 20);
   if (reachedGatehouse) unlocked.push("gatehouse");
   if (save.farmlandReady || save.region === "farmland" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 30)) unlocked.push("farmland");
+  if (save.townReady || save.region === "town" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 40)) unlocked.push("town");
+  if (save.castleReady || save.region === "castle" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 50)) unlocked.push("castle");
   return unlocked;
 }
 
@@ -36,6 +40,6 @@ export function normalizeAudioPreferences(value: unknown): { muted: boolean; sfx
     sfx: level("sfx", 0.7),
     ambience: level("ambience", 0.22),
     music: level("music", 0.25),
-    track: track === "oasis" || track === "caravan" || track === "gatehouse" || track === "farmland" ? track : "auto",
+    track: track === "oasis" || track === "caravan" || track === "gatehouse" || track === "farmland" || track === "town" || track === "castle" ? track : "auto",
   };
 }
