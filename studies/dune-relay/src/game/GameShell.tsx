@@ -22,7 +22,7 @@ import * as cloudApi from "./cloud";
 import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
 import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
 import { TutorialDialog } from "./TutorialDialog";
-import { chapterReplayReady, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
+import { chapterLevelLabel, chapterReplayReady, isChapterFinalLevel, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
 import { useInstallApp } from "./useInstallApp";
 import { InstallDialog } from "./InstallDialog";
 import { CHAPTER_FINALES } from "./chapterFinales";
@@ -33,7 +33,7 @@ const usesSelectableCompanion = (id: LevelId) => LEVELS[id].chapter === "castle"
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "skiff" | "riverOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; companionSnapshot: CompanionSnapshot | null; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
-type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region };
+type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region; returnTo?: "settings" };
 
 export default function GameShell() {
   const installApp = useInstallApp();
@@ -1031,8 +1031,8 @@ export default function GameShell() {
     finally {if(token===replayToken.current) launching.current=false;}
   }
   async function launchFinaleReplay() {
-    if (launching.current || transitioning.current || mode!=="map" || overlay!=="replayPicker" || !replayChoices.length) return;
-    const region=LEVELS[replayChoices[0]].chapter??"oasis";
+    if (launching.current || transitioning.current || mode!=="map" || overlay!=="replayBriefing" || !replayChoices.includes(replaySelection) || !isChapterFinalLevel(replaySelection)) return;
+    const region=LEVELS[replaySelection].chapter??"oasis";
     if (!CHAPTER_FINALES[region] || region!==displayRegion) return;
     const pending=pendingAttempt.current;
     if (pending?.cost && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
@@ -1041,7 +1041,7 @@ export default function GameShell() {
     try {
       const access=await verifyReplayAccess(region,token,account,generation);
       if (!access) return;
-      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !chapterReplayReady(saveRef.current,region,access) || region!==displayRegion || overlay!=="replayPicker") {setReplayError("This chapter is not available for replay.");return;}
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !chapterReplayReady(saveRef.current,region,access) || region!==displayRegion || overlay!=="replayBriefing" || !isChapterFinalLevel(replaySelection)) {setReplayError("This chapter is not available for replay.");return;}
       const session: FinaleReplay={token,generation,accountId:account?.accountId??null,region};
       finaleReplayFinishing.current=false;
       void transitionTo(()=>{
@@ -1051,6 +1051,17 @@ export default function GameShell() {
       },false);
     } catch(error) {if (cloudRef.current===account && cloudGeneration.current===generation && token===replayToken.current) setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
     finally {if(token===replayToken.current){launching.current=false;setReplayChecking(false);}}
+  }
+  function launchPlaytestFinaleReplay() {
+    if (!playtest || transitioning.current || !isChapterFinalLevel(replaySelection)) return;
+    const region=LEVELS[replaySelection].chapter??"oasis";
+    if (!CHAPTER_FINALES[region]) return;
+    const session: FinaleReplay={token:++replayToken.current,generation:cloudGeneration.current,accountId:cloudRef.current?.accountId??null,region,returnTo:"settings"};
+    finaleReplayFinishing.current=false;
+    void transitionTo(()=>{
+      finaleReplayRef.current=session;setFinaleReplay(session);
+      setMode("map");setOverlay("film");setAttempt(value=>value+1);
+    },false);
   }
   function finishFinaleReplay(token: number) {
     const session=finaleReplayRef.current;
@@ -1062,7 +1073,9 @@ export default function GameShell() {
       if (finaleReplayRef.current?.token!==token) return;
       if (cloudGeneration.current!==session.generation || session.accountId!==(cloudRef.current?.accountId??null)) { clearFinaleReplay(); return; }
       clearFinaleReplay();
-      setMode("map"); setOverlay("replayPicker"); setAttempt(value=>value+1);
+      setMode("map"); setOverlay(session.returnTo==="settings"?null:"replayPicker");
+      if (session.returnTo==="settings") setSettings(true);
+      setAttempt(value=>value+1);
     });
   }
   function openTown() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("marketArrival"); }
@@ -1089,7 +1102,7 @@ export default function GameShell() {
           companions: ["town","castle","river"].includes(chapter) ? ["keeper", "wayfinder", "gatewright", "fieldkeeper", "towncrier"] : chapter === "farmland" ? ["keeper", "wayfinder", "gatewright", "fieldkeeper"] : chapter === "gatehouse" ? ["keeper", "wayfinder", "gatewright"] : chapter === "caravan" ? ["keeper", "wayfinder"] : completed.length ? ["keeper"] : [] }));
         setKeeperMet(completed.includes("pumpHouse"));
     }
-    setSettings(false); startLevel(id);
+    setSettings(false); startLevel(id); setShopReturn(null);
   }
   function leaveBoard(reason: string) {
     if (transitioning.current) return;
@@ -1399,8 +1412,8 @@ export default function GameShell() {
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
         <div className="briefing-actions"><button className="quiet" onClick={closeBriefing}>Back to story</button><button className="primary" onClick={startBriefing}>Start level <span>→</span></button></div>
       </div></div>}
-      {overlay === "replayPicker" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Choose a level to replay"><span className="speaker">CHAPTER REPLAY · NO REWARDS</span><h2>Choose a level</h2><div className="replay-level-list">{replayChoices.map(id=><button key={id} className="setting" onClick={()=>{cancelReplayAuthorization();setReplaySelection(id);setReplayError(null);setOverlay("replayBriefing");}}>{LEVELS[id].title} · {Math.floor(LEVEL_ORDER.indexOf(id)/10)+1}.{LEVEL_ORDER.indexOf(id)%10+1}</button>)}</div>{replayChoices.length>0 && CHAPTER_FINALES[LEVELS[replayChoices[0]].chapter??"oasis"] && <button className="setting" onClick={()=>void launchFinaleReplay()} disabled={replayChecking}>{replayChecking?"Checking access…":"Watch chapter finale"} <span aria-hidden="true">▶</span></button>}{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<button className="quiet" onClick={closeReplayDialog}>Back to chapter</button></div></div>}
-      {overlay === "replayBriefing" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Replay level"><span className="speaker">REPLAY · NO REWARDS</span><h2>{LEVELS[replaySelection].title}</h2><p>{LEVELS[replaySelection].briefing}</p><div className="replay-goals">{Object.entries(LEVELS[replaySelection].goals).filter(([,count])=>Number(count)>0).map(([goal,count])=>{const icon=({water:"tutorial-water.png",leaf:"tutorial-leaf.png",pennant:"pennant.png",key:"key.png",crust:"salt-crust.png",seedpod:"seedpod.png",crate:"delivery-crate.png"} as Record<string,string>)[goal];return <span key={goal}>{icon&&<img src={assetUrl(`/sprites/${icon}` as `/${string}`)} alt=""/>}{goal==="leaf"?"REEDS":goal==="crust"?"SALT":goal.toUpperCase()} · {count}</span>;})}</div><p>Your progress and coins stay as they are. Starting boosters are unavailable in replay.</p>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<div className="briefing-actions"><button className="quiet" onClick={closeReplayDialog}>Back to chapter</button>{!replayError&&<button className="primary" onClick={()=>void launchChapterReplay(replaySelection)}>Replay level <span>→</span></button>}</div></div></div>}
+      {overlay === "replayPicker" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Choose a level to replay"><span className="speaker">CHAPTER REPLAY · NO REWARDS</span><h2>Choose a level</h2><div className="replay-level-list">{replayChoices.map(id=><button key={id} className="setting" onClick={()=>{cancelReplayAuthorization();setReplaySelection(id);setReplayError(null);if(isChapterFinalLevel(id)&&CHAPTER_FINALES[LEVELS[id].chapter??"oasis"])setOverlay("replayBriefing");else void launchChapterReplay(id);}}>{chapterLevelLabel(id)} · {LEVELS[id].title}</button>)}</div>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<button className="quiet" onClick={closeReplayDialog}>Back to chapter</button></div></div>}
+      {overlay === "replayBriefing" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Replay chapter finale"><span className="speaker">{playtest?"PLAYTEST":"REPLAY · NO REWARDS"}</span><h2>{chapterLevelLabel(replaySelection)} · {LEVELS[replaySelection].title}</h2><p>Choose the level or its chapter cutscene.</p>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<div className="briefing-actions"><button className="quiet" onClick={()=>{cancelReplayAuthorization();setReplayError(null);if(playtest){setOverlay(null);setSettings(true);}else setOverlay("replayPicker");}}>Back</button><button className="primary" onClick={()=>{if(playtest)replayLevel(replaySelection);else void launchChapterReplay(replaySelection);}}>Play level <span>→</span></button>{CHAPTER_FINALES[LEVELS[replaySelection].chapter??"oasis"]&&isChapterFinalLevel(replaySelection)&&<button className="setting" onClick={()=>playtest?launchPlaytestFinaleReplay():void launchFinaleReplay()} disabled={replayChecking}>{replayChecking?"Checking access…":"Watch cutscene"} <span aria-hidden="true">▶</span></button>}</div></div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
         <p>You can play without boosters for free. Bought boosters start on this board and are used for this attempt.</p>
@@ -1552,7 +1565,7 @@ export default function GameShell() {
         {playtest ? <>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
-          {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
+          {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => { if(isChapterFinalLevel(id)&&CHAPTER_FINALES[LEVELS[id].chapter??"oasis"]){setReplaySelection(id);setSettings(false);setOverlay("replayBriefing");}else replayLevel(id); }}>Replay {chapterLevelLabel(id)} · {LEVELS[id].title}</button>)}
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
           <button className="setting" onClick={() => previewTransition("caravan")}>Preview desert → gatehouse transition</button>
           <button className="setting" onClick={() => previewTransition("gatehouse")}>Preview Gatehouse → demo ending</button>

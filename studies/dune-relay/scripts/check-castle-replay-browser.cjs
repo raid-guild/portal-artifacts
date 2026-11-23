@@ -31,10 +31,9 @@ async function tap(page,x,y){const box=await page.locator('canvas').first().boun
 async function replayFirst(f){
   await tap(f.page,220,335);
   await f.page.locator('.replay-dialog').waitFor({timeout:15000});
-  await f.page.getByRole('button',{name:/RECEIVING DOCK · 6\.1/i}).click();
-  await f.page.getByRole('dialog',{name:'Replay level'}).waitFor();
-  await f.page.getByRole('button',{name:/Replay level/}).click();
-  await f.page.locator('canvas[data-play-ready="true"]').waitFor({timeout:30000});
+  await f.page.getByRole('button',{name:/6\.1 · RECEIVING DOCK/i}).click();
+  assert.equal(await f.page.getByRole('dialog',{name:'Replay chapter finale'}).count(),0,'ordinary replay has no extra confirmation');
+  try { await f.page.locator('canvas[data-play-ready="true"]').waitFor({timeout:30000}); } catch(error) { console.error('Castle replay state',await f.page.evaluate(()=>({canvas:[...document.querySelectorAll('canvas')].map(node=>({...node.dataset})),dialog:[...document.querySelectorAll('[role=dialog]')].map(node=>node.textContent?.slice(0,300)),issue:document.querySelector('.scene-error')?.textContent}))); await f.page.screenshot({path:'/tmp/dune-castle-replay-failure.png'}); throw error; }
   assert.match(await f.page.locator('.game-canvas').getAttribute('aria-label'),/RECEIVING DOCK puzzle/);
   await f.page.getByRole('button',{name:'Settings'}).click();
   await f.page.getByRole('button',{name:/Return to story/}).click();
