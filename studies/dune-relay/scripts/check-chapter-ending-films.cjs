@@ -33,9 +33,13 @@ async function preview(browser, chapter, finishMode) {
     else await page.getByRole('button', { name: /Skip scene/ }).click();
     await page.getByRole('heading', { name: expected }).waitFor();
     if (chapter === 'Castle') {
-      await page.getByRole('button', { name: /View the Kingdom Map/ }).click();
+      await page.getByRole('button', { name: /Board the river boat/ }).click();
+      await page.getByRole('button', { name: /Open the kingdom map/ }).click();
+      await page.getByRole('button', { name: /Board the river boat/ }).click();
+      await page.locator('.game-canvas[aria-label="Walkable river boat"] canvas').waitFor({timeout:30000});
+      await page.getByRole('button', { name: 'Kingdom Map' }).click();
       await page.getByText('RIVER JOURNEY').waitFor();
-      assert.match(await page.locator('.atlas-future').innerText(), /next chapter is coming soon/i);
+      await page.getByRole('button', { name: /RIVER JOURNEY/ }).waitFor();
     }
     assert.equal(await page.locator('.film-screen').count(), 0);
     assert.ok(await page.evaluate(() => window.__filmReleases), `${chapter}: decoder source is released`);

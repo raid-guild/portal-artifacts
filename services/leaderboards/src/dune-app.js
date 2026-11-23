@@ -206,16 +206,17 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     const level=validLevel(levelId),selected=validBoosters(boosters);
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
       await requireChapterAccess(client,req.playerSession,profile.campaign,level);
-      if (level.chapter !== 'castle' && companionId != null) throw fail(400,'Active companion only applies at Castle Island.');
-      if (level.chapter === 'castle' && !Object.hasOwn(companionAbilities, companionId)) throw fail(400,'Choose an unlocked raid member.');
-      const companionSnapshot = level.chapter === 'castle' ? { id: companionId, ...companionAbilities[companionId] } : null;
+      const usesCompanion = level.chapter === 'castle' || level.chapter === 'river';
+      if (!usesCompanion && companionId != null) throw fail(400,'Active companion only applies at Castle Island and the River.');
+      if (usesCompanion && !Object.hasOwn(companionAbilities, companionId)) throw fail(400,'Choose an unlocked raid member.');
+      const companionSnapshot = usesCompanion ? { id: companionId, ...companionAbilities[companionId] } : null;
       const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1',[attemptId]);
       if (existing) {
         const sameCompanion = existing.companion_snapshot === null && companionSnapshot === null || existing.companion_snapshot && companionSnapshot && Object.keys(existing.companion_snapshot).length === Object.keys(companionSnapshot).length && Object.entries(companionSnapshot).every(([key,value])=>existing.companion_snapshot[key]===value);
         if (String(existing.player_id)!==String(req.playerSession.player_id) || existing.level_id!==levelId || JSON.stringify(existing.boosters)!==JSON.stringify(selected) || !sameCompanion) throw fail(409,'Attempt ID already belongs to another attempt.');
         return {attemptId,status:existing.status,profile,companionSnapshot:existing.companion_snapshot};
       }
-      if (level.chapter === 'castle' && companionId !== profile.campaign.activeCompanion) throw fail(409,'Select the active raid member before starting Castle Island.');
+      if (usesCompanion && companionId !== profile.campaign.activeCompanion) throw fail(409,'Select the active raid member before starting this chapter.');
       requireCurrentLevel(profile.campaign,level);
       const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_attempts WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[req.playerSession.player_id]);
       if (rate.count>=120) throw fail(429,'Too many attempts. Try later.');

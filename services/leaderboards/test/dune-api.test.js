@@ -338,6 +338,40 @@ test('Castle attempts freeze the selected ability, including a zero-booster retr
     assert.equal((await post(`/attempts/${randomUUID()}/finish`,{levelId:content.levels[51].id,remainingMoves:10,contentVersion:content.contentVersion})).status,403);
   } finally { await new Promise(resolve=>service.close(resolve)); }
 });
+test('River requires the Dune Pass and preserves the selected companion on a zero-cost attempt',async()=>{
+  const {cookie}=await launch({sub:'user:90818164'});
+  const accountId=accountByCookie.get(cookie);
+  const completed=content.levels.slice(0,60).map(level=>level.id);
+  const campaign=deriveCampaign(completed,800,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done',region:'river',activeCompanion:'fieldkeeper'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  let allowed=false;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async()=>({state:allowed?'active':'unavailable',unlocked:allowed,unlockedAt:null,checkedAt:null,storeUrl:null})}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const localBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const post=(path,body)=>fetch(localBase+path,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const levelId=content.levels[60].id,attemptId=randomUUID();
+  try {
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'})).status,503);
+    assert.equal((await post(`/attempts/${attemptId}/finish`,{levelId,remainingMoves:3,contentVersion:content.contentVersion})).status,403);
+    allowed=true;
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'keeper'})).status,409);
+    const prepared=await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'}));
+    assert.equal(prepared.companionSnapshot.id,'fieldkeeper');
+    assert.deepEqual((await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'fieldkeeper'}))).companionSnapshot,prepared.companionSnapshot);
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'towncrier'})).status,409);
+    allowed=false;
+    assert.equal((await post(`/attempts/${attemptId}/activate`,{expectedRevision:1})).status,503);
+    allowed=true;
+    const activated=await ok(await post(`/attempts/${attemptId}/activate`,{expectedRevision:1}));
+    assert.deepEqual(activated.companionSnapshot,prepared.companionSnapshot);
+    allowed=false;
+    const finished=await ok(await post(`/attempts/${attemptId}/finish`,{levelId,remainingMoves:3,contentVersion:content.contentVersion}));
+    assert.equal(finished.profile.campaign.completed.length,61);
+    assert.equal(finished.profile.campaign.region,'river');
+    assert.equal((await post(`/attempts/${randomUUID()}/finish`,{levelId:content.levels[61].id,remainingMoves:3,contentVersion:content.contentVersion})).status,403);
+  } finally { await new Promise(resolve=>service.close(resolve)); }
+});
 test('Castle arrival and leader selection are stepwise; older checkpoints retain Castle state',()=>{
   const completed=content.levels.slice(0,50).map(level=>level.id);
   let profile={revision:1,campaign:deriveCampaign(completed,230,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'thanks',region:'town'})};

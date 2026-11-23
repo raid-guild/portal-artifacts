@@ -2,7 +2,7 @@ import type { Region } from "./save";
 import type { SoundtrackId, TrackPreference } from "./soundtracks";
 import { arrangements, MUSIC_STEPS_PER_CYCLE, notesForMusicStep, scheduleMusicVoice, type MusicNote } from "./music";
 
-export type SoundCue = "ui" | "select" | "swap" | "invalid" | "clear" | "cascade" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod" | "crate";
+export type SoundCue = "ui" | "select" | "swap" | "current" | "invalid" | "clear" | "cascade" | "land" | "jet" | "flywheel" | "prism" | "keeper" | "coin" | "banner" | "win" | "lose" | "awning" | "salt" | "seedpod" | "crate";
 
 type Voice = { source: OscillatorNode | AudioBufferSourceNode; nodes: AudioNode[] };
 type MusicRun = { id: SoundtrackId; gain: GainNode; nextAt: number; step: number };
@@ -360,6 +360,7 @@ export class GameAudio {
       case "ui": this.tone(520, 750, 0.11, 0.11); break;
       case "select": this.tone(540, 670, 0.075, 0.08, "triangle"); break;
       case "swap": this.tone(360, 480, 0.13, 0.13, "triangle"); this.tone(730, 600, 0.11, 0.035, "sine", 0.035); break;
+      case "current": this.tone(270, 420, 0.4, 0.035, "sine"); this.tone(510, 690, 0.32, 0.025, "sine", 0.08); break;
       case "invalid": this.tone(220, 130, 0.17, 0.16, "sawtooth"); break;
       case "clear": this.tone(390 + lift, 700 + lift, 0.17, 0.13, "triangle"); this.tone(900 + lift, 510 + lift, 0.1, 0.035); break;
       case "cascade": this.tone(620 + variation * 95, 880 + variation * 110, 0.16, 0.07, "sine"); break;

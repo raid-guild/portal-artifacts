@@ -107,7 +107,7 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (id === 'pennantLine') assert.equal(puzzle.goals.pennant, 30, 'Pennant Line requires thirty pennants');
     if (id === 'walkersFoot') assert.equal(puzzle.goals.pennant, 33, "Walker's Foot requires thirty-three pennants");
   }
-  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); if (index < 30) { assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); } else if(index<40) { assert.equal(puzzle.chargeSymbol,'leaf'); assert.equal(puzzle.grantedPower,'flywheels'); assert.equal(puzzle.grantCount,2); assert.equal(puzzle.keeperTarget,12); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'seedpod').length,level.seedpods.length); } else { assert.equal(puzzle.chargeSymbol,'pennant'); assert.equal(puzzle.grantedPower,'jets'); assert.equal(puzzle.grantedJetDirection,'column'); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'crate').length,level.crates.length); } }
+  if (index >= 20) { assert.deepEqual(puzzle.symbols, ['water','gear','leaf','pennant','key']); if (index < 30) { assert.equal(puzzle.chargeSymbol,'key'); assert.equal(puzzle.grantedPower,'prism'); assert.equal(puzzle.grantCount,1); } else if(index<40) { assert.equal(puzzle.chargeSymbol,'leaf'); assert.equal(puzzle.grantedPower,'flywheels'); assert.equal(puzzle.grantCount,2); assert.equal(puzzle.keeperTarget,12); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'seedpod').length,level.seedpods.length); } else if(index<60) { assert.equal(puzzle.chargeSymbol,'pennant'); assert.equal(puzzle.grantedPower,'jets'); assert.equal(puzzle.grantedJetDirection,'column'); assert.equal(puzzle.board.flat().filter(tile => tile?.kind === 'crate').length,level.crates.length); } }
   for (let row = 0; row < 9; row++) for (let col = 0; col < 9; col++) {
     assert.ok(!puzzle.crust[row][col] || (puzzle.mask[row][col] && !puzzle.board[row][col]), `${id}: crust is a solid occupied cell`);
     const tile = puzzle.board[row][col];
@@ -115,10 +115,10 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 1]?.kind !== 'seedpod' && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2]) && puzzle.board[row][col + 2]?.kind !== 'seedpod'), `${id}: no horizontal prematch`);
     if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 1][col]?.kind !== 'seedpod' && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col]) && puzzle.board[row + 2][col]?.kind !== 'seedpod'), `${id}: no vertical prematch`);
   }
-  if (level.lesson === 'practice' || level.lesson === 'crate') {
+  if (level.lesson === 'practice' || level.lesson === 'crate' || level.lesson === 'wrapCurrent' || level.lesson === 'frozenCurrent') {
     assert.equal(puzzle.opening, undefined, `${id}: unguided`);
     assert.ok(legalMove(puzzle.board), `${id}: legal opening`);
-    const expected = (level.boardShape === "clippedCorners" ? 77 : level.boardShape === "twinChambers" ? 63 : level.boardShape === "steppedBasin" ? 69 : 81) - (level.crust?.length ?? 0);
+    const expected = puzzle.mask.flat().filter(Boolean).length - (level.crust?.length ?? 0);
     assert.equal(puzzle.board.flat().filter(Boolean).length, expected, `${id}: playable cells`);
     assert.equal(puzzle.keeperTarget, level.keeperTarget ?? 9, `${id}: Keeper requirement`);
     const gaps = [];
@@ -153,7 +153,7 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     else if (id === 'saltSealedIntake') {
       assert.ok(turn.state.goals.crust < 12, 'first salt lesson move cracks adjacent crust');
       assert.ok(turn.steps.some(step => step.crustHits?.length), 'salt lesson emits a damage snapshot');
-    } else if (id !== 'oasisRelay' && id !== 'caravanPennants') {
+    } else if (id !== 'oasisRelay' && id !== 'caravanPennants' && id !== 'riverBend') {
       assert.ok(turn.powersCreated.some(created => created.power === level.lesson), `${id}: lesson power created`);
       const created = turn.powersCreated.find(created => created.power === level.lesson);
       const clearBoard = turn.steps.find(step => step.kind === 'clear').board;
@@ -163,18 +163,18 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     } else if (id === 'oasisRelay') {
       const clear = turn.steps.find(step => step.kind === 'clear');
       assert.ok(clear.effects?.some(effect => effect.power === 'flywheel' && effect.targets.length >= 40), 'relay combo fires three rows and columns');
-    } else {
+    } else if (id === 'caravanPennants') {
       assert.equal(puzzle.goals.pennant, 18, 'desert goal');
       assert.deepEqual(puzzle.symbols, ['water', 'gear', 'leaf', 'pennant']);
       assert.ok(turn.state.goals.pennant < 18, 'guided pennant swap credits goal');
       assert.equal(turn.state.moves, 27);
-    }
+    } else if (id === 'riverBend') { assert.equal(turn.steps.filter(step=>step.kind==='current').length,1); }
   }
   const completed = LEVEL_ORDER.slice(0, index + 1);
   assert.equal(nextLevel(completed), LEVEL_ORDER[index + 1] ?? null);
 }
 
-for (const id of LEVEL_ORDER.slice(40)) {
+for (const id of LEVEL_ORDER.slice(40,60)) {
   const route=townWinningRoutes[id];
   assert.ok(Array.isArray(route)&&route.length>0,`${id}: authored winning route exists`);
   let puzzle=createPuzzle(LEVELS[id]);
@@ -813,7 +813,7 @@ const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archive
 assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-6-1','new attempts carry the current content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-7-2','new attempts carry the current content version');
 assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
 assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));
@@ -889,13 +889,13 @@ for (const id of LEVEL_ORDER) {
     assert.deepEqual(applyStartingBoosters(plain,loadout).board,boosted.board,`${id} ${loadout}: placements deterministic`);
   }
 }
-const finalV4 = { ...arrivalDone, version:4, completed:[...LEVEL_ORDER], coins:1299 };
+const finalV4 = { ...arrivalDone, version:4, completed:LEVEL_ORDER.slice(0,40), coins:1299 };
 const migrationMemory = new Map([['dune-relay-campaign-v4',JSON.stringify(finalV4)]]);
 const migratedFinal = readSave({getItem:key=>migrationMemory.get(key)??null,setItem:(key,value)=>migrationMemory.set(key,value)});
 assert.equal(migratedFinal.demoEnding,'gate','completed v4 campaign resumes demo ending once');
 assert.equal(migratedFinal.farmlandEnding,'film','completed legacy save resumes the harvest film');
 assert.equal(migratedFinal.region,'farmland');
-assert.equal(migratedFinal.coins,1299); assert.deepEqual(migratedFinal.completed,LEVEL_ORDER);
+assert.equal(migratedFinal.coins,1299); assert.deepEqual(migratedFinal.completed,LEVEL_ORDER.slice(0,40));
 for (const stage of ['gate','film','thanks','done']) assert.equal(normalizeSave({...migratedFinal,demoEnding:stage}).demoEnding,stage);
 const oasisOriginV4={...finalV4,region:'oasis'};
 const migratedOasisOrigin=normalizeSave(oasisOriginV4);

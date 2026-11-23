@@ -76,4 +76,4 @@ export function guestImportId(accountId: string): string {
 export function clearGuestImportId(accountId: string): void {
   try { localStorage.removeItem(`dune-relay-import-${accountId}-v1`); } catch { /* Storage may be unavailable. */ }
 }
-export const contentVersion = 'chapter-6-1';
+export const contentVersion = 'chapter-7-2';

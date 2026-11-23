@@ -5,9 +5,15 @@ const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/';
 const allSave=(region,completed)=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
 const entitlement=state=>({accountId:'42',farmland:{unlocked:true,eligible:true,unlockedAt:'2026-11-21T00:00:00.000Z'},campaignPass:{state,unlocked:state==='active',unlockedAt:state==='active'?'2026-11-21T00:00:00.000Z':null,checkedAt:'2026-11-21T00:00:01.000Z',storeUrl:'https://store.example.test/products/dune-relay-pass'}});
 async function tap(page,x,y){const box=await page.locator('canvas').first().boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
-async function openPicker(page,region){await page.locator(`.game-canvas[data-replay-destinations*="${region==='castle'?'castleReceivingDock':'pumpHouse'}"] canvas`).waitFor({timeout:30000});await tap(page,...(region==='castle'?[220,335]:[756,289]));await page.getByRole('dialog',{name:'Choose a level to replay'}).waitFor({timeout:20000});await page.getByRole('button',{name:'Watch chapter finale'}).waitFor();}
+async function openPicker(page,region){await page.locator(`.game-canvas[data-replay-destinations*="${region==='castle'?'openTheUpstreamRoute':'openWaterway'}"] canvas`).waitFor({timeout:30000});await tap(page,...(region==='castle'?[870,295]:[485,350]));await page.getByRole('dialog',{name:'Choose a level to replay'}).waitFor({timeout:20000});assert.equal(await page.getByRole('button',{name:'Watch chapter finale'}).count(),0,'no chapter-wide film action');}
+async function selectFinale(page,name){
+  await page.getByRole('button',{name:name==='oasis-awakens'?/1\.10 · OPEN THE WATERWAY/:/6\.10 · OPEN THE UPSTREAM ROUTE/}).click();
+  await page.getByRole('dialog',{name:'Replay chapter finale'}).waitFor();
+  await page.getByRole('button',{name:'Watch cutscene'}).waitFor();
+}
 async function filmReplay(page,name,mode='skip'){
-  await page.getByRole('button',{name:'Watch chapter finale'}).click();
+  await selectFinale(page,name);
+  await page.getByRole('button',{name:'Watch cutscene'}).click();
   const video=page.locator('.film-screen video[src]');
   await video.waitFor({timeout:30000});
   await page.locator('.awning-wipe').waitFor({state:'detached',timeout:30000});
@@ -32,7 +38,8 @@ async function guest(browser){
     await filmReplay(page,'oasis-awakens','skip');
     await filmReplay(page,'oasis-awakens','end');
     await page.route('**/cinematics/oasis-awakens.mp4',route=>route.abort());
-    await page.getByRole('button',{name:'Watch chapter finale'}).click();
+    await selectFinale(page,'oasis-awakens');
+    await page.getByRole('button',{name:'Watch cutscene'}).click();
     await page.getByRole('button',{name:/Play scene/}).waitFor({timeout:30000});
     await page.locator('.awning-wipe').waitFor({state:'detached',timeout:30000});
     await page.getByRole('button',{name:/Skip scene/}).click();
@@ -46,7 +53,7 @@ async function guest(browser){
 async function portal(browser){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',levels);
+  const campaign=allSave('castle',levels.slice(0,60));
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
@@ -58,21 +65,20 @@ async function portal(browser){
     await openPicker(page,'castle');
     await filmReplay(page,'castle-upstream-departure','skip');
     await filmReplay(page,'castle-upstream-departure','end');
-    await page.getByRole('button',{name:/RECEIVING DOCK · 6\.1/i}).click();
-    await page.getByRole('dialog',{name:'Replay level'}).waitFor();
+    await selectFinale(page,'castle-upstream-departure');
+    await page.getByRole('button',{name:'Back'}).click();
     await page.getByRole('button',{name:'Back to chapter'}).click();
     await page.getByRole('button',{name:'Kingdom Map'}).click();
     assert(await page.getByText('RIVER JOURNEY').isVisible());
-    assert(await page.getByText('Coming soon',{exact:true}).isVisible());
-    assert.match(await page.locator('.atlas-future').innerText(),/next chapter is coming soon/i);
-    assert.equal(await page.getByRole('button',{name:/RIVER JOURNEY/}).count(),0,'next chapter marker is informational');
+    assert.equal(await page.getByText('Coming soon',{exact:true}).count(),0,'River is now playable');
+    assert(await page.getByRole('button',{name:/RIVER JOURNEY/}).isVisible());
     assert.deepEqual(writes,[],'film replay and map do not write campaign APIs');
   }finally{await context.close();}
 }
 async function deniedPortal(browser,partial=false){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',partial?levels.slice(0,59):levels);
+  const campaign=allSave('castle',partial?levels.slice(0,59):levels.slice(0,60));
   let entitlementReads=0;
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
@@ -86,10 +92,11 @@ async function deniedPortal(browser,partial=false){
     if(partial){
       await page.getByRole('button',{name:'Kingdom Map'}).click();
       assert.equal(await page.getByText('RIVER JOURNEY').count(),0,'River preview hidden before all Castle levels complete');
-      assert.equal(await page.getByRole('button',{name:/Watch chapter finale/}).count(),0);
+      assert.equal(await page.getByRole('button',{name:/Watch cutscene/}).count(),0);
     }else{
       await openPicker(page,'castle');
-      await page.getByRole('button',{name:'Watch chapter finale'}).click();
+      await selectFinale(page,'castle-upstream-departure');
+      await page.getByRole('button',{name:'Watch cutscene'}).click();
       await page.getByText(/This chapter is not available for replay/).waitFor();
       assert.equal(await page.locator('.film-screen').count(),0,'revoked Dune Pass cannot start finale');
     }
@@ -99,7 +106,7 @@ async function deniedPortal(browser,partial=false){
 async function cancelledPortal(browser,action){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',levels);
+  const campaign=allSave('castle',levels.slice(0,60));
   let reads=0,release,notify;
   const verificationStarted=new Promise(resolve=>{notify=resolve;});
   await page.route('**/leaderboard-api/dune-relay/**',async route=>{
@@ -112,16 +119,18 @@ async function cancelledPortal(browser,action){
   try{
     await page.goto(url);await page.getByRole('button',{name:/Enter Castle Island/}).click();await page.locator('.awning-wipe').waitFor({state:'detached'});
     await openPicker(page,'castle');
-    await page.getByRole('button',{name:'Watch chapter finale'}).click();
+    await selectFinale(page,'castle-upstream-departure');
+    await page.getByRole('button',{name:'Watch cutscene'}).click();
     await verificationStarted;
-    if(action==='level') await page.getByRole('button',{name:/RECEIVING DOCK · 6\.1/i}).click();
+    await page.getByRole('button',{name:'Back'}).click();
+    if(action==='level') { await page.getByRole('button',{name:/6\.10 · OPEN THE UPSTREAM ROUTE/i}).click(); await page.getByRole('button',{name:'Play level'}).click(); }
     else await page.getByRole('button',{name:'Back to chapter'}).click();
     release();
     await page.waitForTimeout(500);
     assert.equal(await page.locator('.film-screen').count(),0,`late entitlement cannot open a finale after ${action}`);
     assert.equal(await page.getByRole('dialog',{name:'Choose a level to replay'}).count(),0);
-    if(action==='level')assert.equal(await page.getByRole('dialog',{name:'Replay level'}).count(),1,'level briefing stays open');
+    if(action==='level')await page.locator('.game-canvas[aria-label=\"OPEN THE UPSTREAM ROUTE puzzle\"]').waitFor({timeout:30000});
     assert.deepEqual(writes,[]);
   }finally{release?.();await context.close();}
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; blocked media, revoked/incomplete/cancelled access remain safe; River teaser follows Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; blocked media, revoked/incomplete/cancelled access remain safe; River becomes playable after Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

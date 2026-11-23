@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "castle-1",
-  "contentVersion": "chapter-6-1",
+  "rulesVersion": "river-2",
+  "contentVersion": "chapter-7-2",
   "levels": [
     {
       "id": "pumpHouse",
@@ -301,6 +301,56 @@
       "id": "openTheUpstreamRoute",
       "moves": 32,
       "chapter": "castle"
+    },
+    {
+      "id": "riverBend",
+      "moves": 24,
+      "chapter": "river"
+    },
+    {
+      "id": "reedwaterReach",
+      "moves": 24,
+      "chapter": "river"
+    },
+    {
+      "id": "broadwaterTurn",
+      "moves": 25,
+      "chapter": "river"
+    },
+    {
+      "id": "saltlockedEddy",
+      "moves": 25,
+      "chapter": "river"
+    },
+    {
+      "id": "clearingTheBend",
+      "moves": 26,
+      "chapter": "river"
+    },
+    {
+      "id": "driftingCargo",
+      "moves": 24,
+      "chapter": "river"
+    },
+    {
+      "id": "reedbankDeliveries",
+      "moves": 26,
+      "chapter": "river"
+    },
+    {
+      "id": "splitwaterCargo",
+      "moves": 27,
+      "chapter": "river"
+    },
+    {
+      "id": "saltwindMooring",
+      "moves": 28,
+      "chapter": "river"
+    },
+    {
+      "id": "openTheCollectionRoute",
+      "moves": 28,
+      "chapter": "river"
     }
   ]
 }

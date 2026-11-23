@@ -2,11 +2,11 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const levels=require('../../../services/leaderboards/src/dune-content.json').levels.map(level=>level.id);
 const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/dune-relay/';
-const castle=levels.slice(50);
-const allSave=(region='castle',completed=levels)=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
+const castle=levels.slice(50,60);
+const allSave=(region='castle',completed=levels.slice(0,60))=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
 const entitlement=state=>({accountId:'42',farmland:{unlocked:true,eligible:true,unlockedAt:'2026-11-21T00:00:00.000Z'},campaignPass:{state,unlocked:state==='active',unlockedAt:state==='active'?'2026-11-21T00:00:00.000Z':null,checkedAt:'2026-11-21T00:00:01.000Z',storeUrl:'https://store.example.test/products/dune-relay-pass'}});
 
-async function fixture(browser,{region='castle',completed=levels,pass='active',holdFirst=false}={}){
+async function fixture(browser,{region='castle',completed=levels.slice(0,60),pass='active',holdFirst=false}={}){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
   const save=allSave(region,completed);
@@ -31,10 +31,9 @@ async function tap(page,x,y){const box=await page.locator('canvas').first().boun
 async function replayFirst(f){
   await tap(f.page,220,335);
   await f.page.locator('.replay-dialog').waitFor({timeout:15000});
-  await f.page.getByRole('button',{name:/RECEIVING DOCK · 6\.1/i}).click();
-  await f.page.getByRole('dialog',{name:'Replay level'}).waitFor();
-  await f.page.getByRole('button',{name:/Replay level/}).click();
-  await f.page.locator('canvas[data-play-ready="true"]').waitFor({timeout:30000});
+  await f.page.getByRole('button',{name:/6\.1 · RECEIVING DOCK/i}).click();
+  assert.equal(await f.page.getByRole('dialog',{name:'Replay chapter finale'}).count(),0,'ordinary replay has no extra confirmation');
+  try { await f.page.locator('canvas[data-play-ready="true"]').waitFor({timeout:30000}); } catch(error) { console.error('Castle replay state',await f.page.evaluate(()=>({canvas:[...document.querySelectorAll('canvas')].map(node=>({...node.dataset})),dialog:[...document.querySelectorAll('[role=dialog]')].map(node=>node.textContent?.slice(0,300)),issue:document.querySelector('.scene-error')?.textContent}))); await f.page.screenshot({path:'/tmp/dune-castle-replay-failure.png'}); throw error; }
   assert.match(await f.page.locator('.game-canvas').getAttribute('aria-label'),/RECEIVING DOCK puzzle/);
   await f.page.getByRole('button',{name:'Settings'}).click();
   await f.page.getByRole('button',{name:/Return to story/}).click();

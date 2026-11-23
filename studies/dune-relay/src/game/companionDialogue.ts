@@ -48,31 +48,40 @@ const common: Record<CompanionId, CompanionLine[]> = {
   ],
 };
 
-const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier", castle: "towncrier" };
+const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier", castle: "towncrier", river: "towncrier" };
+const skiffLines: CompanionLine[] = [
+  { id: "skiff-route", kind: "observation", text: "Water is moving. My charts say someone redirected where it should arrive." },
+  { id: "skiff-current", kind: "tip", text: "The marked current moves its tiles once after each move settles. Swaps and matches still work in the water." },
+  { id: "skiff-salt", kind: "tip", text: "Salt on the route stops the whole current. Crack the last block and the water moves that same turn." },
+  { id: "skiff-cargo", kind: "tip", text: "Clear space beneath a crate. It delivers when it reaches a glowing bottom exit." },
+  { id: "skiff-raid", kind: "handbook", text: "A Raid joins different skills around one problem. Even this boat needs more than a pilot.", source: handbook.raiding },
+];
 const symbolName = { water: "water", gear: "gears", leaf: "reeds", pennant: "pennants", key: "keys" } as const;
 
 export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | null): CompanionLine[] {
   const companion = companionForRegion[region];
-  const lines = common[companion];
+  const lines = region === "river" ? skiffLines : common[companion];
   const candidate = pendingLevel ? LEVELS[pendingLevel] : null;
   const level = candidate && (candidate.chapter ?? "oasis") === region ? candidate : null;
   if (!level) return [...lines];
   const tips: CompanionLine[] = [];
+  const voice = region === "river" ? "skiff" : companion;
   const charge = symbolName[level.chargeSymbol ?? "leaf"];
   const grant = level.grantedPower === "flywheels" ? "Flywheels" : level.grantedPower === "prism" ? "Prism" : "Jets";
-  tips.push({ id: `${companion}-charge-${level.keeperTarget ?? 9}-${charge}-${grant}`, kind: "tip", text: `Clear ${level.keeperTarget ?? 9} ${charge} to call in ${level.grantCount ?? 2} ${grant}. The meter starts again after each charge.` });
-  tips.push({ id: `${companion}-goal-${level.id}`, kind: "tip", text: `Next stop: ${level.title.toLowerCase()}. Check the goals before making your first move.` });
+  tips.push({ id: `${voice}-charge-${level.keeperTarget ?? 9}-${charge}-${grant}`, kind: "tip", text: `Clear ${level.keeperTarget ?? 9} ${charge} to call in ${level.grantCount ?? 2} ${grant}. The meter starts again after each charge.` });
+  tips.push({ id: `${voice}-goal-${level.id}`, kind: "tip", text: `Next stop: ${level.title.toLowerCase()}. Check the goals before making your first move.` });
   if (level.lesson === "jet" || level.lesson === "flywheel" || level.lesson === "prism" || level.lesson === "combo" || level.lesson === "practice") {
-    tips.push({ id: `${companion}-jet`, kind: "tip", text: "Four in a line makes a Jet. Its arrow shows the direction it will fire." });
+    tips.push({ id: `${voice}-jet`, kind: "tip", text: "Four in a line makes a Jet. Its arrow shows the direction it will fire." });
   }
-  if (level.lesson !== "jet") tips.push({ id: `${companion}-flywheel`, kind: "tip", text: "An L or T match makes a Flywheel. It clears a 3×3 patch." });
+  if (level.lesson !== "jet") tips.push({ id: `${voice}-flywheel`, kind: "tip", text: "An L or T match makes a Flywheel. It clears a 3×3 patch." });
   if (level.lesson === "prism" || level.lesson === "combo" || level.lesson === "practice" && level.id !== "primePump") {
-    tips.push({ id: `${companion}-prism`, kind: "tip", text: "Five in a line makes a Prism. Swap it with a symbol to clear that symbol." });
+    tips.push({ id: `${voice}-prism`, kind: "tip", text: "Five in a line makes a Prism. Swap it with a symbol to clear that symbol." });
   }
-  if (level.crust?.length) tips.push({ id: `${companion}-salt`, kind: "tip", text: "Match beside salt to crack it. Jets and Flywheels must hit it directly." });
-  if (level.crates?.length) tips.push({ id: `${companion}-crates`, kind: "tip", text: "Crates fall into cleared gaps and deliver when they leave a bottom edge. Powers cannot destroy them." });
-  if (level.seedpods?.length) tips.push({ id: `${companion}-pods`, kind: "tip", text: "Seedpods fall but won't swap. Crack each one twice with nearby matches." });
-  if (level.boardShape) tips.push({ id: `${companion}-shape`, kind: "tip", text: "This board has narrow spaces. Watch where new tiles can fall." });
+  if (level.current?.length) tips.push({ id: `${voice}-current`, kind: "tip", text: "The current turns after your move settles. Salt on its marked route pauses the whole loop." });
+  if (level.crust?.length) tips.push({ id: `${voice}-salt`, kind: "tip", text: "Match beside salt to crack it. Jets and Flywheels must hit it directly." });
+  if (level.crates?.length) tips.push({ id: `${voice}-crates`, kind: "tip", text: "Crates fall into cleared gaps and deliver when they leave a bottom edge. Powers cannot destroy them." });
+  if (level.seedpods?.length) tips.push({ id: `${voice}-pods`, kind: "tip", text: "Seedpods fall but won't swap. Crack each one twice with nearby matches." });
+  if (level.boardShape) tips.push({ id: `${voice}-shape`, kind: "tip", text: "This board has narrow spaces. Watch where new tiles can fall." });
   const mixed: CompanionLine[] = [];
   const length = Math.max(tips.length, lines.length);
   for (let index = 0; index < length; index++) {

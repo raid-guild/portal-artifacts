@@ -18,9 +18,12 @@ export function boardMask(shape?: "clippedCorners" | "twinChambers" | "steppedBa
 }
 export function playable(mask: BoardMask, cell: Cell): boolean { return inside(cell) && mask[cell.row][cell.col]; }
 export type Cell = { row: number; col: number };
+export type CurrentEdge = "left" | "right" | "top" | "bottom";
+export type CurrentRoute = { id: string; cells: Cell[]; closure: "loop" } | { id: string; cells: Cell[]; closure: "edgeWrap"; entry: CurrentEdge; exit: CurrentEdge };
+export type CurrentMotion = { routeId: string; tileId: number; from: Cell; to: Cell; wrap?: { entry: CurrentEdge; exit: CurrentEdge } };
 export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number; crate?: number };
 export type GoalKind = keyof Goals;
-import type { LevelDefinition } from "./levels";
+import type { LevelDefinition, PlayableLevelDefinition } from "./levels";
 export type Puzzle = {
   board: Board;
   mask: BoardMask;
@@ -40,6 +43,8 @@ export type Puzzle = {
   status: "playing" | "won" | "lost";
   unlocked: Power[];
   opening?: [Cell, Cell];
+  current?: Cell[];
+  currents?: CurrentRoute[];
 };
 export type Turn = {
   state: Puzzle;
@@ -55,10 +60,12 @@ export type Turn = {
 export type TurnStats = { symbolsCleared: Partial<Record<SymbolKind, number>>; powersCreated: Record<"jet" | Power, number>; powersActivated: Record<"jet" | Power, number>; combinations: Record<string, number>; companionGrants: number; saltHits: number; saltBlocksBroken: number; seedpodHits: number; seedpodsOpened: number; cratesDelivered: number; reshuffles: number; tilesCleared: number };
 function emptyTurnStats(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, seedpodHits: 0, seedpodsOpened: 0, cratesDelivered: 0, reshuffles: 0, tilesCleared: 0 }; }
 export type TurnStep = {
-  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle";
+  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle" | "current";
   board: Board;
   crust: CrustGrid;
   cells: Cell[];
+  currentMotions?: CurrentMotion[];
+  currentRouteIds?: string[];
   collections?: { cell: Cell; kind: GoalKind }[];
   deliveries?: { cell: Cell; id: number }[];
   crustHits?: Cell[];
@@ -259,10 +266,62 @@ function lessonMove(board: Board, lesson: LevelDefinition["lesson"], crust: Crus
   return undefined;
 }
 
-export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() >>> 0): Puzzle {
+/** The route is terrain: occupants (including powers) move, the route does not. */
+export function advanceCurrent(board: Board, path: readonly Cell[]): Board {
+  const next = copy(board);
+  path.forEach((destination, index) => {
+    const source = path[(index + path.length - 1) % path.length];
+    next[destination.row][destination.col] = board[source.row][source.col] && { ...board[source.row][source.col]! };
+  });
+  return next;
+}
+
+function validatedCurrent(path: readonly Cell[] | undefined, mask: BoardMask): Cell[] | undefined {
+  if (!path) return undefined;
+  if (path.length < 4 || new Set(path.map(key)).size !== path.length || path.some(cell => !playable(mask, cell)) ||
+      path.some((cell, index) => Math.abs(cell.row - path[(index + 1) % path.length].row) + Math.abs(cell.col - path[(index + 1) % path.length].col) !== 1))
+    throw new Error("Current must be a distinct, playable orthogonal closed loop");
+  return path.map(cell => ({ ...cell }));
+}
+
+function validatedCurrents(routes: readonly CurrentRoute[] | undefined, mask: BoardMask): CurrentRoute[] | undefined {
+  if (!routes) return undefined;
+  if (routes.length < 1 || routes.length > 2) throw new Error("Current must have one or two routes");
+  const ids = new Set<string>(), used = new Set<string>();
+  const onEdge = (cell: Cell, edge: CurrentEdge) => edge === "left" ? cell.col === 0 : edge === "right" ? cell.col === BOARD_SIZE - 1 : edge === "top" ? cell.row === 0 : cell.row === BOARD_SIZE - 1;
+  return routes.map(route => {
+    if (!route.id || ids.has(route.id) || route.cells.length < 4) throw new Error("Current route IDs must be unique and routes need four cells");
+    ids.add(route.id);
+    for (let i = 0; i < route.cells.length; i++) {
+      const cell = route.cells[i];
+      if (!playable(mask, cell) || used.has(key(cell))) throw new Error("Current routes must use distinct playable cells");
+      used.add(key(cell));
+      if (i && Math.abs(cell.row - route.cells[i-1].row) + Math.abs(cell.col - route.cells[i-1].col) !== 1) throw new Error("Current route must be orthogonal");
+    }
+    const first = route.cells[0], last = route.cells[route.cells.length - 1];
+    if (route.closure === "loop") {
+      if (Math.abs(first.row-last.row)+Math.abs(first.col-last.col)!==1) throw new Error("Current loop must close orthogonally");
+    } else if (route.closure === "edgeWrap") {
+      const edges: CurrentEdge[] = ["left","right","top","bottom"];
+      if (!edges.includes(route.entry) || !edges.includes(route.exit)) throw new Error("Current edge wrap must name valid outer edges");
+      const opposite = ({left:"right",right:"left",top:"bottom",bottom:"top"} as const)[route.entry];
+      if (route.exit!==opposite || !onEdge(first,route.entry) || !onEdge(last,route.exit) || (route.entry==="left" || route.entry==="right" ? first.row!==last.row : first.col!==last.col)) throw new Error("Current edge wrap must pair opposite outer edges");
+    } else {
+      throw new Error("Current closure must be a loop or edge wrap");
+    }
+    return route.closure === "loop" ? { id: route.id, closure: "loop" as const, cells: route.cells.map(cell => ({...cell})) } : { id:route.id, closure:"edgeWrap" as const, entry:route.entry, exit:route.exit, cells:route.cells.map(cell=>({...cell})) };
+  });
+}
+
+export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Date.now() >>> 0): Puzzle {
   const level = typeof seedOrLevel === "number" ? undefined : seedOrLevel;
   const seed = level?.seed ?? seedOrLevel as number;
-  const mask = boardMask(level?.boardShape);
+  if (level?.boardLayout && level.boardShape) throw new Error("Choose a board layout or shape, not both");
+  if (level?.boardLayout && (level.boardLayout.length !== BOARD_SIZE || level.boardLayout.some(row=>row.length!==BOARD_SIZE || /[^#.]/.test(row)))) throw new Error("Board layout must be nine rows of # and .");
+  const mask = level?.boardLayout ? level.boardLayout.map(row=>[...row].map(cell=>cell==="#")) : boardMask(level?.boardShape);
+  const current = validatedCurrent(level?.current, mask);
+  if (current && level?.currents) throw new Error("Choose legacy current or named currents");
+  const currents = validatedCurrents(level?.currents ?? (current ? [{id:"main",cells:current,closure:"loop"}] : undefined), mask);
   const crust = emptyCrust();
   for (const cell of level?.crust ?? []) {
     if (!playable(mask, cell) || crust[cell.row][cell.col] || !Number.isInteger(cell.hp ?? 1) || (cell.hp ?? 1) < 1 || (cell.hp ?? 1) > 5) throw new Error(`Invalid salt crust at ${cell.row},${cell.col}`);
@@ -290,12 +349,12 @@ export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() 
     return fresh;
   };
   if (level?.crates?.length) fresh = placeCrates(fresh);
-  let opening: [Cell, Cell] | undefined;
+  let opening: [Cell, Cell] | undefined = level?.lesson === "current" ? level.opening : undefined;
   if (level?.lesson === "combo") {
     fresh.board[3][3] = { ...fresh.board[3][3]!, jet: "row" };
     fresh.board[3][4] = { ...fresh.board[3][4]!, power: "flywheel" };
     opening = [{ row: 3, col: 3 }, { row: 3, col: 4 }];
-  } else if (level && level.lesson !== "practice" && level.lesson !== "crate") {
+  } else if (level && level.lesson !== "practice" && level.lesson !== "crate" && level.lesson !== "current" && level.lesson !== "wrapCurrent" && level.lesson !== "frozenCurrent") {
     opening = lessonMove(fresh.board, level.lesson, crust);
     for (let attempt = 1; !opening && attempt < 50; attempt++) {
       fresh = newBoard((seed + attempt * 7919) >>> 0, 1, mask, symbols, crust);
@@ -305,7 +364,7 @@ export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() 
     }
   }
   if ((level?.seedpods?.length || level?.crates?.length) && !hasLegalMove(fresh.board)) fresh = newBoard(fresh.seed, fresh.nextId, mask, symbols, crust, fresh.board);
-  return { ...fresh, mask, crust, symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
+  return { ...fresh, mask, crust, ...(current ? { current } : {}), ...(currents ? { currents } : {}), symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
     goals: level ? { ...level.goals } : { ...TARGETS },
     keeperCharge: 0, keeperTarget: level?.keeperTarget ?? KEEPER_TARGET, keeperFired: false, grantedJetDirection: level?.grantedJetDirection, status: "playing",
     unlocked: level?.lesson === "jet" ? [] : level?.lesson === "flywheel" ? ["flywheel"] : ["flywheel", "prism"], opening };
@@ -451,9 +510,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
   if (!direct) record("swap", [from, to]);
   const createdThisTurn = new Set<number>();
   const countedPowerActivations = new Set<number>();
-  let groups = initial;
-  let forced = activated;
   let iterations = 0;
+  const resolveGroups = (initialGroups: Cell[][], initialForced: Cell[]) => {
+  let groups = initialGroups;
+  let forced = initialForced;
   while ((groups.length || forced.length) && iterations++ < 50) {
     const removal = new Map<string, Cell>();
     for (const group of groups) for (const cell of group) removal.set(key(cell), cell);
@@ -653,8 +713,13 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
     record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections);
     settle(board, state.mask, state.crust); record("fall");
-    // Cargo exits at every bottom edge of the authored board mask. Salt is
-    // support, not an exit: a crate resting on it waits until it is broken.
+    deliverAtExits();
+    groups = matches(board); forced = [];
+  }
+  };
+  // Cargo exits at every bottom edge of the authored board mask. Salt is
+  // support, not an exit: a crate resting on it waits until it is broken.
+  function deliverAtExits() {
     for (let deliveryRound = 0; deliveryRound < BOARD_SIZE; deliveryRound++) {
       const deliveries: { cell: Cell; id: number }[] = [];
       const credits: NonNullable<TurnStep["collections"]> = [];
@@ -670,11 +735,44 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       steps[steps.length - 1].deliveries = deliveries;
       settle(board, state.mask, state.crust); record("fall");
     }
-    groups = matches(board); forced = [];
   }
-  const refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+  resolveGroups(initial, activated);
+  let refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
   state.seed = refill.seed; state.nextId = refill.nextId;
   record(refill.shuffled ? "shuffle" : "refill");
+  let refillShuffled = refill.shuffled;
+  const routes = state.currents ?? (state.current ? [{id:"main",closure:"loop" as const,cells:state.current}] : []);
+  const activeRoutes = routes.filter(route => !route.cells.some(cell => state.crust[cell.row][cell.col] > 0));
+  if (activeRoutes.length) {
+    const before = copy(board), motions: CurrentMotion[] = [];
+    for (const route of activeRoutes) route.cells.forEach((from,index) => {
+      const to = route.cells[(index+1)%route.cells.length], tile = before[from.row][from.col];
+      board[to.row][to.col] = tile && {...tile};
+      if (tile) motions.push({routeId:route.id,tileId:tile.id,from:{...from},to:{...to},...(index===route.cells.length-1 && route.closure==="edgeWrap" ? {wrap:{entry:route.entry,exit:route.exit}} : {})});
+    });
+    record("current", activeRoutes.flatMap(route=>route.cells));
+    steps[steps.length-1].currentMotions = motions;
+    steps[steps.length-1].currentRouteIds = activeRoutes.map(route=>route.id);
+    const currentGroups = matches(board);
+    if (currentGroups.length) {
+      resolveGroups(currentGroups, []);
+      refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+      state.seed = refill.seed; state.nextId = refill.nextId;
+      record(refill.shuffled ? "shuffle" : "refill");
+      refillShuffled ||= refill.shuffled;
+    } else {
+      // A carried crate can reach a bottom exit without making a match.
+      deliverAtExits();
+      const deliveryGroups = matches(board);
+      if (deliveryGroups.length) {
+        resolveGroups(deliveryGroups, []);
+        refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+        state.seed = refill.seed; state.nextId = refill.nextId;
+        record(refill.shuffled ? "shuffle" : "refill");
+        refillShuffled ||= refill.shuffled;
+      }
+    }
+  }
   if (state.keeperCharge >= state.keeperTarget) {
     const positions: Cell[] = [];
     for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (isSymbol(board[row][col])) positions.push({ row, col });
@@ -691,14 +789,14 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
   }
   state.status = Object.values(state.goals).every(value => value === 0) ? "won" : state.moves === 0 ? "lost" : "playing";
-  let shuffled = refill.shuffled;
+  let shuffled = refillShuffled;
   if (state.status === "playing" && !hasLegalMove(board)) {
     const fresh = newBoard(state.seed, state.nextId, state.mask, state.symbols, state.crust, board);
     state.board = fresh.board; state.seed = fresh.seed; state.nextId = fresh.nextId; shuffled = true;
     stats.reshuffles++;
     steps.push({ kind: "shuffle", board: copy(state.board), crust: copyCrust(state.crust), cells: [], jets: [], goals: { ...state.goals }, keeperCharge: state.keeperCharge });
   }
-  if (refill.shuffled) stats.reshuffles++;
+  if (refillShuffled) stats.reshuffles++;
   return { state, valid: true, cleared: [...cleared.values()], jetsCreated, powersCreated, keeperJets, shuffled, steps, stats };
 }
 
