@@ -1,12 +1,13 @@
 import { assetUrl } from "./assetUrl";
 import type { CompanionId } from "./save";
-export type ChapterId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle";
+export type ChapterId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river";
 export const CHAPTERS = {
   oasis: { title: "The Oasis", endpoint: "openWaterway", image: assetUrl("/oasis.webp"), companion: "keeper", chargeSymbol: "leaf", grant: { kind: "jet", count: 2 } },
   caravan: { title: "The Open Desert", endpoint: "lightTheRoute", image: assetUrl("/caravan.webp"), companion: "wayfinder", chargeSymbol: "pennant", grant: { kind: "flywheel", count: 2 } },
   gatehouse: { title: "The River Gatehouse", endpoint: "openTheCrossing", image: assetUrl("/gatehouse.webp"), companion: "gatewright", chargeSymbol: "key", grant: { kind: "prism", count: 1 } },
   town: { title: "Town on the Hill", endpoint: "openTheMarket", image: assetUrl("/town.webp"), companion: "towncrier", chargeSymbol: "pennant", grant: { kind: "jet", count: 2 } },
   farmland: { title: "The Seed Ledger", endpoint: "openTheHarvestRoad", image: assetUrl("/farmland.webp"), companion: "fieldkeeper", chargeSymbol: "leaf", grant: { kind: "flywheel", count: 2 } },
+  river: { title: "River Journey", endpoint: "openTheCollectionRoute", image: assetUrl("/river-boat.webp"), companion: "towncrier", chargeSymbol: "pennant", grant: { kind: "jet", count: 2 } },
   castle: { title: "Castle Island", endpoint: "openTheUpstreamRoute", image: assetUrl("/castle.webp"), companion: "towncrier", chargeSymbol: "pennant", grant: { kind: "jet", count: 2 } },
 } as const;
 export const COMPANIONS: Record<CompanionId, { name: string; portrait: string; biography: string; symbol: string; power: string; chapter: ChapterId }> = {

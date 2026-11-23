@@ -46,7 +46,7 @@ async function guest(browser){
 async function portal(browser){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',levels);
+  const campaign=allSave('castle',levels.slice(0,60));
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
@@ -63,16 +63,15 @@ async function portal(browser){
     await page.getByRole('button',{name:'Back to chapter'}).click();
     await page.getByRole('button',{name:'Kingdom Map'}).click();
     assert(await page.getByText('RIVER JOURNEY').isVisible());
-    assert(await page.getByText('Coming soon',{exact:true}).isVisible());
-    assert.match(await page.locator('.atlas-future').innerText(),/next chapter is coming soon/i);
-    assert.equal(await page.getByRole('button',{name:/RIVER JOURNEY/}).count(),0,'next chapter marker is informational');
+    assert.equal(await page.getByText('Coming soon',{exact:true}).count(),0,'River is now playable');
+    assert(await page.getByRole('button',{name:/RIVER JOURNEY/}).isVisible());
     assert.deepEqual(writes,[],'film replay and map do not write campaign APIs');
   }finally{await context.close();}
 }
 async function deniedPortal(browser,partial=false){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',partial?levels.slice(0,59):levels);
+  const campaign=allSave('castle',partial?levels.slice(0,59):levels.slice(0,60));
   let entitlementReads=0;
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
@@ -99,7 +98,7 @@ async function deniedPortal(browser,partial=false){
 async function cancelledPortal(browser,action){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
-  const campaign=allSave('castle',levels);
+  const campaign=allSave('castle',levels.slice(0,60));
   let reads=0,release,notify;
   const verificationStarted=new Promise(resolve=>{notify=resolve;});
   await page.route('**/leaderboard-api/dune-relay/**',async route=>{
@@ -124,4 +123,4 @@ async function cancelledPortal(browser,action){
     assert.deepEqual(writes,[]);
   }finally{release?.();await context.close();}
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; blocked media, revoked/incomplete/cancelled access remain safe; River teaser follows Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; blocked media, revoked/incomplete/cancelled access remain safe; River becomes playable after Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

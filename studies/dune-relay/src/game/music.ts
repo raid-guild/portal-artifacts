@@ -14,6 +14,7 @@ export const arrangements: Record<SoundtrackId, { bpm: number; roots: number[]; 
     melody: [74, null, 78, null, 81, null, 78, null, 76, null, 74, null, 71, null, null, null, 74, null, 78, 81, null, 83, null, 81, 78, null, 76, null, 74, null, null, null], wave: "sine" },
   town: { bpm: 90, roots: [50, 55, 53, 57, 50, 58, 55, 53, 50, 55, 53, 57, 58, 55, 53, 50], melody: [74, null, 77, null, 79, 81, 79, null, 77, null, 74, null, 72, null, null, null, 74, null, 77, 79, null, 81, null, 79, 77, null, 74, null, 72, null, null, null], wave: "triangle" },
   castle: { bpm: 85, roots: [48, 55, 53, 50, 48, 57, 55, 53, 50, 55, 53, 48, 46, 53, 50, 48], melody: [72, null, 74, null, 77, null, 74, null, 72, null, 69, null, 67, null, 69, null, 72, null, 74, null, 79, null, 77, null, 74, null, 72, null, 69, null, 67, null], wave: "triangle" },
+  river: { bpm: 94, roots: [50, 57, 53, 55, 50, 58, 55, 53, 50, 57, 53, 55, 58, 55, 53, 50], melody: [74, null, 77, null, 81, null, 79, null, 77, null, 74, null, 72, null, null, null, 74, null, 77, 79, null, 81, null, 79, 77, null, 74, null, 72, null, null, null], wave: "sine" },
   farmland: { bpm: 92, roots: [48, 55, 52, 57, 50, 57, 53, 55, 48, 55, 52, 57, 53, 55, 50, 48],
     melody: [72, null, 76, 79, null, 76, 74, null, 69, null, 72, null, 74, 76, null, null, 72, 76, null, 79, 81, null, 79, 76, 74, null, 72, 69, 72, null, null, null], wave: "triangle" },
 };

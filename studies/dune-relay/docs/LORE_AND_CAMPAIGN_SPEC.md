@@ -61,7 +61,7 @@ Chapters 1–5 describe the current playable direction. Chapters 6–16 are prop
 | 15 | Lava Pool | Build a crossing through machinery that drains neighboring systems to keep itself running. | Candidate lava spread with visible warnings, bounded growth, and a clear prevention action. |
 | 16 | Moloch | Break the mechanism that keeps the kingdom working against itself. | A multi-phase finale built from learned mechanics and party contributions. |
 
-Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island is implemented as Chapter 6; see the [Chapter 6 implementation spec](CHAPTER_6_CASTLE_SPEC.md).
+Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island is implemented as Chapter 6; see the [Chapter 6 implementation spec](CHAPTER_6_CASTLE_SPEC.md). River Journey is implemented as Chapter 7; see the [Chapter 7 implementation spec](CHAPTER_7_RIVER_SPEC.md).
 
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
 
@@ -168,13 +168,9 @@ Existing thresholds were authored for separate chapters: Keeper usually nine ree
 
 Retain five matching symbols throughout. Exact board masks, goals, budgets, and destinations remain open for authoring and playtesting.
 
-### Chapter 7 River Bend prototype
+### Chapter 7: River Journey
 
-The first River Journey mechanic is an eight-cell clockwise current around the center of a 9×9 board. The water is terrain: every symbol in it still swaps and matches normally, and an existing power rides along without firing. After each accepted move and its usual clear, fall, and refill, the current carries its eight occupants one space clockwise. A match made by the movement clears and cascades before the turn ends. The shift happens once per accepted move, including a directly activated power; invalid moves, hints, reshuffles, and the victory finale do not shift it. Newly created powers remain protected for the whole turn.
-
-The isolated **7.1 River Bend preview** uses five existing symbols, 26 moves, 24 water and 24 reeds, and no other obstacle. Its highlighted opening move demonstrates a current-made match. It is available only in playtest Settings and awards no campaign progress or coins. The public Chapter 7 map destination remains **Coming soon** while this rule is tested.
-
-Later River levels may put salt on current cells so the route is frozen until those blocks break; crates can be introduced separately after players understand the moving water. Neither extension is part of the first prototype. Keep the water path conspicuous and show movement before any resulting clear, so players can read cause and effect.
+The Castle manifest leads the raid upstream aboard a repair boat. Skiff, a river pilot, guides the crossing as a supporting NPC in the Raid Party. The player retains their chosen playable raid member. Ten levels follow the boat from helm to intake, cargo, and chart table. The first three introduce moving currents, the next two freeze them with salt, the next three route crates through them, and the final two combine those goals. The second oasis water-collection station is visible as the next Coming Soon chapter. See the [Chapter 7 implementation spec](CHAPTER_7_RIVER_SPEC.md) for the rules and authored arc.
 
 ## Party and matching symbols
 

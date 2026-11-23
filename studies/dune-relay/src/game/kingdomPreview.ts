@@ -4,7 +4,7 @@ import type { Region, Save } from "./save";
 export type KingdomPreview = { id: string; title: string; subtitle: string; predecessor: Region; anchor: { x: number; y: number }; label: { x: number; y: number } };
 
 export const KINGDOM_PREVIEWS: KingdomPreview[] = [
-  { id: "river", title: "RIVER JOURNEY", subtitle: "Coming soon", predecessor: "castle", anchor: { x: 900, y: 420 }, label: { x: 639, y: 222 } },
+  { id: "collection", title: "WATER COLLECTION STATION", subtitle: "Coming soon", predecessor: "river", anchor: { x: 510, y: 435 }, label: { x: 372, y: 340 } },
 ];
 
 // Adding authored levels for a chapter publishes it. A teaser is never a playable destination.

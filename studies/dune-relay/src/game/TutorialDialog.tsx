@@ -45,6 +45,23 @@ function boardFor(id: TutorialId, step: number): { board: Cell[][]; hot: number[
     if(step>=1){put(2,2,"W");put(3,2,"G");hot=[7,11,12,13];}
     if(step>=2){put(1,2,".");put(2,2,".");put(3,2,"C");hot=[17];if(step===2)fall=[7,17];}
     if(step>=3){put(3,2,".");put(4,2,".");hot=[22];}
+  } else if(id==="current" || id==="frozenCurrent") {
+    const before: Cell[][] = [
+      ["G","L","G","W","G"], ["L","W","W","L","W"],
+      ["G","W","G","G","W"], ["W","L","G","L","G"], ["L","G","W","G","L"],
+    ];
+    for(let r=0;r<5;r++) for(let c=0;c<5;c++) put(r,c,before[r][c]);
+    if(id==="current") {
+      if(step===0){hot=[3,4,9,14];arrow=[3,4];}
+      if(step>=1){put(0,3,"G");put(0,4,"L");put(1,4,"G");put(2,4,"L");hot=[6,7,8,11,13,16,17,18];arrow=undefined;}
+      if(step>=2){put(1,1,"W");put(1,2,"W");put(1,3,"W");put(2,1,"L");put(2,3,"L");put(3,1,"G");put(3,2,"L");put(3,3,"G");}
+      if(step>=3){put(1,1,".");put(1,2,".");put(1,3,".");hot=[6,7,8];}
+    } else {
+      put(1,1,step<1?"S":"W");put(3,3,step<2?"S":"L");hot=[6,18];
+      if(step===1){put(0,1,".");put(0,2,".");put(0,3,".");hot=[6,18];}
+      if(step>=2){put(0,1,"L");put(0,2,"G");put(0,3,"G");hot=[6,7,8,11,13,16,17,18];}
+      if(step>=3){put(1,1,"W");put(1,2,"W");put(1,3,"W");put(2,1,"L");put(2,3,"L");put(3,1,"G");put(3,2,"L");put(3,3,"G");}
+    }
   } else if(id==="seedpod") {
     put(2,2,"P");put(3,1,"L");put(3,2,"W");put(3,3,"W");put(4,1,"W");put(4,2,"G");hot=[12,16,17,18,21];arrow=[21,16];
     if(step>=1){put(3,1,"W");put(4,1,"L");put(2,2,"PC");hot=[12,16,17,18];arrow=[21,16];}
@@ -81,18 +98,27 @@ export function TutorialDialog({tutorial,mode,reducedMotion,onSkip,onContinue,on
     return ()=>clearTimeout(timer);
   },[hidden,finished,step,run,reducedMotion,tutorial.stages.length]);
   const scene=boardFor(tutorial.id,step);
+  const riverPath=[6,7,8,13,18,17,16,11];
+  const riverMoving=(tutorial.id==="current"&&step===2 || tutorial.id==="frozenCurrent"&&step===3) && !reducedMotion;
+  const riverBefore=boardFor("current",1).board;
+  const tutorialSpeaker = tutorial.speaker === "skiff" ? {name:"Skiff",portrait:assetUrl("/sprites/skiff-avatar.png")} : COMPANIONS[tutorial.speaker];
   const moving=scene.fall ?? scene.arrow;
-  const motionArt=scene.fall ? tutorial.id==="crate" ? "delivery-crate.png" : "seedpod-cracked.png" : tutorial.id==="prism"&&step===2 ? "prism.png" : tutorial.id==="salt"||tutorial.id==="layeredSalt"||tutorial.id==="seedpod"&&step!==2 ? "tutorial-water.png" : scene.arrow ? art[scene.board[Math.floor(scene.arrow[0]/5)][scene.arrow[0]%5] as Exclude<Cell,".">] : null;
+  const motionArt=scene.fall ? tutorial.id==="crate" ? "delivery-crate.png" : "seedpod-cracked.png" : tutorial.id==="prism"&&step===2 ? "prism.png" : tutorial.id==="salt"||tutorial.id==="layeredSalt"||tutorial.id==="frozenCurrent"||tutorial.id==="seedpod"&&step!==2 ? "tutorial-water.png" : scene.arrow ? art[scene.board[Math.floor(scene.arrow[0]/5)][scene.arrow[0]%5] as Exclude<Cell,".">] : null;
   const direction=scene.arrow ? scene.arrow[1]-scene.arrow[0]===1 ? "→" : scene.arrow[1]-scene.arrow[0]===-1 ? "←" : scene.arrow[1]>scene.arrow[0] ? "↓" : "↑" : "";
   const motionStyle=moving ? {"--from-c":moving[0]%5,"--from-r":Math.floor(moving[0]/5),"--to-c":moving[1]%5,"--to-r":Math.floor(moving[1]/5)} as CSSProperties : undefined;
   return <div className="scrim tutorial-scrim" onKeyDown={event=>{if(event.key!=="Tab")return; const controls=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));if(!controls.length)return;const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}>
     <section className="tutorial-card" role="dialog" aria-modal="true" aria-label={`${tutorial.title} lesson`} data-tutorial={tutorial.id} data-stage={step} data-finished={finished} data-hidden={hidden}>
-      <header className="tutorial-header"><div className="tutorial-speaker"><img src={COMPANIONS[tutorial.speaker].portrait} alt=""/><div><span className="speaker">{COMPANIONS[tutorial.speaker].name.toUpperCase()} SHOWS YOU</span><h2>{tutorial.title}</h2></div></div><span className="tutorial-demo-label">DEMO · NO MOVES USED</span></header>
-      <div className="tutorial-content"><div className={`tutorial-board tutorial-beam-${scene.beam ?? "none"}`} aria-label="Scripted example board" data-motion={Boolean(moving)} data-reduced={reducedMotion}>
-        {scene.board.flat().map((cell,index)=><div className={`tutorial-cell ${scene.hot.includes(index)?"is-hot":""} ${cell==="."?"is-empty":""}`} key={index}>
+      <header className="tutorial-header"><div className="tutorial-speaker"><img src={tutorialSpeaker.portrait} alt=""/><div><span className="speaker">{tutorialSpeaker.name.toUpperCase()} SHOWS YOU</span><h2>{tutorial.title}</h2></div></div><span className="tutorial-demo-label">DEMO · NO MOVES USED</span></header>
+      <div className="tutorial-content"><div className={`tutorial-board tutorial-beam-${scene.beam ?? "none"} ${tutorial.id==="frozenCurrent" && step<2 ? "tutorial-current-frozen" : ""}`} aria-label="Scripted example board" data-motion={Boolean(moving)} data-reduced={reducedMotion} data-stage={step}>
+        {scene.board.flat().map((cell,index)=><div className={`tutorial-cell ${scene.hot.includes(index)?"is-hot":""} ${riverPath.includes(index)&&(tutorial.id==="current"||tutorial.id==="frozenCurrent")?"is-current":""} ${cell==="."?"is-empty":""}`} key={index}>
           {cell!=="."&&<img src={assetUrl(`/sprites/${art[cell]}`)} alt="" draggable={false}/>}
           {scene.arrow?.[1]===index&&<span className="tutorial-swap-arrow" aria-hidden="true">{direction}</span>}
         </div>)}
+        {(tutorial.id==="current" || tutorial.id==="frozenCurrent")&&[6,7,8,13,18,17,16,11].map((index,order)=><span key={`river-${index}`} className="tutorial-current-cell" data-flow={step>=2} style={{"--river-col":index%5,"--river-row":Math.floor(index/5),"--river-order":order} as CSSProperties} aria-hidden="true"/>)}
+        {riverMoving&&riverPath.map((index,order)=>{
+          const tile=riverBefore[Math.floor(index/5)][index%5],destination=riverPath[(order+1)%riverPath.length];
+          return <img key={`${tutorial.id}-${step}-${run}-${index}`} className="tutorial-current-copy" src={assetUrl(`/sprites/${art[tile as Exclude<Cell,".">]}`)} style={{"--from-c":index%5,"--from-r":Math.floor(index/5),"--delta-c":destination%5-index%5,"--delta-r":Math.floor(destination/5)-Math.floor(index/5)} as CSSProperties} alt="" aria-hidden="true"/>;
+        })}
         {scene.beam&&<div className="tutorial-beam" aria-hidden="true"/>}
         {step===2&&["jet","flywheel","combo"].includes(tutorial.id)&&<div className="tutorial-activation" aria-hidden="true"/>}
         {moving&&motionArt&&<img key={`${tutorial.id}-${step}-${run}`} className={`tutorial-motion ${scene.fall?"is-fall":""}`} style={motionStyle} src={assetUrl(`/sprites/${motionArt}`)} alt="" aria-hidden="true"/>}

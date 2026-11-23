@@ -2,11 +2,11 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const levels=require('../../../services/leaderboards/src/dune-content.json').levels.map(level=>level.id);
 const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/dune-relay/';
-const castle=levels.slice(50);
-const allSave=(region='castle',completed=levels)=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
+const castle=levels.slice(50,60);
+const allSave=(region='castle',completed=levels.slice(0,60))=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
 const entitlement=state=>({accountId:'42',farmland:{unlocked:true,eligible:true,unlockedAt:'2026-11-21T00:00:00.000Z'},campaignPass:{state,unlocked:state==='active',unlockedAt:state==='active'?'2026-11-21T00:00:00.000Z':null,checkedAt:'2026-11-21T00:00:01.000Z',storeUrl:'https://store.example.test/products/dune-relay-pass'}});
 
-async function fixture(browser,{region='castle',completed=levels,pass='active',holdFirst=false}={}){
+async function fixture(browser,{region='castle',completed=levels.slice(0,60),pass='active',holdFirst=false}={}){
   const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
   const page=await context.newPage(),writes=[];
   const save=allSave(region,completed);

@@ -674,8 +674,13 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
     record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections);
     settle(board, state.mask, state.crust); record("fall");
-    // Cargo exits at every bottom edge of the authored board mask. Salt is
-    // support, not an exit: a crate resting on it waits until it is broken.
+    deliverAtExits();
+    groups = matches(board); forced = [];
+  }
+  };
+  // Cargo exits at every bottom edge of the authored board mask. Salt is
+  // support, not an exit: a crate resting on it waits until it is broken.
+  function deliverAtExits() {
     for (let deliveryRound = 0; deliveryRound < BOARD_SIZE; deliveryRound++) {
       const deliveries: { cell: Cell; id: number }[] = [];
       const credits: NonNullable<TurnStep["collections"]> = [];
@@ -691,15 +696,13 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       steps[steps.length - 1].deliveries = deliveries;
       settle(board, state.mask, state.crust); record("fall");
     }
-    groups = matches(board); forced = [];
   }
-  };
   resolveGroups(initial, activated);
   let refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
   state.seed = refill.seed; state.nextId = refill.nextId;
   record(refill.shuffled ? "shuffle" : "refill");
   let refillShuffled = refill.shuffled;
-  if (state.current) {
+  if (state.current && !state.current.some(cell => state.crust[cell.row][cell.col] > 0)) {
     const moved = advanceCurrent(board, state.current);
     for (const cell of state.current) board[cell.row][cell.col] = moved[cell.row][cell.col];
     record("current", state.current);
@@ -710,6 +713,17 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       state.seed = refill.seed; state.nextId = refill.nextId;
       record(refill.shuffled ? "shuffle" : "refill");
       refillShuffled ||= refill.shuffled;
+    } else {
+      // A carried crate can reach a bottom exit without making a match.
+      deliverAtExits();
+      const deliveryGroups = matches(board);
+      if (deliveryGroups.length) {
+        resolveGroups(deliveryGroups, []);
+        refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+        state.seed = refill.seed; state.nextId = refill.nextId;
+        record(refill.shuffled ? "shuffle" : "refill");
+        refillShuffled ||= refill.shuffled;
+      }
     }
   }
   if (state.keeperCharge >= state.keeperTarget) {
