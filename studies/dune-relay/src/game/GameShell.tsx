@@ -1419,6 +1419,7 @@ export default function GameShell() {
       {overlay === "lost" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={COMPANIONS[boardCompanion].portrait} alt="" /><span className="speaker">{COMPANIONS[boardCompanion].name.toUpperCase()}</span></div><h2>{level.title} stalls</h2>
         <p>The trail still needs {goalsLeft}.</p>
+        {!replayActive && BOOSTERS.some(booster => save.coins >= booster.cost) && <p className="booster-reminder"><strong>Need a boost?</strong> You can use saved coins to add a power-up before your next attempt.</p>}
         <button className="primary" onClick={retry}>Try again <span>↻</span></button>
         <button className="quiet" onClick={finish}>Back to the {level.chapter === "castle" ? "castle" : level.chapter === "town" ? "town" : level.chapter === "farmland" ? "farmland" : level.chapter === "gatehouse" ? "gatehouse" : level.chapter === "caravan" ? "caravan" : "oasis"}</button>
       </div></div>}
