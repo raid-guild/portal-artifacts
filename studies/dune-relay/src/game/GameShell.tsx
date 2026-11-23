@@ -25,11 +25,14 @@ import { TutorialDialog } from "./TutorialDialog";
 import { chapterReplayReady, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
 import { useInstallApp } from "./useInstallApp";
 import { InstallDialog } from "./InstallDialog";
+import { CHAPTER_FINALES } from "./chapterFinales";
+import { pendingKingdomPreview } from "./kingdomPreview";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; companionSnapshot: CompanionSnapshot | null; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
+type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region };
 
 export default function GameShell() {
   const installApp = useInstallApp();
@@ -52,6 +55,8 @@ export default function GameShell() {
   const [replayChoices, setReplayChoices] = useState<LevelId[]>([]);
   const [replaySelection, setReplaySelection] = useState<LevelId>("pumpHouse");
   const [replayError, setReplayError] = useState<string | null>(null);
+  const [replayChecking, setReplayChecking] = useState(false);
+  const [finaleReplay, setFinaleReplay] = useState<FinaleReplay | null>(null);
   const [overlay, setOverlay] = useState<Overlay>("start");
   const [keeperMet, setKeeperMet] = useState(false);
   const [companionLine, setCompanionLine] = useState<CompanionLine | null>(null);
@@ -114,21 +119,22 @@ export default function GameShell() {
   const activeSince = useRef<number | null>(null);
   const pendingAttempt = useRef<PendingAttempt | null>(null);
   const replaySession = useRef<{ token: number; generation: number; accountId: string | null; level: LevelId; sceneAttempt: number; farmlandUnlocked: boolean; townUnlocked: boolean } | null>(null);
+  const finaleReplayRef = useRef<FinaleReplay | null>(null);
+  const finaleReplayFinishing = useRef(false);
   const replayToken = useRef(0);
   const tokenCounter = useRef(0);
   const launching = useRef(false);
   const authorizing = useRef(false);
   const gateOpenedPending = useRef(false);
   const displayRegion=visitedRegion??save.region;
-  const filmKind = save.castleEnding === "film" ? "castle" : save.townEnding === "film" ? "town" : save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis";
-  const filmContent = {
-    castle: { source: "/cinematics/castle-upstream-departure.mp4", poster: "/cinematics/castle-upstream-departure-poster.webp", caption: "The upstream route opens. The raid’s journey will continue.", label: "The boat departs Castle Island for the upstream route" },
-    town: { source: "/cinematics/town-market-opens.mp4", poster: "/cinematics/town-market-opens-poster.webp", caption: "The market opens. The next delivery crosses to Castle Island.", label: "The Town market opens for deliveries" },
-    farmland: { source: "/cinematics/farmland-harvest.mp4", poster: "/cinematics/farmland-harvest-poster.webp", caption: "The seed stores open. The harvest convoy can move again.", label: "The farmland harvest route opens" },
-    gatehouse: { source: "/cinematics/gatehouse-crossing.mp4", poster: "/cinematics/gatehouse-crossing-poster.webp", caption: "The bridge opens. The road carries on into farmland.", label: "The gate rises and the bridge opens into farmland" },
-    caravan: { source: "/cinematics/caravan-departure.mp4", poster: "/cinematics/caravan-departure-poster.webp", caption: "The beacon lights the path. The walkers depart for the river.", label: "The walker train departs for the river" },
-    oasis: { source: "/cinematics/oasis-awakens.mp4", poster: "/cinematics/oasis-awakens-poster.webp", caption: "The pump house wakes. Water crosses the oasis.", label: "The pump house comes to life" },
-  }[filmKind];
+  const filmKind: Region = finaleReplay?.region ?? (save.castleEnding === "film" ? "castle" : save.townEnding === "film" ? "town" : save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis");
+  const filmContent = CHAPTER_FINALES[filmKind];
+
+  function clearFinaleReplay() {
+    finaleReplayRef.current = null;
+    finaleReplayFinishing.current = false;
+    setFinaleReplay(null);
+  }
 
   function finishFullscreenAttempt() {
     if (!fullscreenPending.current) return;
@@ -194,6 +200,7 @@ export default function GameShell() {
       cloudGeneration.current++;
       farmlandGeneration.current++;
       passGeneration.current++;
+      finaleReplayRef.current = null;
     };
   }, []);
 
@@ -300,7 +307,7 @@ export default function GameShell() {
     const current=cloudRef.current; if (!current) return;
     try {
       const result=await cloudApi.campaign(current.accountId); if (cloudRef.current!==current || result.accountId!==current.accountId || !result.profile) return;
-      replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+      replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
       abandonRecord("used-portal-save"); activeRecord.current=null; setRevealing(false); skipReveal.current=null;
       current.profile=result.profile; current.pending=[]; cloudConflict.current=false;
       const loaded=normalizeSave(result.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
@@ -405,7 +412,7 @@ export default function GameShell() {
   }
   async function initializeCloud(testing: boolean) {
     if (testing) { setCloudStatus("guest"); return; }
-    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+    replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
     const provisional = remembered ? cloudApi.readAccountCache(remembered) : null;
@@ -485,14 +492,14 @@ export default function GameShell() {
       const response = await cloudApi.importGuest(readSave(), cloudApi.guestImportId(current.accountId),current.accountId);
       if (cloudRef.current !== current) return;
       cloudApi.clearGuestImportId(current.accountId);
-      replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+      replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
       current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
       void refreshFarmland(current);
     } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
   }
   function startFreshPortalCampaign() {
     const current=cloudRef.current; if (!current) return;
-    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+    replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const fresh={...EMPTY_SAVE,completed:[],companions:[]};
     saveRef.current=fresh; setSave(fresh); setKeeperMet(false);
     current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh});
@@ -501,13 +508,13 @@ export default function GameShell() {
   async function signOut() {
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
-    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+    replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
-    replayToken.current++; replaySession.current=null; setReplayActive(false); setVisitedRegion(null);
+    replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
@@ -856,7 +863,7 @@ export default function GameShell() {
       if (group) {setReplayChoices(group.levels);setReplaySelection(group.levels[0]);}
       if (!group || pendingAttempt.current?.cost && !saveRef.current.completed.includes(pendingAttempt.current.level)) { setReplayError("Resolve the pending booster purchase before replaying."); setOverlay("replayBriefing"); return; }
       setReplayError(null);
-      setOverlay(group.levels.length>1?"replayPicker":"replayBriefing"); sound.current?.play("ui"); return;
+      setOverlay("replayPicker"); sound.current?.play("ui"); return;
     }
     if (event.type === "quartermaster") { setOverlay("quartermaster"); sound.current?.play("ui"); return; }
     if (event.type === "keeper" || event.type === "fieldkeeper" || event.type === "towncrier" || event.type === "gatewright" || event.type === "wayfinder") {
@@ -974,7 +981,26 @@ export default function GameShell() {
     if (!visitedRegion || transitioning.current) return;
     void transitionTo(()=>{ setVisitedRegion(null); setOverlay(null); setAttempt(value=>value+1); });
   }
-  function closeReplayDialog() { setReplayError(null); setOverlay(null); setAttempt(value=>value+1); }
+  function cancelReplayAuthorization() { replayToken.current++; launching.current=false; setReplayChecking(false); }
+  function closeReplayDialog() { cancelReplayAuthorization(); setReplayError(null); setOverlay(null); setAttempt(value=>value+1); }
+  async function verifyReplayAccess(region: Region, token: number, account: typeof cloudRef.current, generation: number) {
+    let farmlandUnlocked=Boolean(playtest ? farmlandPreview : account && farmland?.accountId===account.accountId && farmland.farmland.unlocked);
+    let townUnlocked=Boolean(playtest);
+    if ((region==="town" || region==="castle") && !playtest) {
+      if (!account) { setReplayError("Sign in to replay this chapter."); return null; }
+      const request=++passRequest.current;
+      const result=await cloudApi.entitlements(account.accountId,true);
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return null;
+      townUnlocked=publishCampaignPass(account,generation,request,result.campaignPass)?.state==="active";
+    }
+    if (region==="farmland" && !playtest) {
+      if (!account) { setReplayError("Sign in to replay Farmland."); return null; }
+      const result=await cloudApi.entitlements(account.accountId);
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return null;
+      setFarmland(result); farmlandUnlocked=result.farmland.unlocked;
+    }
+    return { farmland: farmlandUnlocked, town: townUnlocked, castle: townUnlocked };
+  }
   async function launchChapterReplay(id: LevelId, again = false) {
     if (launching.current || transitioning.current || replayActive && !again) return;
     const pending=pendingAttempt.current;
@@ -982,29 +1008,52 @@ export default function GameShell() {
     const account=cloudRef.current; const generation=cloudGeneration.current; const token=++replayToken.current;
     launching.current=true; setReplayError(null);
     try {
-      let unlocked=Boolean(playtest ? farmlandPreview : account && farmland?.accountId===account.accountId && farmland.farmland.unlocked);
-      let townUnlocked=Boolean(playtest);
-      if ((LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle") && !playtest) {
-        if (!account) {setReplayError("Sign in to replay this chapter.");return;}
-        const request=++passRequest.current;
-        const result=await cloudApi.entitlements(account.accountId,true);
-        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
-        townUnlocked=publishCampaignPass(account,generation,request,result.campaignPass)?.state==="active";
-      }
-      if (LEVELS[id].chapter==="farmland" && !playtest) {
-        if (!account) {setReplayError("Sign in to replay Farmland.");return;}
-        const result=await cloudApi.entitlements(account.accountId);
-        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
-        setFarmland(result); unlocked=result.farmland.unlocked;
-      }
-      if (cloudGeneration.current!==generation || token!==replayToken.current || !replayAllowed(saveRef.current,id,{farmland:unlocked,town:townUnlocked,castle:townUnlocked}) || (LEVELS[id].chapter??"oasis")!==displayRegion) {setReplayError("This chapter is not available for replay.");return;}
+      const region=LEVELS[id].chapter??"oasis";
+      const access=await verifyReplayAccess(region,token,account,generation);
+      if (!access) return;
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !replayAllowed(saveRef.current,id,access) || region!==displayRegion) {setReplayError("This chapter is not available for replay.");return;}
       const puzzle=createPuzzle(LEVELS[id].chapter === "castle" && saveRef.current.activeCompanion ? castleLevelForCompanion(LEVELS[id],companionSnapshot(saveRef.current.activeCompanion)) : LEVELS[id]);
       reward.current=0; setRevealing(false); abandonRecord("started-replay"); activeRecord.current=null;
-      replaySession.current={token,generation,accountId:account?.accountId??null,level:id,sceneAttempt:attempt+1,farmlandUnlocked:unlocked,townUnlocked};
+      replaySession.current={token,generation,accountId:account?.accountId??null,level:id,sceneAttempt:attempt+1,farmlandUnlocked:access.farmland,townUnlocked:access.town};
       setReplayActive(true);
       void transitionTo(()=>{setActiveLevel(id);setPuzzle(puzzle);setMode("puzzle");setOverlay(null);setAttempt(value=>value+1);});
     } catch(error) {if (cloudRef.current===account && cloudGeneration.current===generation && token===replayToken.current) setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
-    finally {launching.current=false;}
+    finally {if(token===replayToken.current) launching.current=false;}
+  }
+  async function launchFinaleReplay() {
+    if (launching.current || transitioning.current || mode!=="map" || overlay!=="replayPicker" || !replayChoices.length) return;
+    const region=LEVELS[replayChoices[0]].chapter??"oasis";
+    if (!CHAPTER_FINALES[region] || region!==displayRegion) return;
+    const pending=pendingAttempt.current;
+    if (pending?.cost && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
+    const account=cloudRef.current, generation=cloudGeneration.current, token=++replayToken.current;
+    launching.current=true; setReplayChecking(true); setReplayError(null);
+    try {
+      const access=await verifyReplayAccess(region,token,account,generation);
+      if (!access) return;
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !chapterReplayReady(saveRef.current,region,access) || region!==displayRegion || overlay!=="replayPicker") {setReplayError("This chapter is not available for replay.");return;}
+      const session: FinaleReplay={token,generation,accountId:account?.accountId??null,region};
+      finaleReplayFinishing.current=false;
+      void transitionTo(()=>{
+        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
+        finaleReplayRef.current=session; setFinaleReplay(session);
+        setMode("map"); setOverlay("film"); setAttempt(value=>value+1);
+      },false);
+    } catch(error) {if (cloudRef.current===account && cloudGeneration.current===generation && token===replayToken.current) setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
+    finally {if(token===replayToken.current){launching.current=false;setReplayChecking(false);}}
+  }
+  function finishFinaleReplay(token: number) {
+    const session=finaleReplayRef.current;
+    if (!session || session.token!==token || finaleReplayFinishing.current || transitioning.current) return;
+    if (session.generation!==cloudGeneration.current || session.accountId!==(cloudRef.current?.accountId??null)) {clearFinaleReplay();return;}
+    finaleReplayFinishing.current=true;
+    film.current?.pause();
+    void transitionTo(()=>{
+      if (finaleReplayRef.current?.token!==token) return;
+      if (cloudGeneration.current!==session.generation || session.accountId!==(cloudRef.current?.accountId??null)) { clearFinaleReplay(); return; }
+      clearFinaleReplay();
+      setMode("map"); setOverlay("replayPicker"); setAttempt(value=>value+1);
+    });
   }
   function openTown() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("marketArrival"); }
   function openCastle() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); setOverlay("party"); }
@@ -1176,6 +1225,7 @@ export default function GameShell() {
   const companionIntroduced = isCastle ? save.castleReady : isTown ? save.townReady : isFarmland ? save.farmlandReady : isGatehouse ? save.gatehouseReady : isCaravan ? save.oasisTransition === "ready" : keeperMet;
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   const demoComplete=save.completed.includes("openTheCrossing");
+  const kingdomPreview=pendingKingdomPreview(save);
   const farmlandUnlocked=playtest ? farmlandPreview : Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.unlocked);
   const passUnlocked=Boolean(playtest || currentCampaignPass()?.state==="active");
   const replayGroups=mode==="map" ? replayDestinations(save,displayRegion,{farmland:farmlandUnlocked,town:passUnlocked,castle:passUnlocked}) : [];
@@ -1307,7 +1357,7 @@ export default function GameShell() {
         <p>{mapLevel ? LEVELS[mapLevel].briefing : "The oasis is flowing."}</p>
         <div className="briefing-actions"><button className="quiet" onClick={closeBriefing}>Back to story</button><button className="primary" onClick={startBriefing}>Start level <span>→</span></button></div>
       </div></div>}
-      {overlay === "replayPicker" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Choose a level to replay"><span className="speaker">CHAPTER REPLAY · NO REWARDS</span><h2>Choose a level</h2><div className="replay-level-list">{replayChoices.map(id=><button key={id} className="setting" onClick={()=>{setReplaySelection(id);setOverlay("replayBriefing");}}>{LEVELS[id].title} · {Math.floor(LEVEL_ORDER.indexOf(id)/10)+1}.{LEVEL_ORDER.indexOf(id)%10+1}</button>)}</div><button className="quiet" onClick={closeReplayDialog}>Back to chapter</button></div></div>}
+      {overlay === "replayPicker" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Choose a level to replay"><span className="speaker">CHAPTER REPLAY · NO REWARDS</span><h2>Choose a level</h2><div className="replay-level-list">{replayChoices.map(id=><button key={id} className="setting" onClick={()=>{cancelReplayAuthorization();setReplaySelection(id);setReplayError(null);setOverlay("replayBriefing");}}>{LEVELS[id].title} · {Math.floor(LEVEL_ORDER.indexOf(id)/10)+1}.{LEVEL_ORDER.indexOf(id)%10+1}</button>)}</div>{replayChoices.length>0 && CHAPTER_FINALES[LEVELS[replayChoices[0]].chapter??"oasis"] && <button className="setting" onClick={()=>void launchFinaleReplay()} disabled={replayChecking}>{replayChecking?"Checking access…":"Watch chapter finale"} <span aria-hidden="true">▶</span></button>}{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<button className="quiet" onClick={closeReplayDialog}>Back to chapter</button></div></div>}
       {overlay === "replayBriefing" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Replay level"><span className="speaker">REPLAY · NO REWARDS</span><h2>{LEVELS[replaySelection].title}</h2><p>{LEVELS[replaySelection].briefing}</p><div className="replay-goals">{Object.entries(LEVELS[replaySelection].goals).filter(([,count])=>Number(count)>0).map(([goal,count])=>{const icon=({water:"tutorial-water.png",leaf:"tutorial-leaf.png",pennant:"pennant.png",key:"key.png",crust:"salt-crust.png",seedpod:"seedpod.png",crate:"delivery-crate.png"} as Record<string,string>)[goal];return <span key={goal}>{icon&&<img src={assetUrl(`/sprites/${icon}` as `/${string}`)} alt=""/>}{goal==="leaf"?"REEDS":goal==="crust"?"SALT":goal.toUpperCase()} · {count}</span>;})}</div><p>Your progress and coins stay as they are. Starting boosters are unavailable in replay.</p>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<div className="briefing-actions"><button className="quiet" onClick={closeReplayDialog}>Back to chapter</button>{!replayError&&<button className="primary" onClick={()=>void launchChapterReplay(replaySelection)}>Replay level <span>→</span></button>}</div></div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
@@ -1323,10 +1373,10 @@ export default function GameShell() {
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${boosterCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
       {overlay === "film" && <div className="film-screen">
-        <video ref={film} src={filmReady ? assetUrl(filmContent.source as `/${string}`) : undefined} poster={assetUrl(filmContent.poster as `/${string}`)} playsInline preload="metadata" onEnded={finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />
-        <div className="film-caption">{filmContent.caption}</div>
+        {filmContent && <video key={finaleReplay ? `replay-${finaleReplay.token}` : `campaign-${filmKind}`} ref={film} src={filmReady ? assetUrl(filmContent.source) : undefined} poster={assetUrl(filmContent.poster)} playsInline preload="metadata" onEnded={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />}
+        {filmContent && <div className="film-caption">{filmContent.caption}</div>}
         {filmBlocked && <button className="primary film-play" onClick={() => { void film.current?.play().then(() => setFilmBlocked(false)).catch(() => setFilmBlocked(true)); }}>Play scene <span>▶</span></button>}
-        <button className="film-skip" onClick={finishFilm}>Skip scene →</button>
+        <button className="film-skip" onClick={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm}>Skip scene →</button>
       </div>}
       {overlay === "handoff" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={save.transition?.from === "town" ? assetUrl("/sprites/towncrier-avatar.png") : save.transition?.from === "farmland" ? assetUrl("/sprites/fieldkeeper-avatar.png") : save.transition?.from === "gatehouse" ? assetUrl("/sprites/gatewright-avatar.png") : save.transition?.from === "caravan" ? assetUrl("/sprites/wayfinder-avatar.png") : assetUrl("/sprites/keeper-avatar.png")} alt="" /><span className="speaker">{save.transition?.from === "town" ? "THE TOWN CRIER" : save.transition?.from === "farmland" ? "THE FIELDKEEPER" : save.transition?.from === "gatehouse" ? "THE GATEWRIGHT" : save.transition?.from === "caravan" ? "THE WAYFINDER" : "THE KEEPER"}</span></div>
@@ -1340,8 +1390,10 @@ export default function GameShell() {
             <path className="atlas-path-shadow" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             <path className="atlas-path-light" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             {demoComplete && <><path className="atlas-path-shadow" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /><path className="atlas-path-light" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /></>}
+            {kingdomPreview && <path className="atlas-preview-line" d={`M${kingdomPreview.label.x+100} ${kingdomPreview.label.y+60} Q${kingdomPreview.anchor.x-80} ${kingdomPreview.anchor.y-55} ${kingdomPreview.anchor.x} ${kingdomPreview.anchor.y}`} />}
           </svg>
           <span className="atlas-anchor oasis-anchor" /><span className="atlas-anchor caravan-anchor" /><span className="atlas-anchor bridge-anchor" />{demoComplete && <><span className="atlas-anchor farmland-anchor" /><span className="atlas-anchor town-anchor" /><span className="atlas-anchor castle-anchor" /></>}
+          {kingdomPreview && <><span className="atlas-preview-anchor" style={{left:`${kingdomPreview.anchor.x/1774*100}%`,top:`${kingdomPreview.anchor.y/887*100}%`}} aria-hidden="true"/><div className="atlas-preview-label" style={{left:`${kingdomPreview.label.x/1774*100}%`,top:`${kingdomPreview.label.y/887*100}%`}} aria-label={`${kingdomPreview.title} · ${kingdomPreview.subtitle}`}><strong>{kingdomPreview.title}</strong><small>{kingdomPreview.subtitle}</small></div></>}
           <div className="atlas-route">
             <button className="atlas-stamp" disabled={save.oasisTransition !== "ready"} onClick={() => visitRegion("oasis")}>OASIS ✓<small>Waterway restored · visit</small></button>
             <button className="atlas-active" disabled={save.oasisTransition !== "ready"} onClick={() => visitRegion("caravan")}>OPEN DESERT {save.completed.includes("lightTheRoute") ? "✓" : ""}<small>{save.completed.includes("lightTheRoute") ? "Route beacon lit · visit" : "Walker train · route beacon"}</small></button>
@@ -1352,7 +1404,7 @@ export default function GameShell() {
           </div>
         </div>
         <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
-        <div className="atlas-future">{save.completed.includes("openTheMarket") ? "The market ledger points across the water to Castle Island." : save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The town on the hill is next." : save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
+        <div className="atlas-future">{kingdomPreview ? "The next chapter is coming soon. Check back often—the journey continues upstream." : save.completed.includes("openTheMarket") ? "The market ledger points across the water to Castle Island." : save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The town on the hill is next." : save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
         <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "castle" ? "Cross to Castle Island" : save.transition?.to === "town" ? "Travel to Town on the Hill" : save.transition?.to === "farmland" ? "Cross into Farmland" : save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
       </div>}
       {overlay === "farmland" && <div className="scrim"><div className="dialog-card farmland-card"><span className="speaker">THE ROAD BEYOND THE BRIDGE</span><h2>Farmland · Chapter 4</h2><p>The gate is open. Farmland is the Portal login bonus for players who finish this 30-level demo. The seed stores and water terraces are ready to explore.</p>{farmlandAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
@@ -1396,7 +1448,7 @@ export default function GameShell() {
         <button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,townEnding:"done"}));setOverlay("kingdom");}}>Kingdom Map</button>
       </div></div>}
       {overlay === "quartermaster" && <div className="scrim"><div className="dialog-card"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · CASTLE DOCK</span></div><p>The town sent one manifest. My storehouse holds another. The water route runs upstream from this dock, but first we must clear the stores and reconcile the crates. Choose who leads your raid party; their familiar power will help us.</p><button className="primary" onClick={openCastle}>Choose your leader <span>→</span></button></div></div>}
-      {overlay === "castleOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · UPSTREAM ROUTE</span></div><h2>MORE LEVELS COMING SOON</h2><p>The castle manifest is reconciled. A boat waits at the dock; its route follows the missing water upstream. The raid will continue there.</p><button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done"}));setOverlay(null);}}>Return to Castle Island <span>→</span></button><button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done"}));setOverlay("kingdom");}}>Kingdom Map</button></div></div>}
+      {overlay === "castleOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · UPSTREAM ROUTE</span></div><h2>THE UPSTREAM ROUTE IS OPEN</h2><p>The castle manifest is reconciled. A boat waits at the dock; its route follows the missing water upstream. The raid will continue there.</p><button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done"}));setOverlay("kingdom");}}>View the Kingdom Map <span>→</span></button><button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done"}));setOverlay(null);}}>Return to Castle Island</button></div></div>}
       {overlay === "crossingOpen" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/gatewright-avatar.png")} alt="" /><span className="speaker">THE GATEWRIGHT · CROSSING OPEN</span></div>
         <h2>The bridge is open</h2><p>The counterweights lift, and water runs through the gatehouse. The walkers can cross toward the farmland. The Fieldkeeper needs help with the sealed stores.</p>

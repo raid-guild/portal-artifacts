@@ -6,6 +6,7 @@ Module._extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const {LEVEL_ORDER}=require('../src/game/levels.ts');
 const {EMPTY_SAVE}=require('../src/game/save.ts');
 const {chapterReplayReady,replayAllowed,replayDestinations}=require('../src/game/chapterReplay.ts');
+const {pendingKingdomPreview,RELEASED_CHAPTERS}=require('../src/game/kingdomPreview.ts');
 const nine={...EMPTY_SAVE,completed:LEVEL_ORDER.slice(0,9)};
 const ten={...EMPTY_SAVE,completed:LEVEL_ORDER.slice(0,10)};
 assert.equal(chapterReplayReady(nine,'oasis',false),false);
@@ -29,6 +30,10 @@ assert.deepEqual(replayDestinations(all,'castle',{...campaignAccess,castle:false
 const partialCastle={...all,completed:LEVEL_ORDER.filter(id=>id!==castleLevels[9])};
 assert.equal(chapterReplayReady(partialCastle,'castle',campaignAccess),false,'partial Castle cannot open chapter replay');
 assert.deepEqual(replayDestinations(partialCastle,'castle',campaignAccess),[]);
+assert.equal(pendingKingdomPreview(partialCastle),null,'unfinished Castle does not show the next chapter');
+assert.equal(pendingKingdomPreview(all)?.id,'river','completed Castle shows the River preview');
+assert.equal(pendingKingdomPreview(all,new Set([...RELEASED_CHAPTERS,'river'])),null,'published River chapter hides its preview');
+assert.equal(pendingKingdomPreview({completed:[]}),null,'empty campaign has no next chapter teaser');
 const mapSource=fs.readFileSync(require('node:path').resolve(__dirname,'../src/game/GameCanvas.tsx'),'utf8');
 const oasisHandler=mapSource.slice(mapSource.indexOf('function makeMapScene('),mapSource.indexOf('function makeCaravanScene('));
 assert.match(oasisHandler,/if \(this\.locked\) return;\s*props\.audio\?\.unlock\(\);\s*const replay = replayPoints\.find/,'Oasis ignores rapid repeated marker taps before starting another replay walk');
