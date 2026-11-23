@@ -128,7 +128,7 @@ export default function GameShell() {
   const authorizing = useRef(false);
   const gateOpenedPending = useRef(false);
   const displayRegion=visitedRegion??save.region;
-  const filmKind: Region = finaleReplay?.region ?? (save.castleEnding === "film" ? "castle" : save.townEnding === "film" ? "town" : save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis");
+  const filmKind: Region = finaleReplay?.region ?? (save.riverEnding === "film" ? "river" : save.castleEnding === "film" ? "castle" : save.townEnding === "film" ? "town" : save.farmlandEnding === "film" ? "farmland" : save.demoEnding === "film" ? "gatehouse" : save.transition?.from === "caravan" ? "caravan" : "oasis");
   const filmContent = CHAPTER_FINALES[filmKind];
 
   function clearFinaleReplay() {
@@ -592,7 +592,8 @@ export default function GameShell() {
     }
   }
   function overlayForSave(value: Save): Overlay {
-    return value.riverEnding === "thanks" ? "riverOpen"
+    return value.riverEnding === "film" ? "film"
+      : value.riverEnding === "thanks" ? "riverOpen"
       : value.castleEnding === "film" ? "film"
       : value.castleEnding === "thanks" ? "castleOpen"
       : value.townEnding === "film" ? "film"
@@ -945,6 +946,8 @@ export default function GameShell() {
     setOverlay("film");
   }
   function finishFilm() {
+    if (saveRef.current.riverEnding === "film") { persist(normalizeSave({ ...saveRef.current, riverEnding: "thanks" })); setOverlay("riverOpen"); return; }
+    if (saveRef.current.riverEnding === "thanks") return;
     if (saveRef.current.castleEnding === "film") { persist(normalizeSave({ ...saveRef.current, castleEnding: "thanks" })); setOverlay("castleOpen"); return; }
     if (saveRef.current.castleEnding === "thanks") return;
     if (saveRef.current.townEnding === "film") { persist(normalizeSave({ ...saveRef.current, townEnding: "thanks" })); setOverlay("townOpen"); return; }
@@ -1114,7 +1117,7 @@ export default function GameShell() {
       void transitionTo(()=>{setMode("map");setPuzzle(null);setOverlay(null);setAttempt(value=>value+1);});
       return;
     }
-    const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film" || activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "film" || activeLevel === "openTheMarket" && saveRef.current.townEnding === "film" || activeLevel === "openTheUpstreamRoute" && saveRef.current.castleEnding === "film";
+    const chapterEnd = activeLevel === "openWaterway" && saveRef.current.oasisTransition === "film" || activeLevel === "lightTheRoute" && saveRef.current.transition?.from === "caravan" && saveRef.current.transition.stage === "film" || activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "film" || activeLevel === "openTheMarket" && saveRef.current.townEnding === "film" || activeLevel === "openTheUpstreamRoute" && saveRef.current.castleEnding === "film" || activeLevel === "openTheCollectionRoute" && saveRef.current.riverEnding === "film";
     const harvestOpen = activeLevel === "openTheHarvestRoad" && saveRef.current.farmlandEnding === "thanks";
     const townOpen = activeLevel === "openTheMarket" && saveRef.current.townEnding === "thanks";
     const castleOpen = activeLevel === "openTheUpstreamRoute" && saveRef.current.castleEnding === "thanks";
@@ -1226,8 +1229,8 @@ export default function GameShell() {
     if (!playtest || transitioning.current) return;
     abandonRecord("preview-transition"); activeRecord.current=null;
     setSettings(false); setRevealing(false); skipReveal.current=null;
-    const preview=normalizeSave({...saveRef.current,completed:[...LEVEL_ORDER] as LevelId[],oasisTransition:"ready",gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,activeCompanion:saveRef.current.activeCompanion??"keeper",demoEnding:"done",farmlandEnding:"done",townEnding:"done",castleEnding:"done",riverEnding:"thanks",region:"river",transition:null});
-    void transitionTo(()=>{pendingAttempt.current=null;setShopSelected([]);setShopError(null);setPuzzle(null);persist(preview);setMode("map");setOverlay("riverOpen");setAttempt(value=>value+1);});
+    const preview=normalizeSave({...saveRef.current,completed:[...LEVEL_ORDER] as LevelId[],oasisTransition:"ready",gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,activeCompanion:saveRef.current.activeCompanion??"keeper",demoEnding:"done",farmlandEnding:"done",townEnding:"done",castleEnding:"done",riverEnding:"film",region:"river",transition:null});
+    void transitionTo(()=>{pendingAttempt.current=null;setShopSelected([]);setShopError(null);setPuzzle(null);persist(preview);setMode("map");setOverlay("film");setAttempt(value=>value+1);}, false);
   }
   function reset() {
     if (cloudRef.current && !playtest) { setCloudMessage("Portal progress cannot be reset from the demo. Sign out to restart the guest campaign on this device."); return; }
@@ -1539,7 +1542,7 @@ export default function GameShell() {
         <span className="eyebrow">{level.victoryEyebrow}</span><h2>{level.victoryTitle}</h2>
         <p>{level.victoryMessage} {puzzle?.moves} spare moves fired as {puzzle?.grantedPower === "flywheels" ? "Flywheels" : puzzle?.grantedPower === "prism" ? "Prisms" : "Pressure Jets"}.</p>
         <div className="coin-reveal"><img src={assetUrl("/sprites/coin.png")} alt="" />+{reward.current} coins</div>
-        <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : activeLevel === "openTheMarket" ? "See the market open" : activeLevel === "openTheHarvestRoad" ? "See the harvest road open" : activeLevel === "openTheUpstreamRoute" ? "See the upstream route" : activeLevel === "openTheCollectionRoute" ? "Celebrate with Skiff" : level.chapter === "river" ? "Return to the river boat" : level.chapter === "castle" ? "Return to Castle Island" : level.chapter === "town" ? "Return to the market" : level.chapter === "farmland" ? "Return to the fields" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
+        <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : activeLevel === "openTheMarket" ? "See the market open" : activeLevel === "openTheHarvestRoad" ? "See the harvest road open" : activeLevel === "openTheUpstreamRoute" ? "See the upstream route" : activeLevel === "openTheCollectionRoute" ? "See the boat head upstream" : level.chapter === "river" ? "Return to the river boat" : level.chapter === "castle" ? "Return to Castle Island" : level.chapter === "town" ? "Return to the market" : level.chapter === "farmland" ? "Return to the fields" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
       </div></div>}
       {tutorialSession && <TutorialDialog key={`${tutorialSession.mode}-${tutorialSession.tutorial.id}`} tutorial={tutorialSession.tutorial} mode={tutorialSession.mode} reducedMotion={reducedMotion} onSkip={()=>dismissTutorial(true)} onContinue={()=>dismissTutorial(true)} onBack={()=>dismissTutorial(false)} />}
       {tutorialLibrary && !tutorialSession && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}

@@ -70,10 +70,22 @@ test('River partial and finale saves resume at the same level with protected end
   assert.doesNotThrow(() => requireCurrentLevel(partial, { ...content.levels[64], index: 64 }));
   let profile = { revision: 4, campaign: deriveCampaign(prefix(70), 700, { ...partial, completed: prefix(70) }) };
   assert.equal(profile.campaign.castleEnding, 'done');
+  assert.equal(profile.campaign.riverEnding, 'film');
+  assert.throws(() => step(profile, { riverEnding: 'done' }), { status: 400 });
+  profile = step(profile, { riverEnding: 'thanks' });
   assert.equal(profile.campaign.riverEnding, 'thanks');
+  assert.throws(() => step(profile, { riverEnding: 'film' }), { status: 400 });
   profile = step(profile, { riverEnding: 'done' });
   assert.equal(normalizeProfile(profile).campaign.riverEnding, 'done');
   assert.throws(() => step(profile, { riverEnding: 'thanks' }), { status: 400 });
+});
+
+test('legacy completed River checkpoints remain acknowledged and incomplete saves stay locked', () => {
+  const completed = prefix(70);
+  const base = { ...castleFields, riverReady: true, castleEnding: 'done', region: 'river' };
+  assert.equal(deriveCampaign(completed, 700, { ...base, riverEnding: 'thanks' }).riverEnding, 'thanks');
+  assert.equal(deriveCampaign(completed, 700, { ...base, riverEnding: 'done' }).riverEnding, 'done');
+  assert.equal(deriveCampaign(prefix(69), 700, { ...base, riverEnding: 'film' }).riverEnding, 'locked');
 });
 
 test('guest saves cannot smuggle River state into a Portal account', () => {

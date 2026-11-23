@@ -1,6 +1,6 @@
 # Chapter 7: River Journey
 
-After Castle Island's manifest points upstream, the Quartermaster provisions a repair boat. Skiff, a river pilot and supporting NPC, meets the raid on deck. The crew follows the current toward water that is moving but not reaching the people waiting for it. The journey ends with a view of the water collection station at the second oasis. That station is a Coming Soon marker; no final video is available for this chapter.
+After Castle Island's manifest points upstream, the Quartermaster provisions a repair boat. Skiff, a river pilot and supporting NPC, meets the raid on deck. The crew follows the current toward water that is moving but not reaching the people waiting for it. After 7.10, a short film follows the repair boat upstream toward the water collection station at the second oasis. That station remains a Coming Soon marker.
 
 ## Play and progression
 
@@ -16,6 +16,6 @@ Any salt crust remaining on a route freezes that route only. A second, unblocked
 
 ## Access, saves, and replay
 
-This chapter requires the Portal Dune Pass, including a free $0 claim option. Guest play remains available through the earlier demo chapters. Castle's chapter finale hands off through the kingdom map and boat arrival. A legacy save that completed all 60 existing levels and acknowledged Castle's ending may board River without replaying Castle. River completion awards coins normally, then presents a brief Skiff celebration and the Coming Soon map destination. Completed River levels follow the same chapter-replay rule: replay is available after completing the chapter and earns no further coins.
+This chapter requires the Portal Dune Pass, including a free $0 claim option. Guest play remains available through the earlier demo chapters. Castle's chapter finale hands off through the kingdom map and boat arrival. A legacy save that completed all 60 existing levels and acknowledged Castle's ending may board River without replaying Castle. River completion awards coins normally, then plays the upstream film before a brief Skiff celebration and the Coming Soon map destination. Completed River levels follow the same chapter-replay rule: replay is available after completing the chapter and earns no further coins. Only the 7.10 replay choice offers the River film. Existing saves at the Skiff celebration or later keep that stage without replaying the new film.
 
 The authored content version is `chapter-7-2`; current rules version is `river-2`. Previously started `chapter-7-1` attempts retain their original move budgets in the leaderboard's legacy budget snapshot. Progress retains the v5 save key with additive River fields. No new service secret or migration is required beyond the existing Dune Pass setup.

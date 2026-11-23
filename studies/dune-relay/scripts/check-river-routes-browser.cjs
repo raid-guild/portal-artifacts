@@ -35,6 +35,7 @@ async function runLevel(browser,number,id,expected){
     await page.getByRole('button',{name:/Enter the oasis/}).click();
     await page.getByRole('button',{name:'Settings'}).click();
     await page.getByRole('button',{name:new RegExp(`Replay 7\\.${number} ·`)}).click();
+    if(number===10)await page.getByRole('button',{name:/Play level/}).click();
     await page.getByRole('button',{name:/Start level/}).click();
     if(number===3||number===5){
       await page.getByRole('dialog',{name:/lesson/}).waitFor({timeout:30000});

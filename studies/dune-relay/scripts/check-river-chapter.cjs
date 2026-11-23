@@ -165,6 +165,6 @@ assert.equal(legacy.riverReady, true, 'legacy completed Castle save can board Ri
 const atCastle = normalizeSave({ ...oldCastle, riverReady:false });
 assert.equal(atCastle.riverReady, false, 'new Castle completion waits for handoff');
 const withRiver = completeLevel(normalizeSave({ ...legacy, region:'river', riverReady:true, castleEnding:'done', completed:LEVEL_ORDER.slice(0,69) }), 'openTheCollectionRoute', 99);
-assert.equal(withRiver.riverEnding,'thanks');
+assert.equal(withRiver.riverEnding,'film');
 assert.equal(withRiver.completed.length,70);
 console.log('River chapter checks passed: 50 winning routes, progression, and legacy Castle save.');

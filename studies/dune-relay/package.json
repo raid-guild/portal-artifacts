@@ -10,6 +10,7 @@
     "music:export": "node scripts/export-music.cjs",
     "test:browser": "node scripts/check-browser.cjs",
     "test:river-browser": "node scripts/check-river-chapter-browser.cjs && node scripts/check-river-recovery-browser.cjs && node scripts/check-river-routes-browser.cjs",
+    "test:river-film-browser": "node scripts/check-river-finale-film-browser.cjs",
     "test:pwa-browser": "node scripts/check-pwa-browser.cjs",
     "test:public-access": "node scripts/check-public-access.cjs",
     "test:companion-browser": "node scripts/check-companion-browser.cjs",

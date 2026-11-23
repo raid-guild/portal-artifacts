@@ -104,7 +104,7 @@ export function deriveCampaign(completed, coins, requested = {}) {
   const townStages = ['locked','film','thanks','done'];
   const townEnding = townDone && townStages.includes(requested.townEnding) && requested.townEnding !== 'locked' ? requested.townEnding : townDone ? 'film' : 'locked';
   const castleEnding = castleDone && townStages.includes(requested.castleEnding) && requested.castleEnding !== 'locked' ? requested.castleEnding : castleDone ? 'film' : 'locked';
-  const riverEnding = riverDone && ['thanks','done'].includes(requested.riverEnding) ? requested.riverEnding : riverDone ? 'thanks' : 'locked';
+  const riverEnding = riverDone && townStages.includes(requested.riverEnding) && requested.riverEnding !== 'locked' ? requested.riverEnding : riverDone ? 'film' : 'locked';
   const companions = [ ...(oasisStages.indexOf(oasisTransition) >= 3 ? ['keeper'] : []), ...(oasisTransition === 'ready' ? ['wayfinder'] : []), ...(gatehouseReady ? ['gatewright'] : []), ...(farmlandReady ? ['fieldkeeper'] : []), ...(townReady ? ['towncrier'] : []) ];
   const activeCompanion = castleReady && companions.includes(requested.activeCompanion) ? requested.activeCompanion : null;
   const region = transition?.stage === 'arrival' ? transition.to
@@ -200,7 +200,7 @@ export function applyCheckpoint(profile, requested) {
   if (nextTown < priorTown || nextTown > priorTown + 1 && !(before.townEnding === 'film' && after.townEnding === 'done')) throw fail(400, 'Invalid Town ending checkpoint.');
   const priorCastle = townEnding.indexOf(before.castleEnding ?? 'locked'), nextCastle = townEnding.indexOf(after.castleEnding);
   if (nextCastle < priorCastle || nextCastle > priorCastle + 1 && !(before.castleEnding === 'film' && after.castleEnding === 'done')) throw fail(400, 'Invalid Castle ending checkpoint.');
-  const riverStages = ['locked','thanks','done'];
+  const riverStages = ['locked','film','thanks','done'];
   const priorRiver = riverStages.indexOf(before.riverEnding ?? 'locked'), nextRiver = riverStages.indexOf(after.riverEnding);
   if (nextRiver < priorRiver || nextRiver > priorRiver + 1) throw fail(400, 'Invalid River ending checkpoint.');
   if (after.gatehouseReady && !before.gatehouseReady && before.transition?.stage !== 'arrival') throw fail(400, 'Gatehouse arrival is incomplete.');
