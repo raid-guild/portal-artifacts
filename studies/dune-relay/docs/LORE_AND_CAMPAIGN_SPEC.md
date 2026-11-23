@@ -168,6 +168,14 @@ Existing thresholds were authored for separate chapters: Keeper usually nine ree
 
 Retain five matching symbols throughout. Exact board masks, goals, budgets, and destinations remain open for authoring and playtesting.
 
+### Chapter 7 River Bend prototype
+
+The first River Journey mechanic is an eight-cell clockwise current around the center of a 9×9 board. The water is terrain: every symbol in it still swaps and matches normally, and an existing power rides along without firing. After each accepted move and its usual clear, fall, and refill, the current carries its eight occupants one space clockwise. A match made by the movement clears and cascades before the turn ends. The shift happens once per accepted move, including a directly activated power; invalid moves, hints, reshuffles, and the victory finale do not shift it. Newly created powers remain protected for the whole turn.
+
+The isolated **7.1 River Bend preview** uses five existing symbols, 26 moves, 24 water and 24 reeds, and no other obstacle. Its highlighted opening move demonstrates a current-made match. It is available only in playtest Settings and awards no campaign progress or coins. The public Chapter 7 map destination remains **Coming soon** while this rule is tested.
+
+Later River levels may put salt on current cells so the route is frozen until those blocks break; crates can be introduced separately after players understand the moving water. Neither extension is part of the first prototype. Keep the water path conspicuous and show movement before any resulting clear, so players can read cause and effect.
+
 ## Party and matching symbols
 
 A possible seven-companion core party is:

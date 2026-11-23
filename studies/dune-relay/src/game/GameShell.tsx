@@ -11,7 +11,7 @@ import { GameAudio } from "./audio";
 import { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS, type TrackPreference } from "./soundtracks";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
 import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, setActiveCompanion, type CompanionId, type Region, type Save, writeSave } from "./save";
-import { castleLevelForCompanion, companionSnapshot, sameCompanionSnapshot, type CompanionSnapshot } from "./companionAbilities";
+import { castleLevelForCompanion, companionSnapshot, sameCompanionSnapshot, COMPANION_ABILITIES, type CompanionSnapshot } from "./companionAbilities";
 import { addAttempt, appendTurn, archiveCsv, archiveJson, campaignArchiveKey, emptyArchive, finishAttempt, PLAYTEST_KEY, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
 import { selectCompanionLine, type CompanionLine } from "./companionDialogue";
@@ -27,6 +27,7 @@ import { useInstallApp } from "./useInstallApp";
 import { InstallDialog } from "./InstallDialog";
 import { CHAPTER_FINALES } from "./chapterFinales";
 import { pendingKingdomPreview } from "./kingdomPreview";
+import { RIVER_BEND } from "./riverPrototype";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
@@ -68,6 +69,10 @@ export default function GameShell() {
   const [shopSelected, setShopSelected] = useState<BoosterKind[]>([]);
   const [shopError, setShopError] = useState<string | null>(null);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [riverIntro, setRiverIntro] = useState(false);
+  const [riverPreview, setRiverPreview] = useState(false);
+  const [riverPuzzle, setRiverPuzzle] = useState<Puzzle | null>(null);
+  const [riverResult, setRiverResult] = useState<"won" | "lost" | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
   const [sfxVolume, setSfxVolume] = useState(0.7);
@@ -1080,6 +1085,24 @@ export default function GameShell() {
     }
     setSettings(false); startLevel(id);
   }
+  function startRiverPreview() {
+    if (!playtest || transitioning.current || !riverPreview && (mode !== "map" || replayActive || activeRecord.current !== null)) return;
+    setRiverIntro(false); setRiverResult(null); setSettings(false); setRevealing(false); skipReveal.current = null;
+    const riverLevel = { ...RIVER_BEND, ...COMPANION_ABILITIES[saveRef.current.activeCompanion ?? "keeper"] };
+    void transitionTo(() => { replayToken.current++; replaySession.current = null; setReplayActive(false); pendingAttempt.current = null; setPuzzle(null); setRiverPuzzle(createPuzzle(riverLevel)); setRiverPreview(true); setMode("puzzle"); setOverlay(null); setAttempt(value => value + 1); });
+  }
+  function leaveRiverPreview() {
+    if (transitioning.current) return;
+    setRiverResult(null); setSettings(false); setRevealing(false); skipReveal.current = null;
+    void transitionTo(() => { replayToken.current++; replaySession.current = null; setReplayActive(false); setRiverPreview(false); setRiverPuzzle(null); setMode("map"); setOverlay(null); setAttempt(value => value + 1); });
+  }
+  function onRiverEvent(event: GameEvent) {
+    if (!riverPreview || transitioning.current) return;
+    if (event.type === "turn") setRiverPuzzle(event.puzzle);
+    if (event.type === "revealStarted") setRevealing(true);
+    if (event.type === "win") { setRevealing(false); setRiverResult("won"); }
+    if (event.type === "lose") { setRevealing(false); setRiverResult("lost"); }
+  }
   function leaveBoard(reason: string) {
     if (transitioning.current) return;
     setSettings(false); setRevealing(false); skipReveal.current = null;
@@ -1221,6 +1244,7 @@ export default function GameShell() {
   const saveStatus = cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving…" : cloudStatus === "pending" ? "Waiting to sync" : cloudStatus === "expired" ? "Sign in again" : cloudStatus === "checking" ? "Checking save…" : "Saved on this device";
   const speakerId = isTown ? "towncrier" : isFarmland ? "fieldkeeper" : isGatehouse ? "gatewright" : isCaravan ? "wayfinder" : "keeper";
   const boardCompanion: CompanionId = level.chapter === "castle" ? pendingAttempt.current?.companionSnapshot?.id ?? save.activeCompanion ?? "towncrier" : level.chapter === "town" ? "towncrier" : level.chapter === "farmland" ? "fieldkeeper" : level.chapter === "gatehouse" ? "gatewright" : level.chapter === "caravan" ? "wayfinder" : "keeper";
+  const riverLevel = { ...RIVER_BEND, ...COMPANION_ABILITIES[save.activeCompanion ?? "keeper"] };
   const speaker = isCastle ? {name:"The Quartermaster",portrait:assetUrl("/sprites/quartermaster-avatar.png")} : COMPANIONS[speakerId];
   const companionIntroduced = isCastle ? save.castleReady : isTown ? save.townReady : isFarmland ? save.farmlandReady : isGatehouse ? save.gatehouseReady : isCaravan ? save.oasisTransition === "ready" : keeperMet;
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
@@ -1301,15 +1325,15 @@ export default function GameShell() {
     return <><p>Claim the Dune Pass in the RaidGuild store. Pay what you want, including $0 with Portal login. Chapter 5 is ready.</p>{campaignPass.storeUrl ? <a className="farmland-action" href={campaignPass.storeUrl}>Open the Dune Pass store →</a> : <p>The store link is not available yet.</p>}<button className="quiet" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Check access"}</button></>;
   }
   return <main className="viewport">
-    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-overlay={overlay ?? "none"} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-overlay={overlay ?? "none"} data-moves={mode === "puzzle" ? (riverPreview ? riverPuzzle : puzzle)?.moves : undefined} data-reduced-motion={reducedMotion}>
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${riverPreview ? "river" : displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={riverPreview ? "castle" : displayRegion} activeCompanion={save.activeCompanion} boardCompanion={riverPreview ? save.activeCompanion ?? "keeper" : boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={riverPreview ? riverLevel : level} puzzle={riverPreview ? riverPuzzle : puzzle} startingBoosters={!riverPreview && mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null || riverIntro || riverResult !== null} onReady={async () => { const authorized = riverPreview ? true : await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
         setSceneIssue(reason === "context-lost" ? "The graphics context was interrupted." : "The scene could not load.");
-      }} onEvent={onEvent} skipReveal={skipReveal} />}
+      }} onEvent={riverPreview ? onRiverEvent : onEvent} skipReveal={skipReveal} />}
       <div className="save-hud">
-        {mode === "puzzle" && <span className="level-pill" aria-label={`Chapter ${chapterNumber}, level ${chapterLevel}`}>{chapterNumber}.{chapterLevel}</span>}
+        {mode === "puzzle" && <span className="level-pill" aria-label={riverPreview ? "River preview level 7.1" : `Chapter ${chapterNumber}, level ${chapterLevel}`}>{riverPreview ? "7.1 · PREVIEW" : `${chapterNumber}.${chapterLevel}`}</span>}
         <span className="coin-pill" aria-label={`${save.coins} coins`}><img src={assetUrl("/sprites/coin.png")} alt="" />{save.coins.toLocaleString("en-US")}</span>
         {!playtest && <div className="cloud-pill" role="status" title={`${portalName ?? "Guest"} · ${saveStatus}`} aria-label={`${portalName ?? "Guest"} · ${saveStatus}`}><span className="cloud-name">{portalName ?? "Guest"} · </span><span className="cloud-status">{saveStatus}</span></div>}
       </div>
@@ -1484,13 +1508,15 @@ export default function GameShell() {
       </div></div>}
       {tutorialSession && <TutorialDialog key={`${tutorialSession.mode}-${tutorialSession.tutorial.id}`} tutorial={tutorialSession.tutorial} mode={tutorialSession.mode} reducedMotion={reducedMotion} onSkip={()=>dismissTutorial(true)} onContinue={()=>dismissTutorial(true)} onBack={()=>dismissTutorial(false)} />}
       {tutorialLibrary && !tutorialSession && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
+      {riverIntro && <div className="scrim"><div className="dialog-card" role="dialog" aria-modal="true" aria-label="River current preview"><span className="speaker">RIVER · LEVEL 7.1 PREVIEW</span><h2>River Bend</h2><p>{RIVER_BEND.briefing}</p><p>This playtest is separate from the campaign. It awards no coins or progress.</p><button className="farmland-action" onClick={startRiverPreview}>Try the current →</button><button className="quiet" onClick={() => setRiverIntro(false)}>Back</button></div></div>}
+      {riverResult && riverPreview && <div className="scrim"><div className="dialog-card" role="dialog" aria-modal="true" aria-label="River preview result"><span className="speaker">RIVER BEND · PREVIEW</span><h2>{riverResult === "won" ? "Current mastered!" : "Out of moves"}</h2><p>{riverResult === "won" ? "You opened the bend. This prototype does not award campaign coins." : "Try lining up a match where the clockwise current will carry a water tile into place."}</p><button className="farmland-action" onClick={startRiverPreview}>Try again →</button><button className="quiet" onClick={leaveRiverPreview}>Return to story</button></div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
           {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
-        {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
+        {mode === "puzzle" && <><button className="setting return-story" onClick={() => riverPreview ? leaveRiverPreview() : leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button>{!riverPreview && <small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small>}</>}
         <button className="setting" onClick={() => {setSettings(false);setTutorialLibrary(true);}}>How to play <span aria-hidden="true">→</span></button>
         {!installApp.isAppWindow && !installApp.installCompleted && <button className="setting" onClick={installApp.install} disabled={installApp.promptBusy}>Install Dune Relay <span aria-hidden="true">↗</span></button>}
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
@@ -1503,7 +1529,8 @@ export default function GameShell() {
         <button className="quiet" onClick={() => setSettings(false)}>Close</button>
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {archiveKey.current && cloudStatus !== "checking" && (playtest || cloudStatus !== "expired") && <><small className="setting-note">Level stats stay on this device{playtest ? " in a separate playtest archive" : cloudRef.current ? " for this Portal account" : " for this guest campaign"}. Export a copy here.</small><button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button><button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button></>}
-        {playtest ? <>
+        {playtest && riverPreview ? <button className="setting" onClick={startRiverPreview}>Retry River Bend</button> : playtest ? <>
+          {mode === "map" && !replayActive && !activeRecord.current && <button className="setting" onClick={() => {setSettings(false);setRiverIntro(true);}}>Preview River currents</button>}
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => replayLevel(id)}>Replay {LEVELS[id].title}</button>)}
@@ -1523,6 +1550,7 @@ export default function GameShell() {
         <span className="speaker">SCENE INTERRUPTED</span>
         <p>{sceneIssue} Reloading returns to the path. {playtest ? "This test level restarts; recorded playtest attempts stay on this device." : "Unfinished levels restart; completed levels and coins are saved on this device."}</p>
         <button className="primary" onClick={() => window.location.reload()}>Reload game <span>↻</span></button>
+        {riverPreview && <button className="quiet" onClick={leaveRiverPreview}>Return to story</button>}
         {sceneIssue.includes("purchase") && <button className="quiet" onClick={recoverShop}>{pendingAttempt.current?.cost ? "Resolve booster purchase" : "Choose a free loadout"}</button>}
         <button className="quiet" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
       </div></div>}

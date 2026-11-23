@@ -28,6 +28,15 @@ export type LevelDefinition = {
   victoryMessage: string;
 };
 
+// A local, playable experiment may use the same board rules without becoming a
+// campaign level (or acquiring a save ID and cloud entitlement).
+export type PlayableLevelDefinition = Omit<LevelDefinition, "id" | "lesson" | "destination"> & {
+  id: string;
+  lesson: LevelDefinition["lesson"] | "current";
+  destination?: LevelDefinition["destination"];
+  current?: Cell[];
+};
+
 export const LEVELS: Record<LevelId, LevelDefinition> = {
   pumpHouse: {
     id: "pumpHouse", title: "PUMP HOUSE", seed: 1337, moves: 24, lesson: "jet", destination: "pumpHouse",

@@ -20,7 +20,7 @@ export function playable(mask: BoardMask, cell: Cell): boolean { return inside(c
 export type Cell = { row: number; col: number };
 export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number; crate?: number };
 export type GoalKind = keyof Goals;
-import type { LevelDefinition } from "./levels";
+import type { LevelDefinition, PlayableLevelDefinition } from "./levels";
 export type Puzzle = {
   board: Board;
   mask: BoardMask;
@@ -40,6 +40,7 @@ export type Puzzle = {
   status: "playing" | "won" | "lost";
   unlocked: Power[];
   opening?: [Cell, Cell];
+  current?: Cell[];
 };
 export type Turn = {
   state: Puzzle;
@@ -55,7 +56,7 @@ export type Turn = {
 export type TurnStats = { symbolsCleared: Partial<Record<SymbolKind, number>>; powersCreated: Record<"jet" | Power, number>; powersActivated: Record<"jet" | Power, number>; combinations: Record<string, number>; companionGrants: number; saltHits: number; saltBlocksBroken: number; seedpodHits: number; seedpodsOpened: number; cratesDelivered: number; reshuffles: number; tilesCleared: number };
 function emptyTurnStats(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, seedpodHits: 0, seedpodsOpened: 0, cratesDelivered: 0, reshuffles: 0, tilesCleared: 0 }; }
 export type TurnStep = {
-  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle";
+  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle" | "current";
   board: Board;
   crust: CrustGrid;
   cells: Cell[];
@@ -259,10 +260,29 @@ function lessonMove(board: Board, lesson: LevelDefinition["lesson"], crust: Crus
   return undefined;
 }
 
-export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() >>> 0): Puzzle {
+/** The route is terrain: occupants (including powers) move, the route does not. */
+export function advanceCurrent(board: Board, path: readonly Cell[]): Board {
+  const next = copy(board);
+  path.forEach((destination, index) => {
+    const source = path[(index + path.length - 1) % path.length];
+    next[destination.row][destination.col] = board[source.row][source.col] && { ...board[source.row][source.col]! };
+  });
+  return next;
+}
+
+function validatedCurrent(path: readonly Cell[] | undefined, mask: BoardMask): Cell[] | undefined {
+  if (!path) return undefined;
+  if (path.length < 4 || new Set(path.map(key)).size !== path.length || path.some(cell => !playable(mask, cell)) ||
+      path.some((cell, index) => Math.abs(cell.row - path[(index + 1) % path.length].row) + Math.abs(cell.col - path[(index + 1) % path.length].col) !== 1))
+    throw new Error("Current must be a distinct, playable orthogonal closed loop");
+  return path.map(cell => ({ ...cell }));
+}
+
+export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Date.now() >>> 0): Puzzle {
   const level = typeof seedOrLevel === "number" ? undefined : seedOrLevel;
   const seed = level?.seed ?? seedOrLevel as number;
   const mask = boardMask(level?.boardShape);
+  const current = validatedCurrent(level?.current, mask);
   const crust = emptyCrust();
   for (const cell of level?.crust ?? []) {
     if (!playable(mask, cell) || crust[cell.row][cell.col] || !Number.isInteger(cell.hp ?? 1) || (cell.hp ?? 1) < 1 || (cell.hp ?? 1) > 5) throw new Error(`Invalid salt crust at ${cell.row},${cell.col}`);
@@ -290,12 +310,12 @@ export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() 
     return fresh;
   };
   if (level?.crates?.length) fresh = placeCrates(fresh);
-  let opening: [Cell, Cell] | undefined;
+  let opening: [Cell, Cell] | undefined = level?.lesson === "current" ? level.opening : undefined;
   if (level?.lesson === "combo") {
     fresh.board[3][3] = { ...fresh.board[3][3]!, jet: "row" };
     fresh.board[3][4] = { ...fresh.board[3][4]!, power: "flywheel" };
     opening = [{ row: 3, col: 3 }, { row: 3, col: 4 }];
-  } else if (level && level.lesson !== "practice" && level.lesson !== "crate") {
+  } else if (level && level.lesson !== "practice" && level.lesson !== "crate" && level.lesson !== "current") {
     opening = lessonMove(fresh.board, level.lesson, crust);
     for (let attempt = 1; !opening && attempt < 50; attempt++) {
       fresh = newBoard((seed + attempt * 7919) >>> 0, 1, mask, symbols, crust);
@@ -305,7 +325,7 @@ export function createPuzzle(seedOrLevel: number | LevelDefinition = Date.now() 
     }
   }
   if ((level?.seedpods?.length || level?.crates?.length) && !hasLegalMove(fresh.board)) fresh = newBoard(fresh.seed, fresh.nextId, mask, symbols, crust, fresh.board);
-  return { ...fresh, mask, crust, symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
+  return { ...fresh, mask, crust, ...(current ? { current } : {}), symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
     goals: level ? { ...level.goals } : { ...TARGETS },
     keeperCharge: 0, keeperTarget: level?.keeperTarget ?? KEEPER_TARGET, keeperFired: false, grantedJetDirection: level?.grantedJetDirection, status: "playing",
     unlocked: level?.lesson === "jet" ? [] : level?.lesson === "flywheel" ? ["flywheel"] : ["flywheel", "prism"], opening };
@@ -451,9 +471,10 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
   if (!direct) record("swap", [from, to]);
   const createdThisTurn = new Set<number>();
   const countedPowerActivations = new Set<number>();
-  let groups = initial;
-  let forced = activated;
   let iterations = 0;
+  const resolveGroups = (initialGroups: Cell[][], initialForced: Cell[]) => {
+  let groups = initialGroups;
+  let forced = initialForced;
   while ((groups.length || forced.length) && iterations++ < 50) {
     const removal = new Map<string, Cell>();
     for (const group of groups) for (const cell of group) removal.set(key(cell), cell);
@@ -672,9 +693,25 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
     groups = matches(board); forced = [];
   }
-  const refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+  };
+  resolveGroups(initial, activated);
+  let refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
   state.seed = refill.seed; state.nextId = refill.nextId;
   record(refill.shuffled ? "shuffle" : "refill");
+  let refillShuffled = refill.shuffled;
+  if (state.current) {
+    const moved = advanceCurrent(board, state.current);
+    for (const cell of state.current) board[cell.row][cell.col] = moved[cell.row][cell.col];
+    record("current", state.current);
+    const currentGroups = matches(board);
+    if (currentGroups.length) {
+      resolveGroups(currentGroups, []);
+      refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
+      state.seed = refill.seed; state.nextId = refill.nextId;
+      record(refill.shuffled ? "shuffle" : "refill");
+      refillShuffled ||= refill.shuffled;
+    }
+  }
   if (state.keeperCharge >= state.keeperTarget) {
     const positions: Cell[] = [];
     for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (isSymbol(board[row][col])) positions.push({ row, col });
@@ -691,14 +728,14 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     }
   }
   state.status = Object.values(state.goals).every(value => value === 0) ? "won" : state.moves === 0 ? "lost" : "playing";
-  let shuffled = refill.shuffled;
+  let shuffled = refillShuffled;
   if (state.status === "playing" && !hasLegalMove(board)) {
     const fresh = newBoard(state.seed, state.nextId, state.mask, state.symbols, state.crust, board);
     state.board = fresh.board; state.seed = fresh.seed; state.nextId = fresh.nextId; shuffled = true;
     stats.reshuffles++;
     steps.push({ kind: "shuffle", board: copy(state.board), crust: copyCrust(state.crust), cells: [], jets: [], goals: { ...state.goals }, keeperCharge: state.keeperCharge });
   }
-  if (refill.shuffled) stats.reshuffles++;
+  if (refillShuffled) stats.reshuffles++;
   return { state, valid: true, cleared: [...cleared.values()], jetsCreated, powersCreated, keeperJets, shuffled, steps, stats };
 }
 

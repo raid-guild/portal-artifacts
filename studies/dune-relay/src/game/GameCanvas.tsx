@@ -21,7 +21,7 @@ import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
 import { reserveGame, enqueueGameWork } from "./gameLifecycle";
 import { logDiagnostic } from "./diagnostics";
-import { LEVELS, LEVEL_ORDER, MAP_DESTINATIONS, type LevelDefinition, type LevelId } from "./levels";
+import { LEVELS, LEVEL_ORDER, MAP_DESTINATIONS, type PlayableLevelDefinition, type LevelId } from "./levels";
 import type { BoosterPlacement } from "./boosters";
 import type { ReplayDestination } from "./chapterReplay";
 
@@ -62,7 +62,7 @@ type Props = {
   replayMode: boolean;
   keeperMet: boolean;
   companionIntroduced: boolean;
-  level: LevelDefinition;
+  level: PlayableLevelDefinition;
   puzzle: Puzzle | null;
   startingBoosters: BoosterPlacement[];
   audio: GameAudio | null;
@@ -1049,6 +1049,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     exitMarkers?: Phaser.GameObjects.Graphics;
     exitPulse?: Phaser.Tweens.Tween;
     exitPulsePaused = false;
+    currentRoute?: Phaser.GameObjects.Graphics;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -1115,6 +1116,22 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         const cell = this.add.graphics();
         cell.fillStyle((row + col) % 2 ? 0x28515d : 0x2c5a64).fillRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
         this.boardRoot.add(cell);
+      }
+      if (this.puzzle.current) {
+        const route = this.add.graphics().setDepth(2);
+        for (const [index, cell] of this.puzzle.current.entries()) {
+          const { x, y } = this.center(cell);
+          const next = this.puzzle.current[(index + 1) % this.puzzle.current.length];
+          const dx = next.col - cell.col, dy = next.row - cell.row;
+          route.fillStyle(0x3cd6e3, 0.18).fillRoundedRect(x - 24, y - 24, 48, 48, 7);
+          route.lineStyle(2, 0x8bf6ec, 0.9).strokeRoundedRect(x - 22, y - 22, 44, 44, 6);
+          // The glyph sits in the gutter, outside the opaque symbol art.
+          const ax = x + dx * 25, ay = y + dy * 25;
+          route.fillStyle(0x103e48, 0.95).fillCircle(ax, ay, 7);
+          route.fillStyle(0xb4fff1, 1).fillTriangle(ax + dx * 5, ay + dy * 5, ax - dx * 3 - dy * 4, ay - dy * 3 + dx * 4, ax - dx * 3 + dy * 4, ay - dy * 3 - dx * 4);
+        }
+        this.boardRoot.add(route); this.currentRoute = route;
+        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentCells = String(this.puzzle.current.length);
       }
       this.selection = this.add.graphics();
       this.boardRoot.add(this.selection);
@@ -1419,7 +1436,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.level.lesson === "current" ? "The current carries tiles one space clockwise after each move. Swap and match tiles in the water normally." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -1847,6 +1864,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     async animateStep(step: TurnStep) {
       if (!this.sceneAlive) return;
       const short = props.reducedMotion;
+      if (step.kind === "current") {
+        this.setMessage("The current carries tiles clockwise…");
+        props.audio?.play("current");
+        if (this.currentRoute && !short) {
+          this.currentRoute.setAlpha(1);
+          await this.tween(this.currentRoute, { alpha: 0.52, duration: 110, yoyo: true });
+        }
+        if (!this.sceneAlive) return;
+        await this.syncTiles(step.board, short ? 80 : 420, "current");
+        if (!this.sceneAlive) return;
+        this.displayBoard = step.board;
+        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentSteps = String(Number(this.game.canvas.dataset.currentSteps ?? 0) + 1);
+        return;
+      }
       if (step.kind === "convert") {
         const target = step.effects?.[0]?.selected;
         this.setMessage(`${target === "leaf" ? "Reeds" : target === "water" ? "Water" : target === "pennant" ? "Pennants" : "Gears"} become ${step.effects?.[0]?.convertedTo === "jet" ? "Pressure Jets" : "Flywheels"}!`);
@@ -1983,6 +2014,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       for (const step of turn.steps) await this.animateStep(step);
       if (!this.sceneAlive) return;
       this.puzzle = turn.state;
+      if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.waterRemaining = String(turn.state.goals.water);
       const lessonPower = turn.powersCreated.find(created => created.power === props.level.lesson);
       if (lessonPower && !this.lessonPowerId) {
         const creation = turn.steps.find(step => {
@@ -1996,6 +2028,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       props.onEvent({ type: "turn", puzzle: turn.state, cleared: turn.cleared.length, keeper: turn.keeperJets.length > 0 });
       if (turn.state.status === "won") {
         this.clearChainCallout();
+        if (props.level.id === "riverBendPreview") {
+          // The isolated preview has no coin reward, so stop after the goals
+          // banner instead of showing the campaign's coin finale.
+          props.onEvent({ type: "victory", puzzle: turn.state });
+          await this.showGoalBanner(true);
+          if (this.sceneAlive) { this.finaleDone = true; props.onEvent({ type: "win", puzzle: turn.state }); }
+          return;
+        }
         this.revealPlan = planFinale(turn.state);
         this.revealActive = true;
         this.game.canvas.dataset.revealPhase = "banner";
