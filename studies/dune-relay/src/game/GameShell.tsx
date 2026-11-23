@@ -23,6 +23,8 @@ import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "
 import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
 import { TutorialDialog } from "./TutorialDialog";
 import { chapterReplayReady, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
+import { useInstallApp } from "./useInstallApp";
+import { InstallDialog } from "./InstallDialog";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
@@ -30,6 +32,7 @@ type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: num
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 
 export default function GameShell() {
+  const installApp = useInstallApp();
   const [playtest, setPlaytest] = useState(false);
   const [ready, setReady] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<"checking" | "guest" | "account" | "syncing" | "pending" | "expired">("checking");
@@ -598,6 +601,7 @@ export default function GameShell() {
       : null;
   }
   function requestGameFullscreen(source: "intro" | "manual" = "manual") {
+    if (installApp.isAppWindow) { lockLandscape(); return; }
     const pending = fullscreenPending.current;
     if (source === "manual") logDiagnostic("fullscreen-button-activated", {
       active: Boolean(navigator.userActivation?.isActive), fullscreen: Boolean(document.fullscreenElement),
@@ -616,7 +620,7 @@ export default function GameShell() {
     if (!document.documentElement.requestFullscreen || !document.fullscreenEnabled) {
       logDiagnostic("fullscreen-failed", { ...details, name: "Unavailable" });
       setFullscreenEmbeddedBlocked(embedded);
-      setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
+      if (source === "manual") setFullscreenIssue("Fullscreen couldn't open. You can keep playing in this window.");
       return;
     }
     const token = ++fullscreenToken.current;
@@ -626,10 +630,10 @@ export default function GameShell() {
       finishFullscreenAttempt();
       if (document.fullscreenElement) { setIsFullscreen(true); setFullscreenIssue(null); return; }
       logDiagnostic("fullscreen-timeout", { ...details, elapsedMs: Math.round(performance.now() - started) });
-      setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again.");
+      if (source === "manual") setFullscreenIssue("Fullscreen didn't open. You can keep playing in this window.");
     }, 5_000);
     fullscreenPending.current = { token, started, timer };
-    setFullscreenIssue("Opening fullscreen…");
+    if (source === "manual") setFullscreenIssue("Opening fullscreen…");
     // Begin the request in the click handler. Waiting for audio or a scene wipe
     // would let the browser's transient user activation expire.
     let request: Promise<void>;
@@ -641,17 +645,18 @@ export default function GameShell() {
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
       if (active) { setFullscreenIssue(null); lockLandscape(); }
-      else { logDiagnostic("fullscreen-failed", { ...details, name: "NoFullscreenElement" }); setFullscreenIssue("Fullscreen didn't open. Tap Full screen to try again."); }
+      else { logDiagnostic("fullscreen-failed", { ...details, name: "NoFullscreenElement" }); if (source === "manual") setFullscreenIssue("Fullscreen didn't open. You can keep playing in this window."); }
     }).catch(error => {
       if (fullscreenPending.current?.token !== token) return;
       finishFullscreenAttempt();
       logDiagnostic("fullscreen-failed", { ...details, name: String(error?.name ?? "Error").slice(0, 60), message: String(error?.message ?? error).slice(0, 160) });
-      setFullscreenIssue("Fullscreen couldn't open. Tap Full screen to try again.");
+      if (source === "manual") setFullscreenIssue("Fullscreen couldn't open. You can keep playing in this window.");
       setFullscreenEmbeddedBlocked(embedded && !document.fullscreenEnabled);
     });
   }
   function enter() {
-    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches) requestGameFullscreen("intro");
+    if (window.matchMedia("(pointer: coarse) and (hover: none)").matches && !installApp.isAppWindow) requestGameFullscreen("intro");
+    else if (installApp.isAppWindow) lockLandscape();
     const unlocked = sound.current?.unlock();
     void unlocked?.then(() => sound.current?.play("ui"));
     const enteringOverlay = overlayForSave(saveRef.current);
@@ -1246,7 +1251,7 @@ export default function GameShell() {
     return <><p>Claim the Dune Pass in the RaidGuild store. Pay what you want, including $0 with Portal login. Chapter 5 is ready.</p>{campaignPass.storeUrl ? <a className="farmland-action" href={campaignPass.storeUrl}>Open the Dune Pass store →</a> : <p>The store link is not available yet.</p>}<button className="quiet" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Check access"}</button></>;
   }
   return <main className="viewport">
-    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
+    <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-overlay={overlay ?? "none"} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
       {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
@@ -1268,13 +1273,14 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {fullscreenAvailable && !isFullscreen && overlay === null && !settings && !tutorialLibrary && !tutorialSession && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
+      {fullscreenAvailable && !isFullscreen && !installApp.isAppWindow && overlay === null && !settings && !tutorialLibrary && !tutorialSession && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
       {overlay === "start" && <div className={`scrim intro${isCastle ? " intro-castle" : isTown ? " intro-town" : isFarmland ? " intro-farmland" : isGatehouse ? " intro-gatehouse" : isCaravan ? " intro-caravan" : ""}`}><div className="intro-card">
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isCastle ? "The town's delivery ledger leads across the water. Meet the Quartermaster at the castle dock and choose who will lead the raid upstream." : isTown ? save.completed.includes("openTheMarket") ? "The evening market is open. The story continues toward Castle Island." : "The harvest ledger points to missing deliveries in the evening market. Find the Town Crier." : isFarmland ? save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The next clue points to the town on the hill." : "Beyond the bridge, sealed seed stores are holding up the harvest convoy. Find the Fieldkeeper." : demoComplete ? "The bridge is open. Your party has cleared the demo journey. Explore the kingdom to see what lies ahead." : isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
         <button className="primary" disabled={cloudStatus === "checking" || (cloudStatus === "expired" && !cloudRef.current)} onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isCastle ? "Enter Castle Island" : isTown ? "Enter the town" : isFarmland ? "Enter the fields" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        {!installApp.isAppWindow && !installApp.installCompleted && <button className="quiet install-title" onClick={installApp.install} disabled={installApp.promptBusy}>Install Dune Relay ↗</button>}
         {!playtest && (!portalName || cloudStatus === "expired") && <a className="quiet portal-login" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal →</a>}
         {!playtest && cloudStatus === "expired" && !cloudRef.current && <button className="quiet" onClick={continueAsGuest}>Play as guest on this device</button>}
       </div></div>}
@@ -1433,6 +1439,7 @@ export default function GameShell() {
           {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
         <button className="setting" onClick={() => {setSettings(false);setTutorialLibrary(true);}}>How to play <span aria-hidden="true">→</span></button>
+        {!installApp.isAppWindow && !installApp.installCompleted && <button className="setting" onClick={installApp.install} disabled={installApp.promptBusy}>Install Dune Relay <span aria-hidden="true">↗</span></button>}
         <button className="setting" onClick={toggleSound}>Sound <strong>{muted ? "Off" : "On"}</strong></button>
         <label className="volume-setting">Effects <span>{Math.round(sfxVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(sfxVolume * 100)} onChange={event => setSfxVolume(Number(event.target.value) / 100)} /></label>
         <label className="volume-setting">Ambience <span>{Math.round(ambienceVolume * 100)}%</span><input type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={event => setAmbienceVolume(Number(event.target.value) / 100)} /></label>
@@ -1468,7 +1475,8 @@ export default function GameShell() {
       </div></div>}
       {overlay !== "film" && <img className="background-watermark" src={assetUrl("/raidguild-stamp.svg")} alt="" aria-hidden="true" draggable={false} />}
       {wipe !== "hidden" && <div className={`awning-wipe awning-${wipe}`} aria-hidden="true"><div className="awning-panel awning-left" /><div className="awning-panel awning-right" /></div>}
-      <div className="rotate"><div className="rotate-icon">▭</div><strong>Rotate your device</strong><p>Dune Relay plays in landscape.</p></div>
     </div>
+    {overlay !== "start" && <div className="portrait-hint">Turn your phone sideways for a larger board.</div>}
+    <InstallDialog open={installApp.helpOpen} ios={installApp.isIos} embedded={installApp.isEmbedded} onClose={() => installApp.setHelpOpen(false)} />
   </main>;
 }
