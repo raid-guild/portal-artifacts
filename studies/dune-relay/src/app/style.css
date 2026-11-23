@@ -376,7 +376,8 @@ button { font: inherit; cursor: pointer; }
 .tutorial-current-cell[data-flow="true"] { animation:tutorial-current-flow 1.25s ease-in-out calc(var(--river-order) * 110ms) both; }
 .tutorial-current-cell[data-route="2"] { border-color:#b7d0ff; background:#a2c8ff19; box-shadow:inset 0 0 7px #a9ccff80,0 0 6px #8daaff66; }
 .tutorial-current-cell[data-frozen="true"] { border-color:#f0ffff; background:#e7ffff3d; box-shadow:inset 0 0 8px #efffff,0 0 7px #d9fbff; animation:none; }
-.tutorial-current-port { pointer-events:none; position:absolute; z-index:7; top:45%; padding:2px 4px; border:2px solid #83ecdc; border-radius:7px; background:#123947; color:#fff8dc; font:800 9px/1 Arial,sans-serif; white-space:nowrap; box-shadow:0 0 8px #6ee8d5; }
+.tutorial-current-port { pointer-events:none; position:absolute; z-index:7; top:45%; width:20px; height:20px; display:grid; place-items:center; border:2px solid #83ecdc; border-radius:50%; background:#123947; color:#fff8dc; font:800 9px/1 Arial,sans-serif; white-space:nowrap; box-shadow:0 0 8px #6ee8d5; }
+.tutorial-current-port::before { content:""; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:6px solid #fff8dc; }
 .tutorial-current-port.is-in { left:-14%; }
 .tutorial-current-port.is-out { right:-19%; }
 @keyframes tutorial-current-flow { 0% { opacity:.25; transform:scale(.94); } 45% { opacity:1; transform:scale(1.09); } 100% { opacity:.65; transform:scale(1); } }

@@ -29,7 +29,7 @@ import type { ReplayDestination } from "./chapterReplay";
 const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "MOST EPIC"];
 let nextChainCallout = 0;
 
-type CurrentVisual = { route: CurrentRoute; water: Phaser.GameObjects.Graphics; frost: Phaser.GameObjects.Graphics; glints: Phaser.GameObjects.Graphics[]; frozenLabel: Phaser.GameObjects.Text; frozen: boolean; flow: number; surgeMs: number };
+type CurrentVisual = { route: CurrentRoute; water: Phaser.GameObjects.Graphics; frost: Phaser.GameObjects.Graphics; glints: Phaser.GameObjects.Graphics[]; frozen: boolean; flow: number; surgeMs: number };
 const currentColors = [{ water: 0x167b98, rim: 0x82f5e8, arrow: 0xb4fff1 }, { water: 0x486a9a, rim: 0xbcd6ff, arrow: 0xe3edff }];
 function edgeVector(edge: CurrentEdge) { return edge === "left" ? { x: -1, y: 0 } : edge === "right" ? { x: 1, y: 0 } : edge === "top" ? { x: 0, y: -1 } : { x: 0, y: 1 }; }
 
@@ -1270,13 +1270,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           this.boardRoot.add(glint);
           glints.push(glint);
         }
-        if(path.closure==="edgeWrap") this.addCurrentPort(path,routeIndex,colors);
+        if(path.closure==="edgeWrap") this.addCurrentPort(path,colors);
         const frost=this.add.graphics().setDepth(3); this.boardRoot.add(frost);
-        const mid=path.cells.reduce((sum,cell)=>sum+this.center(cell).x,0)/path.cells.length;
-        const top=Math.min(...path.cells.map(cell=>this.center(cell).y));
-        const frozenLabel=this.add.text(mid,Math.max(31,top-28),`${routeIndex+1} FROZEN`,{fontFamily:"Arial, sans-serif",fontSize:"11px",color:"#e5faff",fontStyle:"bold",stroke:"#103440",strokeThickness:3}).setOrigin(.5).setDepth(9).setVisible(false);
-        this.boardRoot.add(frozenLabel);
-        this.currentVisuals.push({route:path,water:route,frost,glints,frozenLabel,frozen:false,flow:0,surgeMs:0});
+        this.currentVisuals.push({route:path,water:route,frost,glints,frozen:false,flow:0,surgeMs:0});
       }
       this.paintCurrentFreeze();
       if(isPlaytestMode(window.location.search)) {this.game.canvas.dataset.currentRouteCount=String(routes.length);this.game.canvas.dataset.currentCells=String(routes.reduce((sum,route)=>sum+route.cells.length,0));}
@@ -1409,8 +1405,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (authorized && this.sceneAlive && this.introActive) void this.revealGoals();
       }).catch(() => props.onFailure('authorization-failed'));
     }
-    addCurrentPort(path: Extract<CurrentRoute,{closure:"edgeWrap"}>, index:number,colors:(typeof currentColors)[number]) {
-      const ports=[{cell:path.cells[0],edge:path.entry,label:`${index+1} IN`,inlet:true},{cell:path.cells[path.cells.length-1],edge:path.exit,label:`${index+1} OUT`,inlet:false}];
+    addCurrentPort(path: Extract<CurrentRoute,{closure:"edgeWrap"}>, colors:(typeof currentColors)[number]) {
+      const ports=[{cell:path.cells[0],edge:path.entry,inlet:true},{cell:path.cells[path.cells.length-1],edge:path.exit,inlet:false}];
       for(const port of ports) {
         const center=this.center(port.cell),edgeDirection=edgeVector(port.edge);
         const direction=port.inlet ? {x:-edgeDirection.x,y:-edgeDirection.y} : edgeDirection;
@@ -1420,8 +1416,6 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         mark.lineStyle(3,colors.rim,1).strokeCircle(x,y,11);
         mark.fillStyle(colors.arrow,1).fillTriangle(x+direction.x*5,y+direction.y*5,x-direction.x*3-direction.y*4,y-direction.y*3+direction.x*4,x-direction.x*3+direction.y*4,y-direction.y*3-direction.x*4);
         this.boardRoot?.add(mark);
-        const text=this.add.text(x,y+(port.edge==="bottom"?-18:port.edge==="top"?18:17),port.label,{fontFamily:"Arial, sans-serif",fontSize:"9px",color:"#f4fffc",fontStyle:"bold",stroke:"#103440",strokeThickness:2}).setOrigin(.5).setDepth(8);
-        this.boardRoot?.add(text);
       }
     }
     paintCurrentFreeze() {
@@ -1429,7 +1423,6 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       for(const visual of this.currentVisuals) {
         const frozen=visual.route.cells.some(cell=>this.displayCrust[cell.row][cell.col]>0);
         visual.frost.clear();
-        visual.frozenLabel.setVisible(frozen);
         if(visual.frozen && !frozen) visual.surgeMs=Math.max(visual.surgeMs,950);
         visual.frozen=frozen;
         if(!frozen) continue;

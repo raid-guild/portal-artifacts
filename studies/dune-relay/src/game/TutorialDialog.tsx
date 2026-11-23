@@ -125,7 +125,7 @@ export function TutorialDialog({tutorial,mode,reducedMotion,onSkip,onContinue,on
           {scene.arrow?.[1]===index&&<span className="tutorial-swap-arrow" aria-hidden="true">{direction}</span>}
         </div>)}
         {routePaths.flatMap(path=>path.cells.map((index,order)=><span key={`river-${path.id}-${index}`} className="tutorial-current-cell" data-route={path.id} data-frozen={path.frozen} data-flow={!path.frozen&&(step>=2||tutorial.id==="frozenCurrent")} style={{"--river-col":index%5,"--river-row":Math.floor(index/5),"--river-order":order} as CSSProperties} aria-hidden="true"/>))}
-        {tutorial.id==="wrapCurrent"&&<><span className="tutorial-current-port is-in" aria-hidden="true">1 IN</span><span className="tutorial-current-port is-out" aria-hidden="true">1 OUT</span></>}
+        {tutorial.id==="wrapCurrent"&&<><span className="tutorial-current-port is-in" aria-hidden="true"/><span className="tutorial-current-port is-out" aria-hidden="true"/></>}
         {riverMoving&&movingPaths.flatMap(path=>path.map((index,order)=>{
           const tile=riverBefore[Math.floor(index/5)][index%5],destination=path[(order+1)%path.length];
           return <img key={`${tutorial.id}-${step}-${run}-${index}`} className={`tutorial-current-copy ${tutorial.id==="wrapCurrent"&&order===path.length-1?"is-wrap":""}`} src={assetUrl(`/sprites/${art[tile as Exclude<Cell,".">]}`)} style={{"--from-c":index%5,"--from-r":Math.floor(index/5),"--delta-c":destination%5-index%5,"--delta-r":Math.floor(destination/5)-Math.floor(index/5)} as CSSProperties} alt="" aria-hidden="true"/>;
