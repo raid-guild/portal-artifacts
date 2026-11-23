@@ -2227,5 +2227,5 @@ export default function GameCanvas(props: Props) {
     // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
-  return <div className="game-canvas" ref={host} aria-label={props.mode === "map" ? props.region === "castle" ? "Walkable Castle Island" : props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
+  return <div className="game-canvas" ref={host} data-replay-destinations={props.mode === "map" ? props.replayDestinations.map(group => group.destination).join(",") : undefined} aria-label={props.mode === "map" ? props.region === "castle" ? "Walkable Castle Island" : props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
 }

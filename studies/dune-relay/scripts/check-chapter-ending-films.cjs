@@ -16,7 +16,7 @@ async function preview(browser, chapter, finishMode) {
     };
   });
   const film = chapter === 'Town' ? 'town-market-opens' : 'castle-upstream-departure';
-  const expected = chapter === 'Town' ? /market is open/i : /more levels coming soon/i;
+  const expected = chapter === 'Town' ? /market is open/i : /upstream route is open/i;
   try {
     if (finishMode === 'blocked') await page.route(`**/cinematics/${film}.mp4`, route => route.abort());
     await page.goto(url);
@@ -32,6 +32,11 @@ async function preview(browser, chapter, finishMode) {
     if (finishMode === 'natural') await page.locator('.film-screen video').evaluate(video => { video.dispatchEvent(new Event('ended')); video.dispatchEvent(new Event('ended')); });
     else await page.getByRole('button', { name: /Skip scene/ }).click();
     await page.getByRole('heading', { name: expected }).waitFor();
+    if (chapter === 'Castle') {
+      await page.getByRole('button', { name: /View the Kingdom Map/ }).click();
+      await page.getByText('RIVER JOURNEY').waitFor();
+      assert.match(await page.locator('.atlas-future').innerText(), /next chapter is coming soon/i);
+    }
     assert.equal(await page.locator('.film-screen').count(), 0);
     assert.ok(await page.evaluate(() => window.__filmReleases), `${chapter}: decoder source is released`);
     assert.deepEqual(errors, [], `${chapter}: no browser errors`);
