@@ -71,6 +71,7 @@ button { font: inherit; cursor: pointer; }
 .speaker-row { display: flex; align-items: center; gap: 13px; }
 .speaker-avatar { width: clamp(44px, 8cqh, 66px); height: clamp(44px, 8cqh, 66px); object-fit: contain; border-radius: 50%; border: 2px solid #e0bd82; background: #26515a; }
 .dialog-card p { font-size: clamp(15px, 2vw, 21px); line-height: 1.45; margin: 14px 0 24px; }
+.dialog-card .booster-reminder { color: #a8d8cc; font-size: clamp(13px, 1.5cqw, 17px); line-height: 1.4; }
 .companion-chat { width: min(440px, 76%); }
 .companion-chat p { margin-bottom: 14px; }
 .handbook-source { display: block; width: fit-content; margin: 0 0 18px; color: #9de4d4; font-size: clamp(12px, 1.5vw, 15px); text-decoration: underline; text-underline-offset: 3px; }
