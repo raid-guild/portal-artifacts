@@ -10,13 +10,13 @@ async function fixture(browser,save){
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
-    const body=path.endsWith('/session')?{accountId:'42',displayName:'River tester',contentVersion:'chapter-7-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign:save}}:path.endsWith('/entitlements')?entitlements:{ok:true};
+    const body=path.endsWith('/session')?{accountId:'42',displayName:'River tester',contentVersion:'chapter-7-2'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign:save}}:path.endsWith('/entitlements')?entitlements:{ok:true};
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto(url);
   return {context,page,writes};
 }
-async function tap(page,x,y){const box=await page.locator('canvas').first().boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
+async function tap(page,x,y){const canvas=page.locator('canvas').first();await canvas.waitFor({state:'visible',timeout:30000});const box=await canvas.boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
 async function main(){
   assert.equal(levels.length,70);
   const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});

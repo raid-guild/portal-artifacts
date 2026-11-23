@@ -6,7 +6,7 @@ const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/';
 const snapshot={id:'wayfinder',...abilities.wayfinder};
 const campaign={version:5,completed:levels.slice(0,60),coins:910,region:'river',companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done',riverEnding:'locked'};
 const entitlement={accountId:'42',farmland:{unlocked:true,eligible:true,unlockedAt:'2026-11-21T00:00:00.000Z'},campaignPass:{state:'active',unlocked:true,unlockedAt:'2026-11-21T00:00:00.000Z',checkedAt:'2026-11-21T00:00:01.000Z',storeUrl:'https://store.example.test/products/dune-relay-pass'}};
-async function tap(page,x,y){const box=await page.locator('canvas').first().boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
+async function tap(page,x,y){const canvas=page.locator('canvas').first();await canvas.waitFor({state:'visible',timeout:30000});const box=await canvas.boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
 async function caseFor(browser,boosters){
   const context=await browser.newContext({viewport:{width:1180,height:660},reducedMotion:'reduce'});
   const attemptId=boosters.length?'river-paid-recovery':'river-free-recovery';
@@ -23,7 +23,7 @@ async function caseFor(browser,boosters){
   await page.route('**/leaderboard-api/dune-relay/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     let body={ok:true};
-    if(path.endsWith('/session'))body={accountId:'42',displayName:'River tester',contentVersion:'chapter-7-1'};
+    if(path.endsWith('/session'))body={accountId:'42',displayName:'River tester',contentVersion:'chapter-7-2'};
     else if(path.endsWith('/campaign'))body={accountId:'42',hasCampaign:true,profile};
     else if(path.endsWith('/entitlements'))body=entitlement;
     else if(path.endsWith('/attempts')&&request.method()==='POST') { prepared.push(request.postDataJSON());body={profile,companionSnapshot:snapshot}; }

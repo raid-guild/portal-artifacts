@@ -16,7 +16,7 @@ import skiffFrames from "../../public/sprites/skiff-frames.json";
 import { CascadeFlair, cascadeVisualStrength, showCascadeWord } from "./cascadeFlair";
 import { crateExitCells } from "./crateExits";
 import type { CompanionId, Region } from "./save";
-import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals } from "./core";
+import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals, type CurrentEdge, type CurrentRoute, type CurrentMotion } from "./core";
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
@@ -28,6 +28,10 @@ import type { ReplayDestination } from "./chapterReplay";
 
 const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "MOST EPIC"];
 let nextChainCallout = 0;
+
+type CurrentVisual = { route: CurrentRoute; water: Phaser.GameObjects.Graphics; frost: Phaser.GameObjects.Graphics; glints: Phaser.GameObjects.Graphics[]; frozenLabel: Phaser.GameObjects.Text; frozen: boolean; flow: number; surgeMs: number };
+const currentColors = [{ water: 0x167b98, rim: 0x82f5e8, arrow: 0xb4fff1 }, { water: 0x486a9a, rim: 0xbcd6ff, arrow: 0xe3edff }];
+function edgeVector(edge: CurrentEdge) { return edge === "left" ? { x: -1, y: 0 } : edge === "right" ? { x: 1, y: 0 } : edge === "top" ? { x: 0, y: -1 } : { x: 0, y: 1 }; }
 
 export type GameEvent =
   | { type: "position"; position: { x: number; y: number } }
@@ -1171,13 +1175,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     exitMarkers?: Phaser.GameObjects.Graphics;
     exitPulse?: Phaser.Tweens.Tween;
     exitPulsePaused = false;
-    currentRoute?: Phaser.GameObjects.Graphics;
-    currentGlints: Phaser.GameObjects.Graphics[] = [];
-    currentFreeze?: Phaser.GameObjects.Graphics;
-    currentBlockedLabel?: Phaser.GameObjects.Text;
-    wasCurrentFrozen = false;
-    currentFlow = 0;
-    currentSurgeMs = 0;
+    currentVisuals: CurrentVisual[] = [];
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -1245,35 +1243,43 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         cell.fillStyle((row + col) % 2 ? 0x28515d : 0x2c5a64).fillRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
         this.boardRoot.add(cell);
       }
-      if (this.puzzle.current) {
-        const route = this.add.graphics().setDepth(2);
-        this.boardRoot.add(route); this.currentRoute = route;
-        for (const [index, cell] of this.puzzle.current.entries()) {
+      const routes=this.puzzle.currents ?? (this.puzzle.current ? [{id:"main",cells:this.puzzle.current,closure:"loop" as const}] : []);
+      for (const [routeIndex, path] of routes.entries()) {
+        const colors=currentColors[routeIndex % currentColors.length];
+        const route=this.add.graphics().setDepth(2);
+        const glints: Phaser.GameObjects.Graphics[]=[];
+        this.boardRoot.add(route);
+        for (const [index, cell] of path.cells.entries()) {
           const { x, y } = this.center(cell);
-          const next = this.puzzle.current[(index + 1) % this.puzzle.current.length];
-          const dx = next.col - cell.col, dy = next.row - cell.row;
+          const next = path.cells[(index + 1) % path.cells.length];
+          const direction=path.closure==="edgeWrap" && index===path.cells.length-1 ? edgeVector(path.exit) : {x:next.col-cell.col,y:next.row-cell.row};
+          const dx=direction.x,dy=direction.y;
           // Water is a distinct surface, while symbols above it keep their full opacity.
-          route.fillStyle(0x167b98, 0.86).fillRoundedRect(x - 24, y - 24, 48, 48, 7);
-          route.lineStyle(3, 0x82f5e8, 0.92).strokeRoundedRect(x - 22, y - 22, 44, 44, 6);
+          route.fillStyle(colors.water, 0.86).fillRoundedRect(x - 24, y - 24, 48, 48, 7);
+          route.lineStyle(3, colors.rim, 0.92).strokeRoundedRect(x - 22, y - 22, 44, 44, 6);
           route.lineStyle(1, 0xb7fff4, 0.48).lineBetween(x - 16, y - 18, x - 7, y - 18);
           route.lineStyle(1, 0xb7fff4, 0.4).lineBetween(x + 7, y + 18, x + 16, y + 18);
           // The glyph sits in the gutter, outside the opaque symbol art.
           const ax = x + dx * 25, ay = y + dy * 25;
           route.fillStyle(0x103e48, 0.95).fillCircle(ax, ay, 7);
-          route.fillStyle(0xb4fff1, 1).fillTriangle(ax + dx * 5, ay + dy * 5, ax - dx * 3 - dy * 4, ay - dy * 3 + dx * 4, ax - dx * 3 + dy * 4, ay - dy * 3 - dx * 4);
-          // A small glint passes each gutter arrow in clockwise order. It never covers tile art.
+          route.fillStyle(colors.arrow, 1).fillTriangle(ax + dx * 5, ay + dy * 5, ax - dx * 3 - dy * 4, ay - dy * 3 + dx * 4, ax - dx * 3 + dy * 4, ay - dy * 3 - dx * 4);
+          // A small glint follows each route's own arrow order outside tile art.
           const glint = this.add.graphics().setPosition(ax, ay).setAlpha(0);
           glint.fillStyle(0xe5fff9, 0.9).fillCircle(0, 0, 4);
           glint.lineStyle(2, 0x92fff0, 0.9).lineBetween(-dx * 10, -dy * 10, dx * 3, dy * 3);
           this.boardRoot.add(glint);
-          this.currentGlints.push(glint);
+          glints.push(glint);
         }
-        this.currentFreeze = this.add.graphics().setDepth(3); this.boardRoot.add(this.currentFreeze);
-        this.currentBlockedLabel = this.add.text(555, 32, "CURRENT BLOCKED · CLEAR SALT", { fontFamily: "Arial, sans-serif", fontSize: "12px", color: "#e1faff", fontStyle: "bold", stroke: "#103440", strokeThickness: 3 }).setOrigin(.5).setDepth(8).setVisible(false);
-        this.boardRoot.add(this.currentBlockedLabel);
-        this.paintCurrentFreeze();
-        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentCells = String(this.puzzle.current.length);
+        if(path.closure==="edgeWrap") this.addCurrentPort(path,routeIndex,colors);
+        const frost=this.add.graphics().setDepth(3); this.boardRoot.add(frost);
+        const mid=path.cells.reduce((sum,cell)=>sum+this.center(cell).x,0)/path.cells.length;
+        const top=Math.min(...path.cells.map(cell=>this.center(cell).y));
+        const frozenLabel=this.add.text(mid,Math.max(31,top-28),`${routeIndex+1} FROZEN`,{fontFamily:"Arial, sans-serif",fontSize:"11px",color:"#e5faff",fontStyle:"bold",stroke:"#103440",strokeThickness:3}).setOrigin(.5).setDepth(9).setVisible(false);
+        this.boardRoot.add(frozenLabel);
+        this.currentVisuals.push({route:path,water:route,frost,glints,frozenLabel,frozen:false,flow:0,surgeMs:0});
       }
+      this.paintCurrentFreeze();
+      if(isPlaytestMode(window.location.search)) {this.game.canvas.dataset.currentRouteCount=String(routes.length);this.game.canvas.dataset.currentCells=String(routes.reduce((sum,route)=>sum+route.cells.length,0));}
       this.selection = this.add.graphics();
       this.boardRoot.add(this.selection);
       for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) if (this.displayCrust[row][col]) this.makeCrust({ row, col }, this.displayCrust[row][col]);
@@ -1359,7 +1365,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.flair?.dispose();
         this.exitPulse?.remove();
         this.exitMarkers?.destroy();
-        this.currentGlints.length = 0;
+        this.currentVisuals.length = 0;
+        delete canvas.dataset.currentCells;
+        delete canvas.dataset.currentRouteCount;
+        delete canvas.dataset.currentFrozen;
+        delete canvas.dataset.currentFrozenRoutes;
+        delete canvas.dataset.currentActiveRoutes;
+        delete canvas.dataset.currentWraps;
+        delete canvas.dataset.currentSteps;
         delete canvas.dataset.flairTier;
         delete canvas.dataset.flairParticles;
         delete canvas.dataset.flairWaves;
@@ -1396,37 +1409,59 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (authorized && this.sceneAlive && this.introActive) void this.revealGoals();
       }).catch(() => props.onFailure('authorization-failed'));
     }
+    addCurrentPort(path: Extract<CurrentRoute,{closure:"edgeWrap"}>, index:number,colors:(typeof currentColors)[number]) {
+      const ports=[{cell:path.cells[0],edge:path.entry,label:`${index+1} IN`,inlet:true},{cell:path.cells[path.cells.length-1],edge:path.exit,label:`${index+1} OUT`,inlet:false}];
+      for(const port of ports) {
+        const center=this.center(port.cell),edgeDirection=edgeVector(port.edge);
+        const direction=port.inlet ? {x:-edgeDirection.x,y:-edgeDirection.y} : edgeDirection;
+        const x=center.x+edgeDirection.x*39,y=center.y+edgeDirection.y*39;
+        const mark=this.add.graphics().setDepth(8);
+        mark.fillStyle(0x123947,0.98).fillCircle(x,y,12);
+        mark.lineStyle(3,colors.rim,1).strokeCircle(x,y,11);
+        mark.fillStyle(colors.arrow,1).fillTriangle(x+direction.x*5,y+direction.y*5,x-direction.x*3-direction.y*4,y-direction.y*3+direction.x*4,x-direction.x*3+direction.y*4,y-direction.y*3-direction.x*4);
+        this.boardRoot?.add(mark);
+        const text=this.add.text(x,y+(port.edge==="bottom"?-18:port.edge==="top"?18:17),port.label,{fontFamily:"Arial, sans-serif",fontSize:"9px",color:"#f4fffc",fontStyle:"bold",stroke:"#103440",strokeThickness:2}).setOrigin(.5).setDepth(8);
+        this.boardRoot?.add(text);
+      }
+    }
     paintCurrentFreeze() {
-      const path=this.puzzle.current;
-      if (!path || !this.currentFreeze) return;
-      const frozen=path.some(cell=>this.displayCrust[cell.row][cell.col]>0);
-      this.currentFreeze.clear();
-      this.currentBlockedLabel?.setVisible(frozen);
-      if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentFrozen=String(frozen);
-      if (this.wasCurrentFrozen && !frozen) this.currentSurgeMs = Math.max(this.currentSurgeMs, 950);
-      this.wasCurrentFrozen = frozen;
-      if (!frozen) return;
-      for (const cell of path) {
-        const {x,y}=this.center(cell);
-        this.currentFreeze.fillStyle(0xd8f7f1,.3).fillRoundedRect(x-22,y-22,44,44,6);
-        this.currentFreeze.lineStyle(2,0xe4f9f5,.86).strokeRoundedRect(x-21,y-21,42,42,6);
+      const frozenIds:string[]=[];
+      for(const visual of this.currentVisuals) {
+        const frozen=visual.route.cells.some(cell=>this.displayCrust[cell.row][cell.col]>0);
+        visual.frost.clear();
+        visual.frozenLabel.setVisible(frozen);
+        if(visual.frozen && !frozen) visual.surgeMs=Math.max(visual.surgeMs,950);
+        visual.frozen=frozen;
+        if(!frozen) continue;
+        frozenIds.push(visual.route.id);
+        for(const cell of visual.route.cells) {
+          const {x,y}=this.center(cell);
+          visual.frost.fillStyle(0xd8f7f1,.3).fillRoundedRect(x-22,y-22,44,44,6);
+          visual.frost.lineStyle(2,0xe4f9f5,.86).strokeRoundedRect(x-21,y-21,42,42,6);
+        }
+      }
+      if(isPlaytestMode(window.location.search)) {
+        this.game.canvas.dataset.currentFrozen=String(frozenIds.length>0);
+        this.game.canvas.dataset.currentFrozenRoutes=frozenIds.join(",");
+        this.game.canvas.dataset.currentActiveRoutes=this.currentVisuals.filter(visual=>!visual.frozen).map(visual=>visual.route.id).join(",");
       }
     }
     update(_: number, delta: number) {
       this.flair?.setPaused(props.transitioning || props.interactionBlocked);
-      const currentFrozen = Boolean(this.puzzle.current?.some(cell=>this.displayCrust[cell.row][cell.col]>0));
-      const flowBlocked = currentFrozen || props.reducedMotion || props.transitioning || props.interactionBlocked || document.hidden ||
+      const flowBlocked = props.reducedMotion || props.transitioning || props.interactionBlocked || document.hidden ||
         (this.introActive && this.game.canvas.dataset.introPhase !== "ready") ||
         this.revealActive || this.puzzle.status !== "playing";
-      if (flowBlocked || this.busy && this.currentSurgeMs <= 0) {
-        for (const glint of this.currentGlints) glint.setAlpha(0);
-      } else if (this.currentGlints.length) {
-        const surge = this.currentSurgeMs > 0;
-        this.currentSurgeMs = Math.max(0, this.currentSurgeMs - delta);
-        this.currentFlow = (this.currentFlow + delta / (surge ? 840 : 2500)) % 1;
-        for (let index = 0; index < this.currentGlints.length; index++) {
-          const wave = Math.max(0, Math.cos((this.currentFlow - index / this.currentGlints.length) * Math.PI * 2));
-          this.currentGlints[index].setAlpha((surge ? 0.18 : 0.08) + wave * wave * wave * (surge ? 0.82 : 0.64));
+      for(const visual of this.currentVisuals) {
+        if(visual.frozen || flowBlocked || this.busy && visual.surgeMs<=0) {
+          for(const glint of visual.glints) glint.setAlpha(0);
+        } else if(visual.glints.length) {
+          const surge=visual.surgeMs>0;
+          visual.surgeMs=Math.max(0,visual.surgeMs-delta);
+          visual.flow=(visual.flow+delta/(surge?840:2500))%1;
+          for(let index=0;index<visual.glints.length;index++) {
+            const wave=Math.max(0,Math.cos((visual.flow-index/visual.glints.length)*Math.PI*2));
+            visual.glints[index].setAlpha((surge?0.18:0.08)+wave*wave*wave*(surge?0.82:0.64));
+          }
         }
       }
       const pauseExitPulse = props.transitioning || props.interactionBlocked || document.hidden;
@@ -1609,7 +1644,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "current" ? "The current carries tiles one space clockwise after each move. Swap and match tiles in the water normally." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.level.lesson === "current" ? "The current follows its arrows one space after each move. Swap and match tiles in the water normally." : props.level.lesson === "wrapCurrent" ? "The marked outlet carries tiles off one bank and back through its matching inlet." : props.level.lesson === "frozenCurrent" ? "Clear salt from the frozen route. Other currents keep flowing." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -2035,23 +2070,52 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.setMessage("Power ready! Double-tap the glowing tile, or swap it to fire.");
       return true;
     }
+    outsideCurrentPoint(cell:Cell,edge:CurrentEdge) {
+      const center=this.center(cell);
+      if(edge==="left") return {x:GRID_X-29,y:center.y};
+      if(edge==="right") return {x:GRID_X+BOARD_SIZE*CELL+29,y:center.y};
+      if(edge==="top") return {x:center.x,y:GRID_Y-29};
+      return {x:center.x,y:GRID_Y+BOARD_SIZE*CELL+29};
+    }
+    async animateCurrentMotions(motions:CurrentMotion[],board:Board,short:boolean) {
+      if(!motions.length) {await this.syncTiles(board,short?80:420,"current");return;}
+      if(short || this.revealSkipped) {await this.syncTiles(board,0,"current");await this.wait(80);return;}
+      await Promise.all(motions.map(async motion=>{
+        const graphic=this.pieces.get(motion.tileId)?.graphic;
+        if(!graphic || !graphic.active) return;
+        const destination=this.center(motion.to);
+        if(!motion.wrap) {await this.tween(graphic,{x:destination.x,y:destination.y,duration:400,ease:"Cubic.easeInOut"});return;}
+        const outside=this.outsideCurrentPoint(motion.from,motion.wrap.exit);
+        await this.tween(graphic,{x:outside.x,y:outside.y,alpha:0,duration:200,ease:"Cubic.easeIn"});
+        if(!this.sceneAlive || this.revealSkipped || !graphic.active) return;
+        const incoming=this.outsideCurrentPoint(motion.to,motion.wrap.entry);
+        graphic.setPosition(incoming.x,incoming.y);
+        await this.tween(graphic,{x:destination.x,y:destination.y,alpha:1,duration:200,ease:"Cubic.easeOut"});
+      }));
+      if(!this.sceneAlive) return;
+      await this.syncTiles(board,0,"current");
+    }
     async animateStep(step: TurnStep) {
       if (!this.sceneAlive) return;
       const short = props.reducedMotion;
       if (step.kind === "current") {
         this.paintCurrentFreeze();
-        this.setMessage("The current carries tiles clockwise…");
+        this.setMessage(step.currentRouteIds?.length === 2 ? "Both currents carry tiles along their arrows…" : "The current carries tiles along its arrows…");
         props.audio?.play("current");
-        if (!short) this.currentSurgeMs = 650;
-        if (this.currentRoute && !short) {
-          this.currentRoute.setAlpha(1);
-          await this.tween(this.currentRoute, { alpha: 0.52, duration: 110, yoyo: true });
-        }
-        if (!this.sceneAlive) return;
-        await this.syncTiles(step.board, short ? 80 : 420, "current");
+        const active=new Set(step.currentRouteIds ?? this.currentVisuals.filter(visual=>!visual.frozen).map(visual=>visual.route.id));
+        const flashes=this.currentVisuals.filter(visual=>active.has(visual.route.id)).map(visual=>{
+          visual.surgeMs=650;
+          if(short) return Promise.resolve();
+          visual.water.setAlpha(1);
+          return this.tween(visual.water,{alpha:.52,duration:110,yoyo:true});
+        });
+        await Promise.all([this.animateCurrentMotions(step.currentMotions ?? [],step.board,short),...flashes]);
         if (!this.sceneAlive) return;
         this.displayBoard = step.board;
-        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentSteps = String(Number(this.game.canvas.dataset.currentSteps ?? 0) + 1);
+        if (isPlaytestMode(window.location.search)) {
+          this.game.canvas.dataset.currentSteps=String(Number(this.game.canvas.dataset.currentSteps??0)+1);
+          this.game.canvas.dataset.currentWraps=String(Number(this.game.canvas.dataset.currentWraps??0)+(step.currentMotions?.filter(motion=>motion.wrap).length??0));
+        }
         return;
       }
       if (step.kind === "convert") {

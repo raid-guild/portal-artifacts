@@ -115,10 +115,10 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 1]?.kind !== 'seedpod' && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2]) && puzzle.board[row][col + 2]?.kind !== 'seedpod'), `${id}: no horizontal prematch`);
     if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 1][col]?.kind !== 'seedpod' && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col]) && puzzle.board[row + 2][col]?.kind !== 'seedpod'), `${id}: no vertical prematch`);
   }
-  if (level.lesson === 'practice' || level.lesson === 'crate' || id === 'saltlockedEddy') {
+  if (level.lesson === 'practice' || level.lesson === 'crate' || level.lesson === 'wrapCurrent' || level.lesson === 'frozenCurrent') {
     assert.equal(puzzle.opening, undefined, `${id}: unguided`);
     assert.ok(legalMove(puzzle.board), `${id}: legal opening`);
-    const expected = (level.boardShape === "clippedCorners" ? 77 : level.boardShape === "twinChambers" ? 63 : level.boardShape === "steppedBasin" ? 69 : 81) - (level.crust?.length ?? 0);
+    const expected = puzzle.mask.flat().filter(Boolean).length - (level.crust?.length ?? 0);
     assert.equal(puzzle.board.flat().filter(Boolean).length, expected, `${id}: playable cells`);
     assert.equal(puzzle.keeperTarget, level.keeperTarget ?? 9, `${id}: Keeper requirement`);
     const gaps = [];
@@ -813,7 +813,7 @@ const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archive
 assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-7-1','new attempts carry the current content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-7-2','new attempts carry the current content version');
 assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
 assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));

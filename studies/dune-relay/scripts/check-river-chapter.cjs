@@ -17,7 +17,8 @@ const ids = LEVEL_ORDER.slice(60);
 assert.deepEqual(ids, ['riverBend','reedwaterReach','broadwaterTurn','saltlockedEddy','clearingTheBend','driftingCargo','reedbankDeliveries','splitwaterCargo','saltwindMooring','openTheCollectionRoute']);
 assert.equal(witnesses.length, 50);
 assert.equal(TUTORIAL_BY_LEVEL.riverBend.id,'current');
-assert.equal(TUTORIAL_BY_LEVEL.saltlockedEddy.id,'frozenCurrent');
+assert.equal(TUTORIAL_BY_LEVEL.broadwaterTurn.id,'wrapCurrent');
+assert.equal(TUTORIAL_BY_LEVEL.clearingTheBend.id,'frozenCurrent');
 assert.equal(TUTORIAL_BY_LEVEL.riverBend.speaker,'skiff');
 const offPath=createPuzzle(LEVELS.riverBend);
 offPath.crust[0][0]=1;
@@ -71,25 +72,91 @@ const lastTurn=playTurn(last,...river.opening);
 assert.equal(lastTurn.state.status,'won');
 assert.equal(lastTurn.stats.companionGrants,1,'post-current clear charges companion');
 
+const currentStep = result => result.steps.find(step=>step.kind==='current');
+const routeFrozen = (puzzle, route) => route.cells.some(cell=>puzzle.crust[cell.row][cell.col]>0);
+const openingTurn = level => {
+  const puzzle=createPuzzle(level);
+  for(let row=0;row<9;row++) for(let col=0;col<9;col++) {
+    for(const to of [{row,col:col+1},{row:row+1,col}]) {
+      if(to.row>=9||to.col>=9) continue;
+      const result=playTurn(puzzle,{row,col},to);
+      if(result.valid) return result;
+    }
+  }
+  throw new Error(`No opening move for ${level.id}`);
+};
+for (const id of ids) {
+  const level=LEVELS[id], puzzle=createPuzzle(level);
+  assert.equal(puzzle.currents.length,level.currents?.length??1,`${id} route count`);
+  if(level.boardLayout) {
+    assert.equal(level.boardLayout.length,9);
+    assert.deepEqual(puzzle.mask.map(row=>row.map(Boolean)),level.boardLayout.map(row=>[...row].map(c=>c==='#')));
+  }
+  for(const route of puzzle.currents) {
+    assert.equal(new Set(route.cells.map(cell=>`${cell.row},${cell.col}`)).size,route.cells.length,`${id} route unique cells`);
+  }
+}
+const twin=openingTurn(LEVELS.saltlockedEddy);
+assert.deepEqual(currentStep(twin).currentRouteIds,['west-eddy','east-eddy'],'both opposing routes move in one current phase');
+assert.equal(currentStep(twin).currentMotions.length,24);
+const frozen=openingTurn(LEVELS.clearingTheBend);
+assert.deepEqual(currentStep(frozen).currentRouteIds,['east-eddy'],'salt freezes only its route');
+const wrapping=openingTurn(LEVELS.broadwaterTurn);
+const wrapMotion=currentStep(wrapping).currentMotions.filter(motion=>motion.wrap);
+assert.equal(wrapMotion.length,1,'one closing jump wraps');
+assert.deepEqual(wrapMotion[0].wrap,{entry:'left',exit:'right'});
+assert.equal(wrapMotion[0].from.col,8);
+assert.equal(wrapMotion[0].to.col,0);
+assert.equal(currentStep(wrapping).board[wrapMotion[0].to.row][wrapMotion[0].to.col].id,wrapMotion[0].tileId,'wrap preserves tile identity');
+const wrapLevel=LEVELS.broadwaterTurn, left=wrapLevel.currents[0];
+for (const bad of [
+  [{...left,id:''}],
+  [{...left,exit:'left'}],
+  [{...left,closure:'portal'}],
+  [{...left,entry:undefined}],
+  [{...left,exit:undefined}],
+  [{...left,entry:'toString'}],
+  [{...left,exit:'toString'}],
+  [{...left,cells:[{row:4,col:1},...left.cells.slice(1)]}],
+  [{...left,cells:[...left.cells.slice(0,-1),{row:3,col:8}]}],
+  [left,left],
+  [left,{...left,id:'other'}],
+  [left,{...left,id:'other',cells:[{row:1,col:1},{row:1,col:2},{row:2,col:2},{row:2,col:1}]},{...left,id:'third'}],
+]) assert.throws(()=>createPuzzle({...wrapLevel,currents:bad}),/Current/,'invalid route is rejected');
+assert.throws(()=>createPuzzle({...wrapLevel,boardLayout:['#########']}),/Board layout/);
+assert.throws(()=>createPuzzle({...wrapLevel,boardShape:'clippedCorners'}),/board layout or shape/);
+assert.throws(()=>createPuzzle({...wrapLevel,current:route}),/legacy current or named currents/);
+let upwardCargo=0, deliveredAfterUpward=new Set();
 for (const witness of witnesses) {
   const level = LEVELS[witness.levelId];
   assert.equal(level.chapter, 'river');
   let puzzle = createPuzzle(castleLevelForCompanion(level, companionSnapshot(witness.companionId)));
+  const seenUpward = new Set();
   for (const move of witness.moves) {
-    const frozenBefore=level.current?.some(cell=>puzzle.crust[cell.row][cell.col]>0);
+    const frozenBefore=(puzzle.currents??[]).filter(route=>routeFrozen(puzzle,route)).map(route=>route.id);
     const result = playTurn(puzzle, move.from, move.to);
     assert.equal(result.valid, true, `${witness.levelId}/${witness.companionId} valid move`);
-    if (level.crust?.length) {
-      const frozenAfter=level.current.some(cell=>result.state.crust[cell.row][cell.col]>0);
-      assert.equal(result.steps.filter(step=>step.kind==='current').length, frozenAfter?0:1,
-        `${witness.levelId}/${witness.companionId} current is frozen exactly while route salt remains`);
-      if(frozenBefore && !frozenAfter) assert(result.steps.some(step=>step.kind==='current'),'last salt break frees the current that turn');
+    const active=(puzzle.currents??[]).filter(route=>!routeFrozen(result.state,route)).map(route=>route.id);
+    assert.equal(result.steps.filter(step=>step.kind==='current').length,active.length?1:0,
+      `${witness.levelId}/${witness.companionId} one current step only when a route is active`);
+    if(active.length) assert.deepEqual(currentStep(result).currentRouteIds,active,'active route IDs match salt state after ordinary resolution');
+    for(const id of frozenBefore) {
+      if(active.includes(id)) assert(currentStep(result).currentRouteIds.includes(id),'last salt break releases route that turn');
+    }
+    if(witness.levelId==='splitwaterCargo'&&witness.companionId==='keeper') {
+      for(const motion of currentStep(result)?.currentMotions??[]) if(motion.from.row>motion.to.row) {
+        const tile=puzzle.board.flat().find(tile=>tile?.id===motion.tileId);
+        if(tile?.kind==='crate') { seenUpward.add(motion.tileId);upwardCargo++; }
+      }
+      for(const step of result.steps) for(const delivery of step.deliveries??[]) if(seenUpward.has(delivery.id)) deliveredAfterUpward.add(delivery.id);
     }
     puzzle = result.state;
   }
   assert.equal(puzzle.status, 'won', `${witness.levelId}/${witness.companionId} wins without purchased powers`);
   assert.equal(puzzle.moves, witness.movesRemaining);
 }
+assert(upwardCargo>0,'7.8 winning path carries a crate upward in a current');
+assert(deliveredAfterUpward.size>0,'7.8 winning path later delivers a crate carried upward');
 const oldCastle = normalizeSave({ ...EMPTY_SAVE, completed: LEVEL_ORDER.slice(0,60), region:'castle', castleReady:true, castleEnding:'done', activeCompanion:'keeper', oasisTransition:'ready', gatehouseReady:true, farmlandReady:true, townReady:true });
 assert.equal(oldCastle.riverReady, false, 'new explicit riverReady:false follows the transition');
 const { riverReady: ignored, ...oldPayload } = oldCastle;

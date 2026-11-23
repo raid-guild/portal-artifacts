@@ -170,7 +170,7 @@ Retain five matching symbols throughout. Exact board masks, goals, budgets, and 
 
 ### Chapter 7: River Journey
 
-The Castle manifest leads the raid upstream aboard a repair boat. Skiff, a river pilot, guides the crossing as a supporting NPC in the Raid Party. The player retains their chosen playable raid member. Ten levels follow the boat from helm to intake, cargo, and chart table. The first three introduce moving currents, the next two freeze them with salt, the next three route crates through them, and the final two combine those goals. The second oasis water-collection station is visible as the next Coming Soon chapter. See the [Chapter 7 implementation spec](CHAPTER_7_RIVER_SPEC.md) for the rules and authored arc.
+The Castle manifest leads the raid upstream aboard a repair boat. Skiff, a river pilot, guides the crossing as a supporting NPC in the Raid Party. The player retains their chosen playable raid member. Ten levels follow the boat from helm to intake, cargo, and chart table. The opening levels introduce reversed, bending, paired, and bank-wrapping currents. Salt later freezes one route while another still moves. Cargo can ride an upper current uphill before a match opens a lane to the bottom exits. The finale combines these routes with salt and crate goals. The second oasis water-collection station is visible as the next Coming Soon chapter. See the [Chapter 7 implementation spec](CHAPTER_7_RIVER_SPEC.md) for the rules and authored arc.
 
 ## Party and matching symbols
 
