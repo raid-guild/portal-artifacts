@@ -97,6 +97,8 @@ export default function GameShell() {
   const cloudGeneration = useRef(0);
   const farmlandGeneration = useRef(0);
   const passGeneration = useRef(0);
+  const passRequest = useRef(0);
+  const passRef = useRef<{ accountId: string; generation: number; value: cloudApi.CampaignPass } | null>(null);
   const lastPassRefresh = useRef(0);
   const farmlandClaimId = useRef<string | null>(null);
   const farmlandClaiming = useRef(false);
@@ -303,19 +305,29 @@ export default function GameShell() {
       void refreshFarmland(current);
     } catch (error) { setCloudMessage(`Portal save could not load: ${(error as Error).message}`); }
   }
-  function clearFarmland() { farmlandGeneration.current++; passGeneration.current++; farmlandClaimId.current=null; farmlandClaiming.current=false; setFarmland(null); setFarmlandState("idle"); setFarmlandError(null); setCampaignPass(null); setPassError(null); setPassChecking(false); }
+  function clearCampaignPass() { passRequest.current++; passRef.current=null; setCampaignPass(null); }
+  function publishCampaignPass(account: NonNullable<typeof cloudRef.current>, generation: number, request: number, value: cloudApi.CampaignPass) {
+    if (cloudRef.current!==account || cloudGeneration.current!==generation || passRequest.current!==request) return null;
+    passRef.current={accountId:account.accountId,generation,value}; setCampaignPass(value);
+    return value;
+  }
+  function currentCampaignPass() {
+    const current=cloudRef.current, published=passRef.current;
+    return current && published?.accountId===current.accountId && published.generation===cloudGeneration.current ? published.value : null;
+  }
+  function clearFarmland() { farmlandGeneration.current++; passGeneration.current++; farmlandClaimId.current=null; farmlandClaiming.current=false; setFarmland(null); setFarmlandState("idle"); setFarmlandError(null); clearCampaignPass(); setPassError(null); setPassChecking(false); }
   async function refreshPass(refresh = false) {
     const current=cloudRef.current;
     if (!current || playtest) return;
-    const generation=++passGeneration.current;
+    const generation=++passGeneration.current, accountGeneration=cloudGeneration.current, request=++passRequest.current;
     if (refresh) lastPassRefresh.current=Date.now();
     setPassChecking(true); setPassError(null);
     try {
       const result=await cloudApi.entitlements(current.accountId,refresh);
       if (cloudRef.current!==current || passGeneration.current!==generation) return;
-      setCampaignPass(result.campaignPass);
+      publishCampaignPass(current,accountGeneration,request,result.campaignPass);
     } catch (error) {
-      if (cloudRef.current!==current || passGeneration.current!==generation) return;
+      if (cloudRef.current!==current || cloudGeneration.current!==accountGeneration || passGeneration.current!==generation || passRequest.current!==request) return;
       setPassError((error as Error).message);
     } finally { if (passGeneration.current===generation) setPassChecking(false); }
   }
@@ -323,21 +335,28 @@ export default function GameShell() {
     if (playtest) return true;
     const account=cloudRef.current, generation=cloudGeneration.current;
     if (!account || cloudStatus === "expired") return false;
+    const request=++passRequest.current;
     try {
       const result=await cloudApi.entitlements(account.accountId,true);
       if (cloudRef.current!==account || cloudGeneration.current!==generation) return false;
-      setCampaignPass(result.campaignPass); setPassError(null);
-      return result.campaignPass.state === "active";
-    } catch(error) { if (cloudRef.current===account) setPassError((error as Error).message); return false; }
+      const published=publishCampaignPass(account,generation,request,result.campaignPass);
+      if (published) setPassError(null);
+      return published?.state === "active";
+    } catch(error) {
+      if (cloudRef.current!==account || cloudGeneration.current!==generation) return false;
+      if (passRequest.current===request) setPassError((error as Error).message);
+      return false;
+    }
   }
   async function refreshFarmland(current = cloudRef.current) {
     if (!current || playtest || farmlandClaiming.current) return;
-    const generation=++farmlandGeneration.current;
+    const generation=++farmlandGeneration.current, accountGeneration=cloudGeneration.current, request=++passRequest.current;
     setFarmlandState("loading"); setFarmlandError(null);
     try {
       const result=await cloudApi.entitlements(current.accountId);
       if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
       setFarmland(result); setFarmlandState("idle");
+      publishCampaignPass(current,accountGeneration,request,result.campaignPass);
       if (result.farmland.unlocked) farmlandClaimId.current=null;
     } catch (error) {
       if (cloudRef.current!==current || farmlandGeneration.current!==generation) return;
@@ -402,7 +421,7 @@ export default function GameShell() {
       const cached = cloudApi.readAccountCache(session.accountId);
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
-      setFarmland(null); setCampaignPass(null); void refreshFarmland(cloudRef.current);
+      setFarmland(null); clearCampaignPass(); void refreshFarmland(cloudRef.current);
       if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
         try {
           const source=LEVELS[cached.purchase.levelId];
@@ -828,8 +847,7 @@ export default function GameShell() {
       return;
     }
     if (event.type === "replayDestination") {
-      const groups=replayDestinations(saveRef.current,displayRegion,{farmland:Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked),town:Boolean(playtest || cloudRef.current && campaignPass?.state==="active"),castle:Boolean(playtest || cloudRef.current && campaignPass?.state==="active")});
-      const group=groups.find(item=>item.destination===event.destination);
+      const group=replayGroups.find(item=>item.destination===event.destination);
       if (group) {setReplayChoices(group.levels);setReplaySelection(group.levels[0]);}
       if (!group || pendingAttempt.current?.cost && !saveRef.current.completed.includes(pendingAttempt.current.level)) { setReplayError("Resolve the pending booster purchase before replaying."); setOverlay("replayBriefing"); return; }
       setReplayError(null);
@@ -939,9 +957,10 @@ export default function GameShell() {
   }
   function visitRegion(region: Region) {
     if (saveRef.current.oasisTransition !== "ready" || region === "gatehouse" && !saveRef.current.gatehouseReady || region === "farmland" && !saveRef.current.farmlandReady || region === "town" && !saveRef.current.townReady || region === "castle" && !saveRef.current.castleReady) return;
-    if ((region === "town" || region === "castle") && !playtest && !(cloudRef.current && campaignPass?.state === "active")) return;
+    const passActive=Boolean(playtest || currentCampaignPass()?.state==="active");
+    if ((region === "town" || region === "castle") && !passActive) return;
     if (region === "farmland" && !playtest && !(farmland?.accountId===cloudRef.current?.accountId && farmland?.farmland.unlocked)) return;
-    if (region!==saveRef.current.region && chapterReplayReady(saveRef.current,region,{farmland:Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked),town:Boolean(playtest || cloudRef.current && campaignPass?.state==="active"),castle:Boolean(playtest || cloudRef.current && campaignPass?.state==="active")})) setVisitedRegion(region);
+    if (region!==saveRef.current.region && chapterReplayReady(saveRef.current,region,{farmland:Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked),town:passActive,castle:passActive})) setVisitedRegion(region);
     else if (region===saveRef.current.region) setVisitedRegion(null);
     else persist({ ...saveRef.current, region });
     void transitionTo(() => { setMode("map"); setOverlay(null); setAttempt(value => value + 1); });
@@ -962,9 +981,10 @@ export default function GameShell() {
       let townUnlocked=Boolean(playtest);
       if ((LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle") && !playtest) {
         if (!account) {setReplayError("Sign in to replay this chapter.");return;}
+        const request=++passRequest.current;
         const result=await cloudApi.entitlements(account.accountId,true);
         if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
-        townUnlocked=result.campaignPass.state==="active"; setCampaignPass(result.campaignPass);
+        townUnlocked=publishCampaignPass(account,generation,request,result.campaignPass)?.state==="active";
       }
       if (LEVELS[id].chapter==="farmland" && !playtest) {
         if (!account) {setReplayError("Sign in to replay Farmland.");return;}
@@ -978,7 +998,7 @@ export default function GameShell() {
       replaySession.current={token,generation,accountId:account?.accountId??null,level:id,sceneAttempt:attempt+1,farmlandUnlocked:unlocked,townUnlocked};
       setReplayActive(true);
       void transitionTo(()=>{setActiveLevel(id);setPuzzle(puzzle);setMode("puzzle");setOverlay(null);setAttempt(value=>value+1);});
-    } catch(error) {setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
+    } catch(error) {if (cloudRef.current===account && cloudGeneration.current===generation && token===replayToken.current) setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
     finally {launching.current=false;}
   }
   function openTown() { persist(advanceChapterTransition(saveRef.current, "arrival", "ready")); startLevel("marketArrival"); }
@@ -1152,6 +1172,9 @@ export default function GameShell() {
   const goalsLeft = Object.entries(puzzle?.goals ?? {}).filter(([, count]) => count > 0).map(([kind, count]) => `${count} ${kind === "leaf" ? "reeds" : kind === "pennant" ? "pennants" : kind === "key" ? "keys" : kind === "crust" ? "salt blocks" : kind}`).join(" and ");
   const demoComplete=save.completed.includes("openTheCrossing");
   const farmlandUnlocked=playtest ? farmlandPreview : Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.unlocked);
+  const passUnlocked=Boolean(playtest || currentCampaignPass()?.state==="active");
+  const replayGroups=mode==="map" ? replayDestinations(save,displayRegion,{farmland:farmlandUnlocked,town:passUnlocked,castle:passUnlocked}) : [];
+  const replayMapKey=mode==="map" ? replayGroups.map(group=>`${group.destination}:${group.levels.join(",")}`).join("|") : "";
   const farmlandEligible=Boolean(farmland && farmland.accountId===cloudRef.current?.accountId && farmland.farmland.eligible);
   const farmlandBlocked=cloudStatus==="pending" || cloudStatus==="syncing" || cloudConflict.current || Boolean(cloudRef.current?.pending.length);
   function beginFarmland() {
@@ -1168,11 +1191,14 @@ export default function GameShell() {
   }
   async function beginTown() {
     if (!saveRef.current.completed.includes("openTheHarvestRoad")) return;
+    const account=cloudRef.current, generation=cloudGeneration.current;
+    const sameSession=()=>cloudRef.current===account && cloudGeneration.current===generation;
     if (playtest) {
       if (saveRef.current.townReady) { visitRegion("town"); return; }
     } else {
-      if (cloudRef.current?.pending.length) { await flushCloud(); if (cloudRef.current?.pending.length) { setPassError("Sync the harvest chapter before traveling."); return; } }
-      if (!(await verifyTownPass())) { setOverlay("dunePass"); return; }
+      if (account?.pending.length) { await flushCloud(); if (!sameSession()) return; if (account.pending.length) { setPassError("Sync the harvest chapter before traveling."); return; } }
+      if (!(await verifyTownPass())) { if (sameSession()) setOverlay("dunePass"); return; }
+      if (!sameSession()) return;
       if (saveRef.current.townReady) { visitRegion("town"); return; }
     }
     if (saveRef.current.transition?.to === "town") { setOverlay(overlayForSave(saveRef.current)); return; }
@@ -1182,9 +1208,12 @@ export default function GameShell() {
   }
   async function beginCastle() {
     if (!saveRef.current.completed.includes("openTheMarket")) return;
+    const account=cloudRef.current, generation=cloudGeneration.current;
+    const sameSession=()=>cloudRef.current===account && cloudGeneration.current===generation;
     if (!playtest) {
-      if (cloudRef.current?.pending.length) { await flushCloud(); if (cloudRef.current?.pending.length) { setPassError("Sync the town chapter before travelling."); return; } }
-      if (!(await verifyTownPass())) { setOverlay("dunePass"); return; }
+      if (account?.pending.length) { await flushCloud(); if (!sameSession()) return; if (account.pending.length) { setPassError("Sync the town chapter before travelling."); return; } }
+      if (!(await verifyTownPass())) { if (sameSession()) setOverlay("dunePass"); return; }
+      if (!sameSession()) return;
     }
     if (saveRef.current.castleReady) { visitRegion("castle"); return; }
     if (saveRef.current.transition?.to === "castle") { setOverlay(overlayForSave(saveRef.current)); return; }
@@ -1218,7 +1247,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={mode === "map" ? replayDestinations(save,displayRegion,{farmland:Boolean(playtest ? farmlandPreview : cloudRef.current && farmland?.accountId===cloudRef.current.accountId && farmland.farmland.unlocked),town:Boolean(playtest || cloudRef.current && campaignPass?.state==="active"),castle:Boolean(playtest || cloudRef.current && campaignPass?.state==="active")}) : []} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
