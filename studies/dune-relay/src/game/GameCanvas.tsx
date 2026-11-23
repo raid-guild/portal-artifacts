@@ -1050,6 +1050,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     exitPulse?: Phaser.Tweens.Tween;
     exitPulsePaused = false;
     currentRoute?: Phaser.GameObjects.Graphics;
+    currentGlints: Phaser.GameObjects.Graphics[] = [];
+    currentFlow = 0;
+    currentSurgeMs = 0;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -1119,18 +1122,27 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (this.puzzle.current) {
         const route = this.add.graphics().setDepth(2);
+        this.boardRoot.add(route); this.currentRoute = route;
         for (const [index, cell] of this.puzzle.current.entries()) {
           const { x, y } = this.center(cell);
           const next = this.puzzle.current[(index + 1) % this.puzzle.current.length];
           const dx = next.col - cell.col, dy = next.row - cell.row;
-          route.fillStyle(0x3cd6e3, 0.18).fillRoundedRect(x - 24, y - 24, 48, 48, 7);
-          route.lineStyle(2, 0x8bf6ec, 0.9).strokeRoundedRect(x - 22, y - 22, 44, 44, 6);
+          // Water is a distinct surface, while symbols above it keep their full opacity.
+          route.fillStyle(0x167b98, 0.86).fillRoundedRect(x - 24, y - 24, 48, 48, 7);
+          route.lineStyle(3, 0x82f5e8, 0.92).strokeRoundedRect(x - 22, y - 22, 44, 44, 6);
+          route.lineStyle(1, 0xb7fff4, 0.48).lineBetween(x - 16, y - 18, x - 7, y - 18);
+          route.lineStyle(1, 0xb7fff4, 0.4).lineBetween(x + 7, y + 18, x + 16, y + 18);
           // The glyph sits in the gutter, outside the opaque symbol art.
           const ax = x + dx * 25, ay = y + dy * 25;
           route.fillStyle(0x103e48, 0.95).fillCircle(ax, ay, 7);
           route.fillStyle(0xb4fff1, 1).fillTriangle(ax + dx * 5, ay + dy * 5, ax - dx * 3 - dy * 4, ay - dy * 3 + dx * 4, ax - dx * 3 + dy * 4, ay - dy * 3 - dx * 4);
+          // A small glint passes each gutter arrow in clockwise order. It never covers tile art.
+          const glint = this.add.graphics().setPosition(ax, ay).setAlpha(0);
+          glint.fillStyle(0xe5fff9, 0.9).fillCircle(0, 0, 4);
+          glint.lineStyle(2, 0x92fff0, 0.9).lineBetween(-dx * 10, -dy * 10, dx * 3, dy * 3);
+          this.boardRoot.add(glint);
+          this.currentGlints.push(glint);
         }
-        this.boardRoot.add(route); this.currentRoute = route;
         if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.currentCells = String(this.puzzle.current.length);
       }
       this.selection = this.add.graphics();
@@ -1218,6 +1230,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.flair?.dispose();
         this.exitPulse?.remove();
         this.exitMarkers?.destroy();
+        this.currentGlints.length = 0;
         delete canvas.dataset.flairTier;
         delete canvas.dataset.flairParticles;
         delete canvas.dataset.flairWaves;
@@ -1256,6 +1269,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     update(_: number, delta: number) {
       this.flair?.setPaused(props.transitioning || props.interactionBlocked);
+      const flowBlocked = props.reducedMotion || props.transitioning || props.interactionBlocked || document.hidden ||
+        (this.introActive && this.game.canvas.dataset.introPhase !== "ready") ||
+        this.revealActive || this.puzzle.status !== "playing";
+      if (flowBlocked || this.busy && this.currentSurgeMs <= 0) {
+        for (const glint of this.currentGlints) glint.setAlpha(0);
+      } else if (this.currentGlints.length) {
+        const surge = this.currentSurgeMs > 0;
+        this.currentSurgeMs = Math.max(0, this.currentSurgeMs - delta);
+        this.currentFlow = (this.currentFlow + delta / (surge ? 840 : 2500)) % 1;
+        for (let index = 0; index < this.currentGlints.length; index++) {
+          const wave = Math.max(0, Math.cos((this.currentFlow - index / this.currentGlints.length) * Math.PI * 2));
+          this.currentGlints[index].setAlpha((surge ? 0.18 : 0.08) + wave * wave * wave * (surge ? 0.82 : 0.64));
+        }
+      }
       const pauseExitPulse = props.transitioning || props.interactionBlocked || document.hidden;
       if (this.exitPulse && pauseExitPulse !== this.exitPulsePaused) {
         this.exitPulsePaused = pauseExitPulse;
@@ -1867,6 +1894,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (step.kind === "current") {
         this.setMessage("The current carries tiles clockwise…");
         props.audio?.play("current");
+        if (!short) this.currentSurgeMs = 650;
         if (this.currentRoute && !short) {
           this.currentRoute.setAlpha(1);
           await this.tween(this.currentRoute, { alpha: 0.52, duration: 110, yoyo: true });
