@@ -139,7 +139,6 @@ button { font: inherit; cursor: pointer; }
 .phase-2 .jet-finale span { opacity: 0; }
 @keyframes pulse { from { transform: scale(.7) rotate(-12deg); } to { transform: scale(1.4) rotate(25deg); } }
 @keyframes fire { to { transform: translate(420px, -240px) scale(2) rotate(200deg); opacity: 0; } }
-.rotate { position: absolute; inset: 0; z-index: 8; display: none; flex-direction: column; align-items: center; justify-content: center; background: #0c303a; color: #ffe8b7; text-align: center; }
 .film-screen { position: absolute; inset: 0; z-index: 5; background: #082630; color: #fff0d0; }
 .film-screen video { display: block; width: 100%; height: 100%; object-fit: contain; background: #082630; }
 .film-caption { position: absolute; left: 4%; bottom: 5%; max-width: 60%; padding: 7px 12px; background: rgba(8, 38, 48, .7); border-left: 3px solid #e6c891; font-family: 'Barlow Condensed', Arial, sans-serif; font-size: clamp(15px, 3cqh, 25px); font-weight: 700; }
@@ -206,9 +205,6 @@ button { font: inherit; cursor: pointer; }
   .party-select { padding: 1px 4px; min-height: 21px; font-size: 10px; }
   .party-card > .primary { padding: 4px 9px; font-size: 17px; }
 }
-.rotate-icon { font-size: 70px; transform: rotate(-30deg); }
-.rotate strong { font-family: 'Barlow Condensed', Arial, sans-serif; font-size: 30px; }
-.rotate p { font-size: 14px; margin: 5px 0; }
 .awning-wipe { position: absolute; inset: 0; z-index: 10; overflow: hidden; pointer-events: auto; }
 .awning-panel { position: absolute; top: -1%; bottom: -1%; width: calc(50% + 2px); background: repeating-linear-gradient(89deg, transparent 0 32px, rgba(116, 72, 47, .055) 33px 35px, transparent 36px 69px), linear-gradient(180deg, #e9d4a7 0%, #f5e6c3 24%, #e4c994 74%, #d1a874 100%); box-shadow: inset 0 0 0 4px rgba(118, 66, 39, .38), inset 0 16px 23px rgba(255, 253, 220, .5), inset 0 -17px 26px rgba(104, 55, 32, .24), 0 0 30px rgba(20, 28, 26, .35); }
 .awning-panel::before { content: ""; position: absolute; top: 0; bottom: 0; width: 15px; background: repeating-linear-gradient(180deg, #b36e45 0 17px, #945234 18px 20px, #d39a5c 21px 35px); box-shadow: 0 0 0 2px #7f462e, 0 0 13px rgba(46, 27, 22, .4); }
@@ -252,14 +248,39 @@ button { font: inherit; cursor: pointer; }
   .awning-opening { animation: awning-fade-out 110ms ease-in both; }
 }
 
+/* The install instructions live outside the fixed-ratio game frame so they fit
+   a portrait phone even while the puzzle remains letterboxed. */
+.install-title { display: block; width: fit-content; margin-top: 7px; padding: 7px 0; color: #ffe3a2; text-decoration: underline; text-underline-offset: 4px; }
+.install-scrim { position: fixed; z-index: 100; inset: 0; display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: rgba(4, 24, 32, .88); }
+.install-card { width: min(440px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: clamp(18px, 5vw, 30px); border: 3px solid #e0bd82; border-radius: 14px; background: #173c46; color: #fff0cf; box-shadow: 0 20px 70px #001c25; }
+.install-card > img { display: block; margin-bottom: 10px; border-radius: 12px; }
+.install-card h2 { margin: 8px 0 12px; color: #ffe3a2; font: 800 clamp(28px, 7vw, 42px)/1 'Barlow Condensed', Arial, sans-serif; }
+.install-card p { margin: 8px 0 13px; line-height: 1.4; }
+.install-card .install-online { color: #a8d8cc; font-size: 14px; }
+.install-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.install-actions .primary { text-decoration: none; font-size: 22px; }
+.portrait-hint { display: none; }
 @media (orientation: portrait) and (pointer: coarse) and (hover: none) {
-  .rotate { display: flex; }
+  .viewport { flex-direction: column; gap: 12px; }
+  .frame { width: 100%; max-height: calc(100% - 54px); flex: none; }
+  .frame[data-overlay="start"] { width: 100%; height: 100%; max-height: 100%; aspect-ratio: auto; }
+  .frame[data-overlay="start"] .intro { align-items: center; overflow-y: auto; }
+  .frame[data-overlay="start"] .intro-card { width: min(440px, 100%); max-height: 100%; padding: 20px 8% 28px; overflow-y: auto; }
+  .frame[data-overlay="start"] .intro h1 { font-size: clamp(60px, 19vw, 94px); margin: 16px 0; }
+  .frame[data-overlay="start"] .intro p { font-size: clamp(15px, 4vw, 19px); margin: 0 0 18px; }
+  .frame[data-overlay="start"] .intro .primary { font-size: 24px; padding: 10px 16px; }
+  .frame[data-overlay="start"] .intro small { display: block; }
+  .portrait-hint { display: block; flex: none; color: #a8d8cc; text-align: center; font-size: 13px; padding-inline: 12px; }
+  .frame .settings-card { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px); }
+  .frame .scrim:has(.settings-card) { position: fixed; z-index: 20; inset: 0; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+  .frame .scrim:has(.settings-card) .dialog-card { width: min(420px, 100%); }
 }
 
 @container (max-height: 430px) {
   .intro-card { width: 54%; }
   .intro h1 { font-size: 61px; margin: 9px 0 11px; }
   .intro p { font-size: 13px; margin: 0 0 9px; }
+  .intro-card .install-title { display: inline-block; margin: 0 0 0 10px; padding: 5px 0; font-size: 12px; }
 }
 
 @container (max-height: 310px) {
@@ -282,6 +303,10 @@ button { font: inherit; cursor: pointer; }
 
 .level-pill { flex:none; display:inline-flex; align-items:center; justify-content:center; height:100%; padding:0 8px; border:2px solid #ddc18e; border-radius:12px; background:rgba(18,53,61,.94); color:#ffe29c; font-weight:700; font-size:clamp(11px,1.7cqw,18px); font-variant-numeric:tabular-nums; box-shadow:0 3px 0 #102a32; }
 .frame[data-mode="puzzle"] .cloud-pill { position:absolute; left:0; top:calc(100% + 2px); max-width:100%; line-height:1.15; }
+
+@media (orientation: portrait) and (pointer: coarse) and (hover: none) {
+  .frame[data-overlay="start"] .intro-card .install-title { display: block; margin: 7px 0 0; padding: 7px 0; font-size: 16px; }
+}
 
 /* Scripted mechanic lessons are DOM overlays; they never touch the live board. */
 .tutorial-scrim { z-index: 20; background: rgba(4, 24, 33, .88); backdrop-filter: blur(3px); }

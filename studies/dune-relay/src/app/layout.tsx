@@ -5,12 +5,18 @@ import "./style.css";
 
 const production = "https://portal-artifacts-production.up.railway.app/dune-relay/";
 const title = "Dune Relay — A RaidGuild Match-Three Adventure";
-const description = "Restore an oasis, guide the desert caravan, and open the river gatehouse in a three-chapter match-three adventure.";
+const description = "Restore the waterway and travel across the kingdom in a RaidGuild match-three adventure.";
 
 export const metadata: Metadata = {
   title,
   description,
   metadataBase: new URL(production),
+  manifest: assetUrl("/manifest.webmanifest"),
+  icons: {
+    icon: [{ url: assetUrl("/icons/dune-relay-192.png"), sizes: "192x192", type: "image/png" }, { url: assetUrl("/icons/dune-relay-512.png"), sizes: "512x512", type: "image/png" }],
+    apple: [{ url: assetUrl("/icons/dune-relay-apple-180.png"), sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: { capable: true, title: "Dune Relay", statusBarStyle: "black-translucent" },
   alternates: { canonical: production },
   openGraph: {
     type: "website", siteName: "RaidGuild Portal Artifacts", url: production,
@@ -20,7 +26,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description, images: [`${production}dune-relay-social-v1.png`] },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b2732" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const artwork = {
