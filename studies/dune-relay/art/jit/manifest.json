@@ -1,0 +1,24 @@
+{
+  "generator": "built-in image_gen",
+  "date": "2026-11-24",
+  "processing": "Sharp trim, contain within 336px, transparent 24px padding; 384px square PNGs. Generated alpha preserved.",
+  "assets": [
+    {
+      "output": "public/sprites/tile-bomb.png",
+      "source": "exec-ff64bc54-4b6a-4cf7-883e-2fdfd24cf960.png",
+      "prompt": "A small transparent game icon: an ivory four-point sparkle on a turquoise square, four gold corner brackets framing it. Hand-inked gouache storybook style, crisp dark brown outlines, antique brass edging. Simple chunky shapes, centered on transparent background. No text, no shadows, no surrounding scene."
+    },
+    {
+      "output": "public/sprites/free-swap.png",
+      "source": "exec-1a0bc3d7-2022-4564-8413-f60659a5c3a5.png",
+      "prompt": "Use case: precise-object-edit. Edit the attached exchange icon. Preserve the exact two turquoise-and-brass arrows, their opposite directions, crisp ink outlines, painted texture and warm highlights. REMOVE both central jigsaw puzzle pieces completely. Bring the upper and lower arrows closer together to form a compact two-arrow exchange symbol with a small clear gap. Remove ALL brown glow, drop shadow and haze outside the arrows. Keep only the two arrows on a truly empty alpha=0 background, opaque arrow interiors and antialiased edges. Center the entire symbol inside a square with 12% padding. No added objects, no text, no numbers, no frame, no checkerboard. Small game utility icon, legible at48px.",
+      "reference": "exec-5d77bcf5-b392-40d7-b750-64a08490d99b.png; generated initial exchange symbol, revised to remove unintended puzzle pieces"
+    },
+    {
+      "output": "public/sprites/field-toolkit.png",
+      "source": "exec-02cd11d2-005c-4a8d-99bd-e3f67779c24d.png",
+      "prompt": "Use case: illustration-story. Create one transparent gift parcel icon for a friendly leafy farmer in an inked gouache storybook adventure, matching the reference's crisp dark outlines and warm hand-painted colors. A squat ivory-wrapped canvas/paper box with a broad leafy green ribbon crossing it, a generous green bow on top, and a small warm brass leaf-shaped clasp. Unmistakably a gift; no wooden shipping-crate planks or tags. Three-quarter front/right view, centered complete silhouette with generous transparent padding. Readable at64px. No characters, writing, numbers, scenery, floor shadow, checkerboard, paper outside the parcel, or watermark. Actual transparent alpha background and opaque parcel interiors.",
+      "reference": "public/sprites/flywheel.png (style)"
+    }
+  ]
+}

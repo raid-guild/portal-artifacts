@@ -1,7 +1,7 @@
 import express from 'express';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtVerify } from 'jose';
-import { GAME, levels, content, boosterPrices, companionAbilities, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, accessTierForLevel, accessTierForCampaign, fail } from './dune-rules.js';
+import { GAME, levels, content, boosterPrices, toolPrices, boosterFunding, companionAbilities, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, accessTierForLevel, accessTierForCampaign, fail } from './dune-rules.js';
 import { createDuneCommerce } from './dune-commerce.js';
 
 const BASE = `/leaderboard-api/${GAME}`;
@@ -67,7 +67,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   }
   app.get(`${BASE}/ready`,limited(async (_req,res) => {
     const missing=[];
-    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','companion_snapshot','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_launch_intents:['nonce_hash','expires_at'], dune_entitlements:['player_id','entitlement_key','source','granted_at'] };
+    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','booster_funding','tool_sequence','companion_snapshot','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_launch_intents:['nonce_hash','expires_at'], dune_entitlements:['player_id','entitlement_key','source','granted_at'] };
     const {rows:[schema]}=await pool.query("SELECT has_schema_privilege(current_user,to_regnamespace('artifact_leaderboards'),'USAGE') AS can_use");
     if (!schema?.can_use) missing.push('schema:usage');
     for (const [name,columns] of Object.entries(tables)) {
@@ -194,11 +194,63 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[req.playerSession.player_id]);
       if (rate.count>=240) throw fail(429,'Too many campaign changes. Try later.');
       if (profile.imported || profile.revision>0 || profile.campaign.completed.length || profile.campaign.coins) throw fail(409,'This account already has campaign progress.');
-      const next={revision:profile.revision+1,campaign:imported,imported:true};
+      const next={...profile,revision:profile.revision+1,campaign:imported,imported:true};
       await saveProfile(client,req.playerSession.player_id,next);
       return {profile:next};
     }));
     res.json(response);
+  }));
+  app.post(`${BASE}/inventory/field-toolkit`,authenticated,limited(async(req,res)=>{
+    const {requestId}=req.body??{};
+    const playerId=req.playerSession.player_id;
+    const result=await transaction(playerId,async(client,profile)=>receipt(client,playerId,requestId,'field-toolkit',{},async()=>{
+      if (!profile.campaign.farmlandReady || !farmlandEligible(profile.campaign)) throw fail(403,'Arrive at Farmland to receive the toolkit.');
+      await requireChapterAccess(client,req.playerSession,profile.campaign,levels.get('seedStore'));
+      if (profile.rewardClaims.fieldToolkitV1) return {profile,granted:false};
+      const next={...profile,revision:profile.revision+1,inventory:{...profile.inventory,tileBomb:profile.inventory.tileBomb+1,freeSwap:profile.inventory.freeSwap+1},rewardClaims:{...profile.rewardClaims,fieldToolkitV1:new Date().toISOString()}};
+      await saveProfile(client,playerId,next);
+      return {profile:next,granted:true};
+    }));
+    res.json(result);
+  }));
+  app.post(`${BASE}/inventory/purchase`,authenticated,limited(async(req,res)=>{
+    const {requestId,kind,expectedRevision,attemptId}=req.body??{};
+    if (!Object.hasOwn(toolPrices,kind) || !validUuid(attemptId)) throw fail(400,'Invalid tool purchase.');
+    const playerId=req.playerSession.player_id;
+    const result=await transaction(playerId,async(client,profile)=>receipt(client,playerId,requestId,'tool-purchase',{kind,expectedRevision,attemptId},async()=>{
+      const {rows:[attempt]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[attemptId,playerId]);
+      if (!attempt || attempt.status!=='active') throw fail(409,'The level is not active.');
+      const level=levels.get(attempt.level_id);
+      if (level.index<30) throw fail(403,'Tools unlock in Farmland.');
+      requireCurrentLevel(profile.campaign,level);
+      await requireChapterAccess(client,req.playerSession,profile.campaign,level);
+      if (expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
+      if (profile.campaign.coins<toolPrices[kind]) throw fail(409,'Not enough coins.');
+      const next={...profile,revision:profile.revision+1,campaign:{...profile.campaign,coins:profile.campaign.coins-toolPrices[kind]},inventory:{...profile.inventory,[kind]:profile.inventory[kind]+1}};
+      await saveProfile(client,playerId,next);
+      return {profile:next,kind};
+    }));
+    res.json(result);
+  }));
+  app.post(`${BASE}/attempts/:id/tools`,authenticated,limited(async(req,res)=>{
+    const id=req.params.id,{requestId,kind,expectedRevision,toolSequence,stateFingerprint,movesRemaining}=req.body??{};
+    if (!validUuid(id) || !Object.hasOwn(toolPrices,kind) || typeof stateFingerprint!=='string' || !/^[a-f0-9]{64}$/i.test(stateFingerprint) || !Number.isSafeInteger(toolSequence) || toolSequence<1 || !Number.isSafeInteger(movesRemaining) || movesRemaining<1) throw fail(400,'Invalid tool use.');
+    const playerId=req.playerSession.player_id;
+    const result=await transaction(playerId,async(client,profile)=>receipt(client,playerId,requestId,'tool-use',{attemptId:id,kind,expectedRevision,toolSequence,stateFingerprint,movesRemaining},async()=>{
+      const {rows:[attempt]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1 AND player_id=$2 FOR UPDATE',[id,playerId]);
+      if (!attempt || attempt.status!=='active') throw fail(409,'The level is not active.');
+      const level=levels.get(attempt.level_id);
+      if (level.index<30) throw fail(403,'Tools unlock in Farmland.');
+      requireCurrentLevel(profile.campaign,level);
+      await requireChapterAccess(client,req.playerSession,profile.campaign,level);
+      if (expectedRevision!==profile.revision || toolSequence!==attempt.tool_sequence+1) throw fail(409,'Tool use changed. Reload your save.');
+      if (movesRemaining>level.moves || profile.inventory[kind]<1) throw fail(409,'Tool unavailable.');
+      const next={...profile,revision:profile.revision+1,inventory:{...profile.inventory,[kind]:profile.inventory[kind]-1}};
+      await saveProfile(client,playerId,next);
+      await client.query('UPDATE artifact_leaderboards.dune_attempts SET tool_sequence=$2,updated_at=now() WHERE id=$1',[id,toolSequence]);
+      return {profile:next,toolSequence};
+    }));
+    res.json(result);
   }));
   app.post(`${BASE}/attempts`,authenticated,limited(async(req,res)=>{
     const {attemptId,levelId,boosters,companionId}=req.body??{};
@@ -214,14 +266,15 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       if (existing) {
         const sameCompanion = existing.companion_snapshot === null && companionSnapshot === null || existing.companion_snapshot && companionSnapshot && Object.keys(existing.companion_snapshot).length === Object.keys(companionSnapshot).length && Object.entries(companionSnapshot).every(([key,value])=>existing.companion_snapshot[key]===value);
         if (String(existing.player_id)!==String(req.playerSession.player_id) || existing.level_id!==levelId || JSON.stringify(existing.boosters)!==JSON.stringify(selected) || !sameCompanion) throw fail(409,'Attempt ID already belongs to another attempt.');
-        return {attemptId,status:existing.status,profile,companionSnapshot:existing.companion_snapshot};
+        return {attemptId,status:existing.status,profile,companionSnapshot:existing.companion_snapshot,boosterFunding:existing.booster_funding};
       }
       if (usesCompanion && companionId !== profile.campaign.activeCompanion) throw fail(409,'Select the active raid member before starting this chapter.');
       requireCurrentLevel(profile.campaign,level);
       const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_attempts WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[req.playerSession.player_id]);
       if (rate.count>=120) throw fail(429,'Too many attempts. Try later.');
-      await client.query('INSERT INTO artifact_leaderboards.dune_attempts(id,player_id,level_id,boosters,companion_snapshot,status) VALUES($1,$2,$3,$4,$5,$6)',[attemptId,req.playerSession.player_id,levelId,JSON.stringify(selected),companionSnapshot && JSON.stringify(companionSnapshot),'prepared']);
-      return {attemptId,status:'prepared',profile,companionSnapshot};
+      const funding=boosterFunding(selected,profile.inventory);
+      await client.query('INSERT INTO artifact_leaderboards.dune_attempts(id,player_id,level_id,boosters,booster_funding,companion_snapshot,status) VALUES($1,$2,$3,$4,$5,$6,$7)',[attemptId,req.playerSession.player_id,levelId,JSON.stringify(selected),JSON.stringify(funding),companionSnapshot && JSON.stringify(companionSnapshot),'prepared']);
+      return {attemptId,status:'prepared',profile,companionSnapshot,boosterFunding:funding};
     });
     res.json(result);
   }));
@@ -233,12 +286,15 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       if (!row) throw fail(404,'Attempt not found.');
       await requireChapterAccess(client,req.playerSession,profile.campaign,levels.get(row.level_id));
       if (row.status!=='prepared') return {attemptId:id,status:row.status,profile,companionSnapshot:row.companion_snapshot};
-      const cost=validBoosters(row.boosters).reduce((sum,kind)=>sum+boosterPrices[kind],0);
+      const funding=row.booster_funding;
+      const cost=funding ? funding.coinCost : validBoosters(row.boosters).reduce((sum,kind)=>sum+boosterPrices[kind],0);
       if (req.body?.expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
       requireCurrentLevel(profile.campaign,levels.get(row.level_id));
       if (cost>profile.campaign.coins) throw fail(409,'Not enough coins.');
-      const next=cost?{...profile,revision:profile.revision+1,campaign:{...profile.campaign,coins:profile.campaign.coins-cost}}:profile;
-      if (cost) await saveProfile(client,req.playerSession.player_id,next);
+      if (funding && (JSON.stringify([...funding.owned].sort())!==JSON.stringify([...funding.owned]) || [...funding.owned,...funding.purchased].sort().join(',')!==validBoosters(row.boosters).join(',') || funding.coinCost!==funding.purchased.reduce((sum,kind)=>sum+boosterPrices[kind],0) || funding.owned.some(kind=>profile.inventory[kind]<1))) throw fail(409,'Starting booster stock changed. Reload your save.');
+      const next=cost || funding?.owned.length ? {...profile,revision:profile.revision+1,campaign:{...profile.campaign,coins:profile.campaign.coins-cost},inventory:{...profile.inventory}}:profile;
+      for (const kind of funding?.owned??[]) next.inventory[kind]--;
+      if (next!==profile) await saveProfile(client,req.playerSession.player_id,next);
       await client.query("UPDATE artifact_leaderboards.dune_attempts SET status='active',updated_at=now() WHERE id=$1",[id]);
       return {attemptId:id,status:'active',profile:next,companionSnapshot:row.companion_snapshot};
     });

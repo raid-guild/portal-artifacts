@@ -17,7 +17,7 @@ const castleFields = {
 const step = (profile, fields) => applyCheckpoint(profile, { ...profile.campaign, ...fields });
 
 test('River catalog extends the campaign without moving Castle completion', () => {
-  assert.equal(content.contentVersion, 'chapter-7-3');
+  assert.equal(content.contentVersion, 'chapter-7-4');
   assert.equal(CASTLE_LEVEL_COUNT, 60);
   assert.equal(RIVER_LEVEL_COUNT, content.levels.length);
   assert.equal(RIVER_LEVEL_COUNT, 70);

@@ -16,8 +16,21 @@ function maximumKnownMoveCap(level) {
   return Math.max(level.moves, ...Object.values(legacyMoves).map(snapshot => snapshot[level.id] ?? 0));
 }
 export const boosterPrices = Object.freeze({ jet: 300, flywheel: 300, prism: 500 });
+export const toolPrices = Object.freeze({ tileBomb: 600, freeSwap: 600 });
+export const inventoryKinds = Object.freeze(['tileBomb','freeSwap','jet','flywheel','prism']);
+export const emptyInventory = () => ({ tileBomb:0, freeSwap:0, jet:0, flywheel:0, prism:0 });
+export function normalizeInventory(value) {
+  const inventory=emptyInventory();
+  for (const kind of inventoryKinds) if (Number.isSafeInteger(value?.[kind]) && value[kind]>=0 && value[kind]<=1000000) inventory[kind]=value[kind];
+  return inventory;
+}
+export function boosterFunding(selected,inventory) {
+  const owned=[],purchased=[];
+  for (const kind of validBoosters(selected)) (inventory[kind]>0 ? owned : purchased).push(kind);
+  return {owned,purchased,coinCost:purchased.reduce((sum,kind)=>sum+boosterPrices[kind],0)};
+}
 export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, activeCompanion: null, demoEnding: 'locked', farmlandEnding: 'locked', townEnding: 'locked', castleEnding: 'locked', riverEnding: 'locked' });
-export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false });
+export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false, inventory:emptyInventory(), rewardClaims:{} });
 export const rewardFor = moves => 20 + 3 * moves;
 // This boundary stays at the Gatehouse finale when later chapters add levels.
 export const DEMO_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCrossing') + 1;
@@ -124,7 +137,8 @@ export function normalizeProfile(value) {
   if (!value || typeof value !== 'object') return emptyProfile();
   const completed = validPrefix(value.campaign?.completed ?? []);
   return { revision: Number.isSafeInteger(value.revision) && value.revision >= 0 ? value.revision : 0,
-    campaign: deriveCampaign(completed, Number.isSafeInteger(value.campaign?.coins) ? value.campaign.coins : 0, value.campaign), imported: value.imported === true };
+    campaign: deriveCampaign(completed, Number.isSafeInteger(value.campaign?.coins) ? value.campaign.coins : 0, value.campaign), imported: value.imported === true,
+    inventory:normalizeInventory(value.inventory),rewardClaims:typeof value.rewardClaims?.fieldToolkitV1==='string' && Number.isFinite(Date.parse(value.rewardClaims.fieldToolkitV1)) ? {fieldToolkitV1:value.rewardClaims.fieldToolkitV1} : {} };
 }
 export function guestImport(value) {
   if (!value || value.version !== 5) throw fail(400, 'Invalid guest save.');

@@ -3,10 +3,12 @@ import type { BoosterKind } from './boosters';
 import type { LevelId } from './levels';
 import type { CompanionId } from './save';
 import type { CompanionSnapshot } from './companionAbilities';
+import type { Puzzle, PuzzleAction } from './core';
+import type { Inventory } from './inventory';
 
 const BASE = '/leaderboard-api/dune-relay';
 export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
-export type CloudProfile = { revision: number; campaign: Save; imported: boolean };
+export type CloudProfile = { revision: number; campaign: Save; imported: boolean; inventory: Inventory; rewardClaims: {fieldToolkitV1?:string} };
 export type CloudSession = { accountId: string; displayName: string; contentVersion: string };
 export type FarmlandEntitlement = { accountId: string; farmland: { unlocked: boolean; eligible: boolean; unlockedAt: string | null } };
 export type CampaignPass = { state: 'active' | 'locked' | 'unavailable'; unlocked: boolean; unlockedAt: string | null; checkedAt: string | null; storeUrl: string | null };
@@ -14,7 +16,9 @@ export type AccountEntitlements = FarmlandEntitlement & { campaignPass: Campaign
 export type CloudOperation =
   | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string }
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
-export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; companionSnapshot?: CompanionSnapshot | null } };
+export type ToolJournal = { accountId:string; attemptId:string; levelId:LevelId; requestId:string; expectedRevision:number; toolSequence:number; kind:'tileBomb'|'freeSwap'; action:PuzzleAction; stateFingerprint:string; movesRemaining:number; contentVersion:string; before:Puzzle; after:Puzzle; phase:'pending'|'confirmed'|'applied' };
+export type PendingToolPurchase = {requestId:string;kind:'tileBomb'|'freeSwap';accountId:string;attemptId:string;expectedRevision:number};
+export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
 const cacheKey = (id: string) => `dune-relay-cloud-${id}-v1`;
 const lastAccountKey = 'dune-relay-last-portal-account-v1';
@@ -51,8 +55,12 @@ export const entitlements = async (accountId: string, refresh = false): Promise<
 };
 export const claimFarmland = async (requestId: string, accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await post('/entitlements/farmland/claim',{requestId},accountId),accountId);
 export const importGuest = (guestSave: Save, requestId: string, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave},accountId);
-export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string, companionId?: CompanionId | null): Promise<{profile:CloudProfile;companionSnapshot:CompanionSnapshot|null}> => post('/attempts',{attemptId,levelId,boosters,...(companionId ? { companionId } : {})},accountId);
+export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string, companionId?: CompanionId | null): Promise<{profile:CloudProfile;companionSnapshot:CompanionSnapshot|null;boosterFunding:{owned:BoosterKind[];purchased:BoosterKind[];coinCost:number}|null}> => post('/attempts',{attemptId,levelId,boosters,...(companionId ? { companionId } : {})},accountId);
 export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared';companionSnapshot:CompanionSnapshot|null}> => post(`/attempts/${attemptId}/activate`,{expectedRevision},accountId);
+export const claimFieldToolkit = (requestId:string,accountId:string):Promise<{profile:CloudProfile;granted:boolean}> => post('/inventory/field-toolkit',{requestId},accountId);
+export const purchaseTool = (requestId:string,kind:'tileBomb'|'freeSwap',expectedRevision:number,attemptId:string,accountId:string):Promise<{profile:CloudProfile;kind:string}> => post('/inventory/purchase',{requestId,kind,expectedRevision,attemptId},accountId);
+export const consumeTool = (journal:ToolJournal):Promise<{profile:CloudProfile;toolSequence:number}> => post(`/attempts/${journal.attemptId}/tools`,{requestId:journal.requestId,kind:journal.kind,expectedRevision:journal.expectedRevision,toolSequence:journal.toolSequence,stateFingerprint:journal.stateFingerprint,movesRemaining:journal.movesRemaining},journal.accountId);
+export const isDefiniteToolRejection = (error:unknown):boolean => [400,403,409].includes(Number((error as {status?:unknown})?.status));
 export const finishAttempt = (op: Extract<CloudOperation,{kind:'finish'}>, accountId: string): Promise<{profile:CloudProfile;reward:number}> => post(`/attempts/${op.attemptId}/finish`,{levelId:op.levelId,remainingMoves:op.remainingMoves,contentVersion:op.contentVersion},accountId);
 export const advanceCheckpoint = (op: Extract<CloudOperation,{kind:'checkpoint'}>, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/checkpoint',{requestId:op.requestId,campaign:op.campaign,expectedRevision},accountId);
 export const logout = (accountId: string): Promise<void> => post('/logout',{},accountId).then(()=>undefined);
@@ -76,4 +84,4 @@ export function guestImportId(accountId: string): string {
 export function clearGuestImportId(accountId: string): void {
   try { localStorage.removeItem(`dune-relay-import-${accountId}-v1`); } catch { /* Storage may be unavailable. */ }
 }
-export const contentVersion = 'chapter-7-3';
+export const contentVersion = 'chapter-7-4';
