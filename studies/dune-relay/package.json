@@ -26,7 +26,8 @@
     "test:chain-callout": "node scripts/check-chain-callout.cjs",
     "test:tool-dialog-layout": "node scripts/check-tool-dialog-layout.cjs",
     "test:rewards-browser": "node scripts/check-rewards-browser.cjs",
-    "test:streak-browser": "node scripts/check-streak-browser.cjs"
+    "test:streak-browser": "node scripts/check-streak-browser.cjs",
+    "test:reset-browser": "node scripts/check-reset-browser.cjs"
   },
   "dependencies": {
     "next": "15.5.29",

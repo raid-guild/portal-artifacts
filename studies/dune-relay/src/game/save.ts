@@ -5,6 +5,9 @@ const V4_SAVE_KEY = "dune-relay-campaign-v4";
 const V3_SAVE_KEY = "dune-relay-campaign-v3";
 const V2_SAVE_KEY = "dune-relay-campaign-v2";
 const OLD_SAVE_KEY = "dune-relay-pump-house-v1";
+export function clearLegacySaves(storage?:Pick<Storage,"removeItem">):void {
+  try{for(const key of [V4_SAVE_KEY,V3_SAVE_KEY,V2_SAVE_KEY,OLD_SAVE_KEY])(storage??localStorage).removeItem(key);}catch{/* An unavailable store cannot be cleared. */}
+}
 export type Region = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river";
 export type CompanionId = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
 export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival" | "ready";

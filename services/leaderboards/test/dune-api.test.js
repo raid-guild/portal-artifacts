@@ -698,3 +698,27 @@ test('a daily-only Portal profile can import guest progress without losing its g
   assert.equal((await call('/campaign/import',capped.cookie,{requestId:randomUUID(),guestSave:{...guest,coins:80}})).status,409,'combined balance must stay bounded');
   assert.equal((await ok(await call('/campaign',capped.cookie))).profile.campaign.coins,999950);
 });
+test('permanent reset starts a new campaign without revoking access or regranting gifts',async()=>{
+  const {cookie}=await launch(),accountId=accountByCookie.get(cookie),oldAttempt=randomUUID(),rewardKey='daily:2026-11-24';
+  const oldCampaign=deriveCampaign([content.levels[0].id],500,{...emptyCampaign(),region:'oasis'});
+  const prior={revision:9,campaignGeneration:0,campaign:oldCampaign,imported:true,inventory:{tileBomb:1,freeSwap:1,jet:2,flywheel:0,prism:0},rewardClaims:{fieldToolkitV1:'2026-11-23T00:00:00Z'},dailyVisit:{day:'2026-11-24',cycleDay:3,version:2,payload:{coins:0,item:null,quantity:0,items:[{item:'jet',quantity:2}]}}};
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2) ON CONFLICT(player_id) DO UPDATE SET profile=$2',[accountId,prior]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_attempts(id,player_id,level_id,status) VALUES($1,$2,$3,'finished')",[oldAttempt,accountId,content.levels[0].id]);
+  await pool.query('INSERT INTO artifact_leaderboards.dune_completions(player_id,level_id,attempt_id,reward) VALUES($1,$2,$3,$4)',[accountId,content.levels[0].id,oldAttempt,80]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus'),($1,'dune-pass','test') ON CONFLICT DO NOTHING",[accountId]);
+  await pool.query('INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,$2,2,$3)',[accountId,rewardKey,JSON.stringify({coins:0,item:null,quantity:0,items:[{item:'jet',quantity:2}]})]);
+  const requestId=randomUUID(),payload={requestId,expectedRevision:9,campaignGeneration:0};
+  const first=await ok(await call('/campaign/reset',cookie,payload));
+  assert.equal(first.campaignGeneration,1);assert.equal(first.profile.revision,10);assert.equal(first.profile.campaignGeneration,1);assert.deepEqual(first.profile.campaign.completed,[]);assert.equal(first.profile.campaign.coins,0);assert.equal(first.profile.inventory.jet,0);assert.equal(first.profile.rewardClaims.fieldToolkitV1,prior.rewardClaims.fieldToolkitV1);assert.deepEqual(first.profile.dailyVisit,prior.dailyVisit);assert.equal(first.profile.imported,true);
+  const count=await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_completions WHERE player_id=$1',[accountId]);assert.equal(count.rows[0].n,0);
+  const gift=await pool.query('SELECT presented_at FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1 AND reward_key=$2',[accountId,rewardKey]);assert(gift.rows[0].presented_at,'unseen old gift is retired without regranting');
+  const access=await pool.query('SELECT entitlement_key FROM artifact_leaderboards.dune_entitlements WHERE player_id=$1',[accountId]);assert.equal(access.rows.length,2);
+  const oldFinish={levelId:content.levels[0].id,remainingMoves:2,contentVersion:content.contentVersion,campaignGeneration:0};
+  for(const id of [oldAttempt,randomUUID()]){const stale=await call(`/attempts/${id}/finish`,cookie,oldFinish);assert.equal(stale.status,409);assert.equal((await stale.json()).code,'CAMPAIGN_RESET');}
+  const oldCheckpoint=await call('/campaign/checkpoint',cookie,{requestId:randomUUID(),campaign:oldCampaign,expectedRevision:10,campaignGeneration:0});assert.equal(oldCheckpoint.status,409);
+  const oldImport=await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:emptyCampaign(),campaignGeneration:0});assert.equal(oldImport.status,409);
+  const newAttempt=randomUUID(),newFinish=await ok(await call(`/attempts/${newAttempt}/finish`,cookie,{...oldFinish,campaignGeneration:1}));assert.equal(newFinish.profile.campaign.completed.length,1);assert(newFinish.reward>0);
+  const replay=await ok(await call('/campaign/reset',cookie,payload));assert.equal(replay.campaignGeneration,1);assert.equal(replay.profile.campaign.completed.length,1,'reset retry returns current profile without resetting twice');
+  const second=await ok(await call('/campaign/reset',cookie,{requestId:randomUUID(),expectedRevision:newFinish.profile.revision,campaignGeneration:1}));assert.equal(second.campaignGeneration,2);assert.equal(second.profile.campaign.completed.length,0);
+  assert.equal((await call('/campaign/reset',cookie,{requestId:randomUUID(),expectedRevision:9,campaignGeneration:0})).status,409);
+});

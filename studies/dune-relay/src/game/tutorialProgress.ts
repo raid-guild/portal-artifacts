@@ -3,10 +3,14 @@ const VERSION = 1;
 const PREFIX = "dune-relay-tutorials-v1";
 const VALID = new Set<string>(TUTORIALS.map(t => t.id));
 const memory = new Map<string, Set<TutorialId>>();
-export type TutorialScope = { kind: "guest" | "account" | "sandbox"; accountId?: string };
+export type TutorialScope = { kind: "guest" | "account" | "sandbox"; accountId?: string; campaignGeneration?:number };
 export function tutorialScopeKey(scope: TutorialScope): string {
-  if (scope.kind === "account") return `${PREFIX}:account:${encodeURIComponent(scope.accountId || "unknown")}`;
+  if (scope.kind === "account") return `${PREFIX}:account:${encodeURIComponent(scope.accountId || "unknown")}${scope.campaignGeneration ? `:run:${scope.campaignGeneration}` : ""}`;
   return `${PREFIX}:${scope.kind}`;
+}
+export function clearSeen(scope:TutorialScope,storage?:Pick<Storage,"removeItem">):void {
+  const key=tutorialScopeKey(scope);memory.delete(key);
+  try{(storage??localStorage).removeItem(key);}catch{/* Storage may be unavailable. */}
 }
 export function readSeen(scope: TutorialScope, storage?: Pick<Storage,"getItem">): Set<TutorialId> {
   const key=tutorialScopeKey(scope);

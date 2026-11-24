@@ -6,6 +6,7 @@ GRANT SELECT, INSERT, UPDATE ON artifact_leaderboards.dune_profiles,
   artifact_leaderboards.dune_completions,
   artifact_leaderboards.dune_operations,
   artifact_leaderboards.dune_reward_claims TO artifact_leaderboards_app;
+GRANT DELETE ON artifact_leaderboards.dune_completions TO artifact_leaderboards_app;
 GRANT SELECT, INSERT, DELETE ON artifact_leaderboards.dune_launch_intents TO artifact_leaderboards_app;
 GRANT SELECT, INSERT ON artifact_leaderboards.dune_entitlements TO artifact_leaderboards_app;
 GRANT USAGE ON SEQUENCE artifact_leaderboards.players_id_seq TO artifact_leaderboards_app;

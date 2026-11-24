@@ -8,25 +8,36 @@ import type { Inventory } from './inventory';
 
 const BASE = '/leaderboard-api/dune-relay';
 export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
-export type CloudProfile = { revision: number; campaign: Save; imported: boolean; inventory: Inventory; rewardClaims: {fieldToolkitV1?:string}; dailyVisit?:DailyVisit|null };
+export type CloudProfile = { revision: number; campaignGeneration?:number; campaign: Save; imported: boolean; inventory: Inventory; rewardClaims: {fieldToolkitV1?:string}; dailyVisit?:DailyVisit|null };
 export type CloudSession = { accountId: string; displayName: string; contentVersion: string };
 export type FarmlandEntitlement = { accountId: string; farmland: { unlocked: boolean; eligible: boolean; unlockedAt: string | null } };
 export type CampaignPass = { state: 'active' | 'locked' | 'unavailable'; unlocked: boolean; unlockedAt: string | null; checkedAt: string | null; storeUrl: string | null };
 export type AccountEntitlements = FarmlandEntitlement & { campaignPass: CampaignPass };
 export type CloudOperation =
-  | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string }
-  | { kind: 'checkpoint'; requestId: string; campaign: Save };
-export type ToolJournal = { accountId:string; attemptId:string; levelId:LevelId; requestId:string; expectedRevision:number; toolSequence:number; kind:'tileBomb'|'freeSwap'; action:PuzzleAction; stateFingerprint:string; movesRemaining:number; contentVersion:string; before:Puzzle; after:Puzzle; phase:'pending'|'confirmed'|'applied' };
-export type PendingToolPurchase = {requestId:string;kind:'tileBomb'|'freeSwap';accountId:string;attemptId:string;expectedRevision:number};
+  | { kind: 'finish'; attemptId: string; levelId: LevelId; remainingMoves: number; contentVersion: string; campaignGeneration?:number }
+  | { kind: 'checkpoint'; requestId: string; campaign: Save; campaignGeneration?:number };
+export type ToolJournal = { accountId:string; attemptId:string; levelId:LevelId; requestId:string; expectedRevision:number; campaignGeneration?:number; toolSequence:number; kind:'tileBomb'|'freeSwap'; action:PuzzleAction; stateFingerprint:string; movesRemaining:number; contentVersion:string; before:Puzzle; after:Puzzle; phase:'pending'|'confirmed'|'applied' };
+export type PendingToolPurchase = {requestId:string;kind:'tileBomb'|'freeSwap';accountId:string;attemptId:string;expectedRevision:number;campaignGeneration?:number};
 export type RewardPayload = {coins:number;item:keyof Inventory|null;quantity:number;items?:{item:keyof Inventory;quantity:number}[]};
 export type DailyVisit = {day:string;cycleDay:number;version:number;payload:RewardPayload};
 export type RewardAward = {key:string;version:number;payload:RewardPayload;claimedAt:string;presentedAt:string|null};
 export type RewardOffer = {key:string;title:string;payload:RewardPayload;cycleDay?:number;status:'available'|'locked'|'claimed-unpresented'|'claimed-presented';award?:RewardAward};
 export type Rewards = {catalogVersion:number;serverDay:string;nextResetAt:string;dailyVisit?:DailyVisit;visitReserved?:boolean;rewards:RewardOffer[];unpresented:RewardAward[]};
+export type ResetJournal = {accountId:string;requestId:string;expectedRevision:number;campaignGeneration:number};
 export type RewardJournal = {accountId:string;requestId:string;rewardKey:string;phase:'pending'|'confirmed'};
-export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase; rewardJournal?:RewardJournal };
+export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase; rewardJournal?:RewardJournal; resetJournal?:ResetJournal };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
 const cacheKey = (id: string) => `dune-relay-cloud-${id}-v1`;
+const resetKey = (id:string)=>`dune-relay-reset-${id}-v1`;
+export function readResetJournal(id:string):ResetJournal|null {
+  if(!safeAccount(id))return null;
+  try{const value=JSON.parse(localStorage.getItem(resetKey(id))??'null');return value?.accountId===id && /^[0-9a-f-]{36}$/i.test(value.requestId) && Number.isSafeInteger(value.expectedRevision) && Number.isSafeInteger(value.campaignGeneration) ? value : null;}catch{return null;}
+}
+export function writeResetJournal(journal:ResetJournal):boolean {
+  if(!safeAccount(journal.accountId))return false;
+  try{localStorage.setItem(resetKey(journal.accountId),JSON.stringify(journal));return true;}catch{return false;}
+}
+export function clearResetJournal(id:string):void {if(!safeAccount(id))return;try{localStorage.removeItem(resetKey(id));}catch{}}
 const lastAccountKey = 'dune-relay-last-portal-account-v1';
 export function rememberedAccount(): string | null {
   try { return safeAccount(localStorage.getItem(lastAccountKey) ?? ''); } catch { return null; }
@@ -41,7 +52,7 @@ const json = async (path: string, init?: RequestInit, accountId?: string) => {
   try { response = await fetch(`${BASE}${path}`, { credentials:'same-origin', cache:'no-store', ...init, signal:controller.signal, headers:{ ...(init?.body ? { 'Content-Type':'application/json' } : {}), ...(accountId ? { 'X-Dune-Account-ID':accountId } : {}), ...(init?.headers ?? {}) } }); }
   finally { clearTimeout(timer); }
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(typeof body.message === 'string' ? body.message : `Cloud request failed (${response.status})`), { status:response.status });
+  if (!response.ok) throw Object.assign(new Error(typeof body.message === 'string' ? body.message : `Cloud request failed (${response.status})`), { status:response.status,code:body.code });
   return body;
 };
 const post = (path: string, body: unknown, accountId: string) => json(path, { method:'POST',body:JSON.stringify(body) },accountId);
@@ -84,15 +95,17 @@ export const entitlements = async (accountId: string, refresh = false): Promise<
   return result;
 };
 export const claimFarmland = async (requestId: string, accountId: string): Promise<FarmlandEntitlement> => checkedEntitlement(await post('/entitlements/farmland/claim',{requestId},accountId),accountId);
-export const importGuest = (guestSave: Save, requestId: string, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave},accountId);
-export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string, companionId?: CompanionId | null): Promise<{profile:CloudProfile;companionSnapshot:CompanionSnapshot|null;boosterFunding:{owned:BoosterKind[];purchased:BoosterKind[];coinCost:number}|null}> => post('/attempts',{attemptId,levelId,boosters,...(companionId ? { companionId } : {})},accountId);
-export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared';companionSnapshot:CompanionSnapshot|null}> => post(`/attempts/${attemptId}/activate`,{expectedRevision},accountId);
-export const claimFieldToolkit = (requestId:string,accountId:string):Promise<{profile:CloudProfile;granted:boolean}> => post('/inventory/field-toolkit',{requestId},accountId);
-export const purchaseTool = (requestId:string,kind:'tileBomb'|'freeSwap',expectedRevision:number,attemptId:string,accountId:string):Promise<{profile:CloudProfile;kind:string}> => post('/inventory/purchase',{requestId,kind,expectedRevision,attemptId},accountId);
-export const consumeTool = (journal:ToolJournal):Promise<{profile:CloudProfile;toolSequence:number}> => post(`/attempts/${journal.attemptId}/tools`,{requestId:journal.requestId,kind:journal.kind,expectedRevision:journal.expectedRevision,toolSequence:journal.toolSequence,stateFingerprint:journal.stateFingerprint,movesRemaining:journal.movesRemaining},journal.accountId);
+export const importGuest = (guestSave: Save, requestId: string, accountId: string,campaignGeneration=0): Promise<{profile:CloudProfile}> => post('/campaign/import',{requestId,guestSave,campaignGeneration},accountId);
+export const prepareAttempt = (attemptId: string, levelId: LevelId, boosters: BoosterKind[], accountId: string, companionId?: CompanionId | null,campaignGeneration=0): Promise<{profile:CloudProfile;companionSnapshot:CompanionSnapshot|null;boosterFunding:{owned:BoosterKind[];purchased:BoosterKind[];coinCost:number}|null}> => post('/attempts',{attemptId,levelId,boosters,campaignGeneration,...(companionId ? { companionId } : {})},accountId);
+export const activateAttempt = (attemptId: string, expectedRevision: number, accountId: string,campaignGeneration=0): Promise<{profile:CloudProfile;status:'active'|'finished'|'prepared';companionSnapshot:CompanionSnapshot|null}> => post(`/attempts/${attemptId}/activate`,{expectedRevision,campaignGeneration},accountId);
+export const claimFieldToolkit = (requestId:string,accountId:string,campaignGeneration=0):Promise<{profile:CloudProfile;granted:boolean}> => post('/inventory/field-toolkit',{requestId,campaignGeneration},accountId);
+export const purchaseTool = (requestId:string,kind:'tileBomb'|'freeSwap',expectedRevision:number,attemptId:string,accountId:string,campaignGeneration=0):Promise<{profile:CloudProfile;kind:string}> => post('/inventory/purchase',{requestId,kind,expectedRevision,attemptId,campaignGeneration},accountId);
+export const consumeTool = (journal:ToolJournal):Promise<{profile:CloudProfile;toolSequence:number}> => post(`/attempts/${journal.attemptId}/tools`,{requestId:journal.requestId,kind:journal.kind,expectedRevision:journal.expectedRevision,toolSequence:journal.toolSequence,stateFingerprint:journal.stateFingerprint,movesRemaining:journal.movesRemaining,campaignGeneration:journal.campaignGeneration??0},journal.accountId);
 export const isDefiniteToolRejection = (error:unknown):boolean => [400,403,409].includes(Number((error as {status?:unknown})?.status));
-export const finishAttempt = (op: Extract<CloudOperation,{kind:'finish'}>, accountId: string): Promise<{profile:CloudProfile;reward:number}> => post(`/attempts/${op.attemptId}/finish`,{levelId:op.levelId,remainingMoves:op.remainingMoves,contentVersion:op.contentVersion},accountId);
-export const advanceCheckpoint = (op: Extract<CloudOperation,{kind:'checkpoint'}>, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/checkpoint',{requestId:op.requestId,campaign:op.campaign,expectedRevision},accountId);
+export const finishAttempt = (op: Extract<CloudOperation,{kind:'finish'}>, accountId: string): Promise<{profile:CloudProfile;reward:number}> => post(`/attempts/${op.attemptId}/finish`,{levelId:op.levelId,remainingMoves:op.remainingMoves,contentVersion:op.contentVersion,campaignGeneration:op.campaignGeneration??0},accountId);
+export const advanceCheckpoint = (op: Extract<CloudOperation,{kind:'checkpoint'}>, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/checkpoint',{requestId:op.requestId,campaign:op.campaign,expectedRevision,campaignGeneration:op.campaignGeneration??0},accountId);
+export const resetCampaign=(journal:ResetJournal):Promise<{profile:CloudProfile;campaignGeneration:number}>=>post('/campaign/reset',{requestId:journal.requestId,expectedRevision:journal.expectedRevision,campaignGeneration:journal.campaignGeneration},journal.accountId);
+export const isResetConflict=(error:unknown)=>((error as {code?:string})?.code==='CAMPAIGN_RESET');
 export const logout = (accountId: string): Promise<void> => post('/logout',{},accountId).then(()=>undefined);
 export function readAccountCache(id: string): CloudCache | null {
   const key=safeAccount(id); if (!key) return null;

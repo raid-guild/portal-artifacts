@@ -31,7 +31,7 @@ export function boosterFunding(selected,inventory) {
   return {owned,purchased,coinCost:purchased.reduce((sum,kind)=>sum+boosterPrices[kind],0)};
 }
 export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, activeCompanion: null, demoEnding: 'locked', farmlandEnding: 'locked', townEnding: 'locked', castleEnding: 'locked', riverEnding: 'locked' });
-export const emptyProfile = () => ({ revision: 0, campaign: emptyCampaign(), imported: false, inventory:emptyInventory(), rewardClaims:{},dailyVisit:null });
+export const emptyProfile = () => ({ revision: 0, campaignGeneration:0, campaign: emptyCampaign(), imported: false, inventory:emptyInventory(), rewardClaims:{},dailyVisit:null });
 export const rewardFor = moves => 20 + 3 * moves;
 // This boundary stays at the Gatehouse finale when later chapters add levels.
 export const DEMO_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCrossing') + 1;
@@ -138,6 +138,7 @@ export function normalizeProfile(value) {
   if (!value || typeof value !== 'object') return emptyProfile();
   const completed = validPrefix(value.campaign?.completed ?? []);
   return { revision: Number.isSafeInteger(value.revision) && value.revision >= 0 ? value.revision : 0,
+    campaignGeneration:Number.isSafeInteger(value.campaignGeneration) && value.campaignGeneration>=0 ? value.campaignGeneration : 0,
     campaign: deriveCampaign(completed, Number.isSafeInteger(value.campaign?.coins) ? value.campaign.coins : 0, value.campaign), imported: value.imported === true,
     inventory:normalizeInventory(value.inventory),rewardClaims:typeof value.rewardClaims?.fieldToolkitV1==='string' && Number.isFinite(Date.parse(value.rewardClaims.fieldToolkitV1)) ? {fieldToolkitV1:value.rewardClaims.fieldToolkitV1} : {},dailyVisit:normalizeDailyVisit(value.dailyVisit) };
 }

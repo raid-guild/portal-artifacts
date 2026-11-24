@@ -10,7 +10,7 @@ import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
 import { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS, type TrackPreference } from "./soundtracks";
 import { LEVELS, LEVEL_ORDER, type LevelId, nextLevel } from "./levels";
-import { advanceChapterTransition, advanceTransition, completeLevel, EMPTY_SAVE, normalizeSave, readSave, setActiveCompanion, type CompanionId, type Region, type Save, writeSave } from "./save";
+import { advanceChapterTransition, advanceTransition, completeLevel, clearLegacySaves, EMPTY_SAVE, normalizeSave, readSave, setActiveCompanion, type CompanionId, type Region, type Save, writeSave } from "./save";
 import { castleLevelForCompanion, companionSnapshot, sameCompanionSnapshot, type CompanionSnapshot } from "./companionAbilities";
 import { addAttempt, appendTurn, archiveCsv, archiveJson, campaignArchiveKey, emptyArchive, finishAttempt, PLAYTEST_KEY, readArchive, readPlaytestWallet, startAttempt, writeArchive, writePlaytestWallet, type AttemptRecord, type PlaytestArchive } from "./playtest";
 import { COMPANIONS } from "./chapters";
@@ -21,7 +21,7 @@ import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type 
 import * as cloudApi from "./cloud";
 import {boosterFunding,EMPTY_INVENTORY,normalizeInventory,TOOLS,TOOL_PRICE,type Inventory,type ToolKind} from './inventory';
 import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
-import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
+import { clearSeen, markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
 import { TutorialDialog } from "./TutorialDialog";
 import { ToolLesson } from "./ToolLesson";
 import { chapterLevelLabel, chapterReplayReady, isChapterFinalLevel, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
@@ -82,7 +82,7 @@ export default function GameShell() {
   const [giftError,setGiftError]=useState<string|null>(null);
   const giftOffered=useRef<string|null>(null);
   const toolJournal=useRef<cloudApi.ToolJournal|null>(null);
-  const purchaseJournal=useRef<{requestId:string;kind:ToolKind;accountId:string;attemptId:string;expectedRevision:number}|null>(null);
+  const purchaseJournal=useRef<cloudApi.PendingToolPurchase|null>(null);
   const giftClaiming=useRef(false);
   const giftPreviewClaimed=useRef(false);
   const [rewardOffers,setRewardOffers]=useState<cloudApi.Rewards|null>(null);
@@ -112,6 +112,10 @@ export default function GameShell() {
   const [playtestTrack, setPlaytestTrack] = useState<TrackPreference>("auto");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [resetConfirm,setResetConfirm]=useState(false);
+  const [resetBusy,setResetBusy]=useState(false);
+  const [resetError,setResetError]=useState<string|null>(null);
+  const resetPending=useRef<cloudApi.ResetJournal|null>(null);
   const [tutorialLibrary, setTutorialLibrary] = useState(false);
   const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId; selected: BoosterKind[] } | null>(null);
   const tutorialContinuing = useRef(false);
@@ -342,6 +346,7 @@ export default function GameShell() {
     const current=cloudRef.current; if (!current) return;
     try {
       const result=await cloudApi.campaign(current.accountId); if (cloudRef.current!==current || result.accountId!==current.accountId || !result.profile) return;
+      if((result.profile.campaignGeneration??0)!==(current.profile.campaignGeneration??0)){await adoptRemoteReset(current,result.profile);return;}
       replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
       abandonRecord("used-portal-save"); activeRecord.current=null; setRevealing(false); skipReveal.current=null;
       current.profile=result.profile; current.pending=[]; cloudConflict.current=false;
@@ -434,7 +439,7 @@ export default function GameShell() {
     else if (cloudRef.current) {
       cacheCloud();
       if (before.completed.length === next.completed.length && before.coins === next.coins) {
-        cloudRef.current.pending.push({ kind: "checkpoint", requestId: cloudApi.newOperationId(), campaign: next });
+        cloudRef.current.pending.push({ kind: "checkpoint", requestId: cloudApi.newOperationId(), campaign: next, campaignGeneration:cloudRef.current.profile.campaignGeneration??0 });
         cacheCloud(); void flushCloud();
       }
     } else writeSave(next);
@@ -470,7 +475,13 @@ export default function GameShell() {
     const active=()=>{
       const account=cloudRef.current;
       if(!account||cloudStatus==='expired'||document.visibilityState!=='visible'||!navigator.onLine)return;
-      void registerDailyVisit(account).then(()=>refreshRewards(account));
+      void cloudApi.campaign(account.accountId).then(latest=>{
+        if(cloudRef.current!==account||!latest.profile)return;
+        if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){
+          void adoptRemoteReset(account,latest.profile);return;
+        }
+        void registerDailyVisit(account).then(()=>refreshRewards(account));
+      }).catch(()=>{void registerDailyVisit(account).then(()=>refreshRewards(account));});
     };
     document.addEventListener('visibilitychange',active);
     window.addEventListener('online',active);
@@ -503,7 +514,7 @@ export default function GameShell() {
     }
     const account=cloudRef.current;if(!account || giftClaiming.current)return;
     giftClaiming.current=true;setGiftError(null);const generation=cloudGeneration.current;
-    try{const response=await cloudApi.claimFieldToolkit(cloudApi.newOperationId(),account.accountId);
+    try{const response=await cloudApi.claimFieldToolkit(cloudApi.newOperationId(),account.accountId,account.profile.campaignGeneration??0);
       if(cloudRef.current!==account || generation!==cloudGeneration.current)return;
       account.profile=response.profile;setInventory(normalizeInventory(response.profile.inventory));cacheCloud();setOverlay(null);
     }catch(error){setGiftError((error as Error).message);logDiagnostic('field-toolkit-claim-failed',{message:String(error).slice(0,120)});}
@@ -560,6 +571,7 @@ export default function GameShell() {
       if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
       const latest=await cloudApi.campaign(account.accountId);
       if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
+      if(latest.profile&&(latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return;}
       if(latest.accountId===account.accountId && latest.profile && latest.profile.revision>account.profile.revision && !account.pending.length){
         account.profile=latest.profile;const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(latest.profile.inventory));cacheCloud();
       }
@@ -573,6 +585,7 @@ export default function GameShell() {
       }
     }catch(error){
       if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
+      if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return;}
       // Older servers may not have the rewards migration yet. Keep normal play available.
       if(!rewardJournal.current){setRewardOffers(null);return;}
       setRewardError(`Gift status could not be checked: ${(error as Error).message}`);
@@ -604,6 +617,7 @@ export default function GameShell() {
   async function applyRewardProfile(account:NonNullable<typeof cloudRef.current>,receiptProfile:cloudApi.CloudProfile,generation:number){
     const latest=await cloudApi.campaign(account.accountId);
     if(cloudRef.current!==account||cloudGeneration.current!==generation)return null;
+    if(latest.profile&&(latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return null;}
     if(latest.accountId!==account.accountId||!latest.profile||latest.profile.revision<receiptProfile.revision)throw new Error('Portal gift could not be verified. Retry with the same request.');
     if(latest.profile.revision<account.profile.revision)return null;
     account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
@@ -641,6 +655,7 @@ export default function GameShell() {
       revealReward();void refreshRewards(account);
     }catch(error){
       if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+      if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return;}
       const status=Number((error as {status?:number}).status);
       if([400,403,409].includes(status)){
         // A committed request replays as 200; these are definitive rejections.
@@ -648,6 +663,7 @@ export default function GameShell() {
           const latest=await cloudApi.campaign(account.accountId);
           if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
           if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+          if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return;}
           account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
           const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);
           rewardJournal.current=null;cacheCloud();
@@ -670,12 +686,13 @@ export default function GameShell() {
       const latest=await cloudApi.campaign(account.accountId);
       if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
       if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+      if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return;}
       account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
       const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);
       rewardRevealToken.current++;rewardJournal.current=null;cacheCloud();setRewardSelection(null);
       if(guestImportAvailable(latest,account,cloudApi.readAccountCache(account.accountId))){setOverlay('cloudChoice');setCloudStatus('account');return;}
       setOverlay(rewardReturnToInbox.current?'gifts':rewardReturnOverlay.current);void refreshRewards(account);
-    }catch(error){if(cloudRef.current===account&&cloudGeneration.current===generation)setRewardError(`Gift reveal could not be saved: ${(error as Error).message}`);}
+    }catch(error){if(cloudRef.current===account&&cloudGeneration.current===generation){if(cloudApi.isResetConflict(error))await adoptRemoteReset(account);else setRewardError(`Gift reveal could not be saved: ${(error as Error).message}`);}}
     finally{setRewardBusy(false);}
   }
   function leaveReward(){
@@ -689,7 +706,7 @@ export default function GameShell() {
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
-    const provisional = remembered ? cloudApi.readAccountCache(remembered) : null;
+    const provisional = remembered && !cloudApi.readResetJournal(remembered) ? cloudApi.readAccountCache(remembered) : null;
     if (remembered) {
       setPortalName("Portal player");
       setCloudStatus("checking");
@@ -702,9 +719,19 @@ export default function GameShell() {
       if (generation !== cloudGeneration.current) return;
       switchStatsArchive(campaignArchiveKey(session.accountId));
       cloudApi.rememberAccount(session.accountId);
-      const cached = cloudApi.readAccountCache(session.accountId);
+      const storedCache=cloudApi.readAccountCache(session.accountId);
+      const pendingReset=cloudApi.readResetJournal(session.accountId);
+      const cached=storedCache && (storedCache.profile.campaignGeneration??0)===(result.profile?.campaignGeneration??0) && !pendingReset ? storedCache : null;
+      if(storedCache && !cached && !pendingReset)cloudApi.writeAccountCache(session.accountId,{profile:result.profile??storedCache.profile,localSave:result.profile?.campaign??EMPTY_SAVE,pending:[]});
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] }, inventory:{...EMPTY_INVENTORY}, rewardClaims:{} };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
+      if(pendingReset){
+        resetPending.current=pendingReset;setPortalName(session.displayName);setResetBusy(true);
+        try{const completed=await cloudApi.resetCampaign(pendingReset);if(generation!==cloudGeneration.current)return;finishPortalReset(completed.profile,session.accountId);return;}
+        catch(error){if(generation!==cloudGeneration.current)return;if(Number((error as {status?:number}).status)===409){cloudApi.clearResetJournal(session.accountId);resetPending.current=null;window.location.reload();return;}const loaded=normalizeSave(profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(profile.inventory));setMode('map');setPuzzle(null);setOverlay('start');setResetError(`Reset confirmation needs a connection: ${(error as Error).message}`);setResetConfirm(true);setSettings(true);setCloudStatus('account');setResetBusy(false);return;}
+      }
+      if(storedCache && !cached){setCloudMessage('This campaign was restarted on another device. The latest Portal save is loaded.');}
+
       rewardJournal.current=cached?.rewardJournal?.accountId===session.accountId?cached.rewardJournal:null;
       setInventory(normalizeInventory(profile.inventory));
       setFarmland(null); clearCampaignPass(); void refreshFarmland(cloudRef.current);
@@ -731,15 +758,18 @@ export default function GameShell() {
           const latest=await cloudApi.campaign(account.accountId);
           if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
           if(latest.accountId!==account.accountId||!latest.profile||latest.profile.revision<(receiptProfile?.revision??account.profile.revision))throw new Error('Portal gift could not be verified. Retry the pending gift.');
+          if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return;}
           account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));currentCampaign=latest;
           rewardJournal.current=award.presentedAt?null:{...pendingReward,phase:'confirmed'};cacheCloud();
         }catch(error){
           if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
+          if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return;}
           if(cloudApi.isDefiniteToolRejection(error)){
             try{
               const latest=await cloudApi.campaign(account.accountId);
               if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
               if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+              if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){await adoptRemoteReset(account,latest.profile);return;}
               account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));currentCampaign=latest;
               rewardJournal.current=null;cacheCloud();
             }catch{ /* Keep the request until the account can be checked. */ }
@@ -760,7 +790,7 @@ export default function GameShell() {
         purchaseJournal.current=cached.purchaseTool;
         try{
           const order=cached.purchaseTool;
-          const bought=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId);
+          const bought=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId,order.campaignGeneration??0);
           if(generation!==cloudGeneration.current) return;
           const latest=await cloudApi.campaign(session.accountId);
           if(generation!==cloudGeneration.current)return;
@@ -769,6 +799,7 @@ export default function GameShell() {
           await refreshToolProfile(cloudRef.current,pendingAttempt.current?.level,undefined,latest.profile);
         }catch(error){
           if(generation!==cloudGeneration.current)return;
+          if(cloudApi.isResetConflict(error)){await adoptRemoteReset(cloudRef.current);return;}
           if(cloudApi.isDefiniteToolRejection(error)){purchaseJournal.current=null;cacheCloud();await refreshToolProfile(cloudRef.current,pendingAttempt.current?.level,Number((error as {status?:number}).status));setCloudMessage(`The old tool purchase was declined: ${(error as Error).message}`);}
           else setCloudMessage(`A tool purchase needs confirmation. Reconnect and reload: ${(error as Error).message}`);
         }
@@ -800,6 +831,7 @@ export default function GameShell() {
             }
           }catch(error){
             if(generation!==cloudGeneration.current)return;
+            if(cloudApi.isResetConflict(error)){await adoptRemoteReset(cloudRef.current);return;}
             if(cloudApi.isDefiniteToolRejection(error)){
               toolJournal.current=null;cacheCloud();
               const canResume=await refreshToolProfile(cloudRef.current,journal.levelId,Number((error as {status?:number}).status));
@@ -835,7 +867,7 @@ export default function GameShell() {
   }
   async function flushCloud() {
     const current = cloudRef.current;
-    if (!current || current.syncing || cloudConflict.current || playtest || !current.pending.length) return;
+    if (!current || current.syncing || cloudConflict.current || playtest || resetPending.current || !current.pending.length) return;
     current.syncing = true; setCloudStatus("syncing");
     try {
       while (current.pending.length && cloudRef.current === current) {
@@ -855,6 +887,9 @@ export default function GameShell() {
     } catch (error) {
       if (cloudRef.current === current) {
         const status=(error as {status?:number}).status;
+        if(cloudApi.isResetConflict(error)){
+          await adoptRemoteReset(current);return;
+        }
         if (status === 400 || status === 409) cloudConflict.current=true;
         setCloudStatus(status === 401 ? "expired" : "pending");
         setCloudMessage(status === 400 || status === 409 ? "This save needs attention. Download a backup in Settings before loading the Portal campaign." : "Saved on this device, waiting to sync.");
@@ -865,21 +900,21 @@ export default function GameShell() {
     const current = cloudRef.current; if (!current) return;
     setCloudStatus("syncing");
     try {
-      const response = await cloudApi.importGuest(readSave(), cloudApi.guestImportId(current.accountId),current.accountId);
+      const response = await cloudApi.importGuest(readSave(), cloudApi.guestImportId(current.accountId),current.accountId,current.profile.campaignGeneration??0);
       if (cloudRef.current !== current) return;
       cloudApi.clearGuestImportId(current.accountId);
       replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
       current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
       void refreshFarmland(current);
       void refreshRewards(current);
-    } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
+    } catch (error) { if(cloudApi.isResetConflict(error)){await adoptRemoteReset(current);return;}setCloudStatus("account"); setCloudMessage((error as Error).message); }
   }
   function startFreshPortalCampaign() {
     const current=cloudRef.current; if (!current) return;
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const fresh={...EMPTY_SAVE,completed:[],companions:[],coins:current.profile.campaign.coins};
     saveRef.current=fresh; setSave(fresh); setKeeperMet(false);
-    current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh});
+    current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh,campaignGeneration:current.profile.campaignGeneration??0});
     cacheCloud(); void flushCloud(); setOverlay("start");
     void refreshRewards(current);
   }
@@ -908,7 +943,7 @@ export default function GameShell() {
     const current=cloudRef.current;
     if (current && !playtest) {
       const attemptId=pendingAttempt.current?.cloudAttemptId ?? cloudApi.newOperationId();
-      current.pending.push({kind:"finish",attemptId,levelId,remainingMoves:movesRemaining,contentVersion:cloudApi.contentVersion});
+      current.pending.push({kind:"finish",attemptId,levelId,remainingMoves:movesRemaining,contentVersion:cloudApi.contentVersion,campaignGeneration:current.profile.campaignGeneration??0});
       cacheCloud(); void flushCloud();
     }
   }
@@ -929,6 +964,7 @@ export default function GameShell() {
     logDiagnostic("transition-start", { generation, createsScene });
     try {
       await delay(reducedMotion ? 110 : 275);
+      if(transitionGeneration.current!==generation)return;
       setWipe("covered");
       let readyScene: Promise<"ready" | "failed" | "timeout"> = Promise.resolve("ready");
       if (createsScene) readyScene = new Promise(resolve => {
@@ -953,6 +989,7 @@ export default function GameShell() {
       });
       changeScene();
       const status = await readyScene;
+      if(transitionGeneration.current!==generation)return;
       logDiagnostic("transition-scene", { generation, status });
       if (status !== "ready") setSceneIssue(previous => previous?.includes("purchase") ? previous : status === "timeout" ? "The scene took too long to load." : "The scene could not load.");
       await delay(reducedMotion ? 30 : 70);
@@ -1070,7 +1107,7 @@ export default function GameShell() {
     setOverlay("shop");
   }
   function currentTutorialScope(): TutorialScope {
-    return playtest ? { kind: "sandbox" } : cloudRef.current ? { kind: "account", accountId: cloudRef.current.accountId } : { kind: "guest" };
+    return playtest ? { kind: "sandbox" } : cloudRef.current ? { kind: "account", accountId: cloudRef.current.accountId,campaignGeneration:cloudRef.current.profile.campaignGeneration??0 } : { kind: "guest" };
   }
   function toolLessonKey(kind:ToolKind):string { return `dune-relay:tool-lesson:v1:${tutorialScopeKey(currentTutorialScope())}:${kind}`; }
   function activateOwnedTool(kind:ToolKind):void {
@@ -1168,7 +1205,7 @@ export default function GameShell() {
     if (cloudRef.current && !playtest) {
       if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
       if (selected.length > 0 || LEVELS[id].chapter === "farmland" || LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") {
-        try { const response=await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId,chosenSnapshot?.id); if (!sameCompanionSnapshot(response.companionSnapshot,chosenSnapshot)) throw new Error("The active raid member changed. Reload your save."); cost=response.boosterFunding?.coinCost??boosterCost(selected); }
+        try { const response=await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId,chosenSnapshot?.id,cloudRef.current.profile.campaignGeneration??0); if (!sameCompanionSnapshot(response.companionSnapshot,chosenSnapshot)) throw new Error("The active raid member changed. Reload your save."); cost=response.boosterFunding?.coinCost??boosterCost(selected); }
         catch (error) { setShopError(`Could not prepare this level: ${(error as Error).message}`); return; }
         if (token !== tokenCounter.current) return;
       }
@@ -1225,7 +1262,7 @@ export default function GameShell() {
       const account = cloudRef.current;
       authorizing.current=true;
       try {
-        const response = await cloudApi.activateAttempt(current.cloudAttemptId,account.profile.revision,account.accountId);
+        const response = await cloudApi.activateAttempt(current.cloudAttemptId,account.profile.revision,account.accountId,account.profile.campaignGeneration??0);
         if (cloudRef.current !== account) return false;
         account.profile=response.profile;
         setInventory(normalizeInventory(response.profile.inventory));
@@ -1273,7 +1310,7 @@ export default function GameShell() {
     const bytes=new TextEncoder().encode(payload);
     const digest=await crypto.subtle.digest('SHA-256',bytes);
     const stateFingerprint=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
-    const journal:cloudApi.ToolJournal=existing?.phase==='pending' ? existing : {accountId:account.accountId,attemptId:current.cloudAttemptId,levelId:activeLevel,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,toolSequence:(existing?.toolSequence??0)+1,kind,action,stateFingerprint,movesRemaining:before.moves,contentVersion:cloudApi.contentVersion,before,after:turn.state,phase:'pending'};
+    const journal:cloudApi.ToolJournal=existing?.phase==='pending' ? existing : {accountId:account.accountId,attemptId:current.cloudAttemptId,levelId:activeLevel,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,campaignGeneration:account.profile.campaignGeneration??0,toolSequence:(existing?.toolSequence??0)+1,kind,action,stateFingerprint,movesRemaining:before.moves,contentVersion:cloudApi.contentVersion,before,after:turn.state,phase:'pending'};
     toolJournal.current=journal;
     if(!cacheCloud()) {toolJournal.current=existing;setToolError('Could not save the tool action on this device.');return false;}
     setToolPending(true);
@@ -1290,6 +1327,7 @@ export default function GameShell() {
       return true;
     }catch(error){
       if(cloudRef.current!==account || generation!==cloudGeneration.current)return false;
+      if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return false;}
       if(cloudApi.isDefiniteToolRejection(error)){
         toolJournal.current=null;setToolMode(null);cacheCloud();await refreshToolProfile(account,journal.levelId,Number((error as {status?:number}).status));
         setToolError(`The tool was not used: ${(error as Error).message} Choose it again after refreshing.`);
@@ -1304,6 +1342,9 @@ export default function GameShell() {
       const latest=knownProfile ? {accountId:account.accountId,profile:knownProfile} : await cloudApi.campaign(account.accountId);
       if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal profile unavailable');
       if(cloudRef.current!==account||generation!==cloudGeneration.current)return false;
+      if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0)){
+        await adoptRemoteReset(account,latest.profile);return false;
+      }
       const remote=normalizeSave(latest.profile.campaign);
       account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
       // Keep unsynced checkpoint operations for backup, but never present their
@@ -1348,6 +1389,7 @@ export default function GameShell() {
       else if(journal.after.status==='lost'){toolJournal.current=null;cacheCloud();setOverlay('lost');}
     }catch(error){
       if(cloudRef.current!==account||generation!==cloudGeneration.current)return;
+      if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return;}
       if(journal.phase==='pending' && cloudApi.isDefiniteToolRejection(error)){toolJournal.current=null;setToolMode(null);cacheCloud();await refreshToolProfile(account,journal.levelId,Number((error as {status?:number}).status));setToolError(`The tool was not used: ${(error as Error).message}`);}
       else setToolError(`Tool confirmation is pending: ${(error as Error).message}`);
     }finally{if(cloudRef.current===account && generation===cloudGeneration.current)setToolBusy(false);}
@@ -1360,13 +1402,13 @@ export default function GameShell() {
     if(!account) return;
     const pending=purchaseJournal.current;
     if(pending && (pending.kind!==kind || pending.attemptId!==current.cloudAttemptId)) {setToolError('Confirm the pending purchase first.');return;}
-    const order=pending??{requestId:cloudApi.newOperationId(),kind,accountId:account.accountId,attemptId:current.cloudAttemptId,expectedRevision:account.profile.revision};
+    const order=pending??{requestId:cloudApi.newOperationId(),kind,accountId:account.accountId,attemptId:current.cloudAttemptId,expectedRevision:account.profile.revision,campaignGeneration:account.profile.campaignGeneration??0};
     purchaseJournal.current=order;
     if(!cacheCloud()){setToolError('Could not save the purchase request on this device.');return;}
     setToolBusy(true);setToolError(null);
     const generation=cloudGeneration.current;
     try{
-      const response=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId);
+      const response=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId,order.campaignGeneration??0);
       if(cloudRef.current!==account || generation!==cloudGeneration.current) return;
       if(pending){
         const latest=await cloudApi.campaign(account.accountId);
@@ -1381,6 +1423,7 @@ export default function GameShell() {
       purchaseJournal.current=null;cacheCloud();setToolBuying(null);setOverlay(null);activateOwnedTool(kind);
     }catch(error){
       if(cloudRef.current!==account || generation!==cloudGeneration.current)return;
+      if(cloudApi.isResetConflict(error)){await adoptRemoteReset(account);return;}
       if(cloudApi.isDefiniteToolRejection(error)){purchaseJournal.current=null;cacheCloud();await refreshToolProfile(account,current.level,Number((error as {status?:number}).status));setToolError(`Purchase declined: ${(error as Error).message} Choose again after refreshing.`);}
       else setToolError(`Purchase status is uncertain: ${(error as Error).message} Retry to confirm; it will not charge twice.`);
     }
@@ -1778,6 +1821,81 @@ export default function GameShell() {
     const preview=normalizeSave({...saveRef.current,completed:[...LEVEL_ORDER] as LevelId[],oasisTransition:"ready",gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,activeCompanion:saveRef.current.activeCompanion??"keeper",demoEnding:"done",farmlandEnding:"done",townEnding:"done",castleEnding:"done",riverEnding:"film",region:"river",transition:null});
     void transitionTo(()=>{pendingAttempt.current=null;setShopSelected([]);setShopError(null);setPuzzle(null);persist(preview);setMode("map");setOverlay("film");setAttempt(value=>value+1);}, false);
   }
+  async function adoptRemoteReset(account:NonNullable<typeof cloudRef.current>|null,knownProfile?:cloudApi.CloudProfile):Promise<void>{
+    if(!account||cloudRef.current!==account)return;
+    // Replace the account identity before fetching. Every older request checks this
+    // object or cloudGeneration before publishing a wallet, gift, or board update.
+    const replacement={accountId:account.accountId,profile:account.profile,pending:[],syncing:false};
+    cloudGeneration.current++;rewardEpoch.current++;rewardRequest.current=null;rewardRevealToken.current++;
+    replayToken.current++;replaySession.current=null;clearFinaleReplay();setReplayActive(false);
+    cloudRef.current=replacement;cloudConflict.current=false;clearFarmland();
+    visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);setRewardOffers(null);
+    abandonRecord('reset-on-another-device');activeRecord.current=null;
+    pendingAttempt.current=null;toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;
+    resetPending.current=null;cloudApi.clearResetJournal(account.accountId);setResetBusy(false);setResetError(null);
+    giftClaiming.current=false;giftOffered.current=null;setGiftNotice(false);setRewardBusy(false);
+    setToolMode(null);setToolBuying(null);setToolBusy(false);setToolPending(false);setToolError(null);
+    setTutorialSession(null);setTutorialLibrary(false);setBoardInteractive(false);setPuzzle(null);
+    setShopSelected([]);setShopError(null);setSettings(false);setResetConfirm(false);
+    transitionGeneration.current++;sceneReady.current?.settle('failed');transitioning.current=false;
+    setWipe('hidden');setVisitedRegion(null);setRevealing(false);skipReveal.current=null;setMode('map');setOverlay('start');setCloudStatus('checking');setAttempt(value=>value+1);
+    try{
+      const latest=knownProfile?{accountId:account.accountId,profile:knownProfile}:await cloudApi.campaign(account.accountId);
+      if(cloudRef.current!==replacement)return;
+      if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal campaign unavailable');
+      replacement.profile=latest.profile;
+      const fresh=normalizeSave(latest.profile.campaign);saveRef.current=fresh;setSave(fresh);
+      setInventory(normalizeInventory(latest.profile.inventory));setKeeperMet(fresh.completed.includes('pumpHouse'));
+      cloudApi.clearGuestImportId(account.accountId);
+      const cached=cloudApi.writeAccountCache(account.accountId,{profile:latest.profile,localSave:fresh,pending:[]});
+      setCloudStatus('account');setCloudMessage(cached?'This campaign was restarted on another device.':'This campaign was restarted on another device. This browser could not save the fresh copy; keep this tab open.');
+      void refreshFarmland(replacement);void refreshRewards(replacement);
+    }catch{
+      if(cloudRef.current!==replacement)return;
+      setCloudStatus('checking');setCloudMessage('This campaign was restarted on another device. Reconnect and reload to load the fresh story.');
+    }
+  }
+  function finishPortalReset(profile:cloudApi.CloudProfile,accountId:string){
+    abandonRecord('reset');activeRecord.current=null;
+    cloudGeneration.current++;rewardEpoch.current++;replayToken.current++;passGeneration.current++;farmlandGeneration.current++;
+    cloudRef.current={accountId,profile,pending:[],syncing:false};
+    toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;pendingAttempt.current=null;replaySession.current=null;clearFinaleReplay();
+    const fresh=normalizeSave(profile.campaign);
+    if(!cloudApi.writeAccountCache(accountId,{profile,localSave:fresh,pending:[]})){setResetError('Portal reset completed, but this device could not save the fresh campaign. Free storage and retry confirmation.');setResetBusy(false);return;}
+    resetPending.current=null;cloudApi.clearResetJournal(accountId);cloudApi.clearGuestImportId(accountId);
+    saveRef.current=fresh;setSave(fresh);setInventory(normalizeInventory(profile.inventory));setPuzzle(null);setShopSelected([]);setToolMode(null);setToolLesson(null);setTutorialSession(null);setReplayActive(false);setVisitedRegion(null);mapPositions.current={oasis:null,caravan:null,gatehouse:null,farmland:null,town:null,castle:null,river:null};setKeeperMet(false);setMode('map');setOverlay('start');setAttempt(value=>value+1);setResetConfirm(false);setResetBusy(false);setSettings(false);setCloudStatus('account');
+    window.location.reload();
+  }
+  function exportBeforeReset(){
+    if(cloudRef.current){downloadCloudBackup();return;}
+    const blob=new Blob([JSON.stringify({save:readSave(),exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`dune-relay-guest-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function startOver(){
+    if(resetBusy)return;
+    const account=cloudRef.current;
+    if(!account){
+      if(cloudStatus==='checking'||cloudStatus==='expired'||portalName){setResetError('Reconnect to Portal before erasing this campaign.');return;}
+      const fresh={...EMPTY_SAVE,completed:[],companions:[]};
+      if(!writeSave(fresh)){setResetError('This device could not save the reset. Try again.');return;}
+      abandonRecord('reset');clearSeen({kind:'guest'});clearLegacySaves();
+      for(const kind of ['tileBomb','freeSwap'])try{localStorage.removeItem(`dune-relay:tool-lesson:v1:${tutorialScopeKey({kind:'guest'})}:${kind}`);}catch{}
+      window.location.reload();return;
+    }
+    if(cloudStatus!=='account'||account.syncing||purchaseJournal.current||toolJournal.current?.phase==='pending'||rewardJournal.current?.phase==='pending'||giftClaiming.current){setResetError('Finish syncing or confirming the pending purchase or gift, then try again.');return;}
+    const journal=resetPending.current??{accountId:account.accountId,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,campaignGeneration:account.profile.campaignGeneration??0};
+    if(!cloudApi.writeResetJournal(journal)){setResetError('This device could not save the reset request. Try again.');return;}
+    resetPending.current=journal;setResetBusy(true);setResetError(null);
+    try{const result=await cloudApi.resetCampaign(journal);if(cloudRef.current?.accountId!==journal.accountId)return;finishPortalReset(result.profile,journal.accountId);}
+    catch(error){
+      if(Number((error as {status?:number}).status)===409){
+        cloudApi.clearResetJournal(journal.accountId);resetPending.current=null;
+        try{const latest=await cloudApi.campaign(journal.accountId);if(cloudRef.current===account&&latest.profile){if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0))await adoptRemoteReset(account,latest.profile);else{account.profile=latest.profile;account.pending=[];const fresh=normalizeSave(latest.profile.campaign);saveRef.current=fresh;setSave(fresh);setInventory(normalizeInventory(latest.profile.inventory));setMode('map');setPuzzle(null);setOverlay('start');cacheCloud();}}}catch{}
+        setResetError('Portal progress changed before the reset. Review the current save, then choose Erase progress and start over again.');
+      }else setResetError(`Reset confirmation needs a connection: ${(error as Error).message}. Retry with the same request.`);
+      setResetBusy(false);
+    }
+  }
   function reset() {
     if (cloudRef.current && !playtest) { setCloudMessage("Portal progress cannot be reset from the demo. Sign out to restart the guest campaign on this device."); return; }
     abandonRecord("reset"); activeRecord.current = null;
@@ -2169,7 +2287,14 @@ export default function GameShell() {
           <button className="setting" onClick={previewRiverStory}>Preview Castle → River story</button>
           <button className="setting" onClick={previewRiverEnding}>Preview River chapter ending</button>
           <button className="setting" onClick={reset}>Restart sequence</button>
-        </> : <>{!portalName && <button className="reset" onClick={reset}>Reset prototype progress</button>}</>}
+        </> : <button className="reset" disabled={cloudStatus==='checking'||cloudStatus==='expired'} onClick={()=>{setResetError(null);setResetConfirm(true);}}>Start over</button>}
+      </div></div>}
+      {resetConfirm && <div className="scrim reset-scrim"><div className="dialog-card reset-confirm" role="dialog" aria-modal="true" aria-label="Start over permanently?" onKeyDown={event=>{if(event.key==='Escape'&&!resetPending.current&&!resetBusy){setResetConfirm(false);setResetError(null);}if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];if(!buttons.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}>
+        <span className="speaker">PERMANENT RESET</span><h2>Start over permanently?</h2>
+        <p>This permanently erases your story progress, completed levels, coins, and inventory {cloudRef.current?'on all your Portal devices':'on this device'}. You’ll start again at the Oasis. This cannot be undone.</p>
+        <p>Your Portal login and unlocked access stay. Previously claimed gifts cannot be claimed again. Unsynced progress will also be erased.</p>
+        {resetError&&<p className="reset-error" role="alert">{resetError}</p>}
+        <div className="reset-actions"><button className="quiet" autoFocus disabled={resetBusy||Boolean(resetPending.current)} onClick={()=>{setResetConfirm(false);setResetError(null);}}>Cancel</button><button className="quiet" disabled={resetBusy} onClick={exportBeforeReset}>Export progress first</button><button className="primary" disabled={resetBusy} onClick={()=>void startOver()}>{resetPending.current?'Retry reset':'Erase progress and start over'}</button></div>
       </div></div>}
       {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
         <span className="speaker">SCENE INTERRUPTED</span>
