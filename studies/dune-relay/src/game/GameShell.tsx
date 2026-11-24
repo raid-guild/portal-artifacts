@@ -809,7 +809,7 @@ export default function GameShell() {
         }
       }
       const journal=cached?.toolJournal;
-      if(journal?.accountId===session.accountId && journal.contentVersion===cloudApi.contentVersion && !loaded.completed.includes(journal.levelId)){
+      if(journal?.accountId===session.accountId && cloudApi.recoverableToolJournalVersion(journal.contentVersion) && !loaded.completed.includes(journal.levelId)){
         toolJournal.current=journal;
         const restore=(snapshot:Puzzle)=>{
           pendingAttempt.current={token:0,cloudAttemptId:journal.attemptId,sceneAttempt:attempt+1,level:journal.levelId,selected:cached?.purchase?.boosters??[],cost:0,puzzle:snapshot,placements:[],companionSnapshot:cached?.purchase?.companionSnapshot??null,status:'committed'};

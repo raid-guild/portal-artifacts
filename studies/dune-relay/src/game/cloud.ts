@@ -132,4 +132,8 @@ export function guestImportId(accountId: string): string {
 export function clearGuestImportId(accountId: string): void {
   try { localStorage.removeItem(`dune-relay-import-${accountId}-v1`); } catch { /* Storage may be unavailable. */ }
 }
-export const contentVersion = 'chapter-7-4';
+export const contentVersion = 'chapter-7-5';
+// A tool can be charged before a browser reloads into this budget-only update.
+// Keep its original version and request ID while recovering that one attempt.
+export const recoverableToolJournalVersion = (version: string): boolean =>
+  version === contentVersion || version === 'chapter-7-4';
