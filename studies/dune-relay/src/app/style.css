@@ -438,6 +438,12 @@ button { font: inherit; cursor: pointer; }
 .reward-inbox .speaker,.reward-gift .speaker { font-size:clamp(11px,2.6cqh,15px); }
 .reward-inbox-body,.reward-gift-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; }
 .reward-inbox-body p,.reward-gift-body p { font-size:clamp(12px,3cqh,16px); line-height:1.3; margin:0 0 8px; }
+.reward-streak { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:clamp(3px,1cqh,8px); margin:1px 0 4px; }
+.reward-streak span { display:grid; place-items:center; gap:0; min-width:0; padding:3px 1px; border:1px solid #bca77f; border-radius:12px; color:#ffe7b7; font:800 clamp(12px,3cqh,18px) 'Barlow Condensed',Arial,sans-serif; }
+.reward-streak span b { font-weight:800; line-height:1; }
+.reward-streak span small { font:700 clamp(8px,1.9cqh,11px)/1.1 'Barlow Condensed',Arial,sans-serif; white-space:nowrap; }
+.reward-streak span.current { background:#e4ae5d; color:#153c48; box-shadow:0 0 12px #fbd685; }
+.reward-inbox-body .reward-streak-copy { color:#a8d8cc; text-align:center; margin-bottom:5px; font-weight:700; }
 .reward-inbox-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .reward-inbox-item { display:flex; align-items:center; gap:8px; min-width:0; padding:5px 7px; border:1px solid #caa776; border-radius:9px; background:#275360; color:#ffe9bf; text-align:left; }
 .reward-inbox-item img { width:clamp(28px,7cqh,42px); height:clamp(28px,7cqh,42px); object-fit:contain; flex:none; }
@@ -453,6 +459,9 @@ button { font: inherit; cursor: pointer; }
 .reward-coins,.reward-item span { display:flex; align-items:center; gap:6px; color:#ffe29c; font:800 clamp(18px,5cqh,30px)/1.1 'Barlow Condensed',Arial,sans-serif; }
 .reward-coins img,.reward-item img { width:clamp(25px,6cqh,38px); height:clamp(25px,6cqh,38px); object-fit:contain; }
 .reward-item span { font-size:clamp(15px,4cqh,24px); margin-top:6px; }
+.reward-peek { display:flex; gap:8px; flex-wrap:wrap; }
+.reward-peek span { width:clamp(36px,9cqh,54px); justify-content:center; font-size:clamp(12px,3cqh,17px); }
+.reward-peek img { width:clamp(30px,8cqh,45px); height:clamp(30px,8cqh,45px); }
 .reward-gift-actions { display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .reward-gift-actions .primary { min-width:0; padding:5px 10px; font-size:clamp(15px,4cqh,20px); }
 .reward-gift-actions .quiet,.reward-inbox footer .quiet { padding:5px 8px; font-size:clamp(12px,3cqh,16px); }

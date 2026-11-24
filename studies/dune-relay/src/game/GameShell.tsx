@@ -86,6 +86,7 @@ export default function GameShell() {
   const giftClaiming=useRef(false);
   const giftPreviewClaimed=useRef(false);
   const [rewardOffers,setRewardOffers]=useState<cloudApi.Rewards|null>(null);
+  const [dailyVisit,setDailyVisit]=useState<cloudApi.DailyVisit|null>(null);
   const [rewardSelection,setRewardSelection]=useState<cloudApi.RewardOffer|null>(null);
   const [rewardStage,setRewardStage]=useState<'sealed'|'opening'|'revealed'>('sealed');
   const [rewardError,setRewardError]=useState<string|null>(null);
@@ -99,6 +100,8 @@ export default function GameShell() {
   const rewardReturnOverlay=useRef<Overlay>(null);
   const rewardReturnToInbox=useRef(false);
   const rewardRevealToken=useRef(0);
+  const visitRequest=useRef<{accountId:string;promise:Promise<cloudApi.DailyVisit|null>}|null>(null);
+  const visitConfirmed=useRef<{accountId:string;day:string;nextResetAt:string;visit:cloudApi.DailyVisit}|null>(null);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -460,9 +463,19 @@ export default function GameShell() {
   useEffect(()=>{
     if(!rewardOffers?.nextResetAt)return;
     const delay=Math.max(1000,Math.min(86_400_000,Date.parse(rewardOffers.nextResetAt)-Date.now()+200));
-    const timer=setTimeout(()=>{const account=cloudRef.current;if(account&&cloudStatus==='account')void refreshRewards(account);},delay);
+    const timer=setTimeout(()=>{const account=cloudRef.current;if(account&&cloudStatus==='account'&&document.visibilityState==='visible'&&navigator.onLine)void registerDailyVisit(account).then(()=>refreshRewards(account));},delay);
     return()=>clearTimeout(timer);
   },[rewardOffers?.nextResetAt,cloudStatus]);
+  useEffect(()=>{
+    const active=()=>{
+      const account=cloudRef.current;
+      if(!account||cloudStatus==='expired'||document.visibilityState!=='visible'||!navigator.onLine)return;
+      void registerDailyVisit(account).then(()=>refreshRewards(account));
+    };
+    document.addEventListener('visibilitychange',active);
+    window.addEventListener('online',active);
+    return()=>{document.removeEventListener('visibilitychange',active);window.removeEventListener('online',active);};
+  },[cloudStatus,overlay,mode]);
   useEffect(()=>{
     if(overlay!=='gifts'&&overlay!=='rewardGift')return;
     const dialog=document.querySelector<HTMLElement>(overlay==='gifts'?'.reward-inbox':'.reward-gift');
@@ -497,6 +510,15 @@ export default function GameShell() {
     finally{giftClaiming.current=false;}
   }
   const rewardAvailable=[...(rewardOffers?.rewards.filter(item=>item.status==='available'||item.status==='claimed-unpresented')??[])];
+  const previewDaily:cloudApi.RewardOffer[]=[
+    {key:'preview:daily',title:'Daily Visit · Day 1',cycleDay:1,payload:{coins:100,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:2',title:'Daily Visit · Day 2',cycleDay:2,payload:{coins:200,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:3',title:'Daily Visit · Day 3',cycleDay:3,payload:{coins:0,item:null,quantity:0,items:[{item:'jet',quantity:1},{item:'flywheel',quantity:1}]},status:'available'},
+    {key:'preview:daily:3-duplicate',title:'Day 3 · Duplicate draw',cycleDay:3,payload:{coins:0,item:null,quantity:0,items:[{item:'prism',quantity:2}]},status:'available'},
+    {key:'preview:daily:4',title:'Daily Visit · Day 4',cycleDay:4,payload:{coins:500,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:5',title:'Daily Visit · Day 5',cycleDay:5,payload:{coins:1000,item:null,quantity:0},status:'available'},
+  ];
+  const previewRewards:cloudApi.RewardOffer[]=[...previewDaily,...(['jet','flywheel','prism','tileBomb','freeSwap','flywheel','prism'] as const).map((item,index)=>({key:`preview:chapter:${index}`,title:['Oasis','Open Desert','River Gatehouse','Farmland','Town on the Hill','Castle Island','River Journey'][index],payload:{coins:200,item,quantity:1},status:'available' as const}))];
   for(const award of rewardOffers?.unpresented??[]){
     if(!rewardAvailable.some(item=>item.key===award.key))rewardAvailable.push({key:award.key,title:award.key.startsWith('daily:')?'Daily Visit':'Chapter Gift',payload:award.payload,status:'claimed-unpresented',award});
   }
@@ -510,10 +532,30 @@ export default function GameShell() {
     const mayImport=result.canImportGuest??(!result.hasCampaign||profile.revision===0);
     return mayImport && readSave().completed.length>0 && !account.pending.length && !cached?.toolJournal && !cached?.purchaseTool && rewardJournal.current?.phase!=='pending';
   }
+  async function registerDailyVisit(account:NonNullable<typeof cloudRef.current>,generation=cloudGeneration.current):Promise<cloudApi.DailyVisit|null>{
+    if(document.visibilityState!=='visible'||!navigator.onLine)return null;
+    const confirmed=visitConfirmed.current;
+    if(confirmed?.accountId===account.accountId&&Date.now()<Date.parse(confirmed.nextResetAt))return confirmed.visit;
+    if(visitRequest.current?.accountId===account.accountId)return visitRequest.current.promise;
+    const promise=(async()=>{
+      try{
+        const response=await cloudApi.visitRewards(account.accountId);
+        if(cloudRef.current!==account||cloudGeneration.current!==generation||!response)return null;
+        visitConfirmed.current={accountId:account.accountId,day:response.serverDay,nextResetAt:response.nextResetAt,visit:response.dailyVisit};
+        setDailyVisit(response.dailyVisit);return response.dailyVisit;
+      }catch(error){
+        if(cloudRef.current===account&&cloudGeneration.current===generation)logDiagnostic('reward-visit-failed',{message:String(error).slice(0,120)});
+        return null;
+      }
+    })();
+    visitRequest.current={accountId:account.accountId,promise};
+    try{return await promise;}finally{if(visitRequest.current?.promise===promise)visitRequest.current=null;}
+  }
   async function refreshRewards(account:NonNullable<typeof cloudRef.current>|null){
-    if(!account || playtest || mode!=='map' || account.pending.length || cloudConflict.current || rewardRequest.current!==null)return;
+    if(!account || playtest || mode!=='map' || overlay==='cloudChoice' || account.pending.length || cloudConflict.current || rewardRequest.current!==null)return;
     const generation=cloudGeneration.current,request=++rewardEpoch.current; rewardRequest.current=request;
     try{
+      await registerDailyVisit(account,generation);
       const listing=await cloudApi.rewards(account.accountId);
       if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
       const latest=await cloudApi.campaign(account.accountId);
@@ -522,6 +564,7 @@ export default function GameShell() {
         account.profile=latest.profile;const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(latest.profile.inventory));cacheCloud();
       }
       setRewardOffers(listing);
+      if(listing.dailyVisit)setDailyVisit(listing.dailyVisit);
       const journal=rewardJournal.current;
       if(journal?.accountId===account.accountId){
         const confirmed=listing.unpresented.find(award=>award.key===journal.rewardKey)??listing.rewards.find(item=>item.key===journal.rewardKey)?.award;
@@ -572,7 +615,7 @@ export default function GameShell() {
     if(!item||rewardBusy)return;
     if(rewardPreview.current){
       setPreviewRewardCoins(value=>value+item.payload.coins);
-      if(item.payload.item)setPreviewRewardItems(value=>({...value,[item.payload.item!]:((value[item.payload.item!]??0)+item.payload.quantity)}));
+      setPreviewRewardItems(value=>{const next={...value};for(const grant of cloudApi.rewardPayloadItems(item.payload))next[grant.item]=(next[grant.item]??0)+grant.quantity;return next;});
       revealReward();return;
     }
     if(!account||!rewardStable(account) && rewardJournal.current?.rewardKey!==item.key)return;
@@ -642,7 +685,7 @@ export default function GameShell() {
   }
   async function initializeCloud(testing: boolean) {
     if (testing) { setCloudStatus("guest");setInventory({tileBomb:2,freeSwap:2,jet:1,flywheel:1,prism:1}); return; }
-    rewardEpoch.current++;rewardRequest.current=null;setRewardOffers(null);
+    rewardEpoch.current++;rewardRequest.current=null;setRewardOffers(null);visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
@@ -674,6 +717,8 @@ export default function GameShell() {
         } catch { /* A stale loadout remains in the account cache backup. */ }
       }
       setPortalName(session.displayName);
+      await registerDailyVisit(cloudRef.current,generation);
+      if(generation!==cloudGeneration.current)return;
       let currentCampaign=result;
       if(rewardJournal.current?.phase==='pending'){
         const pendingReward=rewardJournal.current,account=cloudRef.current;
@@ -844,14 +889,14 @@ export default function GameShell() {
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    rewardEpoch.current++;rewardRequest.current=null;
+    rewardEpoch.current++;rewardRequest.current=null;visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;setRewardOffers(null);setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    rewardEpoch.current++;rewardRequest.current=null;
+    rewardEpoch.current++;rewardRequest.current=null;visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
     cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;setRewardOffers(null);setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
@@ -1940,8 +1985,30 @@ export default function GameShell() {
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${loadoutCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
       {overlay==='toolGift' && <div className="scrim"><div className="dialog-card tool-gift" role="dialog" aria-modal="true" aria-label="Fieldkeeper's toolkit"><header className="tool-gift-header"><span className="speaker">{playtest?'PLAYTEST PREVIEW · ':''}A GIFT FROM THE FIELDKEEPER</span><h2>Field Toolkit</h2></header><div className="tool-gift-body"><img className="tool-gift-hero" src={assetUrl('/sprites/field-toolkit.png')} alt=""/><div className="tool-gift-copy"><p>Try a Tile Bomb and a Free Swap during a level. Each is free to use and does not spend a move.</p><div className="tool-gift-items">{TOOLS.map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × 1</span>)}</div>{giftError&&<p role="alert">{giftError}</p>}</div></div><footer className="tool-gift-actions"><button className="primary" disabled={giftClaiming.current || playtest&&giftPreviewClaimed.current} onClick={()=>void claimToolkit()}>Take the toolkit →</button><button className="quiet" onClick={()=>setOverlay(null)}>Maybe later</button></footer></div></div>}
-      {overlay==='gifts' && <div className="scrim"><div className="dialog-card reward-inbox" role="dialog" aria-modal="true" aria-label="Gifts"><header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}RAID PARTY GIFTS</span><h2>Gifts</h2></header><div className="reward-inbox-body"><p>{rewardPreview.current?'Preview gifts without changing your campaign.':'Open a daily gift when you visit, and a chapter gift after each chapter.'}</p><div className="reward-inbox-list">{(rewardPreview.current ? [{key:'preview:daily',title:'Daily Visit',payload:{coins:100,item:null,quantity:0},status:'available' as const},...(['jet','flywheel','prism','tileBomb','freeSwap','flywheel','prism'] as const).map((item,index)=>({key:`preview:chapter:${index}`,title:['Oasis','Open Desert','River Gatehouse','Farmland','Town on the Hill','Castle Island','River Journey'][index],payload:{coins:200,item,quantity:1},status:'available' as const}))] : rewardAvailable).map(item=><button className="reward-inbox-item" data-reward-key={item.key} key={item.key} onClick={()=>openReward(item,rewardPreview.current)}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/><span><strong>{item.title}</strong><small>{item.status==='claimed-unpresented'?'Ready to reveal':item.key.startsWith('daily:')||item.key==='preview:daily'?'Today’s visit':'Chapter complete'}</small></span><b>Open →</b></button>)}{!rewardPreview.current && rewardAvailable.length===0 && <p>Nothing to open right now. The next daily gift arrives at 00:00 UTC.</p>}</div>{rewardPreview.current && <p className="reward-preview-count">Preview total: {previewRewardCoins} coins · {Object.entries(previewRewardItems).filter(([,n])=>n).map(([kind,n])=>`${kind} × ${n}`).join(', ')||'no items yet'}</p>}</div><footer><button className="quiet" onClick={closeGifts}>Close</button></footer></div></div>}
-      {overlay==='rewardGift' && rewardSelection && <div className="scrim"><div className="dialog-card reward-gift" role="dialog" aria-modal="true" aria-label={`${rewardSelection.title} gift`} data-reward-key={rewardSelection.key} data-phase={rewardBusy&&rewardStage==='sealed'?'pending':rewardStage}><header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}{rewardSelection.key.startsWith('daily:')||rewardSelection.key==='preview:daily'?'DAILY VISIT':'CHAPTER COMPLETE'}</span><h2>{rewardSelection.title}</h2></header><div className="reward-gift-body"><div className={`reward-parcel ${rewardStage}`}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/></div><div className="reward-gift-copy">{rewardStage==='revealed'?<><p>Your gift is ready!</p><strong className="reward-coins"><img src={assetUrl('/sprites/coin.png')} alt=""/>+{(rewardSelection.award?.payload??rewardSelection.payload).coins} coins</strong>{(rewardSelection.award?.payload??rewardSelection.payload).item && <div className="reward-item">{[...TOOLS,...BOOSTERS].filter(item=>item.kind===(rewardSelection.award?.payload??rewardSelection.payload).item).map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>+{(rewardSelection.award?.payload??rewardSelection.payload).quantity} {item.title}</span>)}</div>}</>:<p>{rewardJournal.current?.phase==='pending'&&!rewardPreview.current?'Checking this gift with Portal…':'A little something for your journey.'}</p>}{rewardError&&<p className="reward-error" role="alert">{rewardError}</p>}</div></div><footer className="reward-gift-actions">{rewardStage==='sealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void claimSelectedReward()}>{rewardJournal.current?.phase==='pending'?'Retry gift request':'Open gift'} →</button>}{rewardStage==='revealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void finishReward()}>Continue →</button>}<button className="quiet" disabled={rewardBusy||rewardJournal.current?.phase==='pending'&&!rewardPreview.current} onClick={leaveReward}>Maybe later</button></footer></div></div>}
+      {overlay==='gifts' && <div className="scrim"><div className="dialog-card reward-inbox" role="dialog" aria-modal="true" aria-label="Gifts">
+        <header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}RAID PARTY GIFTS</span><h2>Gifts</h2></header>
+        <div className="reward-inbox-body">
+          <div className="reward-streak" aria-label="Five day visit cycle">{[1,2,3,4,5].map(day=><span key={day} className={(rewardPreview.current?day===3:day===(dailyVisit?.cycleDay??rewardOffers?.dailyVisit?.cycleDay??1))?'current':''}><b>{day}</b><small>{['100','200','2 items','500','1,000'][day-1]}</small></span>)}</div>
+          <p className="reward-streak-copy">{rewardPreview.current?'Preview the five-day cycle':`Day ${dailyVisit?.cycleDay??rewardOffers?.dailyVisit?.cycleDay??1} of 5 · opening the game counts as a visit`}</p>
+          <p>{rewardPreview.current?'Preview gifts without changing your campaign.':'Open a daily gift when you visit, and a chapter gift after each chapter.'}</p>
+          <div className="reward-inbox-list">{(rewardPreview.current?previewRewards:rewardAvailable).map(item=><button className="reward-inbox-item" data-reward-key={item.key} key={item.key} onClick={()=>openReward(item,rewardPreview.current)}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/><span><strong>{item.title}</strong><small>{item.status==='claimed-unpresented'?'Ready to reveal':item.cycleDay?`Day ${item.cycleDay} of 5`:'Chapter complete'}</small></span><b>Open →</b></button>)}{!rewardPreview.current && rewardAvailable.length===0 && <p>Nothing to open right now. The next daily gift arrives at 00:00 UTC.</p>}</div>
+          {rewardPreview.current && <p className="reward-preview-count">Preview total: {previewRewardCoins} coins · {Object.entries(previewRewardItems).filter(([,n])=>n).map(([kind,n])=>`${kind} × ${n}`).join(', ')||'no items yet'}</p>}
+        </div><footer><button className="quiet" onClick={closeGifts}>Close</button></footer>
+      </div></div>}
+      {overlay==='rewardGift' && rewardSelection && (()=>{
+        const payload=rewardSelection.award?.payload??rewardSelection.payload;
+        const grants=cloudApi.rewardPayloadItems(payload);
+        const isDaily=rewardSelection.key.startsWith('daily:')||rewardSelection.key.startsWith('preview:daily');
+        const selectedDailyCycle=rewardSelection.cycleDay??(rewardSelection.key===`daily:${dailyVisit?.day}`?dailyVisit?.cycleDay:undefined);
+        return <div className="scrim"><div className="dialog-card reward-gift" role="dialog" aria-modal="true" aria-label={`${rewardSelection.title} gift`} data-reward-key={rewardSelection.key} data-phase={rewardBusy&&rewardStage==='sealed'?'pending':rewardStage}>
+          <header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}{isDaily?(selectedDailyCycle?`DAILY VISIT · DAY ${selectedDailyCycle} OF 5`:'SAVED DAILY GIFT'):'CHAPTER COMPLETE'}</span><h2>{rewardSelection.title}</h2></header>
+          <div className="reward-gift-body"><div className={`reward-parcel ${rewardStage}`}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/></div><div className="reward-gift-copy">
+            {rewardStage==='revealed'?<><p>Your gift is ready!</p>{payload.coins>0 && <strong className="reward-coins"><img src={assetUrl('/sprites/coin.png')} alt=""/>+{payload.coins} coins</strong>}{grants.length>0 && <div className="reward-item">{grants.map(grant=>[...TOOLS,...BOOSTERS].filter(item=>item.kind===grant.item).map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>+{grant.quantity} {item.title}</span>))}</div>}</>:<><p>{rewardJournal.current?.phase==='pending'&&!rewardPreview.current?'Checking this gift with Portal…':isDaily&&selectedDailyCycle===3?'Two random power-ups await inside.':'A little something for your journey.'}</p>{grants.length>0 && !(isDaily&&selectedDailyCycle===3) && <div className="reward-item reward-peek" aria-label="Gift items">{grants.map(grant=>[...TOOLS,...BOOSTERS].filter(item=>item.kind===grant.item).map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{grant.quantity>1?`× ${grant.quantity}`:''}</span>))}</div>}</>}
+            {rewardError&&<p className="reward-error" role="alert">{rewardError}</p>}
+          </div></div>
+          <footer className="reward-gift-actions">{rewardStage==='sealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void claimSelectedReward()}>{rewardJournal.current?.phase==='pending'?'Retry gift request':'Open gift'} →</button>}{rewardStage==='revealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void finishReward()}>Continue →</button>}<button className="quiet" disabled={rewardBusy||rewardJournal.current?.phase==='pending'&&!rewardPreview.current} onClick={leaveReward}>Maybe later</button></footer>
+        </div></div>;
+      })()}
       {overlay==='toolBuy' && toolBuying && <div className="scrim"><div className="dialog-card tool-buy" role="dialog" aria-modal="true" aria-label={`Buy ${TOOLS.find(item=>item.kind===toolBuying)?.title}`}><span className="speaker">IN-GAME TOOL</span><h2>{TOOLS.find(item=>item.kind===toolBuying)?.title}</h2><img src={assetUrl(TOOLS.find(item=>item.kind===toolBuying)!.image as `/${string}`)} alt=""/><p>{TOOLS.find(item=>item.kind===toolBuying)?.instruction}</p><p>{TOOL_PRICE} coins · {save.coins.toLocaleString('en-US')} available</p>{toolError&&<p role="alert">{toolError}</p>}<div className="briefing-actions"><button className="quiet" disabled={toolBusy || Boolean(purchaseJournal.current)} onClick={()=>{setToolBuying(null);setToolError(null);setOverlay(null);}}>Cancel</button><button className="primary" disabled={toolBusy || save.coins<TOOL_PRICE} onClick={()=>void buyTool(toolBuying)}>{purchaseJournal.current?'Retry purchase':`Buy · ${TOOL_PRICE} coins`}</button></div></div></div>}
       {overlay === "film" && <div className="film-screen">
         {filmContent && <video key={finaleReplay ? `replay-${finaleReplay.token}` : `campaign-${filmKind}`} ref={film} src={filmReady ? assetUrl(filmContent.source) : undefined} poster={assetUrl(filmContent.poster)} playsInline preload="metadata" onEnded={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />}

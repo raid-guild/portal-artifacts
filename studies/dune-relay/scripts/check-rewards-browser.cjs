@@ -20,7 +20,7 @@ function model({count=0,coins=0,revision=0,canImportGuest=count===0,failClaim=nu
  return result;
 }
 async function routes(page,m){await page.route('**/leaderboard-api/dune-relay/**',async route=>{
- const request=route.request(),path=new URL(request.url()).pathname.split('/dune-relay')[1];if(path!=='/session')assert.equal(request.headers()['x-dune-account-id'],m.account,'account-bound reward request');let body;
+ const request=route.request(),path=new URL(request.url()).pathname.split('/dune-relay')[1];if(m.extraRoute&&await m.extraRoute(route,path))return;if(path!=='/session')assert.equal(request.headers()['x-dune-account-id'],m.account,'account-bound reward request');let body;
  if(path==='/session')body={accountId:m.account,displayName:'Reward Tester',contentVersion:'chapter-7-4'};
  else if(path==='/campaign')body={accountId:m.account,hasCampaign:true,canImportGuest:m.canImportGuest,profile:clone(m.profile)};
  else if(path==='/rewards')body=m.listing();
@@ -41,7 +41,7 @@ async function open(browser,m,options={}){
  const context=await browser.newContext({viewport:options.viewport||{width:844,height:390},reducedMotion:options.motion||'reduce'});
  if(options.guest)await context.addInitScript(save=>localStorage.setItem('dune-relay-campaign-v5',JSON.stringify(save)),options.guest);
  if(options.cache)await context.addInitScript(cache=>{localStorage.setItem('dune-relay-last-portal-account-v1','42');localStorage.setItem('dune-relay-cloud-42-v1',JSON.stringify(cache));},options.cache);
- const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));await routes(page,m);await page.goto(production);return{context,page,errors};
+ const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));await routes(page,m);if(options.beforeGoto)await options.beforeGoto(page);await page.goto(production);return{context,page,errors};
 }
 const gift=(page,key)=>page.locator(`.reward-gift[data-reward-key="${key}"]`);
 async function inbox(page){
@@ -104,7 +104,8 @@ async function sandboxPreviews(browser){
 async function openingCannotRevealAnotherGift(browser){
  const m=model({count:10,coins:200,canImportGuest:false});const {context,page,errors}=await open(browser,m,{motion:'no-preference'});await select(page,dailyKey);await gift(page,dailyKey).getByRole('button',{name:/^Open gift/}).click();await page.locator(`.reward-gift[data-reward-key="${dailyKey}"][data-phase="opening"]`).waitFor();await gift(page,dailyKey).getByRole('button',{name:'Maybe later',exact:true}).click();await select(page,'chapter:oasis');await page.waitForTimeout(750);assert.equal(await gift(page,'chapter:oasis').getAttribute('data-phase'),'sealed','old animation cannot reveal unclaimed new gift');assert.equal(m.profile.inventory.jet,0);assert.deepEqual(errors,[]);await context.close();console.log('Gift animation is scoped to its selected receipt.');
 }
-(async()=>{
+module.exports={model,open,routes,campaign,clone,emptyInventory,gift,inbox,select,reveal,finish,closeInbox,fits,production,sandbox,definitions};
+if(require.main===module)(async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});
  try{if(process.env.DUNE_REWARDS_CASE==='import-journal'){await importWithDeferredGift(browser,'confirmed');await importWithDeferredGift(browser,'pending');await importWithDeferredGift(browser,'pending',false);await importAfterPendingNetworkFailure(browser);await rejectedStartupJournalStaysCleared(browser);return;}await dailyBeforePlay(browser);await uncertain(browser,'before');await uncertain(browser,'after');await catchupAndImport(browser);await importWithDeferredGift(browser,'confirmed');await importWithDeferredGift(browser,'pending');await importWithDeferredGift(browser,'pending',false);await importAfterPendingNetworkFailure(browser);await rejectedStartupJournalStaysCleared(browser);await ledgerRecoveryAndIsolation(browser);await rejectedClaim(browser);await openingCannotRevealAnotherGift(browser);await sandboxPreviews(browser);console.log('Portal rewards browser checks passed.');}finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

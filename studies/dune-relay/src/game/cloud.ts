@@ -8,7 +8,7 @@ import type { Inventory } from './inventory';
 
 const BASE = '/leaderboard-api/dune-relay';
 export const PORTAL_LOGIN_URL = '/leaderboard-api/dune-relay/login';
-export type CloudProfile = { revision: number; campaign: Save; imported: boolean; inventory: Inventory; rewardClaims: {fieldToolkitV1?:string} };
+export type CloudProfile = { revision: number; campaign: Save; imported: boolean; inventory: Inventory; rewardClaims: {fieldToolkitV1?:string}; dailyVisit?:DailyVisit|null };
 export type CloudSession = { accountId: string; displayName: string; contentVersion: string };
 export type FarmlandEntitlement = { accountId: string; farmland: { unlocked: boolean; eligible: boolean; unlockedAt: string | null } };
 export type CampaignPass = { state: 'active' | 'locked' | 'unavailable'; unlocked: boolean; unlockedAt: string | null; checkedAt: string | null; storeUrl: string | null };
@@ -18,10 +18,11 @@ export type CloudOperation =
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
 export type ToolJournal = { accountId:string; attemptId:string; levelId:LevelId; requestId:string; expectedRevision:number; toolSequence:number; kind:'tileBomb'|'freeSwap'; action:PuzzleAction; stateFingerprint:string; movesRemaining:number; contentVersion:string; before:Puzzle; after:Puzzle; phase:'pending'|'confirmed'|'applied' };
 export type PendingToolPurchase = {requestId:string;kind:'tileBomb'|'freeSwap';accountId:string;attemptId:string;expectedRevision:number};
-export type RewardPayload = {coins:number;item:keyof Inventory|null;quantity:number};
+export type RewardPayload = {coins:number;item:keyof Inventory|null;quantity:number;items?:{item:keyof Inventory;quantity:number}[]};
+export type DailyVisit = {day:string;cycleDay:number;version:number;payload:RewardPayload};
 export type RewardAward = {key:string;version:number;payload:RewardPayload;claimedAt:string;presentedAt:string|null};
-export type RewardOffer = {key:string;title:string;payload:RewardPayload;status:'available'|'locked'|'claimed-unpresented'|'claimed-presented';award?:RewardAward};
-export type Rewards = {catalogVersion:number;serverDay:string;nextResetAt:string;rewards:RewardOffer[];unpresented:RewardAward[]};
+export type RewardOffer = {key:string;title:string;payload:RewardPayload;cycleDay?:number;status:'available'|'locked'|'claimed-unpresented'|'claimed-presented';award?:RewardAward};
+export type Rewards = {catalogVersion:number;serverDay:string;nextResetAt:string;dailyVisit?:DailyVisit;visitReserved?:boolean;rewards:RewardOffer[];unpresented:RewardAward[]};
 export type RewardJournal = {accountId:string;requestId:string;rewardKey:string;phase:'pending'|'confirmed'};
 export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase; rewardJournal?:RewardJournal };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
@@ -46,11 +47,26 @@ const json = async (path: string, init?: RequestInit, accountId?: string) => {
 const post = (path: string, body: unknown, accountId: string) => json(path, { method:'POST',body:JSON.stringify(body) },accountId);
 export const session = (): Promise<CloudSession> => json('/session');
 export const campaign = (accountId: string): Promise<{accountId:string;hasCampaign:boolean;canImportGuest?:boolean;profile:CloudProfile|null}> => json('/campaign',undefined,accountId);
+const rewardKinds=['jet','flywheel','prism','tileBomb','freeSwap'];
+export function rewardPayloadItems(payload:RewardPayload):{item:keyof Inventory;quantity:number}[]{
+  const source=Array.isArray(payload.items)?payload.items:payload.item&&payload.quantity>0?[{item:payload.item,quantity:payload.quantity}]:[];
+  const counts=new Map<keyof Inventory,number>();
+  for(const entry of source)counts.set(entry.item,(counts.get(entry.item)??0)+entry.quantity);
+  return [...counts].map(([item,quantity])=>({item,quantity}));
+}
+const validRewardPayload=(payload:RewardPayload|undefined)=>Boolean(payload && Number.isSafeInteger(payload.coins) && payload.coins>=0 && Number.isSafeInteger(payload.quantity) && payload.quantity>=0 && (payload.item===null || rewardKinds.includes(String(payload.item))) && (payload.items===undefined || Array.isArray(payload.items) && payload.items.length<=5 && payload.items.every(entry=>rewardKinds.includes(String(entry?.item)) && Number.isSafeInteger(entry.quantity) && entry.quantity>=1 && entry.quantity<=1_000_000)));
+const validDailyVisit=(visit:DailyVisit|undefined)=>Boolean(visit && /^\d{4}-\d{2}-\d{2}$/.test(visit.day) && Number.isInteger(visit.cycleDay) && visit.cycleDay>=1 && visit.cycleDay<=5 && Number.isSafeInteger(visit.version) && validRewardPayload(visit.payload));
+export const visitRewards=async(accountId:string):Promise<{catalogVersion:number;serverDay:string;nextResetAt:string;dailyVisit:DailyVisit}|null>=>{
+  try{
+    const value=await post('/rewards/visit',{},accountId);
+    if(!Number.isSafeInteger(value?.catalogVersion)||typeof value.serverDay!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value.serverDay)||typeof value.nextResetAt!=='string'||!Number.isFinite(Date.parse(value.nextResetAt))||!validDailyVisit(value.dailyVisit))return null;
+    return value;
+  }catch(error){if(Number((error as {status?:number}).status)===404)return null;throw error;}
+};
 export const rewards = async (accountId:string):Promise<Rewards> => {
   const value=await json('/rewards',undefined,accountId) as Partial<Rewards>;
-  const validPayload=(payload:RewardPayload|undefined)=>Boolean(payload && Number.isSafeInteger(payload.coins) && payload.coins>=0 && Number.isSafeInteger(payload.quantity) && payload.quantity>=0 && (payload.item===null || ['jet','flywheel','prism','tileBomb','freeSwap'].includes(String(payload.item))));
-  const validAward=(award:RewardAward|undefined)=>Boolean(award && typeof award.key==='string' && Number.isSafeInteger(award.version) && validPayload(award.payload) && typeof award.claimedAt==='string' && (award.presentedAt===null || typeof award.presentedAt==='string'));
-  if(!Number.isSafeInteger(value.catalogVersion)||typeof value.serverDay!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value.serverDay)||typeof value.nextResetAt!=='string'||!Number.isFinite(Date.parse(value.nextResetAt))||!Array.isArray(value.rewards)||!Array.isArray(value.unpresented)||!value.rewards.every(item=>item && typeof item.key==='string' && typeof item.title==='string' && validPayload(item.payload) && ['available','locked','claimed-unpresented','claimed-presented'].includes(item.status) && (!item.award||validAward(item.award)))||!value.unpresented.every(validAward))throw new Error('Portal gifts are temporarily unavailable.');
+  const validAward=(award:RewardAward|undefined)=>Boolean(award && typeof award.key==='string' && Number.isSafeInteger(award.version) && validRewardPayload(award.payload) && typeof award.claimedAt==='string' && (award.presentedAt===null || typeof award.presentedAt==='string'));
+  if(!Number.isSafeInteger(value.catalogVersion)||typeof value.serverDay!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value.serverDay)||typeof value.nextResetAt!=='string'||!Number.isFinite(Date.parse(value.nextResetAt))||value.dailyVisit!==undefined&&!validDailyVisit(value.dailyVisit)||!Array.isArray(value.rewards)||!Array.isArray(value.unpresented)||!value.rewards.every(item=>item && typeof item.key==='string' && typeof item.title==='string' && validRewardPayload(item.payload) && (item.cycleDay===undefined||Number.isInteger(item.cycleDay)&&item.cycleDay>=1&&item.cycleDay<=5) && ['available','locked','claimed-unpresented','claimed-presented'].includes(item.status) && (!item.award||validAward(item.award)))||!value.unpresented.every(validAward))throw new Error('Portal gifts are temporarily unavailable.');
   return value as Rewards;
 };
 export const claimReward = (requestId:string,rewardKey:string,accountId:string):Promise<{award:RewardAward;profile:CloudProfile}> => post('/rewards/claim',{requestId,rewardKey},accountId);
