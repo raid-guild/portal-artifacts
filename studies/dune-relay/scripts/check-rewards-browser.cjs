@@ -20,8 +20,9 @@ function model({count=0,coins=0,revision=0,canImportGuest=count===0,failClaim=nu
  return result;
 }
 async function routes(page,m){await page.route('**/leaderboard-api/dune-relay/**',async route=>{
- const request=route.request(),path=new URL(request.url()).pathname.split('/dune-relay')[1];if(m.extraRoute&&await m.extraRoute(route,path))return;if(path!=='/session')assert.equal(request.headers()['x-dune-account-id'],m.account,'account-bound reward request');let body;
+ const request=route.request(),path=new URL(request.url()).pathname.split('/dune-relay')[1];if(m.extraRoute&&await m.extraRoute(route,path))return;if(path!=='/session'&&path!=='/ready')assert.equal(request.headers()['x-dune-account-id'],m.account,'account-bound reward request');let body;
  if(path==='/session')body={accountId:m.account,displayName:'Reward Tester',contentVersion:'chapter-7-4'};
+ else if(path==='/ready')body={ready:true,missing:[]};
  else if(path==='/campaign')body={accountId:m.account,hasCampaign:true,canImportGuest:m.canImportGuest,profile:clone(m.profile)};
  else if(path==='/rewards')body=m.listing();
  else if(path==='/rewards/claim'){

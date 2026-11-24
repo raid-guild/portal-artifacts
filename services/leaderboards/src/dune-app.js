@@ -255,6 +255,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       const {rows:[existing]}=await client.query('SELECT kind,payload_hash,response FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND request_id=$2',[playerId,requestId]);
       const payloadHash=hash(JSON.stringify({expectedRevision,campaignGeneration}));
       if(existing){
+        if(existing.kind==='campaign-reset-cancelled' && existing.payload_hash===payloadHash)throw Object.assign(fail(409,'This reset was cancelled.'),{code:'RESET_CANCELLED'});
         if(existing.kind!=='campaign-reset'||existing.payload_hash!==payloadHash)throw fail(409,'This request ID was used for a different action.');
         return {...existing.response,profile};
       }
@@ -268,6 +269,22 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       const response={campaignGeneration:next.campaignGeneration};
       await client.query('INSERT INTO artifact_leaderboards.dune_operations(player_id,request_id,kind,payload_hash,response) VALUES($1,$2,$3,$4,$5)',[playerId,requestId,'campaign-reset',payloadHash,response]);
       return {...response,profile:next};
+    });
+    res.json(result);
+  }));
+  app.post(`${BASE}/campaign/reset/cancel`,authenticated,limited(async(req,res)=>{
+    const {requestId,expectedRevision,campaignGeneration}=req.body??{};
+    if(!validUuid(requestId)||!Number.isSafeInteger(expectedRevision)||expectedRevision<0||!Number.isSafeInteger(campaignGeneration)||campaignGeneration<0)throw fail(400,'Invalid reset request.');
+    const playerId=req.playerSession.player_id;
+    const result=await transaction(playerId,async(client,profile)=>{
+      const payloadHash=hash(JSON.stringify({expectedRevision,campaignGeneration}));
+      const {rows:[existing]}=await client.query('SELECT kind,payload_hash,response FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND request_id=$2',[playerId,requestId]);
+      if(existing){
+        if(existing.payload_hash!==payloadHash||!['campaign-reset','campaign-reset-cancelled'].includes(existing.kind))throw fail(409,'This request ID was used for a different action.');
+        return {status:existing.kind==='campaign-reset'?'applied':'cancelled',profile,campaignGeneration:existing.response.campaignGeneration??profile.campaignGeneration};
+      }
+      await client.query('INSERT INTO artifact_leaderboards.dune_operations(player_id,request_id,kind,payload_hash,response) VALUES($1,$2,$3,$4,$5)',[playerId,requestId,'campaign-reset-cancelled',payloadHash,{campaignGeneration:profile.campaignGeneration}]);
+      return {status:'cancelled',profile,campaignGeneration:profile.campaignGeneration};
     });
     res.json(result);
   }));

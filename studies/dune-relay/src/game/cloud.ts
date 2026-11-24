@@ -23,7 +23,7 @@ export type DailyVisit = {day:string;cycleDay:number;version:number;payload:Rewa
 export type RewardAward = {key:string;version:number;payload:RewardPayload;claimedAt:string;presentedAt:string|null};
 export type RewardOffer = {key:string;title:string;payload:RewardPayload;cycleDay?:number;status:'available'|'locked'|'claimed-unpresented'|'claimed-presented';award?:RewardAward};
 export type Rewards = {catalogVersion:number;serverDay:string;nextResetAt:string;dailyVisit?:DailyVisit;visitReserved?:boolean;rewards:RewardOffer[];unpresented:RewardAward[]};
-export type ResetJournal = {accountId:string;requestId:string;expectedRevision:number;campaignGeneration:number};
+export type ResetJournal = {accountId:string;requestId:string;expectedRevision:number;campaignGeneration:number;intent?:'reset'|'cancel'|'deferred'};
 export type RewardJournal = {accountId:string;requestId:string;rewardKey:string;phase:'pending'|'confirmed'};
 export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase; rewardJournal?:RewardJournal; resetJournal?:ResetJournal };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
@@ -31,7 +31,7 @@ const cacheKey = (id: string) => `dune-relay-cloud-${id}-v1`;
 const resetKey = (id:string)=>`dune-relay-reset-${id}-v1`;
 export function readResetJournal(id:string):ResetJournal|null {
   if(!safeAccount(id))return null;
-  try{const value=JSON.parse(localStorage.getItem(resetKey(id))??'null');return value?.accountId===id && /^[0-9a-f-]{36}$/i.test(value.requestId) && Number.isSafeInteger(value.expectedRevision) && Number.isSafeInteger(value.campaignGeneration) ? value : null;}catch{return null;}
+  try{const value=JSON.parse(localStorage.getItem(resetKey(id))??'null');return value?.accountId===id && /^[0-9a-f-]{36}$/i.test(value.requestId) && Number.isSafeInteger(value.expectedRevision) && Number.isSafeInteger(value.campaignGeneration) && (value.intent===undefined||['reset','cancel','deferred'].includes(value.intent)) ? value : null;}catch{return null;}
 }
 export function writeResetJournal(journal:ResetJournal):boolean {
   if(!safeAccount(journal.accountId))return false;
@@ -48,15 +48,19 @@ export function rememberAccount(id: string | null): void {
 const json = async (path: string, init?: RequestInit, accountId?: string) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8_000);
-  let response: Response;
-  try { response = await fetch(`${BASE}${path}`, { credentials:'same-origin', cache:'no-store', ...init, signal:controller.signal, headers:{ ...(init?.body ? { 'Content-Type':'application/json' } : {}), ...(accountId ? { 'X-Dune-Account-ID':accountId } : {}), ...(init?.headers ?? {}) } }); }
-  finally { clearTimeout(timer); }
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(typeof body.message === 'string' ? body.message : `Cloud request failed (${response.status})`), { status:response.status,code:body.code });
-  return body;
+  try {
+    const response = await fetch(`${BASE}${path}`, { credentials:'same-origin', cache:'no-store', ...init, signal:controller.signal, headers:{ ...(init?.body ? { 'Content-Type':'application/json' } : {}), ...(accountId ? { 'X-Dune-Account-ID':accountId } : {}), ...(init?.headers ?? {}) } });
+    const body = await response.json().catch(error => { if(controller.signal.aborted)throw error; return {}; });
+    if (!response.ok) throw Object.assign(new Error(typeof body.message === 'string' ? body.message : `Cloud request failed (${response.status})`), { status:response.status,code:body.code });
+    return body;
+  } finally { clearTimeout(timer); }
 };
-const post = (path: string, body: unknown, accountId: string) => json(path, { method:'POST',body:JSON.stringify(body) },accountId);
+const post = (path: string, body: unknown, accountId: string) => {
+  if(!['/campaign/reset','/campaign/reset/cancel','/logout','/rewards/visit'].includes(path) && readResetJournal(accountId))return Promise.reject(new Error('Finish or cancel the pending Start over request before playing.'));
+  return json(path, { method:'POST',body:JSON.stringify(body) },accountId);
+};
 export const session = (): Promise<CloudSession> => json('/session');
+export const resetReady = async ():Promise<boolean> => {const value=await json('/ready');return value?.ready===true && Array.isArray(value?.missing) && value.missing.length===0;};
 export const campaign = (accountId: string): Promise<{accountId:string;hasCampaign:boolean;canImportGuest?:boolean;profile:CloudProfile|null}> => json('/campaign',undefined,accountId);
 const rewardKinds=['jet','flywheel','prism','tileBomb','freeSwap'];
 export function rewardPayloadItems(payload:RewardPayload):{item:keyof Inventory;quantity:number}[]{
@@ -105,6 +109,7 @@ export const isDefiniteToolRejection = (error:unknown):boolean => [400,403,409].
 export const finishAttempt = (op: Extract<CloudOperation,{kind:'finish'}>, accountId: string): Promise<{profile:CloudProfile;reward:number}> => post(`/attempts/${op.attemptId}/finish`,{levelId:op.levelId,remainingMoves:op.remainingMoves,contentVersion:op.contentVersion,campaignGeneration:op.campaignGeneration??0},accountId);
 export const advanceCheckpoint = (op: Extract<CloudOperation,{kind:'checkpoint'}>, expectedRevision: number, accountId: string): Promise<{profile:CloudProfile}> => post('/campaign/checkpoint',{requestId:op.requestId,campaign:op.campaign,expectedRevision,campaignGeneration:op.campaignGeneration??0},accountId);
 export const resetCampaign=(journal:ResetJournal):Promise<{profile:CloudProfile;campaignGeneration:number}>=>post('/campaign/reset',{requestId:journal.requestId,expectedRevision:journal.expectedRevision,campaignGeneration:journal.campaignGeneration},journal.accountId);
+export const cancelReset=(journal:ResetJournal):Promise<{status:'cancelled'|'applied';profile:CloudProfile;campaignGeneration:number}>=>post('/campaign/reset/cancel',{requestId:journal.requestId,expectedRevision:journal.expectedRevision,campaignGeneration:journal.campaignGeneration},journal.accountId);
 export const isResetConflict=(error:unknown)=>((error as {code?:string})?.code==='CAMPAIGN_RESET');
 export const logout = (accountId: string): Promise<void> => post('/logout',{},accountId).then(()=>undefined);
 export function readAccountCache(id: string): CloudCache | null {

@@ -1,6 +1,6 @@
 # Dune Relay reset game progress
 
-**Status:** Implemented in the Start over feature branch; production rollout pending
+**Status:** Reset deployed; outage recovery follow-up in progress
 **Date:** November 24, 2026
 
 ## Purpose
@@ -34,9 +34,9 @@ Resetting progression must not revoke entitlements, remove purchases, or sign th
 
 For a guest, reset the campaign in the current browser or installed app storage context. Explain that other devices and separate storage contexts are unaffected.
 
-For a Portal player, reset the cloud campaign and the corresponding local account save. Wait for server confirmation before reporting success. If the result is uncertain, retain the reset request and offer Retry with the same request ID until the server confirms it. Cancel is available only after a definite rejection, when the existing campaign is known to remain intact.
+For a Portal player, check cloud readiness before creating a reset request. If readiness fails, keep the current campaign and leave Cancel available. Reset the cloud campaign and corresponding local account save only after confirmation. If the result is uncertain, retain the request ID and offer explicit Retry, Cancel, and Close for now. Closing keeps a visible resolution notice and pauses gameplay and economic writes. Reloading must not automatically resend a destructive reset. Cancellation uses the same request ID: the server either records a cancellation tombstone before the reset, or reports that the reset already applied and returns the canonical profile. A delayed reset cannot erase progress after a confirmed cancellation.
 
-The server increments a campaign generation and stamps new attempts and writes with it. Stale attempts, checkpoints, purchase/tool requests and imports cannot revive an earlier run. A pending reset request is stored separately on the device and retried with the same ID after reload. Keep access claims separate from campaign state.
+The server increments a campaign generation and stamps new attempts and writes with it. Stale attempts, checkpoints, purchase/tool requests and imports cannot revive an earlier run. A pending reset request is stored separately on the device. Keep access claims separate from campaign state.
 
 ## Verification before release
 
@@ -49,9 +49,13 @@ The server increments a campaign generation and stamps new attempts and writes w
 
 Related reference: [Portal cloud saves](portal-cloud-save.md). Offline reset and synchronization behavior should be revisited with the [offline play proposal](ASSET_PIPELINE_AND_OFFLINE_PLAY_SPEC.md).
 
+## November 24 outage and recovery
+
+The deployed reset path returned HTTP 500 because the production Dune schema was missing inventory columns, the reward table, and the runtime role's DELETE grant on completions. This left a Pixel player in an uncertain reset dialog; the old client disabled Cancel and automatically resent the reset after reload. The production database received a narrow additive Dune migration and grants on November 24. `/leaderboard-api/dune-relay/ready` then returned 200 with an empty missing list. No player's reset was invoked during repair. The client and API recovery changes described above require a separate deployment.
+
 ## Rollout
 
-Apply the updated `services/leaderboards/schema.sql` as database owner, then `services/leaderboards/ops/dune-grants.sql`. The migration adds `dune_attempts.campaign_generation`; the runtime role gets DELETE only on `dune_completions`. Deploy the updated API and check `/leaderboard-api/dune-relay/ready` before releasing the static game. Old API binaries do not preserve new reset-generation metadata and must not be rolled back without retaining normalization support. No live reset, migration, or deployment was performed while implementing this feature.
+Apply the updated `services/leaderboards/schema.sql` as database owner, then `services/leaderboards/ops/dune-grants.sql` in new environments. The migration adds `dune_attempts.campaign_generation`; the runtime role gets DELETE only on `dune_completions`. Deploy the API before the static game, and check `/leaderboard-api/dune-relay/ready`. Old API binaries do not preserve reset-generation metadata and must not be rolled back without retaining normalization support.
 
 ## Implementation validation
 
