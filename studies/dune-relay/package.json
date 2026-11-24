@@ -24,7 +24,8 @@
     "test:shop-browser": "node scripts/check-shop-browser.cjs",
     "test:jit-browser": "node scripts/check-jit-browser.cjs && node scripts/check-jit-recovery-browser.cjs",
     "test:chain-callout": "node scripts/check-chain-callout.cjs",
-    "test:tool-dialog-layout": "node scripts/check-tool-dialog-layout.cjs"
+    "test:tool-dialog-layout": "node scripts/check-tool-dialog-layout.cjs",
+    "test:rewards-browser": "node scripts/check-rewards-browser.cjs"
   },
   "dependencies": {
     "next": "15.5.29",

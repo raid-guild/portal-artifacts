@@ -1,8 +1,9 @@
 import express from 'express';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtVerify } from 'jose';
-import { GAME, levels, content, boosterPrices, toolPrices, boosterFunding, companionAbilities, emptyProfile, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, accessTierForLevel, accessTierForCampaign, fail } from './dune-rules.js';
+import { GAME, levels, content, boosterPrices, toolPrices, boosterFunding, companionAbilities, emptyCampaign, emptyProfile, inventoryKinds, normalizeProfile, validUuid, validLevel, validBoosters, requireCurrentLevel, guestImport, deriveCampaign, rewardFor, applyCheckpoint, farmlandEligible, moveCapForVersion, accessTierForLevel, accessTierForCampaign, fail } from './dune-rules.js';
 import { createDuneCommerce } from './dune-commerce.js';
+import { REWARD_CATALOG_VERSION, RESOURCE_LIMIT, chapterRewards, dailyReward, rewardForClaim, addReward, utcDay } from './dune-rewards.js';
 
 const BASE = `/leaderboard-api/${GAME}`;
 const COOKIE = 'dune_relay_session';
@@ -11,7 +12,7 @@ const SESSION_SECONDS = 12 * 60 * 60;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const boundedName = value => typeof value === 'string' ? value.trim().slice(0, 60) : '';
 
-export function createDuneApp({ pool, origin, issuer, launchSecret, secure = true, commerce = createDuneCommerce() }) {
+export function createDuneApp({ pool, origin, issuer, launchSecret, secure = true, commerce = createDuneCommerce(), clock = () => new Date() }) {
   if (!origin || !issuer || !launchSecret || launchSecret.length < 32) throw new Error('Dune auth configuration is incomplete.');
   const app = express();
   app.disable('x-powered-by');
@@ -65,9 +66,29 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     await client.query('INSERT INTO artifact_leaderboards.dune_operations(player_id,request_id,kind,payload_hash,response) VALUES($1,$2,$3,$4,$5)',[playerId,requestId,kind,payloadHash,response]);
     return response;
   }
+  const rewardRow=row=>({key:row.reward_key,version:row.reward_version,payload:row.reward_payload,claimedAt:row.claimed_at instanceof Date?row.claimed_at.toISOString():row.claimed_at,presentedAt:row.presented_at instanceof Date?row.presented_at.toISOString():row.presented_at});
+  async function currentLockedProfile(client,playerId) {
+    const {rows:[row]}=await client.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[playerId]);
+    return normalizeProfile(row.profile);
+  }
+  async function canImportGuest(client,playerId,profile,hasProfile=true) {
+    if(!hasProfile)return true;
+    if(profile.imported||profile.rewardClaims.fieldToolkitV1)return false;
+    const blank=emptyCampaign();
+    if(Object.keys(blank).some(key=>key!=='coins'&&JSON.stringify(profile.campaign[key])!==JSON.stringify(blank[key])))return false;
+    const {rows:[attempts]}=await client.query('SELECT count(*)::int AS count FROM artifact_leaderboards.dune_attempts WHERE player_id=$1',[playerId]);
+    const {rows:operations}=await client.query('SELECT kind FROM artifact_leaderboards.dune_operations WHERE player_id=$1',[playerId]);
+    const {rows:claims}=await client.query('SELECT reward_key,reward_payload FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[playerId]);
+    if(attempts.count||operations.some(row=>row.kind!=='reward-claim')||claims.some(row=>!/^daily:\d{4}-\d{2}-\d{2}$/.test(row.reward_key)))return false;
+    const coins=claims.reduce((sum,row)=>sum+Number(row.reward_payload?.coins??NaN),0);
+    if(!Number.isSafeInteger(coins)||profile.campaign.coins!==coins)return false;
+    const stock=Object.fromEntries(inventoryKinds.map(kind=>[kind,0]));
+    for(const claim of claims){const {item,quantity}=claim.reward_payload??{};if(item!==null&&item!==undefined){if(!Object.hasOwn(stock,item)||!Number.isSafeInteger(quantity)||quantity<0)return false;stock[item]+=quantity;}}
+    return inventoryKinds.every(kind=>profile.inventory[kind]===stock[kind]);
+  }
   app.get(`${BASE}/ready`,limited(async (_req,res) => {
     const missing=[];
-    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','booster_funding','tool_sequence','companion_snapshot','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_launch_intents:['nonce_hash','expires_at'], dune_entitlements:['player_id','entitlement_key','source','granted_at'] };
+    const tables={ players:['id','issuer','subject'], sessions:['token_hash','player_id','game'], launches:['issuer','jti'], dune_profiles:['player_id','profile'], dune_attempts:['id','player_id','level_id','boosters','booster_funding','tool_sequence','companion_snapshot','status'], dune_completions:['player_id','level_id','attempt_id','reward'], dune_operations:['player_id','request_id','response'], dune_reward_claims:['player_id','reward_key','reward_version','reward_payload','claimed_at','presented_at'], dune_launch_intents:['nonce_hash','expires_at'], dune_entitlements:['player_id','entitlement_key','source','granted_at'] };
     const {rows:[schema]}=await pool.query("SELECT has_schema_privilege(current_user,to_regnamespace('artifact_leaderboards'),'USAGE') AS can_use");
     if (!schema?.can_use) missing.push('schema:usage');
     for (const [name,columns] of Object.entries(tables)) {
@@ -141,8 +162,10 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   }));
   app.get(`${BASE}/session`,authenticated,limited(async(req,res)=>res.json({accountId:String(req.playerSession.player_id),displayName:req.playerSession.display_name,contentVersion:content.contentVersion})));
   app.get(`${BASE}/campaign`,authenticated,limited(async(req,res)=>{
-    const {rows:[row]}=await pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[req.playerSession.player_id]);
-    res.json({accountId:String(req.playerSession.player_id),hasCampaign:Boolean(row),profile:row?normalizeProfile(row.profile):null});
+    const playerId=req.playerSession.player_id;
+    const {rows:[row]}=await pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[playerId]);
+    const profile=row?normalizeProfile(row.profile):null;
+    res.json({accountId:String(playerId),hasCampaign:Boolean(row),canImportGuest:await canImportGuest(pool,playerId,profile,Boolean(row)),profile});
   }));
   const farmlandStatus = (accountId,profile,grant) => ({ accountId:String(accountId),farmland:{ unlocked:Boolean(grant),eligible:farmlandEligible(profile.campaign),unlockedAt:grant?.granted_at?.toISOString?.()??null } });
   const requireChapterAccess = async (client,session,campaign,level,{ finishActive = false } = {}) => {
@@ -190,15 +213,63 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
   app.post(`${BASE}/campaign/import`,authenticated,limited(async(req,res)=>{
     const {requestId,guestSave}=req.body??{};
     const imported=guestImport(guestSave);
-    const response=await transaction(req.playerSession.player_id,async(client,profile)=>receipt(client,req.playerSession.player_id,requestId,'import',{guestSave:imported},async()=>{
+    const response=await transaction(req.playerSession.player_id,async(client,profile)=>{
+      const saved=await receipt(client,req.playerSession.player_id,requestId,'import',{guestSave:imported},async()=>{
       const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[req.playerSession.player_id]);
       if (rate.count>=240) throw fail(429,'Too many campaign changes. Try later.');
-      if (profile.imported || profile.revision>0 || profile.campaign.completed.length || profile.campaign.coins) throw fail(409,'This account already has campaign progress.');
-      const next={...profile,revision:profile.revision+1,campaign:imported,imported:true};
+      if (!(await canImportGuest(client,req.playerSession.player_id,profile))) throw fail(409,'This account already has campaign progress.');
+      if(profile.campaign.coins+imported.coins>RESOURCE_LIMIT)throw fail(409,'Coin storage is full. Spend some coins before importing.');
+      const next={...profile,revision:profile.revision+1,campaign:deriveCampaign(imported.completed,profile.campaign.coins+imported.coins,imported),imported:true};
       await saveProfile(client,req.playerSession.player_id,next);
       return {profile:next};
-    }));
+      });
+      return {...saved,profile:await currentLockedProfile(client,req.playerSession.player_id)};
+    });
     res.json(response);
+  }));
+  app.get(`${BASE}/rewards`,authenticated,limited(async(req,res)=>{
+    const playerId=req.playerSession.player_id,day=utcDay(clock()),today=dailyReward(day);
+    const [{rows:[saved]},{rows:claims}]=await Promise.all([
+      pool.query('SELECT profile FROM artifact_leaderboards.dune_profiles WHERE player_id=$1',[playerId]),
+      pool.query('SELECT reward_key,reward_version,reward_payload,claimed_at,presented_at FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1 AND (reward_key=$2 OR reward_key LIKE $3 OR presented_at IS NULL) ORDER BY claimed_at,reward_key',[playerId,today.key,'chapter:%']),
+    ]);
+    const profile=saved?normalizeProfile(saved.profile):emptyProfile(),byKey=new Map(claims.map(row=>[row.reward_key,row]));
+    const rewards=[today,...chapterRewards].map(reward=>{
+      const claimed=byKey.get(reward.key),eligible=reward.key===today.key||profile.campaign.completed.length>=reward.completedCount;
+      return {key:reward.key,title:reward.title,payload:reward.payload,status:claimed?(claimed.presented_at?'claimed-presented':'claimed-unpresented'):eligible?'available':'locked',...(claimed?{award:rewardRow(claimed)}:{})};
+    });
+    const unpresented=claims.filter(row=>!row.presented_at).map(rewardRow);
+    res.json({catalogVersion:REWARD_CATALOG_VERSION,serverDay:day,nextResetAt:new Date(new Date(`${day}T00:00:00.000Z`).getTime()+86_400_000).toISOString(),rewards,unpresented});
+  }));
+  app.post(`${BASE}/rewards/claim`,authenticated,limited(async(req,res)=>{
+    const {requestId,rewardKey}=req.body??{};
+    if(typeof rewardKey!=='string'||rewardKey.length>50||!rewardKey.length)throw fail(400,'Unknown reward.');
+    const playerId=req.playerSession.player_id;
+    const result=await transaction(playerId,async(client,profile)=>{
+      const saved=await receipt(client,playerId,requestId,'reward-claim',{rewardKey},async()=>{
+        const {rows:[rate]}=await client.query("SELECT count(*)::int AS count FROM artifact_leaderboards.dune_operations WHERE player_id=$1 AND created_at>now()-interval '1 hour'",[playerId]);
+        if(rate.count>=240)throw fail(429,'Too many campaign changes. Try later.');
+        const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1 AND reward_key=$2',[playerId,rewardKey]);
+        if(existing)return {award:rewardRow(existing)};
+        const reward=rewardForClaim(rewardKey,profile.campaign,clock());
+        const next=addReward(profile,reward);
+        await saveProfile(client,playerId,next);
+        const {rows:[claim]}=await client.query('INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,$2,$3,$4) RETURNING *',[playerId,reward.key,REWARD_CATALOG_VERSION,reward.payload]);
+        return {award:rewardRow(claim)};
+      });
+      return {...saved,profile:await currentLockedProfile(client,playerId)};
+    });
+    res.json(result);
+  }));
+  app.post(`${BASE}/rewards/presented`,authenticated,limited(async(req,res)=>{
+    const rewardKey=req.body?.rewardKey;
+    if(typeof rewardKey!=='string'||rewardKey.length>50||!rewardKey.length)throw fail(400,'Unknown reward.');
+    const result=await transaction(req.playerSession.player_id,async(client)=>{
+      const {rows:[row]}=await client.query('UPDATE artifact_leaderboards.dune_reward_claims SET presented_at=COALESCE(presented_at,now()) WHERE player_id=$1 AND reward_key=$2 RETURNING *',[req.playerSession.player_id,rewardKey]);
+      if(!row)throw fail(404,'Reward not claimed.');
+      return {award:rewardRow(row)};
+    });
+    res.json(result);
   }));
   app.post(`${BASE}/inventory/field-toolkit`,authenticated,limited(async(req,res)=>{
     const {requestId}=req.body??{};
@@ -207,6 +278,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       if (!profile.campaign.farmlandReady || !farmlandEligible(profile.campaign)) throw fail(403,'Arrive at Farmland to receive the toolkit.');
       await requireChapterAccess(client,req.playerSession,profile.campaign,levels.get('seedStore'));
       if (profile.rewardClaims.fieldToolkitV1) return {profile,granted:false};
+      if(profile.inventory.tileBomb>=RESOURCE_LIMIT||profile.inventory.freeSwap>=RESOURCE_LIMIT)throw fail(409,'Tool storage is full. Use an item before claiming.');
       const next={...profile,revision:profile.revision+1,inventory:{...profile.inventory,tileBomb:profile.inventory.tileBomb+1,freeSwap:profile.inventory.freeSwap+1},rewardClaims:{...profile.rewardClaims,fieldToolkitV1:new Date().toISOString()}};
       await saveProfile(client,playerId,next);
       return {profile:next,granted:true};
@@ -226,6 +298,7 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       await requireChapterAccess(client,req.playerSession,profile.campaign,level);
       if (expectedRevision!==profile.revision) throw fail(409,'Campaign changed. Reload your save.');
       if (profile.campaign.coins<toolPrices[kind]) throw fail(409,'Not enough coins.');
+      if(profile.inventory[kind]>=RESOURCE_LIMIT)throw fail(409,'Tool storage is full. Use an item before buying.');
       const next={...profile,revision:profile.revision+1,campaign:{...profile.campaign,coins:profile.campaign.coins-toolPrices[kind]},inventory:{...profile.inventory,[kind]:profile.inventory[kind]+1}};
       await saveProfile(client,playerId,next);
       return {profile:next,kind};

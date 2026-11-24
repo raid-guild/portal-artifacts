@@ -432,6 +432,37 @@ button { font: inherit; cursor: pointer; }
 .tool-lesson-demo.swap .cell-5 { animation: lesson-swap-left 1.9s ease-in-out infinite; }
 .tool-lesson-cost { color: #9edecf; font-size: .9rem; }
 .tool-lesson-demo.still *, .tool-lesson-demo.still { animation: none !important; }
+.dialog-card.reward-inbox,.dialog-card.reward-gift { width:min(570px,calc(100cqw - 24px)); max-width:calc(100cqw - 24px); max-height:calc(100cqh - 24px); display:flex; flex-direction:column; gap:clamp(5px,1.5cqh,12px); overflow:hidden; padding:clamp(10px,2.5cqh,22px); }
+.reward-inbox header,.reward-gift header,.reward-inbox footer,.reward-gift footer { flex:none; }
+.reward-inbox h2,.reward-gift h2 { margin:3px 0 0; font-size:clamp(24px,6cqh,36px); }
+.reward-inbox .speaker,.reward-gift .speaker { font-size:clamp(11px,2.6cqh,15px); }
+.reward-inbox-body,.reward-gift-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.reward-inbox-body p,.reward-gift-body p { font-size:clamp(12px,3cqh,16px); line-height:1.3; margin:0 0 8px; }
+.reward-inbox-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.reward-inbox-item { display:flex; align-items:center; gap:8px; min-width:0; padding:5px 7px; border:1px solid #caa776; border-radius:9px; background:#275360; color:#ffe9bf; text-align:left; }
+.reward-inbox-item img { width:clamp(28px,7cqh,42px); height:clamp(28px,7cqh,42px); object-fit:contain; flex:none; }
+.reward-inbox-item span { display:flex; flex-direction:column; min-width:0; flex:1; }
+.reward-inbox-item strong { font:700 clamp(12px,3cqh,17px)/1.1 'Barlow Condensed',Arial,sans-serif; }
+.reward-inbox-item small { font-size:clamp(10px,2.3cqh,13px); }
+.reward-inbox-item b { font-size:clamp(10px,2.2cqh,13px); white-space:nowrap; }
+.reward-gift-body { display:grid; grid-template-columns:minmax(90px,min(32cqh,150px)) minmax(0,1fr); gap:clamp(8px,2cqh,15px); align-items:center; }
+.reward-parcel { display:grid; place-items:center; width:100%; }
+.reward-parcel img { display:block; width:100%; max-height:34cqh; object-fit:contain; filter:drop-shadow(0 0 11px #ffe5a4a0); }
+.reward-parcel.opening img { animation:reward-open 650ms ease-out both; }
+.reward-parcel.revealed img { animation:reward-hover 2.4s ease-in-out infinite; }
+.reward-coins,.reward-item span { display:flex; align-items:center; gap:6px; color:#ffe29c; font:800 clamp(18px,5cqh,30px)/1.1 'Barlow Condensed',Arial,sans-serif; }
+.reward-coins img,.reward-item img { width:clamp(25px,6cqh,38px); height:clamp(25px,6cqh,38px); object-fit:contain; }
+.reward-item span { font-size:clamp(15px,4cqh,24px); margin-top:6px; }
+.reward-gift-actions { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.reward-gift-actions .primary { min-width:0; padding:5px 10px; font-size:clamp(15px,4cqh,20px); }
+.reward-gift-actions .quiet,.reward-inbox footer .quiet { padding:5px 8px; font-size:clamp(12px,3cqh,16px); }
+.reward-error { color:#ffc49b; }
+.reward-preview-count { margin-top:8px !important; color:#a8d8cc; }
+.reward-title { margin-top:6px; }
+@keyframes reward-open { 0% { transform:translateY(0) scale(1) rotate(0); filter:drop-shadow(0 0 5px #ffe5a4); } 35% { transform:translateY(-10%) scale(1.13) rotate(-7deg); filter:drop-shadow(0 0 24px #ffe5a4); } 70% { transform:translateY(3%) scale(.95) rotate(4deg); } 100% { transform:translateY(0) scale(1) rotate(0); } }
+@keyframes reward-hover { 50% { transform:translateY(-3%); filter:drop-shadow(0 0 20px #ffe5a4); } }
+@media (prefers-reduced-motion: reduce) { .reward-parcel img { animation:none !important; } }
+@container (max-height: 440px) { .reward-inbox-list { grid-template-columns:repeat(3,minmax(0,1fr)); } .reward-inbox-item b { display:none; } }
 @keyframes lesson-pop { 0%,18%,100% { opacity: 0; transform: scale(.65); } 35%,70% { opacity: 1; transform: scale(1); } }
 @keyframes lesson-bust { 0%,30%,100% { opacity: 1; transform: scale(1); } 55%,80% { opacity: .15; transform: scale(.25); } }
 @keyframes lesson-swap-right { 0%,20%,100% { transform: translateX(0); } 50%,75% { transform: translateX(108%); } }

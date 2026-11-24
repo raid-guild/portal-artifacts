@@ -1,0 +1,26 @@
+# Dune Relay gifts (phase 2)
+
+## Player rules
+
+Portal accounts can open one 100-coin gift per UTC calendar day by visiting the game; playing a level is not required. The day changes at 00:00 UTC. A missed daily gift expires. Each completed chapter offers a separate, one-time gift of 200 coins and one inventory item: Oasis → Water Jet, Open Desert → Flywheel, River Gatehouse → Prism, Farmland → Tile Bomb, Town on the Hill → Free Swap, Castle Island → Flywheel, River Journey → Prism. Earlier chapter completions qualify, including imported demo progress. Replays do not create more gifts. The existing one-time Fieldkeeper toolkit is a separate reward and remains available to eligible players.
+
+Gifts are offered in the home and map views and listed in Settings → Gifts. The inbox collects multiple unclaimed gifts without interrupting play with a series of dialogs. Opening a parcel reveals its exact coin and item award, then Continue marks the reveal as seen. Maybe later leaves an unpresented award in the inbox. Playtest Settings offers repeatable daily and chapter gift previews with a transient preview total; previews do not write campaign coins, inventory, account cache, or API data. Guests are not eligible in this phase. Daily streaks, level achievements, and offline claiming are deferred.
+
+## Server contract and recovery
+
+The reward catalog is versioned independently of the campaign content version. Its identity keys (`daily:YYYY-MM-DD`, `chapter:oasis`, etc.) are stable; a later catalog revision does not regrant an existing key. The server derives chapter eligibility from the canonical completed prefix and ignores client-supplied amounts. Each award is stored in `dune_reward_claims` with an immutable payload, claim time, and optional presentation time. The account profile and ledger grant are committed in one player-locked transaction. Both coins and inventory are capped at 1,000,000; a full balance rejects the entire claim without marking it claimed.
+
+`GET /leaderboard-api/dune-relay/rewards` returns today's server day, next reset, offer status, and all claimed but unpresented awards. `POST /rewards/claim` takes a UUID request ID and a reward key; duplicate requests and duplicate keys cannot grant twice. Its response returns the immutable award and the current locked profile even when an old operation receipt is replayed. `POST /rewards/presented` acknowledges a claimed award idempotently without changing balance or profile revision. Account, Origin, and authentication checks follow the existing Dune API rules.
+
+The client stores the account-scoped claim request before sending it. A lost response leaves the same request ID available for retry; a committed claim also appears in the server's unpresented list after a reload or loss of browser storage. It fetches the current campaign after a claim receipt before applying the balance, and does not overwrite newer Portal progress with an old receipt. Startup reconciles existing gift requests before deciding whether to offer guest import, so postponed reveals do not remove that choice. An uncertain claim blocks starting a new level until resolved. Deterministic 400/403/409 rejection releases the local pending request; network errors retain it. Offline claims are unavailable. If the backend does not yet expose `/rewards`, the game continues without Gifts.
+
+A daily gift may create a Portal profile before the player imports a guest campaign. `GET /campaign` supplies a server-derived `canImportGuest` hint. The import endpoint checks it again while holding the player lock. An account with only daily reward claims, the exact ledger-derived coin and inventory totals, no attempts, and no prior gameplay/import/checkpoint operation may still import once. Import adds validated guest coins to the earned daily coins and preserves inventory and reward ledger. An explicit fresh start or other campaign activity closes this import path. This is a narrow first-import exception, not a general save merge.
+
+## Rollout
+
+Run `npm run migrate` in `services/leaderboards` using database-owner credentials, then apply the updated runtime grants in `ops/dune-grants.sql` **before** deploying the backend. The backend Docker start command does not migrate. Deploy the backend, verify `/leaderboard-api/dune-relay/ready` for `dune_reward_claims` and its required columns and grants, then release the static game artifact. Keep campaign Save v5, cloud cache v1, and content version `chapter-7-4`. No live migration or deployment was run during implementation.
+
+
+## Verification
+
+The release passes typechecking, the existing core suite (70 level baselines and 50 River witnesses), and 124 API checks against disposable local PostgreSQL. `npm run test:rewards-browser` covers daily gifts without gameplay, claim interruptions before/after commit, replay and cache-loss recovery, account isolation, bounded rejection, imported chapter rewards, deferred/pending/rejected startup gifts with guest progress, animation cancellation, and four viewport sizes. Previews leave persistent campaign/wallet/account state untouched and make no account API requests. Existing JIT/mobile recovery and public access checks remain green.

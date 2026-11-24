@@ -18,7 +18,12 @@ export type CloudOperation =
   | { kind: 'checkpoint'; requestId: string; campaign: Save };
 export type ToolJournal = { accountId:string; attemptId:string; levelId:LevelId; requestId:string; expectedRevision:number; toolSequence:number; kind:'tileBomb'|'freeSwap'; action:PuzzleAction; stateFingerprint:string; movesRemaining:number; contentVersion:string; before:Puzzle; after:Puzzle; phase:'pending'|'confirmed'|'applied' };
 export type PendingToolPurchase = {requestId:string;kind:'tileBomb'|'freeSwap';accountId:string;attemptId:string;expectedRevision:number};
-export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase };
+export type RewardPayload = {coins:number;item:keyof Inventory|null;quantity:number};
+export type RewardAward = {key:string;version:number;payload:RewardPayload;claimedAt:string;presentedAt:string|null};
+export type RewardOffer = {key:string;title:string;payload:RewardPayload;status:'available'|'locked'|'claimed-unpresented'|'claimed-presented';award?:RewardAward};
+export type Rewards = {catalogVersion:number;serverDay:string;nextResetAt:string;rewards:RewardOffer[];unpresented:RewardAward[]};
+export type RewardJournal = {accountId:string;requestId:string;rewardKey:string;phase:'pending'|'confirmed'};
+export type CloudCache = { profile: CloudProfile; localSave: Save; pending: CloudOperation[]; purchase?: { attemptId: string; levelId: LevelId; boosters: BoosterKind[]; cost?:number; companionSnapshot?: CompanionSnapshot | null }; toolJournal?:ToolJournal; purchaseTool?:PendingToolPurchase; rewardJournal?:RewardJournal };
 const safeAccount = (id: string) => /^\d+$/.test(id) ? id : null;
 const cacheKey = (id: string) => `dune-relay-cloud-${id}-v1`;
 const lastAccountKey = 'dune-relay-last-portal-account-v1';
@@ -40,7 +45,16 @@ const json = async (path: string, init?: RequestInit, accountId?: string) => {
 };
 const post = (path: string, body: unknown, accountId: string) => json(path, { method:'POST',body:JSON.stringify(body) },accountId);
 export const session = (): Promise<CloudSession> => json('/session');
-export const campaign = (accountId: string): Promise<{accountId:string;hasCampaign:boolean;profile:CloudProfile|null}> => json('/campaign',undefined,accountId);
+export const campaign = (accountId: string): Promise<{accountId:string;hasCampaign:boolean;canImportGuest?:boolean;profile:CloudProfile|null}> => json('/campaign',undefined,accountId);
+export const rewards = async (accountId:string):Promise<Rewards> => {
+  const value=await json('/rewards',undefined,accountId) as Partial<Rewards>;
+  const validPayload=(payload:RewardPayload|undefined)=>Boolean(payload && Number.isSafeInteger(payload.coins) && payload.coins>=0 && Number.isSafeInteger(payload.quantity) && payload.quantity>=0 && (payload.item===null || ['jet','flywheel','prism','tileBomb','freeSwap'].includes(String(payload.item))));
+  const validAward=(award:RewardAward|undefined)=>Boolean(award && typeof award.key==='string' && Number.isSafeInteger(award.version) && validPayload(award.payload) && typeof award.claimedAt==='string' && (award.presentedAt===null || typeof award.presentedAt==='string'));
+  if(!Number.isSafeInteger(value.catalogVersion)||typeof value.serverDay!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value.serverDay)||typeof value.nextResetAt!=='string'||!Number.isFinite(Date.parse(value.nextResetAt))||!Array.isArray(value.rewards)||!Array.isArray(value.unpresented)||!value.rewards.every(item=>item && typeof item.key==='string' && typeof item.title==='string' && validPayload(item.payload) && ['available','locked','claimed-unpresented','claimed-presented'].includes(item.status) && (!item.award||validAward(item.award)))||!value.unpresented.every(validAward))throw new Error('Portal gifts are temporarily unavailable.');
+  return value as Rewards;
+};
+export const claimReward = (requestId:string,rewardKey:string,accountId:string):Promise<{award:RewardAward;profile:CloudProfile}> => post('/rewards/claim',{requestId,rewardKey},accountId);
+export const presentReward = (rewardKey:string,accountId:string):Promise<{award:RewardAward}> => post('/rewards/presented',{rewardKey},accountId);
 function checkedEntitlement(value: unknown, accountId: string): FarmlandEntitlement {
   const result=value as Partial<FarmlandEntitlement>;
   const grant=result.farmland;
