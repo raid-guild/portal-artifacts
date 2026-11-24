@@ -38,7 +38,11 @@ for(const id of LEVEL_ORDER.slice(60)){
  for(const name of names){
   if(compFilter&&name!==compFilter)continue;
   const old=existing.find(w=>w.levelId===id&&w.companionId===name);
-  if(id==='riverBend'&&old){result.push(old);continue;}
+  if(old){
+   let check=createPuzzle(castleLevelForCompanion(LEVELS[id],companionSnapshot(name))),valid=true;
+   for(const move of old.moves){const turn=playTurn(check,move.from,move.to);if(!turn.valid){valid=false;break;}check=turn.state;}
+   if(valid&&check.status==='won'&&check.moves===old.movesRemaining){result.push(old);continue;}
+  }
   let found=null;const authored=castleLevelForCompanion(LEVELS[id],companionSnapshot(name));
   for(let attempt=0;attempt<maxAttempts;attempt++){
    const random=rand((authored.seed^(attempt*2654435761)^(name.length*2654435761))>>>0);

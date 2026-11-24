@@ -161,6 +161,7 @@ button { font: inherit; cursor: pointer; }
 .farmland-anchor { left: 81.91%; top: 78.8%; }
 .town-anchor { left: 71.03%; top: 64.26%; }
 .castle-anchor { left: 58.06%; top: 52.99%; }
+.river-anchor { left: 45.94%; top: 43.97%; }
 .atlas-path path { fill: none; stroke-linecap: round; }
 .atlas-path-shadow { stroke: #1b3940; stroke-width: 8; }
 .atlas-path-light { stroke: #fff0b6; stroke-width: 3; stroke-dasharray: 3 9; animation: atlas-wind 4s linear infinite; }
@@ -174,13 +175,13 @@ button { font: inherit; cursor: pointer; }
 .atlas-route button:disabled { cursor: default; }
 .atlas-route button:not(:disabled):hover { background: #27747b; }
 .atlas-route small { display: block; margin-top: 2px; font: 600 clamp(9px, 1.8cqh, 12px) 'DM Sans', Arial, sans-serif; color: #aee8dd; }
-.atlas-route .atlas-stamp { left: 11%; top: 51%; }
+.atlas-route .atlas-stamp { left: 9%; top: 68%; }
 .atlas-route .atlas-active { left: 30%; top: 68%; border-color: #efb77f; }
 .atlas-route .atlas-gatehouse { left: 55%; top: 85%; border-color: #d8b4ed; }
 .atlas-route .atlas-farmland { left: 77%; top: 76%; border-color: #d8b4ed; }
 .atlas-route .atlas-dune-pass { left: 72%; top: 53%; border-color: #e6c589; }
 .atlas-route .atlas-castle { left: 47%; top: 37%; border-color: #e6c589; }
-.atlas-route .atlas-river { left: 56%; top: 20%; border-color: #a4e4e9; }
+.atlas-route .atlas-river { left: 36%; top: 22%; border-color: #a4e4e9; }
 .atlas-lock { display: inline; margin-left: .15em; font-size: .85em; }
 .atlas-future { position: absolute; z-index: 3; right: 3%; top: 18%; width: min(28%, 240px); padding: 6px 9px; border: 1px solid #dfbe8d; background: rgba(14, 50, 61, .87); border-radius: 9px; font-size: clamp(10px, 1.8cqh, 14px); font-weight: 700; }
 .atlas-action.primary { position: absolute; z-index: 3; right: 3%; top: 4%; min-width: 0; padding: 5px 10px; font-size: clamp(14px, 3cqh, 21px); }

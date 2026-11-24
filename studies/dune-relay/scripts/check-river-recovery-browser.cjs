@@ -23,7 +23,7 @@ async function caseFor(browser,boosters){
   await page.route('**/leaderboard-api/dune-relay/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     let body={ok:true};
-    if(path.endsWith('/session'))body={accountId:'42',displayName:'River tester',contentVersion:'chapter-7-2'};
+    if(path.endsWith('/session'))body={accountId:'42',displayName:'River tester',contentVersion:'chapter-7-3'};
     else if(path.endsWith('/campaign'))body={accountId:'42',hasCampaign:true,profile};
     else if(path.endsWith('/entitlements'))body=entitlement;
     else if(path.endsWith('/attempts')&&request.method()==='POST') { prepared.push(request.postDataJSON());body={profile,companionSnapshot:snapshot}; }
