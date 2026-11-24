@@ -48,9 +48,9 @@ async function cachedReceiptRace(browser,kind){
  await page.goto(url);await page.waitForFunction(key=>{const c=JSON.parse(localStorage.getItem(key)||'null');return c?.profile.revision===8&&c.localSave.completed.includes('seedStore');},cacheKey,{timeout:15000});const saved=await stored(page);assert.equal(saved.profile.inventory.tileBomb,0);assert.equal(saved.localSave.coins,800);assert(!saved.toolJournal);assert(!saved.purchaseTool);assert.equal(calls,1);
  assert.equal(await page.locator('.frame[data-mode="puzzle"]').count(),0,'stale receipt cannot restore old level');await page.reload();await page.waitForFunction(()=>document.querySelector('.cloud-pill')?.textContent.includes('Saved to Portal'));assert.equal(calls,1);await context.close();
 }
-async function previousContentToolRecovery(browser,phase){
+async function previousContentToolRecovery(browser,phase,version){
  const context=await browser.newContext({viewport:{width:844,height:390},reducedMotion:'reduce'});
- const oldJournal={...journal(phase),contentVersion:'chapter-7-4'};
+ const oldJournal={...journal(phase),contentVersion:version};
  let server=profile(phase==='pending'?5:6,phase==='pending'?1:0),calls=0;
  await seed(context,{profile:server,localSave:campaign,pending:[],toolJournal:oldJournal});
  const page=await context.newPage();
@@ -67,7 +67,7 @@ async function previousContentToolRecovery(browser,phase){
  await page.locator('.frame[data-mode="puzzle"]').waitFor({timeout:15000});
  await page.getByRole('button',{name:'Tile Bomb, 0 owned',exact:true}).waitFor({timeout:15000});
  const recovered=await stored(page);
- assert.equal(recovered.toolJournal?.contentVersion,'chapter-7-4','recovered journal retains its authored version');
+ assert.equal(recovered.toolJournal?.contentVersion,version,'recovered journal retains its authored version');
  assert.equal(recovered.toolJournal?.requestId,oldJournal.requestId);
  assert.deepEqual(recovered.toolJournal?.after,oldJournal.after,'the committed board is restored');
  assert.equal(recovered.profile.inventory.tileBomb,0,'inventory is debited once');
@@ -78,4 +78,4 @@ async function previousContentToolRecovery(browser,phase){
  assert.equal(calls,phase==='pending'?1:0,'reload does not spend the recovered tool again');
  await context.close();
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{if(process.env.DUNE_LEGACY_TOOL_ONLY){await previousContentToolRecovery(browser,'pending');await previousContentToolRecovery(browser,'applied');console.log('Previous-content tool recovery browser checks passed.');return;}await uncertainUse(browser,true);await uncertainUse(browser,false);await uncertainUse(browser,true,true);await rejectedCached(browser,'consume');await rejectedCached(browser,'purchase');await rejectedCached(browser,'consume',true);await cachedReceiptRace(browser,'consume');await cachedReceiptRace(browser,'purchase');await previousContentToolRecovery(browser,'pending');await previousContentToolRecovery(browser,'applied');console.log('JIT recovery browser checks passed: uncertain before/after commit, blocked input, exact retry, reload, deterministic rejection, sign-out, cross-device progress, stale receipt races, and previous-content recovery.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{if(process.env.DUNE_LEGACY_TOOL_ONLY){for(const version of ['chapter-7-5','chapter-7-4']){await previousContentToolRecovery(browser,'pending',version);await previousContentToolRecovery(browser,'applied',version);}console.log('Previous-content tool recovery browser checks passed.');return;}await uncertainUse(browser,true);await uncertainUse(browser,false);await uncertainUse(browser,true,true);await rejectedCached(browser,'consume');await rejectedCached(browser,'purchase');await rejectedCached(browser,'consume',true);await cachedReceiptRace(browser,'consume');await cachedReceiptRace(browser,'purchase');for(const version of ['chapter-7-5','chapter-7-4']){await previousContentToolRecovery(browser,'pending',version);await previousContentToolRecovery(browser,'applied',version);}console.log('JIT recovery browser checks passed: uncertain before/after commit, blocked input, exact retry, reload, deterministic rejection, sign-out, cross-device progress, stale receipt races, and previous-content recovery.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

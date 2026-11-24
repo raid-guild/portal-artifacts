@@ -1,6 +1,6 @@
 {
   "rulesVersion": "river-2",
-  "contentVersion": "chapter-7-5",
+  "contentVersion": "chapter-7-6",
   "levels": [
     {
       "id": "pumpHouse",
@@ -239,12 +239,12 @@
     },
     {
       "id": "neighborhoodRounds",
-      "moves": 35,
+      "moves": 33,
       "chapter": "town"
     },
     {
       "id": "townLedger",
-      "moves": 35,
+      "moves": 33,
       "chapter": "town"
     },
     {
