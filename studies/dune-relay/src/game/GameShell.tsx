@@ -84,6 +84,7 @@ export default function GameShell() {
   const toolJournal=useRef<cloudApi.ToolJournal|null>(null);
   const purchaseJournal=useRef<{requestId:string;kind:ToolKind;accountId:string;attemptId:string;expectedRevision:number}|null>(null);
   const giftClaiming=useRef(false);
+  const giftPreviewClaimed=useRef(false);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -438,6 +439,12 @@ export default function GameShell() {
   },[playtest,save.farmlandReady,mode,overlay,wipe,cloudStatus]);
   useEffect(()=>{ if(giftNotice && mode==='map' && overlay===null && wipe==='hidden'){setOverlay('toolGift');setGiftNotice(false);} },[giftNotice,mode,overlay,wipe]);
   async function claimToolkit(){
+    if(playtest){
+      if(giftPreviewClaimed.current)return;
+      giftPreviewClaimed.current=true;setGiftError(null);
+      setInventory(stock=>({...stock,tileBomb:stock.tileBomb+1,freeSwap:stock.freeSwap+1}));setOverlay(null);
+      return;
+    }
     const account=cloudRef.current;if(!account || giftClaiming.current)return;
     giftClaiming.current=true;setGiftError(null);const generation=cloudGeneration.current;
     try{const response=await cloudApi.claimFieldToolkit(cloudApi.newOperationId(),account.accountId);
@@ -1699,7 +1706,7 @@ export default function GameShell() {
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${loadoutCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
-      {overlay==='toolGift' && <div className="scrim"><div className="dialog-card tool-gift" role="dialog" aria-modal="true" aria-label="Fieldkeeper's toolkit"><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/><span className="speaker">A GIFT FROM THE FIELDKEEPER</span><h2>Field Toolkit</h2><p>Try a Tile Bomb and a Free Swap during a level. Each is free to use and does not spend a move.</p><div className="tool-gift-items">{TOOLS.map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × 1</span>)}</div>{giftError&&<p role="alert">{giftError}</p>}<button className="primary" disabled={giftClaiming.current} onClick={()=>void claimToolkit()}>Take the toolkit →</button><button className="quiet" onClick={()=>setOverlay(null)}>Maybe later</button></div></div>}
+      {overlay==='toolGift' && <div className="scrim"><div className="dialog-card tool-gift" role="dialog" aria-modal="true" aria-label="Fieldkeeper's toolkit"><header className="tool-gift-header"><span className="speaker">{playtest?'PLAYTEST PREVIEW · ':''}A GIFT FROM THE FIELDKEEPER</span><h2>Field Toolkit</h2></header><div className="tool-gift-body"><img className="tool-gift-hero" src={assetUrl('/sprites/field-toolkit.png')} alt=""/><div className="tool-gift-copy"><p>Try a Tile Bomb and a Free Swap during a level. Each is free to use and does not spend a move.</p><div className="tool-gift-items">{TOOLS.map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × 1</span>)}</div>{giftError&&<p role="alert">{giftError}</p>}</div></div><footer className="tool-gift-actions"><button className="primary" disabled={giftClaiming.current || playtest&&giftPreviewClaimed.current} onClick={()=>void claimToolkit()}>Take the toolkit →</button><button className="quiet" onClick={()=>setOverlay(null)}>Maybe later</button></footer></div></div>}
       {overlay==='toolBuy' && toolBuying && <div className="scrim"><div className="dialog-card tool-buy" role="dialog" aria-modal="true" aria-label={`Buy ${TOOLS.find(item=>item.kind===toolBuying)?.title}`}><span className="speaker">IN-GAME TOOL</span><h2>{TOOLS.find(item=>item.kind===toolBuying)?.title}</h2><img src={assetUrl(TOOLS.find(item=>item.kind===toolBuying)!.image as `/${string}`)} alt=""/><p>{TOOLS.find(item=>item.kind===toolBuying)?.instruction}</p><p>{TOOL_PRICE} coins · {save.coins.toLocaleString('en-US')} available</p>{toolError&&<p role="alert">{toolError}</p>}<div className="briefing-actions"><button className="quiet" disabled={toolBusy || Boolean(purchaseJournal.current)} onClick={()=>{setToolBuying(null);setToolError(null);setOverlay(null);}}>Cancel</button><button className="primary" disabled={toolBusy || save.coins<TOOL_PRICE} onClick={()=>void buyTool(toolBuying)}>{purchaseJournal.current?'Retry purchase':`Buy · ${TOOL_PRICE} coins`}</button></div></div></div>}
       {overlay === "film" && <div className="film-screen">
         {filmContent && <video key={finaleReplay ? `replay-${finaleReplay.token}` : `campaign-${filmKind}`} ref={film} src={filmReady ? assetUrl(filmContent.source) : undefined} poster={assetUrl(filmContent.poster)} playsInline preload="metadata" onEnded={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />}
@@ -1843,6 +1850,7 @@ export default function GameShell() {
         {archiveKey.current && cloudStatus !== "checking" && (playtest || cloudStatus !== "expired") && <><small className="setting-note">Level stats stay on this device{playtest ? " in a separate playtest archive" : cloudRef.current ? " for this Portal account" : " for this guest campaign"}. Export a copy here.</small><button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button><button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button></>}
         {playtest ? <>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
+          <button className="setting" onClick={()=>{giftPreviewClaimed.current=false;setGiftError(null);setSettings(false);setOverlay('toolGift');}}>Preview Fieldkeeper gift</button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => { if(isChapterFinalLevel(id)&&CHAPTER_FINALES[LEVELS[id].chapter??"oasis"]){setReplaySelection(id);setSettings(false);setOverlay("replayBriefing");}else replayLevel(id); }}>Replay {chapterLevelLabel(id)} · {LEVELS[id].title}</button>)}
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
