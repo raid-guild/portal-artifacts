@@ -9,14 +9,23 @@ Module._extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(
 const {createPuzzle,playTurn}=require('../src/game/core.ts');
 const {LEVELS}=require('../src/game/levels.ts');
 const {castleLevelForCompanion,companionSnapshot}=require('../src/game/companionAbilities.ts');
+const witnesses=require('./fixtures/river-winning-routes.json');
 const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/';
 
-function firstFlowMove(id){
-  const puzzle=createPuzzle(castleLevelForCompanion(LEVELS[id],companionSnapshot('keeper')));
+function firstFlowMoves(id){
+  let puzzle=createPuzzle(castleLevelForCompanion(LEVELS[id],companionSnapshot('keeper')));
   for(let row=0;row<9;row++)for(let col=0;col<9;col++)for(const to of [{row,col:col+1},{row:row+1,col}]){
     if(to.row>=9||to.col>=9)continue;
     const from={row,col},turn=playTurn(puzzle,from,to);
-    if(turn.valid&&turn.steps.some(step=>step.kind==='current'))return {from,to,turn};
+    if(turn.valid&&turn.steps.some(step=>step.kind==='current'))return {moves:[{from,to}],turn};
+  }
+  const witness=witnesses.find(entry=>entry.levelId===id&&entry.companionId==='keeper');
+  const moves=[];
+  for(const move of witness?.moves??[]){
+    const turn=playTurn(puzzle,move.from,move.to);
+    assert(turn.valid,`${id} authored route remains valid`);
+    moves.push(move);puzzle=turn.state;
+    if(turn.steps.some(step=>step.kind==='current'))return {moves,turn};
   }
   throw Error(`No current-producing move in ${id}`);
 }
@@ -52,8 +61,11 @@ async function runLevel(browser,number,id,expected){
     let wraps=0;
     if(expected.move){
       await page.waitForFunction(()=>document.querySelector('canvas[data-current-route-count]')?.dataset.introPhase==='ready',null,{timeout:30000});
-      const {from,to,turn}=firstFlowMove(id);
-      await tap(page,from);await tap(page,to);
+      const {moves,turn}=firstFlowMoves(id);
+      for(const [index,move] of moves.entries()){
+        await tap(page,move.from);await tap(page,move.to);
+        await page.locator(`[data-moves="${LEVELS[id].moves-index-1}"]`).waitFor({timeout:30000});
+      }
       await page.waitForFunction(()=>Number(document.querySelector('canvas[data-current-route-count]')?.dataset.currentSteps||0)>0,null,{timeout:30000});
       wraps=Number(await canvas.getAttribute('data-current-wraps')||0);
       const expectedWraps=turn.steps.flatMap(step=>step.currentMotions||[]).filter(motion=>motion.wrap).length;
@@ -67,8 +79,9 @@ async function main(){
   try{
     await runLevel(browser,3,'broadwaterTurn',{routes:1,frozen:0,move:true});
     await runLevel(browser,5,'clearingTheBend',{routes:2,frozen:1,move:true});
-    await runLevel(browser,8,'splitwaterCargo',{routes:2,frozen:0,exits:9,move:true});
-    await runLevel(browser,10,'openTheCollectionRoute',{routes:2,frozen:2,move:true});
+    await runLevel(browser,8,'splitwaterCargo',{routes:2,frozen:1,exits:9,move:true});
+    await runLevel(browser,9,'saltwindMooring',{routes:2,frozen:1,exits:9,move:true});
+    await runLevel(browser,10,'openTheCollectionRoute',{routes:2,frozen:2,exits:9,move:true});
   }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

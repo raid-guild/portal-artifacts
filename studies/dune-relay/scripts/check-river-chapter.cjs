@@ -96,6 +96,25 @@ for (const id of ids) {
     assert.equal(new Set(route.cells.map(cell=>`${cell.row},${cell.col}`)).size,route.cells.length,`${id} route unique cells`);
   }
 }
+for (const [id, saltCount, playableCount, frozenCount] of [
+  ['splitwaterCargo', 4, 72, 1],
+  ['saltwindMooring', 5, 69, 1],
+  ['openTheCollectionRoute', 6, 67, 2],
+]) {
+  const puzzle=createPuzzle(LEVELS[id]);
+  assert.equal(LEVELS[id].crust.length,saltCount,`${id} authored salt count`);
+  assert.equal(puzzle.goals.crust,saltCount,`${id} salt collection target`);
+  assert.equal(puzzle.mask.flat().filter(Boolean).length,playableCount,`${id} playable cells`);
+  assert.equal(puzzle.currents.filter(route=>routeFrozen(puzzle,route)).length,frozenCount,`${id} frozen routes`);
+  for(let col=0;col<9;col++) {
+    assert.equal(puzzle.mask[8][col],true,`${id} every exit stays on the bottom edge`);
+    let seenPlayable=false;
+    for(let row=0;row<9;row++){
+      if(puzzle.mask[row][col])seenPlayable=true;
+      else assert.equal(seenPlayable,false,`${id} no internal exit in column ${col}`);
+    }
+  }
+}
 const twin=openingTurn(LEVELS.saltlockedEddy);
 assert.deepEqual(currentStep(twin).currentRouteIds,['west-eddy','east-eddy'],'both opposing routes move in one current phase');
 assert.equal(currentStep(twin).currentMotions.length,24);

@@ -13,7 +13,7 @@ async function fixture(browser,ending,options={}){
     const request=route.request(),path=new URL(request.url()).pathname;
     if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push({path,body:request.postDataJSON()});
     const state=options.revokeOnReplay&&path.endsWith('/entitlements')&&++entitlementReads>1?'locked':'active';
-    const body=path.endsWith('/session')?{accountId:'42',displayName:'River tester',contentVersion:'chapter-7-2'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign:campaign(ending)}}:path.endsWith('/entitlements')?entitlement(state):{ok:true};
+    const body=path.endsWith('/session')?{accountId:'42',displayName:'River tester',contentVersion:'chapter-7-3'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign:campaign(ending)}}:path.endsWith('/entitlements')?entitlement(state):{ok:true};
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   if(options.blockMedia)await page.route('**/cinematics/river-upstream-journey.mp4',route=>route.abort());

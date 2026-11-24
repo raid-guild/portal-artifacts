@@ -4,6 +4,7 @@ import {
   content, emptyCampaign, deriveCampaign, normalizeProfile, applyCheckpoint,
   requireCurrentLevel, guestImport, accessTierForLevel, accessTierForCampaign,
   CASTLE_LEVEL_COUNT, RIVER_LEVEL_COUNT,
+  moveCapForVersion,
 } from '../src/dune-rules.js';
 
 const prefix = count => content.levels.slice(0, count).map(level => level.id);
@@ -16,6 +17,7 @@ const castleFields = {
 const step = (profile, fields) => applyCheckpoint(profile, { ...profile.campaign, ...fields });
 
 test('River catalog extends the campaign without moving Castle completion', () => {
+  assert.equal(content.contentVersion, 'chapter-7-3');
   assert.equal(CASTLE_LEVEL_COUNT, 60);
   assert.equal(RIVER_LEVEL_COUNT, content.levels.length);
   assert.equal(RIVER_LEVEL_COUNT, 70);
@@ -27,6 +29,13 @@ test('River catalog extends the campaign without moving Castle completion', () =
   assert.equal(justFinished.riverReady, false);
   assert.equal(justFinished.riverEnding, 'locked');
   assert.equal(accessTierForCampaign(justFinished), 'campaign-pass');
+});
+
+test('River tuning keeps old prepared attempts valid at their original move caps', () => {
+  for (const level of content.levels) {
+    assert.equal(moveCapForVersion(level, 'chapter-7-2'), level.moves, level.id);
+  }
+  assert.equal(moveCapForVersion(content.levels[69], 'unknown'), null);
 });
 
 test('legacy completed Castle account may board River without replaying Castle', () => {

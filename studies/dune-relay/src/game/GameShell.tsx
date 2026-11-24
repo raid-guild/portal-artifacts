@@ -1448,9 +1448,11 @@ export default function GameShell() {
             <path className="atlas-path-shadow" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             <path className="atlas-path-light" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             {demoComplete && <><path className="atlas-path-shadow" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /><path className="atlas-path-light" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /></>}
+            {save.completed.includes("openTheUpstreamRoute") && <><path className="atlas-path-shadow" d="M1030 470 Q942 493 805 465 Q780 438 815 390" /><path className="atlas-path-light" data-route="castle-river" d="M1030 470 Q942 493 805 465 Q780 438 815 390" /></>}
             {kingdomPreview && <path className="atlas-preview-line" d={`M${kingdomPreview.label.x+100} ${kingdomPreview.label.y+60} Q${kingdomPreview.anchor.x-80} ${kingdomPreview.anchor.y-55} ${kingdomPreview.anchor.x} ${kingdomPreview.anchor.y}`} />}
           </svg>
           <span className="atlas-anchor oasis-anchor" /><span className="atlas-anchor caravan-anchor" /><span className="atlas-anchor bridge-anchor" />{demoComplete && <><span className="atlas-anchor farmland-anchor" /><span className="atlas-anchor town-anchor" /><span className="atlas-anchor castle-anchor" /></>}
+          {save.completed.includes("openTheUpstreamRoute") && <span className="atlas-anchor river-anchor" aria-hidden="true" />}
           {kingdomPreview && <><span className="atlas-preview-anchor" style={{left:`${kingdomPreview.anchor.x/1774*100}%`,top:`${kingdomPreview.anchor.y/887*100}%`}} aria-hidden="true"/><div className="atlas-preview-label" style={{left:`${kingdomPreview.label.x/1774*100}%`,top:`${kingdomPreview.label.y/887*100}%`}} aria-label={`${kingdomPreview.title} · ${kingdomPreview.subtitle}`}><strong>{kingdomPreview.title}</strong><small>{kingdomPreview.subtitle}</small></div></>}
           <div className="atlas-route">
             <button className="atlas-stamp" disabled={save.oasisTransition !== "ready"} onClick={() => visitRegion("oasis")}>OASIS ✓<small>Waterway restored · visit</small></button>
