@@ -100,6 +100,16 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_operations (
   PRIMARY KEY(player_id,request_id)
 );
 CREATE INDEX IF NOT EXISTS dune_operations_created ON artifact_leaderboards.dune_operations(created_at);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_reward_claims (
+  player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  reward_key text NOT NULL,
+  reward_version integer NOT NULL,
+  reward_payload jsonb NOT NULL,
+  claimed_at timestamptz NOT NULL DEFAULT now(),
+  presented_at timestamptz,
+  PRIMARY KEY(player_id,reward_key)
+);
+CREATE INDEX IF NOT EXISTS dune_reward_claims_unpresented ON artifact_leaderboards.dune_reward_claims(player_id,claimed_at) WHERE presented_at IS NULL;
 CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_launch_intents (
   nonce_hash text PRIMARY KEY,
   consumed_at timestamptz NOT NULL DEFAULT now(),

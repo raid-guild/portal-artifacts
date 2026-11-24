@@ -6,6 +6,7 @@ import { SignJWT } from 'jose';
 import { createHash, randomUUID } from 'node:crypto';
 import { createDuneApp } from '../src/dune-app.js';
 import { emptyCampaign, content, farmlandEligible, DEMO_LEVEL_COUNT, deriveCampaign, moveCapForVersion, applyCheckpoint, accessTierForCampaign, accessTierForLevel } from '../src/dune-rules.js';
+import { chapterRewards } from '../src/dune-rewards.js';
 const database=process.env.TEST_DATABASE_URL;
 if (!database || !['localhost','127.0.0.1'].includes(new URL(database).hostname) || !new URL(database).pathname.endsWith('_test')) throw new Error('Use local disposable *_test Postgres');
 const pool=new pg.Pool({connectionString:database});
@@ -13,7 +14,7 @@ const secret='dune-test-secret-with-at-least-32-characters', origin='http://loca
 let server,base;
 before(async()=>{
   const schema=await readFile(new URL('../schema.sql',import.meta.url),'utf8'); await pool.query(schema);await pool.query(schema);
-  await pool.query('TRUNCATE artifact_leaderboards.dune_entitlements, artifact_leaderboards.dune_launch_intents,artifact_leaderboards.dune_operations,artifact_leaderboards.dune_completions,artifact_leaderboards.dune_attempts,artifact_leaderboards.dune_profiles,artifact_leaderboards.puddle_community_versions,artifact_leaderboards.puddle_community_levels,artifact_leaderboards.raid_profiles,artifact_leaderboards.runs,artifact_leaderboards.sessions,artifact_leaderboards.players,artifact_leaderboards.launches RESTART IDENTITY');
+  await pool.query('TRUNCATE artifact_leaderboards.dune_reward_claims,artifact_leaderboards.dune_entitlements, artifact_leaderboards.dune_launch_intents,artifact_leaderboards.dune_operations,artifact_leaderboards.dune_completions,artifact_leaderboards.dune_attempts,artifact_leaderboards.dune_profiles,artifact_leaderboards.puddle_community_versions,artifact_leaderboards.puddle_community_levels,artifact_leaderboards.raid_profiles,artifact_leaderboards.runs,artifact_leaderboards.sessions,artifact_leaderboards.players,artifact_leaderboards.launches RESTART IDENTITY');
   server=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false}).listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}/leaderboard-api/dune-relay`;
 });
 after(async()=>{await new Promise(resolve=>server.close(resolve));await pool.end();});
@@ -466,4 +467,234 @@ test('guest import cannot inject inventory or toolkit claims',async()=>{
   const profile=(await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:guest}))).profile;
   assert.deepEqual(profile.inventory,{tileBomb:0,freeSwap:0,jet:0,flywheel:0,prism:0});
   assert.deepEqual(profile.rewardClaims,{});
+});
+
+test('daily rewards are UTC-bound, account-bound, durable, and presented once',async()=>{
+  let time='2026-11-24T23:59:58.000Z';
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,clock:()=>new Date(time)}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const url=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const at=(route,cookie,body,accountId=accountByCookie.get(cookie))=>fetch(url+route,{method:body?'POST':'GET',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+  try{
+    const {cookie}=await launch(),other=await launch(),accountId=accountByCookie.get(cookie);
+    assert.equal((await at('/rewards','')).status,401);
+    assert.equal((await at('/rewards',cookie,undefined,'999999')).status,409);
+    const offered=await ok(await at('/rewards',cookie));
+    assert.equal(offered.serverDay,'2026-11-24');assert.equal(offered.nextResetAt,'2026-11-25T00:00:00.000Z');
+    assert.equal(offered.rewards.find(reward=>reward.key==='daily:2026-11-24').status,'available');
+    assert.equal(offered.rewards.find(reward=>reward.key==='chapter:oasis').status,'locked');
+    const requestId=randomUUID(),body={requestId,rewardKey:'daily:2026-11-24',coins:999999,item:'prism'};
+    const [first,parallel]=await Promise.all([at('/rewards/claim',cookie,body),at('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:body.rewardKey})]);
+    const a=await ok(first),b=await ok(parallel);
+    assert.equal(a.award.payload.coins,100);assert.equal(a.award.version,2);
+    assert.equal(a.award.key,b.award.key);assert.equal(a.profile.campaign.coins,100);assert.equal(b.profile.campaign.coins,100);
+    assert.equal((await ok(await at('/rewards/claim',cookie,body))).profile.campaign.coins,100);
+    assert.equal((await at('/rewards/claim',cookie,{...body,rewardKey:'chapter:oasis'})).status,409);
+    assert.equal((await at('/rewards/claim',other.cookie,{requestId:randomUUID(),rewardKey:body.rewardKey},accountId)).status,409);
+    const unpresented=await ok(await at('/rewards',cookie));
+    assert.equal(unpresented.unpresented.length,1);
+    const revision=a.profile.revision;
+    const shown=await ok(await at('/rewards/presented',cookie,{rewardKey:body.rewardKey}));
+    assert.ok(shown.award.presentedAt);
+    assert.equal((await ok(await at('/rewards/presented',cookie,{rewardKey:body.rewardKey}))).award.presentedAt,shown.award.presentedAt);
+    assert.equal((await ok(await call('/campaign',cookie))).profile.revision,revision,'presentation changes no balance or revision');
+    assert.equal((await at('/rewards/presented',other.cookie,{rewardKey:body.rewardKey})).status,404);
+    time='2026-11-25T00:00:00.000Z';
+    const next=await ok(await at('/rewards',cookie));assert.equal(next.serverDay,'2026-11-25');assert.equal(next.rewards.find(reward=>reward.key==='daily:2026-11-25').status,'available');
+    assert.equal((await ok(await at('/rewards/claim',cookie,{requestId, rewardKey:body.rewardKey}))).profile.campaign.coins,100,'old receipt returns current profile');
+    assert.equal((await ok(await at('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:body.rewardKey}))).profile.campaign.coins,100,'different request recovers claimed old day');
+    assert.equal((await at('/rewards/claim',other.cookie,{requestId:randomUUID(),rewardKey:body.rewardKey})).status,409,'unclaimed prior day expires');
+    assert.equal((await ok(await at('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:'daily:2026-11-25'}))).profile.campaign.coins,300);
+    const capped=await launch();
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountByCookie.get(capped.cookie),{revision:0,campaign:{...emptyCampaign(),coins:999950},imported:false}]);
+    assert.equal((await at('/rewards/claim',capped.cookie,{requestId:randomUUID(),rewardKey:'daily:2026-11-25'})).status,409);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[accountByCookie.get(capped.cookie)])).rows[0].n,0,'capacity rejection writes no claim');
+  }finally{await new Promise(resolve=>service.close(resolve));}
+});
+
+test('five-day visits advance without claiming, freeze day-three draws, and wrap after day five',async()=>{
+  let time='2026-12-01T08:00:00.000Z',draws=0;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,clock:()=>new Date(time),selectRandomReward:pool=>pool[draws++%2]}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const url=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const at=(route,cookie,body)=>fetch(url+route,{method:body?'POST':'GET',headers:{Cookie:cookie,'X-Dune-Account-ID':accountByCookie.get(cookie),...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+  try{
+    const {cookie}=await launch();
+    const expected=[100,200,0,500,1000,100];
+    for(let index=0;index<6;index++){
+      const day=`2026-12-0${index+1}`;time=`${day}T08:00:00.000Z`;
+      const before=(await ok(await at('/campaign',cookie))).profile?.revision??0;
+      const visit=index===2
+        ?(await Promise.all([at('/rewards/visit',cookie,{}),at('/rewards/visit',cookie,{})].map(async request=>ok(await request))))[0]
+        :await ok(await at('/rewards/visit',cookie,{}));
+      assert.equal(visit.dailyVisit.cycleDay,index%5+1);
+      assert.equal(visit.dailyVisit.payload.coins,expected[index]);
+      assert.equal((await ok(await at('/campaign',cookie))).profile.revision,before,'visit never changes economic revision');
+      assert.deepEqual((await ok(await at('/rewards/visit',cookie,{}))).dailyVisit,visit.dailyVisit,'same-day visit retains payload');
+      assert.equal((await ok(await at('/rewards',cookie))).rewards[0].payload.coins,expected[index]);
+      if(index===2){
+        assert.deepEqual(visit.dailyVisit.payload.items,[{item:'jet',quantity:1},{item:'flywheel',quantity:1}]);
+        assert.equal(draws,2,'GET and repeat visits do not reroll');
+      }
+      if(index!==1){
+        const claimed=await ok(await at('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:`daily:${day}`}));
+        assert.deepEqual(claimed.award.payload,visit.dailyVisit.payload);
+      }
+    }
+    const profile=(await ok(await at('/campaign',cookie))).profile;
+    assert.equal(profile.campaign.coins,1700,'day 2 visit advanced the streak without granting an unclaimed gift');
+    assert.equal(profile.inventory.jet,1);assert.equal(profile.inventory.flywheel,1);
+    assert.equal(draws,2);
+  }finally{await new Promise(resolve=>service.close(resolve));}
+});
+
+test('missed visits reset, legacy rows seed streaks, and item draws stay frozen across capacity failure',async()=>{
+  let time='2026-12-10T12:00:00.000Z',draws=0;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,clock:()=>new Date(time),selectRandomReward:pool=>{draws++;return pool[0];}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const url=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const at=(route,cookie,body)=>fetch(url+route,{method:body?'POST':'GET',headers:{Cookie:cookie,'X-Dune-Account-ID':accountByCookie.get(cookie),...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+  try{
+    const missed=await launch();
+    await ok(await at('/rewards/visit',missed.cookie,{}));
+    time='2026-12-12T12:00:00.000Z';
+    assert.equal((await ok(await at('/rewards/visit',missed.cookie,{}))).dailyVisit.cycleDay,1,'missing the 11th resets');
+    const oldYesterday=await launch(),yesterdayId=accountByCookie.get(oldYesterday.cookie);
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[yesterdayId,{revision:1,campaign:{...emptyCampaign(),coins:100}}]);
+    await pool.query("INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,'daily:2026-12-11',1,$2)",[yesterdayId,{coins:100,item:null,quantity:0}]);
+    assert.equal((await ok(await at('/rewards/visit',oldYesterday.cookie,{}))).dailyVisit.cycleDay,2);
+    const oldToday=await launch(),todayId=accountByCookie.get(oldToday.cookie);
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[todayId,{revision:1,campaign:{...emptyCampaign(),coins:100}}]);
+    await pool.query("INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,'daily:2026-12-12',1,$2)",[todayId,{coins:100,item:null,quantity:0}]);
+    const legacy=await ok(await at('/rewards/visit',oldToday.cookie,{}));
+    assert.equal(legacy.dailyVisit.cycleDay,1);assert.equal(legacy.dailyVisit.version,1);assert.equal(legacy.dailyVisit.payload.coins,100);
+    const capped=await launch(),cappedId=accountByCookie.get(capped.cookie);
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[cappedId,{revision:0,campaign:emptyCampaign(),inventory:{jet:999999}}]);
+    await ok(await at('/rewards/visit',capped.cookie,{}));
+    time='2026-12-13T12:00:00.000Z';await ok(await at('/rewards/visit',capped.cookie,{}));
+    time='2026-12-14T12:00:00.000Z';
+    const reserved=await ok(await at('/rewards/visit',capped.cookie,{}));
+    assert.deepEqual(reserved.dailyVisit.payload.items,[{item:'jet',quantity:2}]);
+    const drawsBefore=draws;
+    assert.equal((await at('/rewards/claim',capped.cookie,{requestId:randomUUID(),rewardKey:'daily:2026-12-14'})).status,409);
+    assert.equal((await at('/rewards/claim',capped.cookie,{requestId:randomUUID(),rewardKey:'daily:2026-12-14'})).status,409);
+    assert.equal(draws,drawsBefore,'failed capacity checks keep the first draw');
+    assert.deepEqual((await ok(await at('/rewards/visit',capped.cookie,{}))).dailyVisit.payload,reserved.dailyVisit.payload);
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[cappedId])).rows[0].n,0);
+  }finally{await new Promise(resolve=>service.close(resolve));}
+});
+
+test('Farmland expands the reserved item pool and mixed daily ledger grants remain importable',async()=>{
+  let time='2026-12-20T10:00:00.000Z',draw=0;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,clock:()=>new Date(time),selectRandomReward:pool=>pool[3+(draw++%2)]}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const url=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const at=(route,cookie,body)=>fetch(url+route,{method:body?'POST':'GET',headers:{Cookie:cookie,'X-Dune-Account-ID':accountByCookie.get(cookie),...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+  try{
+    const farmer=await launch(),farmerId=accountByCookie.get(farmer.cookie);
+    const farm=deriveCampaign(content.levels.slice(0,40).map(level=>level.id),0,{...emptyCampaign(),oasisTransition:'ready',gatehouseReady:true,farmlandReady:true});
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[farmerId,{revision:8,campaign:farm,imported:true}]);
+    await ok(await at('/rewards/visit',farmer.cookie,{}));
+    time='2026-12-21T10:00:00.000Z';await ok(await at('/rewards/visit',farmer.cookie,{}));
+    time='2026-12-22T10:00:00.000Z';
+    const visit=await ok(await at('/rewards/visit',farmer.cookie,{}));
+    assert.deepEqual(visit.dailyVisit.payload.items,[{item:'tileBomb',quantity:1},{item:'freeSwap',quantity:1}]);
+    assert.equal(draw,2);
+    const claim=await ok(await at('/rewards/claim',farmer.cookie,{requestId:randomUUID(),rewardKey:'daily:2026-12-22'}));
+    assert.equal(claim.profile.inventory.tileBomb,1);assert.equal(claim.profile.inventory.freeSwap,1);
+    assert.equal(claim.profile.campaign.coins,0);
+    const newcomer=await launch(),id=accountByCookie.get(newcomer.cookie);
+    const payload={coins:0,item:null,quantity:0,items:[{item:'jet',quantity:1},{item:'prism',quantity:1}]};
+    await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[id,{revision:1,campaign:emptyCampaign(),inventory:{jet:1,prism:1},dailyVisit:{day:'2026-12-22',cycleDay:3,version:2,payload}}]);
+    await pool.query("INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,'daily:2026-12-22',2,$2)",[id,payload]);
+    assert.equal((await ok(await at('/campaign',newcomer.cookie))).canImportGuest,true);
+    const guest={...emptyCampaign(),completed:['pumpHouse'],coins:20,dailyVisit:{day:'2099-01-01',cycleDay:5,version:2,payload:{coins:1000,item:null,quantity:0}}};
+    const imported=await ok(await at('/campaign/import',newcomer.cookie,{requestId:randomUUID(),guestSave:guest}));
+    assert.equal(imported.profile.campaign.coins,20);assert.equal(imported.profile.inventory.jet,1);assert.equal(imported.profile.inventory.prism,1);
+    assert.equal(imported.profile.dailyVisit.day,'2026-12-22','guest metadata cannot replace the server visit');
+  }finally{await new Promise(resolve=>service.close(resolve));}
+});
+
+test('chapter reward catalog honors canonical completion and catches up imported chapters',async()=>{
+  assert.deepEqual(chapterRewards.map(item=>item.completedCount),[10,20,30,40,50,60,70]);
+  const {cookie}=await launch(),playerId=accountByCookie.get(cookie);
+  const demo={...emptyCampaign(),completed:content.levels.slice(0,30).map(level=>level.id),coins:0,oasisTransition:'ready',gatehouseReady:true,demoEnding:'done'};
+  await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:demo}));
+  const listed=await ok(await call('/rewards',cookie));
+  assert.equal(listed.rewards.find(reward=>reward.key==='chapter:gatehouse').status,'available');
+  assert.equal(listed.rewards.find(reward=>reward.key==='chapter:farmland').status,'locked');
+  assert.equal((await call('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:'chapter:farmland'})).status,409);
+  const firstThree=chapterRewards.slice(0,3);
+  const claimed=await Promise.all(firstThree.map(reward=>call('/rewards/claim',cookie,{requestId:randomUUID(),rewardKey:reward.key})));
+  for(const response of claimed)assert.equal(response.status,200);
+  const after=(await ok(await call('/campaign',cookie))).profile;
+  assert.equal(after.campaign.coins,600);assert.equal(after.inventory.jet,1);assert.equal(after.inventory.flywheel,1);assert.equal(after.inventory.prism,1);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[playerId])).rows[0].n,3);
+  const full=await launch(),fullId=accountByCookie.get(full.cookie);
+  const all=deriveCampaign(content.levels.map(level=>level.id),0,{...emptyCampaign(),oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done',riverEnding:'done',activeCompanion:'keeper'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[fullId,{revision:5,campaign:all,imported:true}]);
+  const finished=await Promise.all(chapterRewards.map(reward=>call('/rewards/claim',full.cookie,{requestId:randomUUID(),rewardKey:reward.key})));
+  for(const response of finished)assert.equal(response.status,200);
+  const current=(await ok(await call('/campaign',full.cookie))).profile;
+  assert.equal(current.campaign.coins,1400);
+  assert.deepEqual(current.inventory,{tileBomb:1,freeSwap:1,jet:1,flywheel:2,prism:2});
+  const duplicate=await ok(await call('/rewards/claim',full.cookie,{requestId:randomUUID(),rewardKey:'chapter:oasis'}));
+  assert.equal(duplicate.profile.revision,current.revision);assert.equal(duplicate.award.payload.coins,200);
+  const cap=await launch(),capId=accountByCookie.get(cap.cookie);
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[capId,{revision:1,campaign:deriveCampaign(content.levels.slice(0,10).map(level=>level.id),0,{oasisTransition:'ready'}),inventory:{tileBomb:0,freeSwap:0,jet:1_000_000,flywheel:0,prism:0}}]);
+  assert.equal((await call('/rewards/claim',cap.cookie,{requestId:randomUUID(),rewardKey:'chapter:oasis'})).status,409);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[capId])).rows[0].n,0);
+});
+
+test('a daily-only Portal profile can import guest progress without losing its gift',async()=>{
+  const account=await launch(),id=accountByCookie.get(account.cookie);
+  assert.equal((await ok(await call('/campaign',account.cookie))).canImportGuest,true);
+  const daily=(await ok(await call('/rewards',account.cookie))).rewards.find(reward=>reward.key.startsWith('daily:'));
+  await ok(await call('/rewards/claim',account.cookie,{requestId:randomUUID(),rewardKey:daily.key}));
+  const rewardOnly=await ok(await call('/campaign',account.cookie));
+  assert.equal(rewardOnly.canImportGuest,true);assert.equal(rewardOnly.profile.campaign.coins,100);assert.equal(rewardOnly.profile.revision,1);
+  const guest={...emptyCampaign(),completed:['pumpHouse'],coins:20};
+  const requestId=randomUUID();
+  const merged=await ok(await call('/campaign/import',account.cookie,{requestId,guestSave:guest}));
+  assert.equal(merged.profile.campaign.coins,120);assert.equal(merged.profile.campaign.completed.length,1);assert.equal(merged.profile.revision,2);
+  assert.equal((await ok(await call('/campaign',account.cookie))).canImportGuest,false);
+  assert.equal((await ok(await call('/campaign/import',account.cookie,{requestId,guestSave:guest}))).profile.campaign.coins,120);
+  const oasisComplete={...emptyCampaign(),completed:content.levels.slice(0,10).map(level=>level.id),coins:0,oasisTransition:'ready'};
+  const afterImportGift=await launch();
+  const importId=randomUUID();
+  await ok(await call('/campaign/import',afterImportGift.cookie,{requestId:importId,guestSave:oasisComplete}));
+  await ok(await call('/rewards/claim',afterImportGift.cookie,{requestId:randomUUID(),rewardKey:'chapter:oasis'}));
+  const replayedImport=await ok(await call('/campaign/import',afterImportGift.cookie,{requestId:importId,guestSave:oasisComplete}));
+  assert.equal(replayedImport.profile.campaign.coins,200,'import receipt replay returns current gift balance');
+  assert.equal(replayedImport.profile.inventory.jet,1);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM artifact_leaderboards.dune_reward_claims WHERE player_id=$1',[id])).rows[0].n,1);
+  const racing=await launch();
+  const key=(await ok(await call('/rewards',racing.cookie))).rewards[0].key;
+  const [gift,imported]=await Promise.all([
+    call('/rewards/claim',racing.cookie,{requestId:randomUUID(),rewardKey:key}),
+    call('/campaign/import',racing.cookie,{requestId:randomUUID(),guestSave:guest}),
+  ]);
+  assert.equal(gift.status,200);assert.equal(imported.status,200);
+  assert.equal((await ok(await call('/campaign',racing.cookie))).profile.campaign.coins,120,'profile lock serializes claim and import');
+  const fresh=await launch();
+  await ok(await call('/campaign/checkpoint',fresh.cookie,{requestId:randomUUID(),campaign:emptyCampaign(),expectedRevision:0}));
+  assert.equal((await ok(await call('/campaign',fresh.cookie))).canImportGuest,false,'explicit fresh start closes later import');
+  const freshAfterGift=await launch();
+  const dailyKey=(await ok(await call('/rewards',freshAfterGift.cookie))).rewards[0].key;
+  const dailyProfile=(await ok(await call('/rewards/claim',freshAfterGift.cookie,{requestId:randomUUID(),rewardKey:dailyKey}))).profile;
+  const freshGiftCheckpoint={...emptyCampaign(),coins:100};
+  await ok(await call('/campaign/checkpoint',freshAfterGift.cookie,{requestId:randomUUID(),campaign:freshGiftCheckpoint,expectedRevision:dailyProfile.revision}));
+  assert.equal((await ok(await call('/campaign',freshAfterGift.cookie))).canImportGuest,false,'fresh start after a daily gift keeps coins and opts out of import');
+  const prepared=await launch();
+  await ok(await call('/attempts',prepared.cookie,{attemptId:randomUUID(),levelId:'pumpHouse',boosters:[]}));
+  assert.equal((await ok(await call('/campaign',prepared.cookie))).canImportGuest,false,'prepared attempt closes import');
+  const unexplained=await launch(),unexplainedId=accountByCookie.get(unexplained.cookie);
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[unexplainedId,{revision:1,campaign:{...emptyCampaign(),coins:50}}]);
+  assert.equal((await ok(await call('/campaign',unexplained.cookie))).canImportGuest,false);
+  const capped=await launch(),cappedId=accountByCookie.get(capped.cookie);
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[cappedId,{revision:1,campaign:{...emptyCampaign(),coins:999950}}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_reward_claims(player_id,reward_key,reward_version,reward_payload) VALUES($1,'daily:2026-11-23',1,$2)",[cappedId,{coins:999950,item:null,quantity:0}]);
+  assert.equal((await ok(await call('/campaign',capped.cookie))).canImportGuest,true);
+  assert.equal((await call('/campaign/import',capped.cookie,{requestId:randomUUID(),guestSave:{...guest,coins:80}})).status,409,'combined balance must stay bounded');
+  assert.equal((await ok(await call('/campaign',capped.cookie))).profile.campaign.coins,999950);
 });

@@ -32,7 +32,7 @@ import { pendingKingdomPreview } from "./kingdomPreview";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 const usesSelectableCompanion = (id: LevelId) => LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river";
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "skiff" | "riverOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | "toolGift" | "toolBuy" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "skiff" | "riverOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | "toolGift" | "toolBuy" | "gifts" | "rewardGift" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; companionSnapshot: CompanionSnapshot | null; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region; returnTo?: "settings" };
@@ -85,6 +85,23 @@ export default function GameShell() {
   const purchaseJournal=useRef<{requestId:string;kind:ToolKind;accountId:string;attemptId:string;expectedRevision:number}|null>(null);
   const giftClaiming=useRef(false);
   const giftPreviewClaimed=useRef(false);
+  const [rewardOffers,setRewardOffers]=useState<cloudApi.Rewards|null>(null);
+  const [dailyVisit,setDailyVisit]=useState<cloudApi.DailyVisit|null>(null);
+  const [rewardSelection,setRewardSelection]=useState<cloudApi.RewardOffer|null>(null);
+  const [rewardStage,setRewardStage]=useState<'sealed'|'opening'|'revealed'>('sealed');
+  const [rewardError,setRewardError]=useState<string|null>(null);
+  const [rewardBusy,setRewardBusy]=useState(false);
+  const [previewRewardCoins,setPreviewRewardCoins]=useState(0);
+  const [previewRewardItems,setPreviewRewardItems]=useState<Partial<Inventory>>({});
+  const rewardJournal=useRef<cloudApi.RewardJournal|null>(null);
+  const rewardRequest=useRef<number|null>(null);
+  const rewardEpoch=useRef(0);
+  const rewardPreview=useRef(false);
+  const rewardReturnOverlay=useRef<Overlay>(null);
+  const rewardReturnToInbox=useRef(false);
+  const rewardRevealToken=useRef(0);
+  const visitRequest=useRef<{accountId:string;promise:Promise<cloudApi.DailyVisit|null>}|null>(null);
+  const visitConfirmed=useRef<{accountId:string;day:string;nextResetAt:string;visit:cloudApi.DailyVisit}|null>(null);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -428,7 +445,7 @@ export default function GameShell() {
     const purchase=pendingAttempt.current && (pendingAttempt.current.selected.length > 0 || usesSelectableCompanion(pendingAttempt.current.level)) && saveRef.current.completed.indexOf(pendingAttempt.current.level) === -1
       ? {attemptId:pendingAttempt.current.cloudAttemptId,levelId:pendingAttempt.current.level,boosters:pendingAttempt.current.selected,cost:pendingAttempt.current.cost,companionSnapshot:pendingAttempt.current.companionSnapshot} : undefined;
     if (!current) return false;
-    const stored=cloudApi.writeAccountCache(current.accountId, { profile: current.profile, localSave: saveRef.current, pending: current.pending, purchase, toolJournal:toolJournal.current??undefined, purchaseTool:purchaseJournal.current??undefined });
+    const stored=cloudApi.writeAccountCache(current.accountId, { profile: current.profile, localSave: saveRef.current, pending: current.pending, purchase, toolJournal:toolJournal.current??undefined, purchaseTool:purchaseJournal.current??undefined, rewardJournal:rewardJournal.current??undefined });
     if (!stored) setCloudMessage("This browser could not store the pending save. Keep this tab open until it syncs.");
     return stored;
   }
@@ -438,6 +455,45 @@ export default function GameShell() {
     giftOffered.current=account.accountId;setGiftNotice(true);
   },[playtest,save.farmlandReady,mode,overlay,wipe,cloudStatus]);
   useEffect(()=>{ if(giftNotice && mode==='map' && overlay===null && wipe==='hidden'){setOverlay('toolGift');setGiftNotice(false);} },[giftNotice,mode,overlay,wipe]);
+  useEffect(()=>{
+    const account=cloudRef.current;
+    if(!account||playtest||cloudStatus!=='account'||mode!=='map'||account.pending.length||cloudConflict.current||!['start',null,'gifts'].includes(overlay))return;
+    void refreshRewards(account);
+  },[playtest,cloudStatus,mode,save.completed.length,overlay]);
+  useEffect(()=>{
+    if(!rewardOffers?.nextResetAt)return;
+    const delay=Math.max(1000,Math.min(86_400_000,Date.parse(rewardOffers.nextResetAt)-Date.now()+200));
+    const timer=setTimeout(()=>{const account=cloudRef.current;if(account&&cloudStatus==='account'&&document.visibilityState==='visible'&&navigator.onLine)void registerDailyVisit(account).then(()=>refreshRewards(account));},delay);
+    return()=>clearTimeout(timer);
+  },[rewardOffers?.nextResetAt,cloudStatus]);
+  useEffect(()=>{
+    const active=()=>{
+      const account=cloudRef.current;
+      if(!account||cloudStatus==='expired'||document.visibilityState!=='visible'||!navigator.onLine)return;
+      void registerDailyVisit(account).then(()=>refreshRewards(account));
+    };
+    document.addEventListener('visibilitychange',active);
+    window.addEventListener('online',active);
+    return()=>{document.removeEventListener('visibilitychange',active);window.removeEventListener('online',active);};
+  },[cloudStatus,overlay,mode]);
+  useEffect(()=>{
+    if(overlay!=='gifts'&&overlay!=='rewardGift')return;
+    const dialog=document.querySelector<HTMLElement>(overlay==='gifts'?'.reward-inbox':'.reward-gift');
+    if(!dialog)return;
+    const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    const buttons=()=>[...dialog.querySelectorAll<HTMLButtonElement>('button:not([disabled])')].filter(button=>button.offsetParent!==null);
+    buttons()[0]?.focus();
+    const keydown=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'){event.preventDefault();if(overlay==='gifts')closeGifts();else leaveReward();return;}
+      if(event.key!=='Tab')return;
+      const choices=buttons();if(!choices.length){event.preventDefault();return;}
+      const first=choices[0],last=choices[choices.length-1];
+      if(event.shiftKey&&(document.activeElement===first||!dialog.contains(document.activeElement))){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&(document.activeElement===last||!dialog.contains(document.activeElement))){event.preventDefault();first.focus();}
+    };
+    document.addEventListener('keydown',keydown,true);
+    return()=>{document.removeEventListener('keydown',keydown,true);if(previous?.isConnected)previous.focus();};
+  },[overlay,rewardSelection?.key,rewardBusy]);
   async function claimToolkit(){
     if(playtest){
       if(giftPreviewClaimed.current)return;
@@ -453,8 +509,183 @@ export default function GameShell() {
     }catch(error){setGiftError((error as Error).message);logDiagnostic('field-toolkit-claim-failed',{message:String(error).slice(0,120)});}
     finally{giftClaiming.current=false;}
   }
+  const rewardAvailable=[...(rewardOffers?.rewards.filter(item=>item.status==='available'||item.status==='claimed-unpresented')??[])];
+  const previewDaily:cloudApi.RewardOffer[]=[
+    {key:'preview:daily',title:'Daily Visit · Day 1',cycleDay:1,payload:{coins:100,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:2',title:'Daily Visit · Day 2',cycleDay:2,payload:{coins:200,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:3',title:'Daily Visit · Day 3',cycleDay:3,payload:{coins:0,item:null,quantity:0,items:[{item:'jet',quantity:1},{item:'flywheel',quantity:1}]},status:'available'},
+    {key:'preview:daily:3-duplicate',title:'Day 3 · Duplicate draw',cycleDay:3,payload:{coins:0,item:null,quantity:0,items:[{item:'prism',quantity:2}]},status:'available'},
+    {key:'preview:daily:4',title:'Daily Visit · Day 4',cycleDay:4,payload:{coins:500,item:null,quantity:0},status:'available'},
+    {key:'preview:daily:5',title:'Daily Visit · Day 5',cycleDay:5,payload:{coins:1000,item:null,quantity:0},status:'available'},
+  ];
+  const previewRewards:cloudApi.RewardOffer[]=[...previewDaily,...(['jet','flywheel','prism','tileBomb','freeSwap','flywheel','prism'] as const).map((item,index)=>({key:`preview:chapter:${index}`,title:['Oasis','Open Desert','River Gatehouse','Farmland','Town on the Hill','Castle Island','River Journey'][index],payload:{coins:200,item,quantity:1},status:'available' as const}))];
+  for(const award of rewardOffers?.unpresented??[]){
+    if(!rewardAvailable.some(item=>item.key===award.key))rewardAvailable.push({key:award.key,title:award.key.startsWith('daily:')?'Daily Visit':'Chapter Gift',payload:award.payload,status:'claimed-unpresented',award});
+  }
+  const unresolvedReward=rewardJournal.current && !rewardAvailable.some(item=>item.key===rewardJournal.current?.rewardKey) ? {key:rewardJournal.current.rewardKey,title:rewardJournal.current.rewardKey.startsWith('daily:')?'Daily Visit':'Chapter Gift',payload:{coins:0,item:null,quantity:0},status:'available' as const} : null;
+  if(unresolvedReward)rewardAvailable.unshift(unresolvedReward);
+  function rewardStable(account:NonNullable<typeof cloudRef.current>){
+    return cloudRef.current===account && cloudStatus==='account' && !account.pending.length && !account.syncing && !cloudConflict.current && toolJournal.current?.phase!=='pending' && toolJournal.current?.phase!=='confirmed' && !purchaseJournal.current && mode==='map' && !replayActive && wipe==='hidden' && !tutorialSession && !tutorialLibrary && !finaleReplay && !transitioning.current;
+  }
+  function guestImportAvailable(result:Awaited<ReturnType<typeof cloudApi.campaign>>,account:NonNullable<typeof cloudRef.current>,cached:cloudApi.CloudCache|null){
+    const profile=result.profile??account.profile;
+    const mayImport=result.canImportGuest??(!result.hasCampaign||profile.revision===0);
+    return mayImport && readSave().completed.length>0 && !account.pending.length && !cached?.toolJournal && !cached?.purchaseTool && rewardJournal.current?.phase!=='pending';
+  }
+  async function registerDailyVisit(account:NonNullable<typeof cloudRef.current>,generation=cloudGeneration.current):Promise<cloudApi.DailyVisit|null>{
+    if(document.visibilityState!=='visible'||!navigator.onLine)return null;
+    const confirmed=visitConfirmed.current;
+    if(confirmed?.accountId===account.accountId&&Date.now()<Date.parse(confirmed.nextResetAt))return confirmed.visit;
+    if(visitRequest.current?.accountId===account.accountId)return visitRequest.current.promise;
+    const promise=(async()=>{
+      try{
+        const response=await cloudApi.visitRewards(account.accountId);
+        if(cloudRef.current!==account||cloudGeneration.current!==generation||!response)return null;
+        visitConfirmed.current={accountId:account.accountId,day:response.serverDay,nextResetAt:response.nextResetAt,visit:response.dailyVisit};
+        setDailyVisit(response.dailyVisit);return response.dailyVisit;
+      }catch(error){
+        if(cloudRef.current===account&&cloudGeneration.current===generation)logDiagnostic('reward-visit-failed',{message:String(error).slice(0,120)});
+        return null;
+      }
+    })();
+    visitRequest.current={accountId:account.accountId,promise};
+    try{return await promise;}finally{if(visitRequest.current?.promise===promise)visitRequest.current=null;}
+  }
+  async function refreshRewards(account:NonNullable<typeof cloudRef.current>|null){
+    if(!account || playtest || mode!=='map' || overlay==='cloudChoice' || account.pending.length || cloudConflict.current || rewardRequest.current!==null)return;
+    const generation=cloudGeneration.current,request=++rewardEpoch.current; rewardRequest.current=request;
+    try{
+      await registerDailyVisit(account,generation);
+      const listing=await cloudApi.rewards(account.accountId);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
+      const latest=await cloudApi.campaign(account.accountId);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
+      if(latest.accountId===account.accountId && latest.profile && latest.profile.revision>account.profile.revision && !account.pending.length){
+        account.profile=latest.profile;const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(latest.profile.inventory));cacheCloud();
+      }
+      setRewardOffers(listing);
+      if(listing.dailyVisit)setDailyVisit(listing.dailyVisit);
+      const journal=rewardJournal.current;
+      if(journal?.accountId===account.accountId){
+        const confirmed=listing.unpresented.find(award=>award.key===journal.rewardKey)??listing.rewards.find(item=>item.key===journal.rewardKey)?.award;
+        if(confirmed?.presentedAt){rewardJournal.current=null;cacheCloud();}
+        else if(confirmed){rewardJournal.current={...journal,phase:'confirmed'};cacheCloud();}
+      }
+    }catch(error){
+      if(cloudRef.current!==account||cloudGeneration.current!==generation||rewardEpoch.current!==request)return;
+      // Older servers may not have the rewards migration yet. Keep normal play available.
+      if(!rewardJournal.current){setRewardOffers(null);return;}
+      setRewardError(`Gift status could not be checked: ${(error as Error).message}`);
+    }finally{if(rewardRequest.current===request)rewardRequest.current=null;}
+  }
+  function openReward(item:cloudApi.RewardOffer,preview=false){
+    const account=cloudRef.current;
+    if(!preview && rewardJournal.current?.phase==='pending' && rewardJournal.current.rewardKey!==item.key)return;
+    if(!preview && (!account || !rewardStable(account) && !rewardJournal.current))return;
+    rewardReturnToInbox.current=overlay==='gifts';
+    rewardRevealToken.current++;
+    if(overlay!=='gifts')rewardReturnOverlay.current=overlay==='start'?'start':null;
+    rewardPreview.current=preview;
+    setRewardSelection(item);setRewardStage(item.status==='claimed-presented'?'revealed':'sealed');setRewardError(null);setSettings(false);setOverlay('rewardGift');
+  }
+  function openGifts(){
+    const account=cloudRef.current;
+    if(!account || mode!=='map' || !rewardStable(account))return;
+    rewardReturnOverlay.current=overlay==='start'?'start':null;
+    setSettings(false);setOverlay('gifts');void refreshRewards(account);
+  }
+  function closeGifts(){rewardRevealToken.current++;rewardPreview.current=false;setOverlay(rewardReturnOverlay.current);}
+  function revealReward(){
+    const token=++rewardRevealToken.current;
+    setRewardStage('opening');
+    if(reducedMotion){setRewardStage('revealed');return;}
+    const timer=setTimeout(()=>{timers.current.delete(timer);if(rewardRevealToken.current===token)setRewardStage('revealed');},650);timers.current.add(timer);
+  }
+  async function applyRewardProfile(account:NonNullable<typeof cloudRef.current>,receiptProfile:cloudApi.CloudProfile,generation:number){
+    const latest=await cloudApi.campaign(account.accountId);
+    if(cloudRef.current!==account||cloudGeneration.current!==generation)return null;
+    if(latest.accountId!==account.accountId||!latest.profile||latest.profile.revision<receiptProfile.revision)throw new Error('Portal gift could not be verified. Retry with the same request.');
+    if(latest.profile.revision<account.profile.revision)return null;
+    account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
+    if(!account.pending.length){const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);}
+    cacheCloud();return latest;
+  }
+  async function claimSelectedReward(){
+    const item=rewardSelection,account=cloudRef.current;
+    if(!item||rewardBusy)return;
+    if(rewardPreview.current){
+      setPreviewRewardCoins(value=>value+item.payload.coins);
+      setPreviewRewardItems(value=>{const next={...value};for(const grant of cloudApi.rewardPayloadItems(item.payload))next[grant.item]=(next[grant.item]??0)+grant.quantity;return next;});
+      revealReward();return;
+    }
+    if(!account||!rewardStable(account) && rewardJournal.current?.rewardKey!==item.key)return;
+    let journal=rewardJournal.current;
+    if(journal && journal.rewardKey!==item.key)return;
+    if(!journal){
+      journal={accountId:account.accountId,requestId:cloudApi.newOperationId(),rewardKey:item.key,phase:'pending'};
+      rewardJournal.current=journal;
+      if(!cacheCloud()){rewardJournal.current=null;setRewardError('This device could not save the gift request. Free space and try again.');return;}
+    }
+    const generation=cloudGeneration.current;rewardEpoch.current++;rewardRequest.current=null;setRewardBusy(true);setRewardError(null);
+    try{
+      const result=await cloudApi.claimReward(journal.requestId,journal.rewardKey,account.accountId);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+      const latest=await applyRewardProfile(account,result.profile,generation);
+      if(!latest)return;
+      rewardJournal.current={...journal,phase:'confirmed'};
+      setRewardSelection({...item,award:result.award,status:'claimed-unpresented'});
+      cacheCloud();
+      if(guestImportAvailable(latest,account,cloudApi.readAccountCache(account.accountId))){
+        setRewardSelection(null);setOverlay('cloudChoice');setCloudStatus('account');return;
+      }
+      revealReward();void refreshRewards(account);
+    }catch(error){
+      if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+      const status=Number((error as {status?:number}).status);
+      if([400,403,409].includes(status)){
+        // A committed request replays as 200; these are definitive rejections.
+        try{
+          const latest=await cloudApi.campaign(account.accountId);
+          if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+          if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+          account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
+          const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);
+          rewardJournal.current=null;cacheCloud();
+          if(guestImportAvailable(latest,account,cloudApi.readAccountCache(account.accountId))){setRewardSelection(null);setOverlay('cloudChoice');setCloudStatus('account');return;}
+          void refreshRewards(account);
+        }catch{setRewardError('Gift was declined, but Portal progress could not be checked. Retry the same request when connected.');return;}
+      }
+      setRewardError(`${(error as Error).message}${[400,403,409].includes(status)?' You can close this gift.':' Retry this same gift request when connected.'}`);
+    }finally{setRewardBusy(false);}
+  }
+  async function finishReward(){
+    const item=rewardSelection,account=cloudRef.current;
+    if(!item||rewardBusy)return;
+    if(rewardPreview.current){setRewardSelection(null);setOverlay('gifts');return;}
+    if(!account||!item.award)return;
+    const generation=cloudGeneration.current;setRewardBusy(true);setRewardError(null);
+    try{
+      await cloudApi.presentReward(item.key,account.accountId);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+      const latest=await cloudApi.campaign(account.accountId);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation)return;
+      if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+      account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
+      const loaded=normalizeSave(latest.profile.campaign);saveRef.current=loaded;setSave(loaded);
+      rewardRevealToken.current++;rewardJournal.current=null;cacheCloud();setRewardSelection(null);
+      if(guestImportAvailable(latest,account,cloudApi.readAccountCache(account.accountId))){setOverlay('cloudChoice');setCloudStatus('account');return;}
+      setOverlay(rewardReturnToInbox.current?'gifts':rewardReturnOverlay.current);void refreshRewards(account);
+    }catch(error){if(cloudRef.current===account&&cloudGeneration.current===generation)setRewardError(`Gift reveal could not be saved: ${(error as Error).message}`);}
+    finally{setRewardBusy(false);}
+  }
+  function leaveReward(){
+    if(rewardBusy||rewardJournal.current?.phase==='pending')return;
+    rewardRevealToken.current++;
+    setRewardSelection(null);setRewardError(null);setOverlay(rewardPreview.current||rewardReturnToInbox.current?'gifts':rewardReturnOverlay.current);
+  }
   async function initializeCloud(testing: boolean) {
     if (testing) { setCloudStatus("guest");setInventory({tileBomb:2,freeSwap:2,jet:1,flywheel:1,prism:1}); return; }
+    rewardEpoch.current++;rewardRequest.current=null;setRewardOffers(null);visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
@@ -474,6 +705,7 @@ export default function GameShell() {
       const cached = cloudApi.readAccountCache(session.accountId);
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] }, inventory:{...EMPTY_INVENTORY}, rewardClaims:{} };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
+      rewardJournal.current=cached?.rewardJournal?.accountId===session.accountId?cached.rewardJournal:null;
       setInventory(normalizeInventory(profile.inventory));
       setFarmland(null); clearCampaignPass(); void refreshFarmland(cloudRef.current);
       if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
@@ -485,8 +717,44 @@ export default function GameShell() {
         } catch { /* A stale loadout remains in the account cache backup. */ }
       }
       setPortalName(session.displayName);
-      if ((!result.hasCampaign || profile.revision === 0) && readSave().completed.length && !cached?.pending.length) { setOverlay("cloudChoice"); setCloudStatus("account"); return; }
-      const loaded = cached?.pending.length ? normalizeSave(cached.localSave) : normalizeSave(profile.campaign);
+      await registerDailyVisit(cloudRef.current,generation);
+      if(generation!==cloudGeneration.current)return;
+      let currentCampaign=result;
+      if(rewardJournal.current?.phase==='pending'){
+        const pendingReward=rewardJournal.current,account=cloudRef.current;
+        try{
+          const listing=await cloudApi.rewards(account.accountId);
+          if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
+          let award=listing.unpresented.find(value=>value.key===pendingReward.rewardKey)??listing.rewards.find(value=>value.key===pendingReward.rewardKey)?.award;
+          let receiptProfile:cloudApi.CloudProfile|null=null;
+          if(!award){const receipt=await cloudApi.claimReward(pendingReward.requestId,pendingReward.rewardKey,account.accountId);award=receipt.award;receiptProfile=receipt.profile;}
+          const latest=await cloudApi.campaign(account.accountId);
+          if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
+          if(latest.accountId!==account.accountId||!latest.profile||latest.profile.revision<(receiptProfile?.revision??account.profile.revision))throw new Error('Portal gift could not be verified. Retry the pending gift.');
+          account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));currentCampaign=latest;
+          rewardJournal.current=award.presentedAt?null:{...pendingReward,phase:'confirmed'};cacheCloud();
+        }catch(error){
+          if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
+          if(cloudApi.isDefiniteToolRejection(error)){
+            try{
+              const latest=await cloudApi.campaign(account.accountId);
+              if(generation!==cloudGeneration.current||cloudRef.current!==account)return;
+              if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal progress could not be checked.');
+              account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));currentCampaign=latest;
+              rewardJournal.current=null;cacheCloud();
+            }catch{ /* Keep the request until the account can be checked. */ }
+          }
+          if(rewardJournal.current?.phase==='pending'){
+            const loaded=normalizeSave(account.profile.campaign);saveRef.current=loaded;setSave(loaded);setKeeperMet(loaded.completed.includes('pumpHouse'));
+            rewardReturnOverlay.current='start';rewardReturnToInbox.current=false;
+            setRewardSelection({key:pendingReward.rewardKey,title:pendingReward.rewardKey.startsWith('daily:')?'Daily Visit':'Chapter Gift',payload:{coins:0,item:null,quantity:0},status:'available'});
+            setRewardStage('sealed');setRewardError(`Gift confirmation needs a connection: ${(error as Error).message}`);
+            setOverlay('rewardGift');setCloudStatus('account');return;
+          }
+        }
+      }
+      if (guestImportAvailable(currentCampaign,cloudRef.current,cached)) { setOverlay("cloudChoice"); setCloudStatus("account"); return; }
+      const loaded = cached?.pending.length ? normalizeSave(cached.localSave) : normalizeSave(cloudRef.current.profile.campaign);
       saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse"));
       if(cached?.purchaseTool?.accountId===session.accountId){
         purchaseJournal.current=cached.purchaseTool;
@@ -551,6 +819,7 @@ export default function GameShell() {
       } else if(journal?.accountId===session.accountId && loaded.completed.includes(journal.levelId)){toolJournal.current=null;cacheCloud();}
       setCloudStatus(cached?.pending.length ? "pending" : "account");
       if (cached?.pending.length) void flushCloud();
+      void refreshRewards(cloudRef.current);
     } catch (error) {
       if (generation !== cloudGeneration.current) return;
       if (remembered) {
@@ -581,6 +850,7 @@ export default function GameShell() {
         saveRef.current = normalizeSave(current.profile.campaign); setSave(saveRef.current);
         cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
         void refreshFarmland(current);
+        void refreshRewards(current);
       }
     } catch (error) {
       if (cloudRef.current === current) {
@@ -601,29 +871,33 @@ export default function GameShell() {
       replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
       current.profile=response.profile; const loaded=normalizeSave(response.profile.campaign); saveRef.current=loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse")); setCloudStatus("account"); setOverlay("start"); cacheCloud(); setCloudMessage(null);
       void refreshFarmland(current);
+      void refreshRewards(current);
     } catch (error) { setCloudStatus("account"); setCloudMessage((error as Error).message); }
   }
   function startFreshPortalCampaign() {
     const current=cloudRef.current; if (!current) return;
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
-    const fresh={...EMPTY_SAVE,completed:[],companions:[]};
+    const fresh={...EMPTY_SAVE,completed:[],companions:[],coins:current.profile.campaign.coins};
     saveRef.current=fresh; setSave(fresh); setKeeperMet(false);
     current.pending.push({kind:"checkpoint",requestId:cloudApi.newOperationId(),campaign:fresh});
     cacheCloud(); void flushCloud(); setOverlay("start");
+    void refreshRewards(current);
   }
   async function signOut() {
-    if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('Confirm the pending tool transaction before signing out.');return;}
+    if(toolJournal.current?.phase==='pending' || purchaseJournal.current || rewardJournal.current?.phase==='pending'){setCloudMessage('Confirm the pending account transaction before signing out.');return;}
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;setToolMode(null);setToolPending(false);
+    rewardEpoch.current++;rewardRequest.current=null;visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;setRewardOffers(null);setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;setToolMode(null);setToolPending(false);
+    rewardEpoch.current++;rewardRequest.current=null;visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;setRewardOffers(null);setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function commitWin(levelId: LevelId, movesRemaining: number) {
@@ -771,6 +1045,7 @@ export default function GameShell() {
     });
   }
   function enter() {
+    if(rewardJournal.current?.phase==='pending'){const item=rewardAvailable.find(value=>value.key===rewardJournal.current?.rewardKey);if(item)openReward(item);return;}
     if (window.matchMedia("(pointer: coarse) and (hover: none)").matches && !installApp.isAppWindow) requestGameFullscreen("intro");
     else if (installApp.isAppWindow) lockLandscape();
     const unlocked = sound.current?.unlock();
@@ -784,6 +1059,7 @@ export default function GameShell() {
     }
   }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    if(rewardJournal.current?.phase==='pending'){const item=rewardAvailable.find(value=>value.key===rewardJournal.current?.rewardKey);if(item)openReward(item);return;}
     if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('A tool transaction needs confirmation. Reconnect and reload before starting another level.');return;}
     if (visitedRegion) { setVisitedRegion(null); return; }
     setTutorialSession(null); setTutorialLibrary(false);
@@ -1647,6 +1923,7 @@ export default function GameShell() {
           <button className="nav-button" onClick={() => setOverlay("kingdom")}>Kingdom Map</button>
           <button className="nav-button" onClick={() => setOverlay("party")}>Raid Party</button>
         </>}
+        {mode==='map' && !playtest && rewardAvailable.length>0 && cloudStatus==='account' && <button className="nav-button reward-nav" onClick={openGifts}>Gifts {rewardAvailable.length}</button>}
         <button className="icon-button" onClick={toggleSound} aria-label={muted ? "Unmute" : "Mute"}>{muted ? "♪̸" : "♪"}</button>
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
@@ -1664,6 +1941,7 @@ export default function GameShell() {
         <div className="eyebrow">A RAIDGUILD ADVENTURE</div><h1>DUNE<br />RELAY</h1>
         <p>{isRiver ? "Water is moving upstream, but it is not reaching the waiting people. Board Skiff’s boat and follow the current." : isCastle ? "The town's delivery ledger leads across the water. Meet the Quartermaster at the castle dock and choose who will lead the raid upstream." : isTown ? save.completed.includes("openTheMarket") ? "The evening market is open. The story continues toward Castle Island." : "The harvest ledger points to missing deliveries in the evening market. Find the Town Crier." : isFarmland ? save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The next clue points to the town on the hill." : "Beyond the bridge, sealed seed stores are holding up the harvest convoy. Find the Fieldkeeper." : demoComplete ? "The bridge is open. Your party has cleared the demo journey. Explore the kingdom to see what lies ahead." : isGatehouse ? "The caravan has reached the river. The Gatewright needs our help opening the crossing." : save.completed.includes("lightTheRoute") ? "The beacon lights the desert road. The caravan chapter is complete." : isCaravan ? "The waterway is alive. The caravan road is open." : available === "caravanPennants" ? "The pump house has come to life. A new route waits beyond the oasis." : repaired ? "The intake is flowing. Follow the path to the next station." : "The oasis pump has gone quiet. Find the keeper, bring the machine to life, and follow the water."}</p>
         <button className="primary" disabled={cloudStatus === "checking" || (cloudStatus === "expired" && !cloudRef.current)} onClick={enter}>{save.oasisTransition !== "locked" && save.oasisTransition !== "ready" ? "Continue the journey" : isRiver ? "Board the river boat" : isCastle ? "Enter Castle Island" : isTown ? "Enter the town" : isFarmland ? "Enter the fields" : isGatehouse ? "Enter the gatehouse" : isCaravan ? "Enter the desert" : "Enter the oasis"} <span>↗</span></button>
+        {!playtest && rewardAvailable.length>0 && cloudStatus==='account' && <button className="quiet reward-title" onClick={openGifts}>Gifts waiting ({rewardAvailable.length}) →</button>}
         {!installApp.isAppWindow && !installApp.installCompleted && <button className="quiet install-title" onClick={installApp.install} disabled={installApp.promptBusy}>Install Dune Relay ↗</button>}
         {!playtest && (!portalName || cloudStatus === "expired") && <a className="quiet portal-login" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal →</a>}
         {!playtest && cloudStatus === "expired" && !cloudRef.current && <button className="quiet" onClick={continueAsGuest}>Play as guest on this device</button>}
@@ -1707,6 +1985,30 @@ export default function GameShell() {
         <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${loadoutCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
       {overlay==='toolGift' && <div className="scrim"><div className="dialog-card tool-gift" role="dialog" aria-modal="true" aria-label="Fieldkeeper's toolkit"><header className="tool-gift-header"><span className="speaker">{playtest?'PLAYTEST PREVIEW · ':''}A GIFT FROM THE FIELDKEEPER</span><h2>Field Toolkit</h2></header><div className="tool-gift-body"><img className="tool-gift-hero" src={assetUrl('/sprites/field-toolkit.png')} alt=""/><div className="tool-gift-copy"><p>Try a Tile Bomb and a Free Swap during a level. Each is free to use and does not spend a move.</p><div className="tool-gift-items">{TOOLS.map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × 1</span>)}</div>{giftError&&<p role="alert">{giftError}</p>}</div></div><footer className="tool-gift-actions"><button className="primary" disabled={giftClaiming.current || playtest&&giftPreviewClaimed.current} onClick={()=>void claimToolkit()}>Take the toolkit →</button><button className="quiet" onClick={()=>setOverlay(null)}>Maybe later</button></footer></div></div>}
+      {overlay==='gifts' && <div className="scrim"><div className="dialog-card reward-inbox" role="dialog" aria-modal="true" aria-label="Gifts">
+        <header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}RAID PARTY GIFTS</span><h2>Gifts</h2></header>
+        <div className="reward-inbox-body">
+          <div className="reward-streak" aria-label="Five day visit cycle">{[1,2,3,4,5].map(day=><span key={day} className={(rewardPreview.current?day===3:day===(dailyVisit?.cycleDay??rewardOffers?.dailyVisit?.cycleDay??1))?'current':''}><b>{day}</b><small>{['100','200','2 items','500','1,000'][day-1]}</small></span>)}</div>
+          <p className="reward-streak-copy">{rewardPreview.current?'Preview the five-day cycle':`Day ${dailyVisit?.cycleDay??rewardOffers?.dailyVisit?.cycleDay??1} of 5 · opening the game counts as a visit`}</p>
+          <p>{rewardPreview.current?'Preview gifts without changing your campaign.':'Open a daily gift when you visit, and a chapter gift after each chapter.'}</p>
+          <div className="reward-inbox-list">{(rewardPreview.current?previewRewards:rewardAvailable).map(item=><button className="reward-inbox-item" data-reward-key={item.key} key={item.key} onClick={()=>openReward(item,rewardPreview.current)}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/><span><strong>{item.title}</strong><small>{item.status==='claimed-unpresented'?'Ready to reveal':item.cycleDay?`Day ${item.cycleDay} of 5`:'Chapter complete'}</small></span><b>Open →</b></button>)}{!rewardPreview.current && rewardAvailable.length===0 && <p>Nothing to open right now. The next daily gift arrives at 00:00 UTC.</p>}</div>
+          {rewardPreview.current && <p className="reward-preview-count">Preview total: {previewRewardCoins} coins · {Object.entries(previewRewardItems).filter(([,n])=>n).map(([kind,n])=>`${kind} × ${n}`).join(', ')||'no items yet'}</p>}
+        </div><footer><button className="quiet" onClick={closeGifts}>Close</button></footer>
+      </div></div>}
+      {overlay==='rewardGift' && rewardSelection && (()=>{
+        const payload=rewardSelection.award?.payload??rewardSelection.payload;
+        const grants=cloudApi.rewardPayloadItems(payload);
+        const isDaily=rewardSelection.key.startsWith('daily:')||rewardSelection.key.startsWith('preview:daily');
+        const selectedDailyCycle=rewardSelection.cycleDay??(rewardSelection.key===`daily:${dailyVisit?.day}`?dailyVisit?.cycleDay:undefined);
+        return <div className="scrim"><div className="dialog-card reward-gift" role="dialog" aria-modal="true" aria-label={`${rewardSelection.title} gift`} data-reward-key={rewardSelection.key} data-phase={rewardBusy&&rewardStage==='sealed'?'pending':rewardStage}>
+          <header><span className="speaker">{rewardPreview.current?'PLAYTEST PREVIEW · ':''}{isDaily?(selectedDailyCycle?`DAILY VISIT · DAY ${selectedDailyCycle} OF 5`:'SAVED DAILY GIFT'):'CHAPTER COMPLETE'}</span><h2>{rewardSelection.title}</h2></header>
+          <div className="reward-gift-body"><div className={`reward-parcel ${rewardStage}`}><img src={assetUrl('/sprites/field-toolkit.png')} alt=""/></div><div className="reward-gift-copy">
+            {rewardStage==='revealed'?<><p>Your gift is ready!</p>{payload.coins>0 && <strong className="reward-coins"><img src={assetUrl('/sprites/coin.png')} alt=""/>+{payload.coins} coins</strong>}{grants.length>0 && <div className="reward-item">{grants.map(grant=>[...TOOLS,...BOOSTERS].filter(item=>item.kind===grant.item).map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>+{grant.quantity} {item.title}</span>))}</div>}</>:<><p>{rewardJournal.current?.phase==='pending'&&!rewardPreview.current?'Checking this gift with Portal…':isDaily&&selectedDailyCycle===3?'Two random power-ups await inside.':'A little something for your journey.'}</p>{grants.length>0 && !(isDaily&&selectedDailyCycle===3) && <div className="reward-item reward-peek" aria-label="Gift items">{grants.map(grant=>[...TOOLS,...BOOSTERS].filter(item=>item.kind===grant.item).map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{grant.quantity>1?`× ${grant.quantity}`:''}</span>))}</div>}</>}
+            {rewardError&&<p className="reward-error" role="alert">{rewardError}</p>}
+          </div></div>
+          <footer className="reward-gift-actions">{rewardStage==='sealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void claimSelectedReward()}>{rewardJournal.current?.phase==='pending'?'Retry gift request':'Open gift'} →</button>}{rewardStage==='revealed' && <button className="primary" disabled={rewardBusy} onClick={()=>void finishReward()}>Continue →</button>}<button className="quiet" disabled={rewardBusy||rewardJournal.current?.phase==='pending'&&!rewardPreview.current} onClick={leaveReward}>Maybe later</button></footer>
+        </div></div>;
+      })()}
       {overlay==='toolBuy' && toolBuying && <div className="scrim"><div className="dialog-card tool-buy" role="dialog" aria-modal="true" aria-label={`Buy ${TOOLS.find(item=>item.kind===toolBuying)?.title}`}><span className="speaker">IN-GAME TOOL</span><h2>{TOOLS.find(item=>item.kind===toolBuying)?.title}</h2><img src={assetUrl(TOOLS.find(item=>item.kind===toolBuying)!.image as `/${string}`)} alt=""/><p>{TOOLS.find(item=>item.kind===toolBuying)?.instruction}</p><p>{TOOL_PRICE} coins · {save.coins.toLocaleString('en-US')} available</p>{toolError&&<p role="alert">{toolError}</p>}<div className="briefing-actions"><button className="quiet" disabled={toolBusy || Boolean(purchaseJournal.current)} onClick={()=>{setToolBuying(null);setToolError(null);setOverlay(null);}}>Cancel</button><button className="primary" disabled={toolBusy || save.coins<TOOL_PRICE} onClick={()=>void buyTool(toolBuying)}>{purchaseJournal.current?'Retry purchase':`Buy · ${TOOL_PRICE} coins`}</button></div></div></div>}
       {overlay === "film" && <div className="film-screen">
         {filmContent && <video key={finaleReplay ? `replay-${finaleReplay.token}` : `campaign-${filmKind}`} ref={film} src={filmReady ? assetUrl(filmContent.source) : undefined} poster={assetUrl(filmContent.poster)} playsInline preload="metadata" onEnded={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />}
@@ -1829,8 +2131,9 @@ export default function GameShell() {
       {tutorialLibrary && !tutorialSession && !toolLesson && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}{(save.farmlandReady||playtest)&&TOOLS.map(item=><button key={item.kind} onClick={()=>{setTutorialLibrary(false);setToolLesson({kind:item.kind,replay:true});}}>{item.title}<small>{item.instruction}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
-        {(save.farmlandReady || playtest) && <div className="settings-inventory"><strong>Inventory</strong><div>{[...TOOLS,...BOOSTERS].map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × {inventory[item.kind]}</span>)}</div></div>}
+        {(save.farmlandReady || playtest || Object.values(inventory).some(count=>count>0)) && <div className="settings-inventory"><strong>Inventory</strong><div>{[...TOOLS,...BOOSTERS].map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × {inventory[item.kind]}</span>)}</div></div>}
         {!playtest && cloudRef.current?.profile.campaign.farmlandReady && !cloudRef.current.profile.rewardClaims?.fieldToolkitV1 && <button className="setting" onClick={()=>{setSettings(false);setGiftError(null);setOverlay('toolGift');}}>Claim Fieldkeeper's toolkit <span>→</span></button>}
+        {!playtest && cloudRef.current && cloudStatus==='account' && mode==='map' && <button className="setting" onClick={openGifts}>Gifts <strong>{rewardAvailable.length} waiting</strong></button>}
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
@@ -1851,6 +2154,7 @@ export default function GameShell() {
         {playtest ? <>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={()=>{giftPreviewClaimed.current=false;setGiftError(null);setSettings(false);setOverlay('toolGift');}}>Preview Fieldkeeper gift</button>
+          <button className="setting" onClick={()=>{rewardReturnOverlay.current=overlay==='start'?'start':null;rewardPreview.current=true;setSettings(false);setOverlay('gifts');}}>Preview daily and chapter gifts</button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => { if(isChapterFinalLevel(id)&&CHAPTER_FINALES[LEVELS[id].chapter??"oasis"]){setReplaySelection(id);setSettings(false);setOverlay("replayBriefing");}else replayLevel(id); }}>Replay {chapterLevelLabel(id)} · {LEVELS[id].title}</button>)}
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
