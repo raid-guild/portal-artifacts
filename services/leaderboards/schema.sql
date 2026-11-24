@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_attempts (
   id uuid PRIMARY KEY, player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
   level_id text NOT NULL, boosters jsonb NOT NULL DEFAULT '[]'::jsonb,
   booster_funding jsonb, tool_sequence integer NOT NULL DEFAULT 0,
+  campaign_generation integer NOT NULL DEFAULT 0,
   companion_snapshot jsonb,
   status text NOT NULL CHECK (status IN ('prepared','active','finished')),
   remaining_moves integer, reward integer, created_at timestamptz NOT NULL DEFAULT now(),
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_attempts (
 ALTER TABLE artifact_leaderboards.dune_attempts ADD COLUMN IF NOT EXISTS companion_snapshot jsonb;
 ALTER TABLE artifact_leaderboards.dune_attempts ADD COLUMN IF NOT EXISTS booster_funding jsonb;
 ALTER TABLE artifact_leaderboards.dune_attempts ADD COLUMN IF NOT EXISTS tool_sequence integer NOT NULL DEFAULT 0;
+ALTER TABLE artifact_leaderboards.dune_attempts ADD COLUMN IF NOT EXISTS campaign_generation integer NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS dune_attempts_player ON artifact_leaderboards.dune_attempts(player_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_completions (
   player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
@@ -100,6 +102,16 @@ CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_operations (
   PRIMARY KEY(player_id,request_id)
 );
 CREATE INDEX IF NOT EXISTS dune_operations_created ON artifact_leaderboards.dune_operations(created_at);
+CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_reward_claims (
+  player_id bigint NOT NULL REFERENCES artifact_leaderboards.players(id) ON DELETE CASCADE,
+  reward_key text NOT NULL,
+  reward_version integer NOT NULL,
+  reward_payload jsonb NOT NULL,
+  claimed_at timestamptz NOT NULL DEFAULT now(),
+  presented_at timestamptz,
+  PRIMARY KEY(player_id,reward_key)
+);
+CREATE INDEX IF NOT EXISTS dune_reward_claims_unpresented ON artifact_leaderboards.dune_reward_claims(player_id,claimed_at) WHERE presented_at IS NULL;
 CREATE TABLE IF NOT EXISTS artifact_leaderboards.dune_launch_intents (
   nonce_hash text PRIMARY KEY,
   consumed_at timestamptz NOT NULL DEFAULT now(),

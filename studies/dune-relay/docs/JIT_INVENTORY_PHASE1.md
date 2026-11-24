@@ -33,4 +33,4 @@ The change passes typechecking, the core suite (70 level baselines, River witnes
 
 ## Deferred work
 
-Daily opening gifts, streaks, achievement rewards, a general reward catalog, and offline play are later phases. This release has only the one-time Fieldkeeper gift and the inventory needed for tools and starting boosters.
+Daily opening gifts and the chapter gift catalog are specified in [phase 2](REWARDS_PHASE2.md). Streaks, level achievements, and offline play remain deferred. Phase 1 introduced only the one-time Fieldkeeper gift and the inventory needed for tools and starting boosters.
