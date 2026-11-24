@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test:core": "node scripts/check-core.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs && node scripts/check-companion-dialogue.cjs && node scripts/check-cascade-flair.cjs && node scripts/check-crate-exits.cjs && node scripts/check-river-chapter.cjs",
+    "test:core": "node scripts/check-core.cjs && node scripts/check-jit-tools.cjs && node scripts/check-lifecycle.cjs && node scripts/check-audio.cjs && node scripts/check-companion-dialogue.cjs && node scripts/check-cascade-flair.cjs && node scripts/check-crate-exits.cjs && node scripts/check-river-chapter.cjs",
     "music:export": "node scripts/export-music.cjs",
     "test:browser": "node scripts/check-browser.cjs",
     "test:river-browser": "node scripts/check-river-chapter-browser.cjs && node scripts/check-river-recovery-browser.cjs && node scripts/check-river-routes-browser.cjs",
@@ -22,7 +22,9 @@
     "test:tutorials": "node scripts/check-tutorials.cjs",
     "test:tutorial-browser": "node scripts/check-tutorial-browser.cjs",
     "test:shop-browser": "node scripts/check-shop-browser.cjs",
-    "test:chain-callout": "node scripts/check-chain-callout.cjs"
+    "test:jit-browser": "node scripts/check-jit-browser.cjs && node scripts/check-jit-recovery-browser.cjs",
+    "test:chain-callout": "node scripts/check-chain-callout.cjs",
+    "test:tool-dialog-layout": "node scripts/check-tool-dialog-layout.cjs"
   },
   "dependencies": {
     "next": "15.5.29",

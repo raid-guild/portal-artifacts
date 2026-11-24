@@ -18,6 +18,7 @@ export function boardMask(shape?: "clippedCorners" | "twinChambers" | "steppedBa
 }
 export function playable(mask: BoardMask, cell: Cell): boolean { return inside(cell) && mask[cell.row][cell.col]; }
 export type Cell = { row: number; col: number };
+export type PuzzleAction = { kind: "swap" | "freeSwap"; from: Cell; to: Cell } | { kind: "tileBomb"; target: Cell };
 export type CurrentEdge = "left" | "right" | "top" | "bottom";
 export type CurrentRoute = { id: string; cells: Cell[]; closure: "loop" } | { id: string; cells: Cell[]; closure: "edgeWrap"; entry: CurrentEdge; exit: CurrentEdge };
 export type CurrentMotion = { routeId: string; tileId: number; from: Cell; to: Cell; wrap?: { entry: CurrentEdge; exit: CurrentEdge } };
@@ -60,7 +61,7 @@ export type Turn = {
 export type TurnStats = { symbolsCleared: Partial<Record<SymbolKind, number>>; powersCreated: Record<"jet" | Power, number>; powersActivated: Record<"jet" | Power, number>; combinations: Record<string, number>; companionGrants: number; saltHits: number; saltBlocksBroken: number; seedpodHits: number; seedpodsOpened: number; cratesDelivered: number; reshuffles: number; tilesCleared: number };
 function emptyTurnStats(): TurnStats { return { symbolsCleared: {}, powersCreated: { jet: 0, flywheel: 0, prism: 0 }, powersActivated: { jet: 0, flywheel: 0, prism: 0 }, combinations: {}, companionGrants: 0, saltHits: 0, saltBlocksBroken: 0, seedpodHits: 0, seedpodsOpened: 0, cratesDelivered: 0, reshuffles: 0, tilesCleared: 0 }; }
 export type TurnStep = {
-  kind: "swap" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle" | "current";
+  kind: "swap" | "bomb" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle" | "current";
   board: Board;
   crust: CrustGrid;
   cells: Cell[];
@@ -474,26 +475,37 @@ function matchComponents(groups: Cell[][]): Cell[][][] {
   return components;
 }
 
-export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
+export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn { return resolveAction(previous, { kind: "swap", from, to }); }
+
+export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
   const invalid: Turn = { state: previous, valid: false, cleared: [], jetsCreated: [], powersCreated: [], keeperJets: [], shuffled: false, steps: [], stats: emptyTurnStats() };
-  if (previous.status !== "playing" || !playable(previous.mask, from) || !playable(previous.mask, to) || !at(previous.board, from) || !at(previous.board, to) || isPod(at(previous.board, from)) || isPod(at(previous.board, to)) || isCrate(at(previous.board, from)) || isCrate(at(previous.board, to))) return invalid;
+  if (previous.status !== "playing" || previous.moves <= 0) return invalid;
+  const bomb = action.kind === "tileBomb";
+  const from = bomb ? action.target : action.from, to = bomb ? action.target : action.to;
+  if (!playable(previous.mask, from) || !playable(previous.mask, to)) return invalid;
+  if (bomb) {
+    const target = at(previous.board, from);
+    if (!previous.crust[from.row][from.col] && !isPod(target) && (!target || isSpecial(target) || isCrate(target))) return invalid;
+    if (isSpecial(target) || isCrate(target)) return invalid;
+  } else if (!at(previous.board, from) || !at(previous.board, to) || isPod(at(previous.board, from)) || isPod(at(previous.board, to)) || isCrate(at(previous.board, from)) || isCrate(at(previous.board, to)) || action.kind==='freeSwap' && (previous.crust[from.row][from.col] > 0 || previous.crust[to.row][to.col] > 0)) return invalid;
   const distance = Math.abs(from.row - to.row) + Math.abs(from.col - to.col);
-  const direct = distance === 0 && isSpecial(at(previous.board, from));
-  if (distance !== 1 && !direct) return invalid;
+  const direct = !bomb && distance === 0 && isSpecial(at(previous.board, from));
+  if (!bomb && distance !== 1 && !direct) return invalid;
+  if (action.kind === "freeSwap" && isSymbol(at(previous.board, from)) && isSymbol(at(previous.board, to)) && !isSpecial(at(previous.board, from)) && !isSpecial(at(previous.board, to)) && at(previous.board, from)?.kind === at(previous.board, to)?.kind) return invalid;
   const board = copy(previous.board);
-  if (!direct) [board[from.row][from.col], board[to.row][to.col]] = [board[to.row][to.col], board[from.row][from.col]];
+  if (!direct && !bomb) [board[from.row][from.col], board[to.row][to.col]] = [board[to.row][to.col], board[from.row][from.col]];
   // Match resolution may turn either swapped tile into a power. Combo and
   // Prism selection must refer to the tiles the player actually swapped.
-  const swappedFrom = { ...at(board, from)! };
-  const swappedTo = { ...at(board, to)! };
-  const swappedTwoPowers = !direct && isSpecial(swappedFrom) && isSpecial(swappedTo);
+  const swappedFrom = { ...at(board, from) } as Tile;
+  const swappedTo = { ...at(board, to) } as Tile;
+  const swappedTwoPowers = !direct && !bomb && isSpecial(swappedFrom) && isSpecial(swappedTo);
   const initial = matches(board);
-  const activated = (direct ? [from] : [from, to]).filter(cell => isSpecial(at(board, cell)));
+  const activated = (bomb ? [] : direct ? [from] : [from, to]).filter(cell => isSpecial(at(board, cell)));
   // Prisms only fire when the player selected them. A beam or later cascade
   // can pass over an idle Prism without consuming it.
   const selectedPrisms = new Set(activated.map(cell => at(board, cell)).filter(tile => tile?.power === "prism").map(tile => tile!.id));
-  if (!initial.length && !activated.length) return invalid;
-  const state: Puzzle = { ...previous, board, crust: copyCrust(previous.crust), moves: previous.moves - 1, goals: { ...previous.goals } };
+  if (!bomb && action.kind !== "freeSwap" && !initial.length && !activated.length) return invalid;
+  const state: Puzzle = { ...previous, board, crust: copyCrust(previous.crust), moves: previous.moves - (action.kind === "swap" ? 1 : 0), goals: { ...previous.goals } };
   const cleared = new Map<string, Cell>();
   const jetsCreated: Cell[] = [];
   const powersCreated: Turn["powersCreated"] = [];
@@ -507,7 +519,8 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
     steps.push({ kind, board: copy(board), crust: copyCrust(state.crust), cells: cells.map(cell => ({ ...cell })), crustHits: crustHits.map(cell => ({ ...cell })), crustEvents, podHits: podHits.map(cell => ({ ...cell })), podEvents, jets: jets.map(jet => ({ cell: { ...jet.cell }, direction: jet.direction })), effects, sequence,
       collections: collections.map(credit => ({ cell: { ...credit.cell }, kind: credit.kind })), goals: { ...state.goals }, keeperCharge: state.keeperCharge });
   };
-  if (!direct) record("swap", [from, to]);
+  if (bomb) record("bomb", [from]);
+  else if (!direct) record("swap", [from, to]);
   const createdThisTurn = new Set<number>();
   const countedPowerActivations = new Set<number>();
   let iterations = 0;
@@ -558,6 +571,11 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       if (!isSymbol(tile) || protectedCells.has(key(cell)) || claimed.has(key(cell))) return;
       claimed.add(key(cell)); event.clears.set(key(cell), cell);
     };
+    if (bomb && iterations === 1) {
+      const event = newEvent("power");
+      event.direct.set(key(from), from);
+      if (!state.crust[from.row][from.col] && !isPod(at(board, from))) claim(from, event);
+    }
     for (const component of matchComponents(groups)) {
       const event = newEvent("match");
       for (const cell of component.flat()) { event.adjacency.set(key(cell), cell); claim(cell, event); }
@@ -698,8 +716,9 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       if (protectedCells.has(key(cell))) continue;
       const tile = at(board, cell);
       if (!tile) continue;
+      if (bomb && iterations === 1 && key(cell) === key(from) && (previous.crust[from.row][from.col] > 0 || isPod(tile))) continue;
       if (tile.power === "prism" && !selectedPrisms.has(tile.id)) continue;
-      if (isCrate(tile)) continue;
+      if (isCrate(tile) || isPod(tile)) continue;
       const collected = convertedOriginals.get(tile.id) ?? (isSymbol(tile) ? tile.kind : undefined);
       stats.tilesCleared++;
       if (collected) stats.symbolsCleared[collected] = (stats.symbolsCleared[collected] ?? 0) + 1;
@@ -736,14 +755,14 @@ export function playTurn(previous: Puzzle, from: Cell, to: Cell): Turn {
       settle(board, state.mask, state.crust); record("fall");
     }
   }
-  resolveGroups(initial, activated);
+  resolveGroups(initial, bomb ? [from] : activated);
   let refill = fill(board, state.mask, state.seed, state.nextId, false, state.symbols, state.crust);
   state.seed = refill.seed; state.nextId = refill.nextId;
   record(refill.shuffled ? "shuffle" : "refill");
   let refillShuffled = refill.shuffled;
   const routes = state.currents ?? (state.current ? [{id:"main",closure:"loop" as const,cells:state.current}] : []);
   const activeRoutes = routes.filter(route => !route.cells.some(cell => state.crust[cell.row][cell.col] > 0));
-  if (activeRoutes.length) {
+  if (action.kind === "swap" && activeRoutes.length) {
     const before = copy(board), motions: CurrentMotion[] = [];
     for (const route of activeRoutes) route.cells.forEach((from,index) => {
       const to = route.cells[(index+1)%route.cells.length], tile = before[from.row][from.col];

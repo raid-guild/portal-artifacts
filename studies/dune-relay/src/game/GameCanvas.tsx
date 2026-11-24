@@ -16,7 +16,8 @@ import skiffFrames from "../../public/sprites/skiff-frames.json";
 import { CascadeFlair, cascadeVisualStrength, showCascadeWord } from "./cascadeFlair";
 import { crateExitCells } from "./crateExits";
 import type { CompanionId, Region } from "./save";
-import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals, type CurrentEdge, type CurrentRoute, type CurrentMotion } from "./core";
+import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, resolveAction, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals, type CurrentEdge, type CurrentRoute, type CurrentMotion, type PuzzleAction, type Turn } from "./core";
+import type {ToolKind} from './inventory';
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
 import { planFinale, type FinalePlan } from "./finale";
@@ -44,7 +45,7 @@ export type GameEvent =
   | { type: "fieldkeeper"; position: { x: number; y: number } }
   | { type: "skiff"; position: { x: number; y: number } }
   | { type: "quartermaster"; position: { x: number; y: number } }
-  | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell }
+  | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell; action?:PuzzleAction }
   | { type: "playReady" }
   | { type: "gateOpened" }
   | { type: "turn"; puzzle: Puzzle; cleared: number; keeper: boolean }
@@ -75,6 +76,8 @@ type Props = {
   reducedMotion: boolean;
   transitioning: boolean;
   interactionBlocked: boolean;
+  toolMode:ToolKind|null;
+  authorizeTool:(action:PuzzleAction,turn:Turn,before:Puzzle)=>Promise<boolean>;
   onReady: () => boolean | Promise<boolean>;
   onFailure: (reason: string) => void;
   onEvent: (event: GameEvent) => void;
@@ -1202,6 +1205,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     idleHintMs = 0;
     hintActive = false;
     hintOutline?: Phaser.GameObjects.Graphics;
+    toolHints?: Phaser.GameObjects.Graphics;
+    lastToolMode:ToolKind|null=null;
     hintTweens: Phaser.Tweens.Tween[] = [];
     hintGraphics: { graphic: Phaser.GameObjects.Container; x: number; y: number }[] = [];
     cancelGesture?: () => void;
@@ -1309,7 +1314,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const cellAtPoint = (x: number, y: number): Cell | null => {
         const col = Math.floor((x - GRID_X) / CELL), row = Math.floor((y - GRID_Y) / CELL);
         return row >= 0 && col >= 0 && row < BOARD_SIZE && col < BOARD_SIZE && this.puzzle.mask[row][col]
-          && !this.displayCrust[row][col] && !(["seedpod","crate"].includes(this.displayBoard[row][col]?.kind ?? "")) ? { row, col } : null;
+          && (props.toolMode==='tileBomb' || !this.displayCrust[row][col] && !(["seedpod","crate"].includes(this.displayBoard[row][col]?.kind ?? ""))) ? { row, col } : null;
       };
       const resetGesture = () => {
         const active = gesture; gesture = null;
@@ -1319,7 +1324,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const commitSwipe = (event: PointerEvent) => {
         if (!gesture || gesture.id !== event.pointerId || gesture.committed || this.busy || props.transitioning || props.interactionBlocked || document.hidden) return;
         const point = logical(event), dx = point.x - gesture.x, dy = point.y - gesture.y;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
+        if (props.toolMode==='tileBomb' || Math.max(Math.abs(dx), Math.abs(dy)) < 12) return;
         const to = Math.abs(dx) >= Math.abs(dy)
           ? { row: gesture.from.row, col: gesture.from.col + Math.sign(dx) }
           : { row: gesture.from.row + Math.sign(dy), col: gesture.from.col };
@@ -1359,6 +1364,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.sceneAlive = false;
         this.clearChainCallout();
         this.flair?.dispose();
+        this.toolHints?.destroy();
         this.exitPulse?.remove();
         this.exitMarkers?.destroy();
         this.currentVisuals.length = 0;
@@ -1440,6 +1446,20 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
     }
     update(_: number, delta: number) {
+      if(this.lastToolMode!==props.toolMode){
+        this.lastToolMode=props.toolMode;this.toolHints?.destroy();this.toolHints=undefined;
+        this.selected=null;this.highlight(null);this.lastTap=null;
+        if(props.toolMode && this.puzzle.status==='playing' && this.puzzle.moves>0){
+          const marks=this.add.graphics().setDepth(10);
+          for(let row=0;row<BOARD_SIZE;row++)for(let col=0;col<BOARD_SIZE;col++){
+            if(!this.puzzle.mask[row][col])continue;
+            const tile=this.puzzle.board[row][col],salt=this.puzzle.crust[row][col]>0;
+            const valid=props.toolMode==='tileBomb' ? salt || Boolean(tile && tile.kind!=='crate' && !isSpecial(tile)) : Boolean(tile && tile.kind!=='crate' && tile.kind!=='seedpod' && !salt);
+            if(valid){const point=this.center({row,col});marks.lineStyle(1.6,0xffe5a0,.68).strokeRoundedRect(point.x-22,point.y-22,44,44,6);}
+          }
+          this.toolHints=marks;
+        }
+      }
       this.flair?.setPaused(props.transitioning || props.interactionBlocked);
       const flowBlocked = props.reducedMotion || props.transitioning || props.interactionBlocked || document.hidden ||
         (this.introActive && this.game.canvas.dataset.introPhase !== "ready") ||
@@ -2188,6 +2208,14 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.displayBoard = step.board;
         return;
       }
+      if(step.kind==='bomb') {
+        const point=this.center(step.cells[0]);
+        const flash=this.add.circle(point.x,point.y,6,0xffe7a4,0.95).setDepth(40).setStrokeStyle(3,0xffffff);
+        props.audio?.play('clear',1);
+        await this.tween(flash,{alpha:0,scale:7,duration:props.reducedMotion?50:260,ease:'Cubic.easeOut'});
+        flash.destroy();
+        return;
+      }
       if (step.kind === "shuffle") {
         this.setMessage("Refreshing the board…");
         const survivingPowers = new Set(this.displayBoard.flat().filter(tile => isSpecial(tile) || (tile?.kind === "seedpod" || tile?.kind === "crate")).map(tile => tile!.id));
@@ -2209,6 +2237,23 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     async choose(cell: Cell) {
       if (!this.sceneAlive) return;
       this.cancelIdleHint();
+      let action:PuzzleAction|undefined;
+      if(props.toolMode==='tileBomb') action={kind:'tileBomb',target:cell};
+      else if(props.toolMode==='freeSwap') {
+        if(!this.selected){this.selected=cell;this.highlight(cell);props.audio?.play('select');return;}
+        const from=this.selected;this.selected=null;this.highlight(null);
+        action={kind:'freeSwap',from,to:cell};
+      }
+      if(action){
+        const from=action.kind==='tileBomb'?action.target:action.from;
+        const turn=resolveAction(this.puzzle,action);
+        if(!turn.valid){props.audio?.play('invalid');this.setMessage('Choose a valid tile or adjacent pair.');return;}
+        this.busy=true;
+        const authorized=await props.authorizeTool(action,turn,this.puzzle);
+        if(!authorized || !this.sceneAlive){this.busy=false;return;}
+        await this.runTurn(turn,from,cell,action);
+        return;
+      }
       const now = this.time.now;
       const doubleTap = this.lastTap && now - this.lastTap.time <= 400
         && this.lastTap.cell.row === cell.row && this.lastTap.cell.col === cell.col;
@@ -2229,8 +2274,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.setMessage("That swap makes no match. Try another pair.");
         return;
       }
+      await this.runTurn(turn,from,cell);
+    }
+    async runTurn(turn:Turn,from:Cell,cell:Cell,action?:PuzzleAction){
       this.busy = true;
-      props.onEvent({ type: "resolvedTurn", puzzle: turn.state, turn, from, to: cell });
+      props.onEvent({ type: "resolvedTurn", puzzle: turn.state, turn, from, to: cell,action });
       if (this.lessonHint) { this.tweens.killTweensOf(this.lessonHint); this.lessonHint.destroy(); this.lessonHint = undefined; }
       this.clearChainCallout();
       this.clearStreak = 0;
@@ -2376,6 +2424,8 @@ export default function GameCanvas(props: Props) {
   transitioning.current = props.transitioning;
   const interactionBlocked = useRef(props.interactionBlocked);
   interactionBlocked.current = props.interactionBlocked;
+  const toolMode=useRef(props.toolMode);toolMode.current=props.toolMode;
+  const authorizeTool=useRef(props.authorizeTool);authorizeTool.current=props.authorizeTool;
   const onReady = useRef(props.onReady);
   onReady.current = props.onReady;
   const onFailure = useRef(props.onFailure);
@@ -2399,6 +2449,8 @@ export default function GameCanvas(props: Props) {
       get reducedMotion() { return reducedMotion.current; },
       get transitioning() { return transitioning.current; },
       get interactionBlocked() { return interactionBlocked.current; },
+      get toolMode(){return toolMode.current;},
+      authorizeTool:(action,turn,before)=>authorizeTool.current(action,turn,before),
       onReady: () => !disposed && onReady.current(),
       onFailure: reason => { if (!disposed) onFailure.current(reason); },
       onEvent: event => { if (!disposed) callback.current(event); },

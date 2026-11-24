@@ -10,7 +10,13 @@ async function openShop(browser,coins,viewport={width:844,height:390}) {
   await page.goto(url);
   await page.getByRole('button',{name:/Enter the oasis/}).click();
   await page.getByRole('button',{name:'Settings'}).click();
-  await page.getByRole('button',{name:'Replay PUMP HOUSE',exact:true}).click();
+  await page.getByRole('button',{name:/Replay 1\.1 · PUMP HOUSE/}).click();
+  // Spend sandbox-owned copies first so these cases continue to exercise coin prices.
+  for (const name of ['Water Jet','Flywheel','Prism']) await page.getByRole('button',{name:new RegExp(name)}).click();
+  await page.getByRole('button',{name:/^Start level/}).click();
+  await boardReady(page);
+  await page.getByRole('button',{name:'Settings'}).click();
+  await page.getByRole('button',{name:/Replay 1\.1 · PUMP HOUSE/}).click();
   return {context,page};
 }
 

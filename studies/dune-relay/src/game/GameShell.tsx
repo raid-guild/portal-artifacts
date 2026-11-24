@@ -5,7 +5,7 @@ import { isPlaytestMode } from "./playtestMode";
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { coinReward, createPuzzle, type Puzzle } from "./core";
+import { coinReward, createPuzzle, type Puzzle, type PuzzleAction, type Turn } from "./core";
 import type { GameEvent } from "./GameCanvas";
 import { GameAudio } from "./audio";
 import { getUnlockedSoundtracks, normalizeAudioPreferences, SOUNDTRACKS, type TrackPreference } from "./soundtracks";
@@ -19,9 +19,11 @@ import { waitForGameIdle } from "./gameLifecycle";
 import { diagnosticsJson, logDiagnostic } from "./diagnostics";
 import { prepareStartingBoosters, boosterCost, BOOSTERS, type BoosterKind, type BoosterPlacement } from "./boosters";
 import * as cloudApi from "./cloud";
+import {boosterFunding,EMPTY_INVENTORY,normalizeInventory,TOOLS,TOOL_PRICE,type Inventory,type ToolKind} from './inventory';
 import { TUTORIALS, TUTORIAL_BY_LEVEL, tutorialAvailable, type Tutorial } from "./tutorials";
 import { markSeen, readSeen, tutorialScopeKey, type TutorialScope } from "./tutorialProgress";
 import { TutorialDialog } from "./TutorialDialog";
+import { ToolLesson } from "./ToolLesson";
 import { chapterLevelLabel, chapterReplayReady, isChapterFinalLevel, replayAllowed, replayDestinations, type ReplayDestination } from "./chapterReplay";
 import { useInstallApp } from "./useInstallApp";
 import { InstallDialog } from "./InstallDialog";
@@ -30,7 +32,7 @@ import { pendingKingdomPreview } from "./kingdomPreview";
 
 const GameCanvas = dynamic(() => import("./GameCanvas"), { ssr: false });
 const usesSelectableCompanion = (id: LevelId) => LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river";
-type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "skiff" | "riverOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | null;
+type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "replayBriefing" | "finale" | "lost" | "film" | "handoff" | "atlas" | "kingdom" | "farmland" | "dunePass" | "party" | "quartermaster" | "castleOpen" | "skiff" | "riverOpen" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "townOpen" | "companionChat" | "harvestOpen" | "routeLit" | "crossingOpen" | "demoThanks" | "cloudChoice" | "toolGift" | "toolBuy" | null;
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; companionSnapshot: CompanionSnapshot | null; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region; returnTo?: "settings" };
@@ -68,6 +70,21 @@ export default function GameShell() {
   const [shopReturn, setShopReturn] = useState<Overlay>(null);
   const [shopSelected, setShopSelected] = useState<BoosterKind[]>([]);
   const [shopError, setShopError] = useState<string | null>(null);
+  const [inventory,setInventory] = useState<Inventory>({...EMPTY_INVENTORY});
+  const [toolMode,setToolMode] = useState<ToolKind|null>(null);
+  const [toolBuying,setToolBuying] = useState<ToolKind|null>(null);
+  const [toolLesson,setToolLesson] = useState<{kind:ToolKind;replay:boolean}|null>(null);
+  const [toolError,setToolError] = useState<string|null>(null);
+  const [toolBusy,setToolBusy] = useState(false);
+  const [toolPending,setToolPending] = useState(false);
+  const [boardInteractive,setBoardInteractive]=useState(false);
+  const [giftNotice,setGiftNotice] = useState(false);
+  const [giftError,setGiftError]=useState<string|null>(null);
+  const giftOffered=useRef<string|null>(null);
+  const toolJournal=useRef<cloudApi.ToolJournal|null>(null);
+  const purchaseJournal=useRef<{requestId:string;kind:ToolKind;accountId:string;attemptId:string;expectedRevision:number}|null>(null);
+  const giftClaiming=useRef(false);
+  const giftPreviewClaimed=useRef(false);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -405,14 +422,39 @@ export default function GameShell() {
       }
     } else writeSave(next);
   }
-  function cacheCloud() {
+  function loadoutCost(selected: readonly BoosterKind[]) { const pending=pendingAttempt.current;return pending?.status==='failed' && JSON.stringify([...pending.selected].sort())===JSON.stringify([...selected].sort()) ? pending.cost : boosterFunding(selected,inventory).coinCost; }
+  function cacheCloud(): boolean {
     const current = cloudRef.current;
-    const purchase=pendingAttempt.current && (pendingAttempt.current.cost > 0 || usesSelectableCompanion(pendingAttempt.current.level)) && saveRef.current.completed.indexOf(pendingAttempt.current.level) === -1
-      ? {attemptId:pendingAttempt.current.cloudAttemptId,levelId:pendingAttempt.current.level,boosters:pendingAttempt.current.selected,companionSnapshot:pendingAttempt.current.companionSnapshot} : undefined;
-    if (current && !cloudApi.writeAccountCache(current.accountId, { profile: current.profile, localSave: saveRef.current, pending: current.pending, purchase })) setCloudMessage("This browser could not store the pending save. Keep this tab open until it syncs.");
+    const purchase=pendingAttempt.current && (pendingAttempt.current.selected.length > 0 || usesSelectableCompanion(pendingAttempt.current.level)) && saveRef.current.completed.indexOf(pendingAttempt.current.level) === -1
+      ? {attemptId:pendingAttempt.current.cloudAttemptId,levelId:pendingAttempt.current.level,boosters:pendingAttempt.current.selected,cost:pendingAttempt.current.cost,companionSnapshot:pendingAttempt.current.companionSnapshot} : undefined;
+    if (!current) return false;
+    const stored=cloudApi.writeAccountCache(current.accountId, { profile: current.profile, localSave: saveRef.current, pending: current.pending, purchase, toolJournal:toolJournal.current??undefined, purchaseTool:purchaseJournal.current??undefined });
+    if (!stored) setCloudMessage("This browser could not store the pending save. Keep this tab open until it syncs.");
+    return stored;
+  }
+  useEffect(()=>{
+    const account=cloudRef.current;
+    if(playtest || !account || giftOffered.current===account.accountId || account.profile.rewardClaims?.fieldToolkitV1 || !account.profile.campaign.farmlandReady || !save.farmlandReady || mode!=="map" || overlay!==null || wipe!=="hidden") return;
+    giftOffered.current=account.accountId;setGiftNotice(true);
+  },[playtest,save.farmlandReady,mode,overlay,wipe,cloudStatus]);
+  useEffect(()=>{ if(giftNotice && mode==='map' && overlay===null && wipe==='hidden'){setOverlay('toolGift');setGiftNotice(false);} },[giftNotice,mode,overlay,wipe]);
+  async function claimToolkit(){
+    if(playtest){
+      if(giftPreviewClaimed.current)return;
+      giftPreviewClaimed.current=true;setGiftError(null);
+      setInventory(stock=>({...stock,tileBomb:stock.tileBomb+1,freeSwap:stock.freeSwap+1}));setOverlay(null);
+      return;
+    }
+    const account=cloudRef.current;if(!account || giftClaiming.current)return;
+    giftClaiming.current=true;setGiftError(null);const generation=cloudGeneration.current;
+    try{const response=await cloudApi.claimFieldToolkit(cloudApi.newOperationId(),account.accountId);
+      if(cloudRef.current!==account || generation!==cloudGeneration.current)return;
+      account.profile=response.profile;setInventory(normalizeInventory(response.profile.inventory));cacheCloud();setOverlay(null);
+    }catch(error){setGiftError((error as Error).message);logDiagnostic('field-toolkit-claim-failed',{message:String(error).slice(0,120)});}
+    finally{giftClaiming.current=false;}
   }
   async function initializeCloud(testing: boolean) {
-    if (testing) { setCloudStatus("guest"); return; }
+    if (testing) { setCloudStatus("guest");setInventory({tileBomb:2,freeSwap:2,jet:1,flywheel:1,prism:1}); return; }
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     const generation = ++cloudGeneration.current;
     const remembered = cloudApi.rememberedAccount();
@@ -430,14 +472,15 @@ export default function GameShell() {
       switchStatsArchive(campaignArchiveKey(session.accountId));
       cloudApi.rememberAccount(session.accountId);
       const cached = cloudApi.readAccountCache(session.accountId);
-      const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] } };
+      const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] }, inventory:{...EMPTY_INVENTORY}, rewardClaims:{} };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
+      setInventory(normalizeInventory(profile.inventory));
       setFarmland(null); clearCampaignPass(); void refreshFarmland(cloudRef.current);
       if (cached?.purchase && LEVELS[cached.purchase.levelId] && Array.isArray(cached.purchase.boosters)) {
         try {
           const source=LEVELS[cached.purchase.levelId];
           const prepared=prepareStartingBoosters(createPuzzle(usesSelectableCompanion(source.id) && cached.purchase.companionSnapshot ? castleLevelForCompanion(source,cached.purchase.companionSnapshot) : source),cached.purchase.boosters);
-          pendingAttempt.current={token:0,cloudAttemptId:cached.purchase.attemptId,sceneAttempt:-1,level:cached.purchase.levelId,selected:cached.purchase.boosters,cost:boosterCost(cached.purchase.boosters),puzzle:prepared.puzzle,placements:prepared.placements,companionSnapshot:cached.purchase.companionSnapshot??null,status:"failed"};
+          pendingAttempt.current={token:0,cloudAttemptId:cached.purchase.attemptId,sceneAttempt:-1,level:cached.purchase.levelId,selected:cached.purchase.boosters,cost:cached.purchase.cost??boosterFunding(cached.purchase.boosters,normalizeInventory(profile.inventory)).coinCost,puzzle:prepared.puzzle,placements:prepared.placements,companionSnapshot:cached.purchase.companionSnapshot??null,status:"failed"};
           setCloudMessage(cached.purchase.boosters.length ? "An earlier booster purchase needs confirmation. Retry the same loadout when you enter that level." : "This chapter level is ready to restart with your chosen raid member.");
         } catch { /* A stale loadout remains in the account cache backup. */ }
       }
@@ -445,6 +488,67 @@ export default function GameShell() {
       if ((!result.hasCampaign || profile.revision === 0) && readSave().completed.length && !cached?.pending.length) { setOverlay("cloudChoice"); setCloudStatus("account"); return; }
       const loaded = cached?.pending.length ? normalizeSave(cached.localSave) : normalizeSave(profile.campaign);
       saveRef.current = loaded; setSave(loaded); setKeeperMet(loaded.completed.includes("pumpHouse"));
+      if(cached?.purchaseTool?.accountId===session.accountId){
+        purchaseJournal.current=cached.purchaseTool;
+        try{
+          const order=cached.purchaseTool;
+          const bought=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId);
+          if(generation!==cloudGeneration.current) return;
+          const latest=await cloudApi.campaign(session.accountId);
+          if(generation!==cloudGeneration.current)return;
+          if(latest.accountId!==session.accountId||!latest.profile||latest.profile.revision<bought.profile.revision)throw new Error('Portal progress could not be verified after purchase');
+          purchaseJournal.current=null;cacheCloud();
+          await refreshToolProfile(cloudRef.current,pendingAttempt.current?.level,undefined,latest.profile);
+        }catch(error){
+          if(generation!==cloudGeneration.current)return;
+          if(cloudApi.isDefiniteToolRejection(error)){purchaseJournal.current=null;cacheCloud();await refreshToolProfile(cloudRef.current,pendingAttempt.current?.level,Number((error as {status?:number}).status));setCloudMessage(`The old tool purchase was declined: ${(error as Error).message}`);}
+          else setCloudMessage(`A tool purchase needs confirmation. Reconnect and reload: ${(error as Error).message}`);
+        }
+      }
+      const journal=cached?.toolJournal;
+      if(journal?.accountId===session.accountId && journal.contentVersion===cloudApi.contentVersion && !loaded.completed.includes(journal.levelId)){
+        toolJournal.current=journal;
+        const restore=(snapshot:Puzzle)=>{
+          pendingAttempt.current={token:0,cloudAttemptId:journal.attemptId,sceneAttempt:attempt+1,level:journal.levelId,selected:cached?.purchase?.boosters??[],cost:0,puzzle:snapshot,placements:[],companionSnapshot:cached?.purchase?.companionSnapshot??null,status:'committed'};
+          setActiveLevel(journal.levelId);setPuzzle(snapshot);setMode('puzzle');setAttempt(value=>value+1);setOverlay(null);
+        };
+        let storedConfirmation=true;
+        if(journal.phase==='pending'){
+          setToolPending(true);
+          try{
+            const used=await cloudApi.consumeTool(journal);
+            if(generation!==cloudGeneration.current) return;
+            const latest=await cloudApi.campaign(session.accountId);
+            if(generation!==cloudGeneration.current)return;
+            if(latest.accountId!==session.accountId||!latest.profile||latest.profile.revision<used.profile.revision)throw new Error('Portal progress could not be verified after tool use');
+            const newer=latest.profile.revision>used.profile.revision;
+            const canRestore=await refreshToolProfile(cloudRef.current,journal.levelId,newer?403:undefined,latest.profile);
+            if(!canRestore){
+              storedConfirmation=false;toolJournal.current=null;cacheCloud();
+              setCloudMessage('Portal progress changed on another device. Continue from the story.');
+            }else{
+              toolJournal.current={...journal,phase:'confirmed'};
+              if(!cacheCloud()){storedConfirmation=false;restore(journal.before);setToolError('The tool was used, but this device could not save the board. Retry the pending action.');}
+            }
+          }catch(error){
+            if(generation!==cloudGeneration.current)return;
+            if(cloudApi.isDefiniteToolRejection(error)){
+              toolJournal.current=null;cacheCloud();
+              const canResume=await refreshToolProfile(cloudRef.current,journal.levelId,Number((error as {status?:number}).status));
+              if(generation!==cloudGeneration.current)return;
+              if(canResume)restore(journal.before);
+              setToolError(`The old tool action was declined: ${(error as Error).message}`);
+            }else{restore(journal.before);setCloudMessage(`A tool action needs confirmation: ${(error as Error).message}`);}
+          }
+        }
+        if(storedConfirmation && (toolJournal.current?.phase==='confirmed' || toolJournal.current?.phase==='applied')){
+          const stable=toolJournal.current;
+          restore(stable.after);setToolPending(false);
+          if(stable.after.status==='won'){commitWin(stable.levelId,stable.after.moves);toolJournal.current=null;cacheCloud();setOverlay('finale');}
+          else if(stable.after.status==='lost'){toolJournal.current=null;cacheCloud();setOverlay('lost');}
+          else setOverlay(null);
+        }
+      } else if(journal?.accountId===session.accountId && loaded.completed.includes(journal.levelId)){toolJournal.current=null;cacheCloud();}
       setCloudStatus(cached?.pending.length ? "pending" : "account");
       if (cached?.pending.length) void flushCloud();
     } catch (error) {
@@ -469,6 +573,7 @@ export default function GameShell() {
         const op = current.pending[0];
         const response = op.kind === "finish" ? await cloudApi.finishAttempt(op,current.accountId) : await cloudApi.advanceCheckpoint(op, current.profile.revision,current.accountId);
         current.profile = response.profile;
+        setInventory(normalizeInventory(response.profile.inventory));
         current.pending.shift();
         cacheCloud();
       }
@@ -507,17 +612,18 @@ export default function GameShell() {
     cacheCloud(); void flushCloud(); setOverlay("start");
   }
   async function signOut() {
+    if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('Confirm the pending tool transaction before signing out.');return;}
     if (cloudRef.current?.pending.length) { setCloudMessage("Wait for your campaign to sync before signing out."); return; }
     try { await cloudApi.logout(cloudRef.current?.accountId ?? cloudApi.rememberedAccount() ?? ""); } catch { setCloudMessage("Could not sign out. Try again when connected."); return; }
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function continueAsGuest() {
     replayToken.current++; replaySession.current=null; clearFinaleReplay(); setReplayActive(false); setVisitedRegion(null);
     switchStatsArchive(campaignArchiveKey());
-    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);
+    cloudGeneration.current++; cloudRef.current=null; cloudConflict.current=false; clearFarmland(); cloudApi.rememberAccount(null); setPortalName(null); setCloudStatus("guest"); setCloudMessage(null);setInventory({...EMPTY_INVENTORY});toolJournal.current=null;purchaseJournal.current=null;setToolMode(null);setToolPending(false);
     const guest=readSave(); saveRef.current=guest; setSave(guest); setKeeperMet(guest.completed.includes("pumpHouse")); setMode("map"); setPuzzle(null); setOverlay("start"); setSettings(false); setAttempt(value=>value+1);
   }
   function commitWin(levelId: LevelId, movesRemaining: number) {
@@ -552,7 +658,7 @@ export default function GameShell() {
       setWipe("covered");
       let readyScene: Promise<"ready" | "failed" | "timeout"> = Promise.resolve("ready");
       if (createsScene) readyScene = new Promise(resolve => {
-        let remaining = pendingAttempt.current?.cost && cloudRef.current ? 30_000 : 10_000;
+        let remaining = pendingAttempt.current?.selected.length && cloudRef.current ? 30_000 : 10_000;
         let last = performance.now();
         let timer: ReturnType<typeof setTimeout>;
         const settle = (status: "ready" | "failed" | "timeout") => {
@@ -678,16 +784,37 @@ export default function GameShell() {
     }
   }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('A tool transaction needs confirmation. Reconnect and reload before starting another level.');return;}
     if (visitedRegion) { setVisitedRegion(null); return; }
     setTutorialSession(null); setTutorialLibrary(false);
     tokenCounter.current++;
-    if (pendingAttempt.current?.level !== id || pendingAttempt.current.cost === 0 && !["castle","river"].includes(LEVELS[id].chapter ?? "oasis")) pendingAttempt.current = null;
+    if (pendingAttempt.current?.level !== id || pendingAttempt.current.selected.length === 0 && !["castle","river"].includes(LEVELS[id].chapter ?? "oasis")) pendingAttempt.current = null;
     setShopLevel(id); setShopSelected(pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id ? pendingAttempt.current.selected : []); setShopError(null);
     setShopReturn(overlay);
     setOverlay("shop");
   }
   function currentTutorialScope(): TutorialScope {
     return playtest ? { kind: "sandbox" } : cloudRef.current ? { kind: "account", accountId: cloudRef.current.accountId } : { kind: "guest" };
+  }
+  function toolLessonKey(kind:ToolKind):string { return `dune-relay:tool-lesson:v1:${tutorialScopeKey(currentTutorialScope())}:${kind}`; }
+  function activateOwnedTool(kind:ToolKind):void {
+    let seen=false;try{seen=window.localStorage.getItem(toolLessonKey(kind))==='seen';}catch{}
+    if(!seen){setToolLesson({kind,replay:false});return;}
+    setToolMode(kind);
+  }
+  function chooseTool(kind:ToolKind):void {
+    if(toolJournal.current?.phase==='pending'||toolJournal.current?.phase==='confirmed'||purchaseJournal.current)return;
+    setToolError(null);
+    if(toolMode===kind){setToolMode(null);return;}
+    if(inventory[kind]<1){setToolBuying(kind);setOverlay('toolBuy');return;}
+    activateOwnedTool(kind);
+  }
+  function finishToolLesson(useTool:boolean):void {
+    const lesson=toolLesson;if(!lesson)return;
+    if(!lesson.replay)try{window.localStorage.setItem(toolLessonKey(lesson.kind),'seen');}catch{}
+    setToolLesson(null);
+    if(!lesson.replay && useTool)setToolMode(lesson.kind);
+    if(lesson.replay)setTutorialLibrary(true);
   }
   useEffect(() => {
     if (!tutorialLibrary || tutorialSession) return;
@@ -729,8 +856,8 @@ export default function GameShell() {
   }
   async function launchLevel(selected: BoosterKind[] = shopSelected) {
     if (tutorialSession || transitioning.current || launching.current) return;
-    const cost=boosterCost(selected);
-    const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
+    const cost=loadoutCost(selected);
+    const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? pendingAttempt.current : null;
     if (unresolved && (unresolved.level !== shopLevel || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
       setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
     }
@@ -749,7 +876,7 @@ export default function GameShell() {
     if ((LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && !playtest) { const allowed = await verifyTownPass(); if (!allowed) { setShopError("Sign in and activate the Dune Pass to play this chapter."); return; } }
     if (LEVELS[id].chapter === "farmland" && !playtest && !(farmland?.farmland.unlocked && farmland.accountId === cloudRef.current?.accountId)) { setShopError("Sign in and unlock Farmland first."); return; }
     if ((LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && (!(LEVELS[id].chapter === "river" ? saveRef.current.riverReady : saveRef.current.castleReady) || !saveRef.current.activeCompanion)) { setShopError("Choose an active raid member before entering this chapter."); setOverlay("party"); return; }
-    const cost = boosterCost(selected);
+    let cost = loadoutCost(selected);
     if (cost > saveRef.current.coins && !pendingAttempt.current?.cost) { setShopError("Not enough coins for this loadout."); return; }
     const restored=pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id && (LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && JSON.stringify([...pendingAttempt.current.selected].sort()) === JSON.stringify([...selected].sort()) ? pendingAttempt.current : null;
     const chosenSnapshot = restored?.companionSnapshot ?? ((LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && saveRef.current.activeCompanion ? companionSnapshot(saveRef.current.activeCompanion) : null);
@@ -757,21 +884,22 @@ export default function GameShell() {
     try { prepared = prepareStartingBoosters(createPuzzle(chosenSnapshot ? castleLevelForCompanion(LEVELS[id],chosenSnapshot) : LEVELS[id]), selected); }
     catch (error) { setShopError(String(error)); return; }
     const token = ++tokenCounter.current;
-    const unresolved = pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? pendingAttempt.current : null;
+    const unresolved = pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? pendingAttempt.current : null;
     if (unresolved && (unresolved.level !== id || JSON.stringify([...unresolved.selected].sort()) !== JSON.stringify([...selected].sort()))) {
       setShopError("Retry the same purchase first so its coin charge can be confirmed."); return;
     }
     const cloudAttemptId = unresolved?.cloudAttemptId ?? restored?.cloudAttemptId ?? cloudApi.newOperationId();
     if (cloudRef.current && !playtest) {
       if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
-      if (cost > 0 || LEVELS[id].chapter === "farmland" || LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") {
-        try { const response=await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId,chosenSnapshot?.id); if (!sameCompanionSnapshot(response.companionSnapshot,chosenSnapshot)) throw new Error("The active raid member changed. Reload your save."); }
+      if (selected.length > 0 || LEVELS[id].chapter === "farmland" || LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") {
+        try { const response=await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId,chosenSnapshot?.id); if (!sameCompanionSnapshot(response.companionSnapshot,chosenSnapshot)) throw new Error("The active raid member changed. Reload your save."); cost=response.boosterFunding?.coinCost??boosterCost(selected); }
         catch (error) { setShopError(`Could not prepare this level: ${(error as Error).message}`); return; }
         if (token !== tokenCounter.current) return;
       }
     }
     pendingAttempt.current = { token, cloudAttemptId, sceneAttempt: attempt + 1, level: id, selected: [...selected], cost, puzzle: prepared.puzzle, placements: prepared.placements, companionSnapshot:chosenSnapshot, status: "prepared" };
-    if (cloudRef.current && (cost > 0 || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river")) cacheCloud();
+    setBoardInteractive(false);setToolMode(null);
+    if (cloudRef.current && (selected.length > 0 || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river")) cacheCloud();
     setRevealing(false);
     abandonRecord("started-another-level");
     activeRecord.current = null;
@@ -782,16 +910,16 @@ export default function GameShell() {
   }
   function cancelShop() {
     tokenCounter.current++;
-    if (!pendingAttempt.current?.cost) pendingAttempt.current = null; setShopError(null);
+    if (!pendingAttempt.current?.selected.length) pendingAttempt.current = null; setShopError(null);
     if (shopReturn === null && mode === "map") void transitionTo(() => { setOverlay(null); setAttempt(value => value + 1); });
     else setOverlay(shopReturn);
   }
   function toggleBooster(kind: BoosterKind) {
     setShopSelected(current => {
-      if (pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) return current;
+      if (pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0) return current;
       if (current.includes(kind)) return current.filter(selected => selected !== kind);
       const proposed=[...current,kind];
-      if (boosterCost(proposed) > saveRef.current.coins) return current;
+      if (loadoutCost(proposed) > saveRef.current.coins) return current;
       return proposed;
     });
     setShopError(null);
@@ -803,7 +931,7 @@ export default function GameShell() {
   function recoverShop() {
     const unresolved=pendingAttempt.current;
     setShopReturn(null);
-    if (unresolved && (unresolved.cost > 0 || usesSelectableCompanion(unresolved.level))) { setShopLevel(unresolved.level); setShopSelected(unresolved.selected); setShopError(unresolved.cost > 0 ? "Retry this purchase to confirm its coin charge. It will not charge twice." : "Retry this level with the saved raid member."); }
+    if (unresolved && (unresolved.selected.length > 0 || usesSelectableCompanion(unresolved.level))) { setShopLevel(unresolved.level); setShopSelected(unresolved.selected); setShopError(unresolved.selected.length > 0 ? "Retry this purchase to confirm its coin charge. It will not charge twice." : "Retry this level with the saved raid member."); }
     else { pendingAttempt.current=null; setShopSelected([]); setShopError("The purchase could not be saved. Choose no boosters to play for free, or try again after storage is available."); }
     void transitionTo(() => { setMode("map"); setPuzzle(null); setOverlay("shop"); setAttempt(value => value + 1); });
   }
@@ -817,13 +945,14 @@ export default function GameShell() {
     if (!current || current.sceneAttempt !== attempt || current.level !== activeLevel || current.status === "failed") return false;
     if (current.status === "committed") return true;
     if ((!cloudRef.current || playtest) && current.cost > saveRef.current.coins) { current.status = "failed"; setSceneIssue("Not enough coins for this loadout."); return false; }
-    if (cloudRef.current && !playtest && (current.cost > 0 || LEVELS[current.level].chapter === "farmland" || LEVELS[current.level].chapter === "town" || LEVELS[current.level].chapter === "castle" || LEVELS[current.level].chapter === "river")) {
+    if (cloudRef.current && !playtest && (current.selected.length > 0 || LEVELS[current.level].chapter === "farmland" || LEVELS[current.level].chapter === "town" || LEVELS[current.level].chapter === "castle" || LEVELS[current.level].chapter === "river")) {
       const account = cloudRef.current;
       authorizing.current=true;
       try {
         const response = await cloudApi.activateAttempt(current.cloudAttemptId,account.profile.revision,account.accountId);
         if (cloudRef.current !== account) return false;
         account.profile=response.profile;
+        setInventory(normalizeInventory(response.profile.inventory));
         const next={...saveRef.current,coins:response.profile.campaign.coins};
         saveRef.current=next; setSave(next); cacheCloud();
         if (pendingAttempt.current !== current || current.status !== "prepared" || response.status !== "active" || !sameCompanionSnapshot(response.companionSnapshot,current.companionSnapshot)) return false;
@@ -844,27 +973,166 @@ export default function GameShell() {
       if (!(playtest ? writePlaytestWallet({ version: 1, coins: next.coins }) : writeSave(next))) { current.status = "failed"; setSceneIssue("The purchase could not be saved. Reload and try again."); return false; }
       saveRef.current = next; setSave(next);
     }
+    if(playtest && current.selected.length){const funded=boosterFunding(current.selected,inventory);setInventory(stock=>{const next={...stock};for(const kind of funded.owned) next[kind]--;return next;});}
     current.status = "committed";
     logDiagnostic("starting-boosters-committed", { token: current.token, level: current.level, selected: current.selected.join(","), cost: current.cost });
     return true;
+  }
+  async function authorizeTool(action:PuzzleAction,turn:Turn,before:Puzzle):Promise<boolean> {
+    const account=cloudRef.current,current=pendingAttempt.current;
+    if(replayActive || !boardInteractive || !current || current.status!=="committed" || current.level!==activeLevel || before.status!=="playing" || before.moves<1 || toolBusy || toolPending || action.kind==='swap') return false;
+    const kind=action.kind;
+    if(!turn.valid) return false;
+    if(playtest){if(inventory[kind]<1)return false;setInventory(stock=>({...stock,[kind]:stock[kind]-1}));setToolMode(null);return true;}
+    if(!account) return false;
+    const existing=toolJournal.current;
+    if(existing?.phase==='confirmed') {
+      if(JSON.stringify(existing.action)!==JSON.stringify(action)){setToolError('Finish the previous tool first.');return false;}
+      if(!cacheCloud()){setToolError('This device still cannot save the tool result.');return false;}
+      setToolMode(null);return true;
+    }
+    if(account.profile.inventory?.[kind]<1 && existing?.phase!=='pending') {setToolError('No tool is available.');return false;}
+    if(existing?.phase==='pending' && JSON.stringify(existing.action)!==JSON.stringify(action)) {setToolError('Finish confirming the previous tool first.');return false;}
+    const payload=JSON.stringify({before,action,after:turn.state});
+    const bytes=new TextEncoder().encode(payload);
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    const stateFingerprint=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+    const journal:cloudApi.ToolJournal=existing?.phase==='pending' ? existing : {accountId:account.accountId,attemptId:current.cloudAttemptId,levelId:activeLevel,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,toolSequence:(existing?.toolSequence??0)+1,kind,action,stateFingerprint,movesRemaining:before.moves,contentVersion:cloudApi.contentVersion,before,after:turn.state,phase:'pending'};
+    toolJournal.current=journal;
+    if(!cacheCloud()) {toolJournal.current=existing;setToolError('Could not save the tool action on this device.');return false;}
+    setToolPending(true);
+    setToolBusy(true);setToolError(null);
+    const generation=cloudGeneration.current;
+    try {
+      const response=await cloudApi.consumeTool(journal);
+      if(cloudRef.current!==account || generation!==cloudGeneration.current || pendingAttempt.current!==current) return false;
+      account.profile=response.profile;
+      setInventory(normalizeInventory(response.profile.inventory));
+      toolJournal.current={...journal,phase:'confirmed'};
+      if(!cacheCloud()) {setToolError('Tool was used, but this device could not save the board. Keep this tab open.');return false;}
+      setToolMode(null);
+      return true;
+    }catch(error){
+      if(cloudRef.current!==account || generation!==cloudGeneration.current)return false;
+      if(cloudApi.isDefiniteToolRejection(error)){
+        toolJournal.current=null;setToolMode(null);cacheCloud();await refreshToolProfile(account,journal.levelId,Number((error as {status?:number}).status));
+        setToolError(`The tool was not used: ${(error as Error).message} Choose it again after refreshing.`);
+      }else setToolError(`Tool confirmation is pending: ${(error as Error).message} Retry the pending action.`);
+      return false;
+    }
+    finally{if(cloudRef.current===account && generation===cloudGeneration.current)setToolBusy(false);}
+  }
+  async function refreshToolProfile(account:NonNullable<typeof cloudRef.current>,rejectedLevel?:LevelId,rejectionStatus?:number,knownProfile?:cloudApi.CloudProfile):Promise<boolean>{
+    const generation=cloudGeneration.current;
+    try{
+      const latest=knownProfile ? {accountId:account.accountId,profile:knownProfile} : await cloudApi.campaign(account.accountId);
+      if(latest.accountId!==account.accountId||!latest.profile)throw new Error('Portal profile unavailable');
+      if(cloudRef.current!==account||generation!==cloudGeneration.current)return false;
+      const remote=normalizeSave(latest.profile.campaign);
+      account.profile=latest.profile;setInventory(normalizeInventory(latest.profile.inventory));
+      // Keep unsynced checkpoint operations for backup, but never present their
+      // possibly stale campaign as the authoritative progress after a conflict.
+      if(account.pending.length){cloudConflict.current=true;setCloudStatus('pending');setCloudMessage('This save needs attention. Download a backup in Settings before loading the Portal campaign.');}
+      else setCloudStatus('account');
+      saveRef.current=remote;setSave(remote);setKeeperMet(remote.completed.includes('pumpHouse'));
+      const chapter=rejectedLevel ? LEVELS[rejectedLevel].chapter : null;
+      const chapterReady=chapter==='farmland'?remote.farmlandReady:chapter==='town'?remote.townReady:chapter==='castle'?remote.castleReady:chapter==='river'?remote.riverReady:true;
+      const canResume=Boolean(rejectedLevel && rejectionStatus!==403 && !account.pending.length && chapterReady && nextLevel(remote.completed)===rejectedLevel);
+      if(!canResume){pendingAttempt.current=null;setToolMode(null);setBoardInteractive(false);setPuzzle(null);setMode('map');setOverlay(null);setSettings(false);setAttempt(value=>value+1);}
+      cacheCloud();return canResume;
+    }catch{
+      if(cloudRef.current===account && generation===cloudGeneration.current){
+        pendingAttempt.current=null;setToolMode(null);setBoardInteractive(false);setPuzzle(null);setMode('map');setOverlay(null);setSettings(false);setAttempt(value=>value+1);
+        setCloudMessage('The latest Portal progress could not be checked. Reconnect and reload before entering another level.');
+      }
+      return false;
+    }finally{if(cloudRef.current===account && generation===cloudGeneration.current)setToolPending(false);}
+  }
+  async function retryPendingTool():Promise<void>{
+    const journal=toolJournal.current,account=cloudRef.current;
+    if(!journal||journal.phase==='applied'||!account||account.accountId!==journal.accountId||toolBusy)return;
+    setToolBusy(true);setToolError(null);
+    const generation=cloudGeneration.current;
+    try{
+      const response=journal.phase==='pending' ? await cloudApi.consumeTool(journal) : {profile:account.profile};
+      if(cloudRef.current!==account||generation!==cloudGeneration.current)return;
+      const latest=await cloudApi.campaign(account.accountId);
+      if(cloudRef.current!==account||generation!==cloudGeneration.current)return;
+      if(!latest.profile||latest.accountId!==account.accountId)throw new Error('Portal progress could not be verified');
+      if(latest.profile.revision>response.profile.revision || latest.profile.revision>account.profile.revision && nextLevel(normalizeSave(latest.profile.campaign).completed)!==journal.levelId){
+        toolJournal.current=null;cacheCloud();await refreshToolProfile(account,journal.levelId,403,latest.profile);
+        setToolError('Portal progress changed on another device. Continue from the story.');return;
+      }
+      account.profile=response.profile;setInventory(normalizeInventory(response.profile.inventory));
+      toolJournal.current={...journal,phase:'applied'};
+      if(!cacheCloud()){toolJournal.current={...journal,phase:'confirmed'};setToolError('The tool was used, but this device could not save the board. Keep this tab open.');return;}
+      if(pendingAttempt.current?.cloudAttemptId===journal.attemptId){pendingAttempt.current.sceneAttempt=attempt+1;pendingAttempt.current.puzzle=journal.after;}
+      setToolPending(false);setToolMode(null);setPuzzle(journal.after);setAttempt(value=>value+1);
+      if(journal.after.status==='won'){commitWin(journal.levelId,journal.after.moves);toolJournal.current=null;cacheCloud();setOverlay('finale');}
+      else if(journal.after.status==='lost'){toolJournal.current=null;cacheCloud();setOverlay('lost');}
+    }catch(error){
+      if(cloudRef.current!==account||generation!==cloudGeneration.current)return;
+      if(journal.phase==='pending' && cloudApi.isDefiniteToolRejection(error)){toolJournal.current=null;setToolMode(null);cacheCloud();await refreshToolProfile(account,journal.levelId,Number((error as {status?:number}).status));setToolError(`The tool was not used: ${(error as Error).message}`);}
+      else setToolError(`Tool confirmation is pending: ${(error as Error).message}`);
+    }finally{if(cloudRef.current===account && generation===cloudGeneration.current)setToolBusy(false);}
+  }
+  async function buyTool(kind:ToolKind):Promise<void> {
+    const account=cloudRef.current,current=pendingAttempt.current;
+    if(!current || current.status!=='committed' || replayActive || mode!=='puzzle' || !boardInteractive || !puzzle || puzzle.status!=='playing' || puzzle.moves<1 || toolBusy) return;
+    if(saveRef.current.coins<TOOL_PRICE){setToolError('Not enough coins.');return;}
+    if(playtest){const next={...saveRef.current,coins:saveRef.current.coins-TOOL_PRICE};if(!writePlaytestWallet({version:1,coins:next.coins})){setToolError('Could not save the test wallet.');return;}saveRef.current=next;setSave(next);setInventory(stock=>({...stock,[kind]:stock[kind]+1}));setToolBuying(null);setOverlay(null);activateOwnedTool(kind);return;}
+    if(!account) return;
+    const pending=purchaseJournal.current;
+    if(pending && (pending.kind!==kind || pending.attemptId!==current.cloudAttemptId)) {setToolError('Confirm the pending purchase first.');return;}
+    const order=pending??{requestId:cloudApi.newOperationId(),kind,accountId:account.accountId,attemptId:current.cloudAttemptId,expectedRevision:account.profile.revision};
+    purchaseJournal.current=order;
+    if(!cacheCloud()){setToolError('Could not save the purchase request on this device.');return;}
+    setToolBusy(true);setToolError(null);
+    const generation=cloudGeneration.current;
+    try{
+      const response=await cloudApi.purchaseTool(order.requestId,order.kind,order.expectedRevision,order.attemptId,order.accountId);
+      if(cloudRef.current!==account || generation!==cloudGeneration.current) return;
+      if(pending){
+        const latest=await cloudApi.campaign(account.accountId);
+        if(cloudRef.current!==account||generation!==cloudGeneration.current)return;
+        if(!latest.profile||latest.accountId!==account.accountId)throw new Error('Portal progress could not be verified');
+        purchaseJournal.current=null;cacheCloud();
+        if(!(await refreshToolProfile(account,current.level,undefined,latest.profile))){setToolError('Portal progress changed on another device. Continue from the story.');return;}
+      }else if(response.profile.revision>=account.profile.revision){
+        account.profile=response.profile;setInventory(normalizeInventory(response.profile.inventory));
+        const next={...saveRef.current,coins:response.profile.campaign.coins};saveRef.current=next;setSave(next);
+      }
+      purchaseJournal.current=null;cacheCloud();setToolBuying(null);setOverlay(null);activateOwnedTool(kind);
+    }catch(error){
+      if(cloudRef.current!==account || generation!==cloudGeneration.current)return;
+      if(cloudApi.isDefiniteToolRejection(error)){purchaseJournal.current=null;cacheCloud();await refreshToolProfile(account,current.level,Number((error as {status?:number}).status));setToolError(`Purchase declined: ${(error as Error).message} Choose again after refreshing.`);}
+      else setToolError(`Purchase status is uncertain: ${(error as Error).message} Retry to confirm; it will not charge twice.`);
+    }
+    finally{if(cloudRef.current===account && generation===cloudGeneration.current)setToolBusy(false);}
   }
   function onEvent(event: GameEvent) {
     if (event.type === "gateOpened" && transitioning.current) { if (!visitedRegion) gateOpenedPending.current = true; return; }
     if (transitioning.current) return;
     if ("position" in event) mapPositions.current[displayRegion] = event.position;
-    if (event.type === "playReady") { if (archiveKey.current && !activeRecord.current) { const snapshot=(level.chapter==="castle" || level.chapter==="river") ? (pendingAttempt.current?.companionSnapshot ?? (saveRef.current.activeCompanion ? companionSnapshot(saveRef.current.activeCompanion) : null)) : null; activeRecord.current = startAttempt(level, puzzle ?? createPuzzle(level), new Date(), replayActive ? [] : pendingAttempt.current?.selected ?? [], replayActive ? 0 : pendingAttempt.current?.cost ?? 0, replayActive ? "replay" : playtest ? "sandbox" : "campaign",snapshot); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
+    if (event.type === "playReady") {setBoardInteractive(true); if (archiveKey.current && !activeRecord.current) { const snapshot=(level.chapter==="castle" || level.chapter==="river") ? (pendingAttempt.current?.companionSnapshot ?? (saveRef.current.activeCompanion ? companionSnapshot(saveRef.current.activeCompanion) : null)) : null; activeRecord.current = startAttempt(level, puzzle ?? createPuzzle(level), new Date(), replayActive ? [] : pendingAttempt.current?.selected ?? [], replayActive ? 0 : pendingAttempt.current?.cost ?? 0, replayActive ? "replay" : playtest ? "sandbox" : "campaign",snapshot); storeRecord(); if (!settings && !tutorialLibrary && !tutorialSession && overlay === null && wipe === "hidden") recordResume(); } return; }
     if (event.type === "gateOpened") { if (!visitedRegion && saveRef.current.demoEnding === "gate") { if (transitioning.current) gateOpenedPending.current = true; else beginDemoFilm(); } return; }
     if (event.type === "resolvedTurn") {
+      setBoardInteractive(false);
+      const journal=toolJournal.current;
+      if(journal?.phase==='confirmed' && event.action && JSON.stringify(event.action)===JSON.stringify(journal.action) && journal.accountId===cloudRef.current?.accountId && journal.attemptId===pendingAttempt.current?.cloudAttemptId){
+        toolJournal.current=event.turn.state.status==='playing' ? {...journal,after:event.turn.state,phase:'applied'} : null;
+        cacheCloud();setToolPending(false);
+      }
       // Commit a terminal reward when the rule engine accepts the move. If the
       // renderer is interrupted during its animation, a reload keeps the win.
       if (!replayActive && event.turn.state.status === "won") commitWin(activeLevel,event.turn.state.moves);
-      if (activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
+      if (activeRecord.current) { recordPause(); activeRecord.current = appendTurn(activeRecord.current, event.turn, event.from, event.to,new Date(),event.action?.kind==='tileBomb'||event.action?.kind==='freeSwap'?event.action.kind:undefined); if (event.turn.state.status !== "playing") { activeRecord.current = finishAttempt(activeRecord.current, event.turn.state.status, "goals-or-moves"); } storeRecord(); }
       return;
     }
     if (event.type === "replayDestination") {
       const group=replayGroups.find(item=>item.destination===event.destination);
       if (group) {setReplayChoices(group.levels);setReplaySelection(group.levels[0]);}
-      if (!group || pendingAttempt.current?.cost && !saveRef.current.completed.includes(pendingAttempt.current.level)) { setReplayError("Resolve the pending booster purchase before replaying."); setOverlay("replayBriefing"); return; }
+      if (!group || pendingAttempt.current?.selected.length && !saveRef.current.completed.includes(pendingAttempt.current.level)) { setReplayError("Resolve the pending booster purchase before replaying."); setOverlay("replayBriefing"); return; }
       setReplayError(null);
       setOverlay("replayPicker"); sound.current?.play("ui"); return;
     }
@@ -920,8 +1188,8 @@ export default function GameShell() {
       if (next === "pumpHouse") startLevel(next);
       return;
     }
-    if (event.type === "turn") { setPuzzle(event.puzzle); if (activeRecord.current?.outcome === "playing" && !settings && !sceneIssue) recordResume(); return; }
-    if (event.type === "lose") { setOverlay("lost"); sound.current?.play("lose"); return; }
+    if (event.type === "turn") { setPuzzle(event.puzzle);setBoardInteractive(event.puzzle.status==='playing'); if (activeRecord.current?.outcome === "playing" && !settings && !sceneIssue) recordResume(); return; }
+    if (event.type === "lose") {toolJournal.current=null;cacheCloud();setToolMode(null); setOverlay("lost"); sound.current?.play("lose"); return; }
     if (event.type === "revealStarted") { setRevealing(true); return; }
     if (event.type === "victory") {
       if (!replayActive) commitWin(activeLevel,event.puzzle.moves);
@@ -1017,7 +1285,7 @@ export default function GameShell() {
   async function launchChapterReplay(id: LevelId, again = false) {
     if (launching.current || transitioning.current || replayActive && !again) return;
     const pending=pendingAttempt.current;
-    if (pending?.cost && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
+    if (pending?.selected.length && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
     const account=cloudRef.current; const generation=cloudGeneration.current; const token=++replayToken.current;
     launching.current=true; setReplayError(null);
     try {
@@ -1038,7 +1306,7 @@ export default function GameShell() {
     const region=LEVELS[replaySelection].chapter??"oasis";
     if (!CHAPTER_FINALES[region] || region!==displayRegion) return;
     const pending=pendingAttempt.current;
-    if (pending?.cost && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
+    if (pending?.selected.length && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
     const account=cloudRef.current, generation=cloudGeneration.current, token=++replayToken.current;
     launching.current=true; setReplayChecking(true); setReplayError(null);
     try {
@@ -1109,6 +1377,8 @@ export default function GameShell() {
   }
   function leaveBoard(reason: string) {
     if (transitioning.current) return;
+    if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('Confirm the pending tool transaction before leaving the board.');return;}
+    toolJournal.current=null;cacheCloud();setToolMode(null);
     setSettings(false); setRevealing(false); skipReveal.current = null;
     sound.current?.stopTransientSounds();
     abandonRecord(reason); activeRecord.current = null;
@@ -1360,7 +1630,7 @@ export default function GameShell() {
   }
   return <main className="viewport">
     <div className="frame" aria-label="Dune Relay game" data-mode={mode} data-overlay={overlay ?? "none"} data-moves={mode === "puzzle" ? puzzle?.moves : undefined} data-reduced-motion={reducedMotion}>
-      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || overlay !== null || sceneIssue !== null } onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
+      {overlay !== "film" && overlay !== "start" && <GameCanvas key={`${mode}-${displayRegion}-${attempt}-${save.activeCompanion??"mechanic"}-${replayMapKey}`} mode={mode} region={displayRegion} activeCompanion={save.activeCompanion} boardCompanion={boardCompanion} mapPosition={mapPositions.current[displayRegion]} repaired={repaired} caravanComplete={save.completed.includes("lightTheRoute")} gatehouseComplete={save.completed.includes("openTheCrossing")} gateOpening={!visitedRegion && save.demoEnding === "gate"} nextLevel={mapLevel} replayDestinations={replayGroups} replayMode={replayActive} keeperMet={keeperMet} companionIntroduced={companionIntroduced} level={level} puzzle={puzzle} startingBoosters={mode === "puzzle" && !replayActive && pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.level === activeLevel && pendingAttempt.current.status !== "failed" ? pendingAttempt.current.placements : []} audio={sound.current} reducedMotion={reducedMotion} transitioning={wipe !== "hidden"} interactionBlocked={settings || tutorialLibrary || tutorialSession !== null || toolLesson!==null || overlay !== null || sceneIssue !== null || toolBusy || toolPending } toolMode={toolMode} authorizeTool={authorizeTool} onReady={async () => { const authorized = await authorizeSceneReady(); if (sceneReady.current?.attempt === attempt) sceneReady.current.settle(authorized ? "ready" : "failed"); return authorized; }} onFailure={reason => {
         logDiagnostic("scene-failure", { reason, attempt });
         if (pendingAttempt.current?.sceneAttempt === attempt && pendingAttempt.current.status === "prepared") pendingAttempt.current.status = "failed";
         if (sceneReady.current?.attempt === attempt) sceneReady.current.settle("failed");
@@ -1381,6 +1651,12 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
+      {mode==='puzzle' && boardInteractive && !replayActive && (playtest || LEVEL_ORDER.indexOf(activeLevel)>=30) && puzzle?.status==='playing' && puzzle.moves>0 && !revealing && <div className="jit-tools" aria-label="In-game tools">
+        {TOOLS.map(item=><button key={item.kind} className={`jit-tool${toolMode===item.kind?' active':''}`} disabled={toolBusy || toolPending || overlay!==null || settings || tutorialSession!==null || toolLesson!==null || wipe!=='hidden'} onClick={()=>chooseTool(item.kind)} aria-pressed={toolMode===item.kind} aria-label={`${item.title}, ${inventory[item.kind]} owned`}><img src={assetUrl(item.image as `/${string}`)} alt=""/><span>{item.title}</span><b>{inventory[item.kind] || '+'}</b></button>)}
+        {toolMode && <div className="jit-instruction">{TOOLS.find(item=>item.kind===toolMode)?.instruction}<button disabled={toolPending} onClick={()=>{if(toolJournal.current?.phase==='pending'||toolJournal.current?.phase==='confirmed')return;setToolMode(null);setToolError(null);}}>Cancel</button></div>}
+        {toolPending && <button className="jit-retry" disabled={toolBusy} onClick={()=>void retryPendingTool()}>Retry pending tool action</button>}
+        {toolError && <div className="jit-error" role="alert">{toolError}</div>}
+      </div>}
       {fullscreenAvailable && !isFullscreen && !installApp.isAppWindow && overlay === null && !settings && !tutorialLibrary && !tutorialSession && <button className="fullscreen-return" onClick={() => requestGameFullscreen()}>⛶ Full screen</button>}
       {fullscreenIssue && <div className="fullscreen-issue" role="status">{fullscreenIssue}</div>}
       {fullscreenEmbeddedBlocked && <a className="fullscreen-new-tab" href={typeof window === "undefined" ? undefined : window.location.href} target="_blank" rel="noopener noreferrer">Open game in a new tab ↗</a>}
@@ -1419,17 +1695,19 @@ export default function GameShell() {
       {overlay === "replayBriefing" && <div className="scrim"><div className="dialog-card replay-dialog" role="dialog" aria-modal="true" aria-label="Replay chapter finale"><span className="speaker">{playtest?"PLAYTEST":"REPLAY · NO REWARDS"}</span><h2>{chapterLevelLabel(replaySelection)} · {LEVELS[replaySelection].title}</h2><p>Choose the level or its chapter cutscene.</p>{replayError&&<p className="shop-error" role="alert">{replayError}</p>}<div className="briefing-actions"><button className="quiet" onClick={()=>{cancelReplayAuthorization();setReplayError(null);if(playtest){setOverlay(null);setSettings(true);}else setOverlay("replayPicker");}}>Back</button><button className="primary" onClick={()=>{if(playtest)replayLevel(replaySelection);else void launchChapterReplay(replaySelection);}}>Play level <span>→</span></button>{CHAPTER_FINALES[LEVELS[replaySelection].chapter??"oasis"]&&isChapterFinalLevel(replaySelection)&&<button className="setting" onClick={()=>playtest?launchPlaytestFinaleReplay():void launchFinaleReplay()} disabled={replayChecking}>{replayChecking?"Checking access…":"Watch cutscene"} <span aria-hidden="true">▶</span></button>}</div></div></div>}
       {overlay === "shop" && <div className="scrim"><div className="dialog-card booster-shop">
         <span className="speaker">{LEVELS[shopLevel].title.toUpperCase()} · OPTIONAL STARTING BOOSTERS</span>
-        <p>You can play without boosters for free. Bought boosters start on this board and are used for this attempt.</p>
+        <p>Choose starting boosters. Owned copies are used first; any others cost coins when the level starts.</p>
         <div className="shop-balance">{save.coins.toLocaleString("en-US")} coins available{playtest && <small>Test wallet · campaign coins stay untouched</small>}</div>
-        <div className="booster-options">{BOOSTERS.map(item => { const selected=shopSelected.includes(item.kind); const shortfall=boosterCost(shopSelected)+item.cost-save.coins; const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0; const unavailable=unresolved || !selected && shortfall > 0; return <button key={item.kind} className={`booster-option${selected ? " selected" : ""}`} aria-pressed={selected} disabled={unavailable} onClick={() => toggleBooster(item.kind)}>
+        <div className="booster-options">{BOOSTERS.map(item => { const selected=shopSelected.includes(item.kind); const shortfall=loadoutCost([...shopSelected,item.kind])-save.coins; const unresolved=pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0; const unavailable=unresolved || !selected && shortfall > 0; return <button key={item.kind} className={`booster-option${selected ? " selected" : ""}`} aria-pressed={selected} disabled={unavailable} onClick={() => toggleBooster(item.kind)}>
           <img src={assetUrl(item.image as `/${string}`)} alt="" />
-          <strong>{item.title}</strong><small>{item.description}</small><b>{item.cost} coins</b>{unavailable && shortfall > 0 && <small className="booster-shortfall">Need {shortfall.toLocaleString("en-US")} more</small>}
+          <strong>{item.title}</strong><small>{item.description}</small><b>{inventory[item.kind]>0?`Owned: ${inventory[item.kind]}`:`${item.cost} coins`}</b>{unavailable && shortfall > 0 && <small className="booster-shortfall">Need {shortfall.toLocaleString("en-US")} more</small>}
         </button>; })}</div>
-        <div className="shop-total">Total: {boosterCost(shopSelected).toLocaleString("en-US")} coins</div>
-        {pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 && <p className="shop-error" role="status">This purchase still needs confirmation. Retry it to avoid a second charge.</p>}
+        <div className="shop-total">Total: {loadoutCost(shopSelected).toLocaleString("en-US")} coins</div>
+        {pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 && <p className="shop-error" role="status">This purchase still needs confirmation. Retry it to avoid a second charge.</p>}
         {shopError && <p className="shop-error" role="alert">{shopError}</p>}
-        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.cost > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${boosterCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
+        <div className="shop-actions"><button className="quiet" onClick={cancelShop}>Back</button><div className="shop-launch-actions">{shopSelected.length > 0 && !(pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0) && <button className="quiet" onClick={() => { setShopSelected([]); void launchLevel([]); }}>Play without boosters</button>}<button className="primary" onClick={() => void launchLevel([...shopSelected])}>{pendingAttempt.current?.status === "failed" && pendingAttempt.current.selected.length > 0 ? "Retry purchase" : shopSelected.length ? `Start level · ${loadoutCost(shopSelected).toLocaleString("en-US")} coins` : "Start level"} <span>→</span></button></div></div>
       </div></div>}
+      {overlay==='toolGift' && <div className="scrim"><div className="dialog-card tool-gift" role="dialog" aria-modal="true" aria-label="Fieldkeeper's toolkit"><header className="tool-gift-header"><span className="speaker">{playtest?'PLAYTEST PREVIEW · ':''}A GIFT FROM THE FIELDKEEPER</span><h2>Field Toolkit</h2></header><div className="tool-gift-body"><img className="tool-gift-hero" src={assetUrl('/sprites/field-toolkit.png')} alt=""/><div className="tool-gift-copy"><p>Try a Tile Bomb and a Free Swap during a level. Each is free to use and does not spend a move.</p><div className="tool-gift-items">{TOOLS.map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × 1</span>)}</div>{giftError&&<p role="alert">{giftError}</p>}</div></div><footer className="tool-gift-actions"><button className="primary" disabled={giftClaiming.current || playtest&&giftPreviewClaimed.current} onClick={()=>void claimToolkit()}>Take the toolkit →</button><button className="quiet" onClick={()=>setOverlay(null)}>Maybe later</button></footer></div></div>}
+      {overlay==='toolBuy' && toolBuying && <div className="scrim"><div className="dialog-card tool-buy" role="dialog" aria-modal="true" aria-label={`Buy ${TOOLS.find(item=>item.kind===toolBuying)?.title}`}><span className="speaker">IN-GAME TOOL</span><h2>{TOOLS.find(item=>item.kind===toolBuying)?.title}</h2><img src={assetUrl(TOOLS.find(item=>item.kind===toolBuying)!.image as `/${string}`)} alt=""/><p>{TOOLS.find(item=>item.kind===toolBuying)?.instruction}</p><p>{TOOL_PRICE} coins · {save.coins.toLocaleString('en-US')} available</p>{toolError&&<p role="alert">{toolError}</p>}<div className="briefing-actions"><button className="quiet" disabled={toolBusy || Boolean(purchaseJournal.current)} onClick={()=>{setToolBuying(null);setToolError(null);setOverlay(null);}}>Cancel</button><button className="primary" disabled={toolBusy || save.coins<TOOL_PRICE} onClick={()=>void buyTool(toolBuying)}>{purchaseJournal.current?'Retry purchase':`Buy · ${TOOL_PRICE} coins`}</button></div></div></div>}
       {overlay === "film" && <div className="film-screen">
         {filmContent && <video key={finaleReplay ? `replay-${finaleReplay.token}` : `campaign-${filmKind}`} ref={film} src={filmReady ? assetUrl(filmContent.source) : undefined} poster={assetUrl(filmContent.poster)} playsInline preload="metadata" onEnded={finaleReplay ? () => finishFinaleReplay(finaleReplay.token) : finishFilm} onLoadedMetadata={event => logDiagnostic("film-metadata", { film: filmKind, width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} onError={() => { logDiagnostic("film-media-error", { film: filmKind }); setFilmBlocked(true); }} aria-label={filmContent.label} />}
         {filmContent && <div className="film-caption">{filmContent.caption}</div>}
@@ -1547,9 +1825,12 @@ export default function GameShell() {
         <button className="primary" onClick={finish}>{activeLevel === "openWaterway" ? "See the pump awaken" : activeLevel === "lightTheRoute" ? "See the walkers depart" : activeLevel === "openTheCrossing" ? "See the bridge open" : activeLevel === "openTheMarket" ? "See the market open" : activeLevel === "openTheHarvestRoad" ? "See the harvest road open" : activeLevel === "openTheUpstreamRoute" ? "See the upstream route" : activeLevel === "openTheCollectionRoute" ? "See the boat head upstream" : level.chapter === "river" ? "Return to the river boat" : level.chapter === "castle" ? "Return to Castle Island" : level.chapter === "town" ? "Return to the market" : level.chapter === "farmland" ? "Return to the fields" : level.chapter === "gatehouse" ? "Return to the gatehouse" : level.chapter === "caravan" ? "Return to the caravan" : "Follow the water"} <span>→</span></button>
       </div></div>}
       {tutorialSession && <TutorialDialog key={`${tutorialSession.mode}-${tutorialSession.tutorial.id}`} tutorial={tutorialSession.tutorial} mode={tutorialSession.mode} reducedMotion={reducedMotion} onSkip={()=>dismissTutorial(true)} onContinue={()=>dismissTutorial(true)} onBack={()=>dismissTutorial(false)} />}
-      {tutorialLibrary && !tutorialSession && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
+      {toolLesson && <ToolLesson kind={toolLesson.kind} replay={toolLesson.replay} reducedMotion={reducedMotion} onDone={()=>finishToolLesson(true)} onBack={()=>finishToolLesson(false)} />}
+      {tutorialLibrary && !tutorialSession && !toolLesson && <div className="scrim tutorial-scrim"><div className="dialog-card tutorial-library" role="dialog" aria-modal="true" aria-label="How to play"><span className="speaker">HOW TO PLAY</span><h2>Lessons</h2><div className="tutorial-library-list">{TUTORIALS.filter(t=>tutorialAvailable(t,save.completed,mapLevel,farmlandUnlocked,playtest,readSeen(currentTutorialScope()))).map(t=><button key={t.id} data-tutorial-item={t.id} onClick={()=>openTutorialReplay(t)}>{t.title}<small>{t.summary}</small></button>)}{(save.farmlandReady||playtest)&&TOOLS.map(item=><button key={item.kind} onClick={()=>{setTutorialLibrary(false);setToolLesson({kind:item.kind,replay:true});}}>{item.title}<small>{item.instruction}</small></button>)}</div><button className="quiet" onClick={()=>{setTutorialLibrary(false);setSettings(true);}}>Back to Settings</button></div></div>}
       {settings && <div className="scrim"><div className="dialog-card settings-card">
         <span className="speaker">SETTINGS</span>
+        {(save.farmlandReady || playtest) && <div className="settings-inventory"><strong>Inventory</strong><div>{[...TOOLS,...BOOSTERS].map(item=><span key={item.kind}><img src={assetUrl(item.image as `/${string}`)} alt=""/>{item.title} × {inventory[item.kind]}</span>)}</div></div>}
+        {!playtest && cloudRef.current?.profile.campaign.farmlandReady && !cloudRef.current.profile.rewardClaims?.fieldToolkitV1 && <button className="setting" onClick={()=>{setSettings(false);setGiftError(null);setOverlay('toolGift');}}>Claim Fieldkeeper's toolkit <span>→</span></button>}
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
@@ -1569,6 +1850,7 @@ export default function GameShell() {
         {archiveKey.current && cloudStatus !== "checking" && (playtest || cloudStatus !== "expired") && <><small className="setting-note">Level stats stay on this device{playtest ? " in a separate playtest archive" : cloudRef.current ? " for this Portal account" : " for this guest campaign"}. Export a copy here.</small><button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button><button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button></>}
         {playtest ? <>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
+          <button className="setting" onClick={()=>{giftPreviewClaimed.current=false;setGiftError(null);setSettings(false);setOverlay('toolGift');}}>Preview Fieldkeeper gift</button>
           <button className="setting" onClick={() => window.location.assign(window.location.pathname)}>Return to campaign</button>
           {LEVEL_ORDER.map(id => <button className="setting" key={id} onClick={() => { if(isChapterFinalLevel(id)&&CHAPTER_FINALES[LEVELS[id].chapter??"oasis"]){setReplaySelection(id);setSettings(false);setOverlay("replayBriefing");}else replayLevel(id); }}>Replay {chapterLevelLabel(id)} · {LEVELS[id].title}</button>)}
           <button className="setting" onClick={() => previewTransition("oasis")}>Preview Oasis → desert transition</button>
