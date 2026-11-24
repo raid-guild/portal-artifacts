@@ -115,6 +115,7 @@ export default function GameShell() {
   const [resetConfirm,setResetConfirm]=useState(false);
   const [resetBusy,setResetBusy]=useState(false);
   const [resetError,setResetError]=useState<string|null>(null);
+  const [resetDeferred,setResetDeferred]=useState(false);
   const resetPending=useRef<cloudApi.ResetJournal|null>(null);
   const [tutorialLibrary, setTutorialLibrary] = useState(false);
   const [tutorialSession, setTutorialSession] = useState<{ tutorial: Tutorial; mode: "intro" | "replay"; scopeKey: string; cloudGeneration: number; level: LevelId; selected: BoosterKind[] } | null>(null);
@@ -726,9 +727,12 @@ export default function GameShell() {
       const profile = result.profile ?? { revision: 0, imported: false, campaign: { ...EMPTY_SAVE, completed: [], companions: [] }, inventory:{...EMPTY_INVENTORY}, rewardClaims:{} };
       cloudRef.current = { accountId: session.accountId, profile, pending: cached?.pending ?? [], syncing: false };
       if(pendingReset){
-        resetPending.current=pendingReset;setPortalName(session.displayName);setResetBusy(true);
-        try{const completed=await cloudApi.resetCampaign(pendingReset);if(generation!==cloudGeneration.current)return;finishPortalReset(completed.profile,session.accountId);return;}
-        catch(error){if(generation!==cloudGeneration.current)return;if(Number((error as {status?:number}).status)===409){cloudApi.clearResetJournal(session.accountId);resetPending.current=null;window.location.reload();return;}const loaded=normalizeSave(profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(profile.inventory));setMode('map');setPuzzle(null);setOverlay('start');setResetError(`Reset confirmation needs a connection: ${(error as Error).message}`);setResetConfirm(true);setSettings(true);setCloudStatus('account');setResetBusy(false);return;}
+        resetPending.current=pendingReset;setPortalName(session.displayName);
+        const loaded=normalizeSave(profile.campaign);saveRef.current=loaded;setSave(loaded);setInventory(normalizeInventory(profile.inventory));setMode('map');setPuzzle(null);setOverlay('start');setCloudStatus('account');setResetBusy(false);
+        setResetError('Start over still needs confirmation. Your progress is protected until you resolve it.');
+        setResetDeferred(pendingReset.intent==='deferred');setResetConfirm(pendingReset.intent!=='deferred');setSettings(pendingReset.intent!=='deferred');
+        if(pendingReset.intent==='cancel')void cancelPendingReset(pendingReset);
+        return;
       }
       if(storedCache && !cached){setCloudMessage('This campaign was restarted on another device. The latest Portal save is loaded.');}
 
@@ -1096,6 +1100,7 @@ export default function GameShell() {
     }
   }, [tutorialSession, cloudStatus, portalName, playtest]);
   function startLevel(id: LevelId) {
+    if(resetPending.current){setCloudMessage('Resolve the pending Start over request before starting a level.');setResetConfirm(true);setResetDeferred(false);return;}
     if(rewardJournal.current?.phase==='pending'){const item=rewardAvailable.find(value=>value.key===rewardJournal.current?.rewardKey);if(item)openReward(item);return;}
     if(toolJournal.current?.phase==='pending' || purchaseJournal.current){setCloudMessage('A tool transaction needs confirmation. Reconnect and reload before starting another level.');return;}
     if (visitedRegion) { setVisitedRegion(null); return; }
@@ -1602,6 +1607,7 @@ export default function GameShell() {
     return { farmland: farmlandUnlocked, town: townUnlocked, castle: townUnlocked, river: townUnlocked };
   }
   async function launchChapterReplay(id: LevelId, again = false) {
+    if(resetPending.current){setReplayError('Resolve the pending Start over request before replaying.');setResetConfirm(true);setResetDeferred(false);return;}
     if (launching.current || transitioning.current || replayActive && !again) return;
     const pending=pendingAttempt.current;
     if (pending?.selected.length && !saveRef.current.completed.includes(pending.level)) {setReplayError("Resolve the pending booster purchase before replaying.");return;}
@@ -1611,16 +1617,17 @@ export default function GameShell() {
       const region=LEVELS[id].chapter??"oasis";
       const access=await verifyReplayAccess(region,token,account,generation);
       if (!access) return;
-      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !replayAllowed(saveRef.current,id,access) || region!==displayRegion) {setReplayError("This chapter is not available for replay.");return;}
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || resetPending.current || !replayAllowed(saveRef.current,id,access) || region!==displayRegion) {setReplayError("This chapter is not available for replay.");return;}
       const puzzle=createPuzzle((LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && saveRef.current.activeCompanion ? castleLevelForCompanion(LEVELS[id],companionSnapshot(saveRef.current.activeCompanion)) : LEVELS[id]);
       reward.current=0; setRevealing(false); abandonRecord("started-replay"); activeRecord.current=null;
       replaySession.current={token,generation,accountId:account?.accountId??null,level:id,sceneAttempt:attempt+1,farmlandUnlocked:access.farmland,townUnlocked:access.town};
       setReplayActive(true);
-      void transitionTo(()=>{setActiveLevel(id);setPuzzle(puzzle);setMode("puzzle");setOverlay(null);setAttempt(value=>value+1);});
+      void transitionTo(()=>{if(resetPending.current)return;setActiveLevel(id);setPuzzle(puzzle);setMode("puzzle");setOverlay(null);setAttempt(value=>value+1);});
     } catch(error) {if (cloudRef.current===account && cloudGeneration.current===generation && token===replayToken.current) setReplayError(`Replay access could not be checked: ${(error as Error).message}`);}
     finally {if(token===replayToken.current) launching.current=false;}
   }
   async function launchFinaleReplay() {
+    if(resetPending.current){setReplayError('Resolve the pending Start over request before replaying.');setResetConfirm(true);setResetDeferred(false);return;}
     if (launching.current || transitioning.current || mode!=="map" || overlay!=="replayBriefing" || !replayChoices.includes(replaySelection) || !isChapterFinalLevel(replaySelection)) return;
     const region=LEVELS[replaySelection].chapter??"oasis";
     if (!CHAPTER_FINALES[region] || region!==displayRegion) return;
@@ -1631,11 +1638,11 @@ export default function GameShell() {
     try {
       const access=await verifyReplayAccess(region,token,account,generation);
       if (!access) return;
-      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || !chapterReplayReady(saveRef.current,region,access) || region!==displayRegion || overlay!=="replayBriefing" || !isChapterFinalLevel(replaySelection)) {setReplayError("This chapter is not available for replay.");return;}
+      if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || resetPending.current || !chapterReplayReady(saveRef.current,region,access) || region!==displayRegion || overlay!=="replayBriefing" || !isChapterFinalLevel(replaySelection)) {setReplayError("This chapter is not available for replay.");return;}
       const session: FinaleReplay={token,generation,accountId:account?.accountId??null,region};
       finaleReplayFinishing.current=false;
       void transitionTo(()=>{
-        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return;
+        if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current || resetPending.current) return;
         finaleReplayRef.current=session; setFinaleReplay(session);
         setMode("map"); setOverlay("film"); setAttempt(value=>value+1);
       },false);
@@ -1832,7 +1839,7 @@ export default function GameShell() {
     visitConfirmed.current=null;visitRequest.current=null;setDailyVisit(null);setRewardOffers(null);
     abandonRecord('reset-on-another-device');activeRecord.current=null;
     pendingAttempt.current=null;toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;
-    resetPending.current=null;cloudApi.clearResetJournal(account.accountId);setResetBusy(false);setResetError(null);
+    resetPending.current=null;cloudApi.clearResetJournal(account.accountId);setResetBusy(false);setResetError(null);setResetDeferred(false);
     giftClaiming.current=false;giftOffered.current=null;setGiftNotice(false);setRewardBusy(false);
     setToolMode(null);setToolBuying(null);setToolBusy(false);setToolPending(false);setToolError(null);
     setTutorialSession(null);setTutorialLibrary(false);setBoardInteractive(false);setPuzzle(null);
@@ -1862,7 +1869,7 @@ export default function GameShell() {
     toolJournal.current=null;purchaseJournal.current=null;rewardJournal.current=null;pendingAttempt.current=null;replaySession.current=null;clearFinaleReplay();
     const fresh=normalizeSave(profile.campaign);
     if(!cloudApi.writeAccountCache(accountId,{profile,localSave:fresh,pending:[]})){setResetError('Portal reset completed, but this device could not save the fresh campaign. Free storage and retry confirmation.');setResetBusy(false);return;}
-    resetPending.current=null;cloudApi.clearResetJournal(accountId);cloudApi.clearGuestImportId(accountId);
+    resetPending.current=null;cloudApi.clearResetJournal(accountId);cloudApi.clearGuestImportId(accountId);setResetDeferred(false);
     saveRef.current=fresh;setSave(fresh);setInventory(normalizeInventory(profile.inventory));setPuzzle(null);setShopSelected([]);setToolMode(null);setToolLesson(null);setTutorialSession(null);setReplayActive(false);setVisitedRegion(null);mapPositions.current={oasis:null,caravan:null,gatehouse:null,farmland:null,town:null,castle:null,river:null};setKeeperMet(false);setMode('map');setOverlay('start');setAttempt(value=>value+1);setResetConfirm(false);setResetBusy(false);setSettings(false);setCloudStatus('account');
     window.location.reload();
   }
@@ -1870,6 +1877,27 @@ export default function GameShell() {
     if(cloudRef.current){downloadCloudBackup();return;}
     const blob=new Blob([JSON.stringify({save:readSave(),exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`dune-relay-guest-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function cancelPendingReset(journal:cloudApi.ResetJournal){
+    if(resetBusy)return;
+    const account=cloudRef.current,generation=cloudGeneration.current;
+    const cancellation={...journal,intent:'cancel' as const};
+    if(!cloudApi.writeResetJournal(cancellation)){setResetError('Could not save your cancellation request on this device.');return;}
+    resetPending.current=cancellation;setResetBusy(true);setResetError(null);
+    try{
+      const result=await cloudApi.cancelReset(cancellation);
+      if(cloudRef.current!==account||cloudGeneration.current!==generation||resetPending.current?.requestId!==journal.requestId)return;
+      if(result.status==='applied'){finishPortalReset(result.profile,journal.accountId);return;}
+      cloudApi.clearResetJournal(journal.accountId);resetPending.current=null;setResetBusy(false);setResetError(null);setResetConfirm(false);setResetDeferred(false);setSettings(false);
+      window.location.reload();
+    }catch(error){if(cloudRef.current!==account||cloudGeneration.current!==generation)return;setResetBusy(false);setResetError(`Cancellation could not be confirmed: ${(error as Error).message}. Close for now or retry cancellation.`);}
+  }
+  function closePendingReset(){
+    const journal=resetPending.current;
+    if(!journal||resetBusy)return;
+    const deferred={...journal,intent:'deferred' as const};
+    if(!cloudApi.writeResetJournal(deferred)){setResetError('Could not save the pending request on this device.');return;}
+    resetPending.current=deferred;setResetDeferred(true);setResetConfirm(false);setSettings(false);
   }
   async function startOver(){
     if(resetBusy)return;
@@ -1883,16 +1911,28 @@ export default function GameShell() {
       window.location.reload();return;
     }
     if(cloudStatus!=='account'||account.syncing||purchaseJournal.current||toolJournal.current?.phase==='pending'||rewardJournal.current?.phase==='pending'||giftClaiming.current){setResetError('Finish syncing or confirming the pending purchase or gift, then try again.');return;}
-    const journal=resetPending.current??{accountId:account.accountId,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,campaignGeneration:account.profile.campaignGeneration??0};
-    if(!cloudApi.writeResetJournal(journal)){setResetError('This device could not save the reset request. Try again.');return;}
-    resetPending.current=journal;setResetBusy(true);setResetError(null);
-    try{const result=await cloudApi.resetCampaign(journal);if(cloudRef.current?.accountId!==journal.accountId)return;finishPortalReset(result.profile,journal.accountId);}
+    const generation=cloudGeneration.current;
+    if(!resetPending.current){
+      setResetBusy(true);
+      try{if(!await cloudApi.resetReady()){setResetError('Start over is temporarily unavailable. Your progress has not changed.');setResetBusy(false);return;}}
+      catch{setResetError('Start over is temporarily unavailable. Your progress has not changed.');setResetBusy(false);return;}
+    }
+    if(cloudRef.current!==account||cloudGeneration.current!==generation){setResetBusy(false);return;}
+    const journal={...(resetPending.current??{accountId:account.accountId,requestId:cloudApi.newOperationId(),expectedRevision:account.profile.revision,campaignGeneration:account.profile.campaignGeneration??0}),intent:'reset' as const};
+    if(!cloudApi.writeResetJournal(journal)){setResetError('This device could not save the reset request. Try again.');setResetBusy(false);return;}
+    resetPending.current=journal;setResetDeferred(false);setResetBusy(true);setResetError(null);
+    setMode('map');setPuzzle(null);setOverlay('start');
+    try{const result=await cloudApi.resetCampaign(journal);if(cloudRef.current!==account||cloudGeneration.current!==generation||resetPending.current?.requestId!==journal.requestId)return;finishPortalReset(result.profile,journal.accountId);}
     catch(error){
+      if(cloudRef.current!==account||cloudGeneration.current!==generation||resetPending.current?.requestId!==journal.requestId)return;
+      if((error as {code?:string}).code==='RESET_CANCELLED'){
+        cloudApi.clearResetJournal(journal.accountId);resetPending.current=null;setResetError('This reset was cancelled. Your progress is unchanged.');setResetBusy(false);return;
+      }
       if(Number((error as {status?:number}).status)===409){
         cloudApi.clearResetJournal(journal.accountId);resetPending.current=null;
         try{const latest=await cloudApi.campaign(journal.accountId);if(cloudRef.current===account&&latest.profile){if((latest.profile.campaignGeneration??0)!==(account.profile.campaignGeneration??0))await adoptRemoteReset(account,latest.profile);else{account.profile=latest.profile;account.pending=[];const fresh=normalizeSave(latest.profile.campaign);saveRef.current=fresh;setSave(fresh);setInventory(normalizeInventory(latest.profile.inventory));setMode('map');setPuzzle(null);setOverlay('start');cacheCloud();}}}catch{}
         setResetError('Portal progress changed before the reset. Review the current save, then choose Erase progress and start over again.');
-      }else setResetError(`Reset confirmation needs a connection: ${(error as Error).message}. Retry with the same request.`);
+      }else setResetError(`Reset could not be confirmed: ${(error as Error).message}. Retry, cancel, or close for now.`);
       setResetBusy(false);
     }
   }
@@ -2289,12 +2329,13 @@ export default function GameShell() {
           <button className="setting" onClick={reset}>Restart sequence</button>
         </> : <button className="reset" disabled={cloudStatus==='checking'||cloudStatus==='expired'} onClick={()=>{setResetError(null);setResetConfirm(true);}}>Start over</button>}
       </div></div>}
-      {resetConfirm && <div className="scrim reset-scrim"><div className="dialog-card reset-confirm" role="dialog" aria-modal="true" aria-label="Start over permanently?" onKeyDown={event=>{if(event.key==='Escape'&&!resetPending.current&&!resetBusy){setResetConfirm(false);setResetError(null);}if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];if(!buttons.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}>
+      {resetDeferred && <div className="reset-deferred-note" role="status">Start over needs confirmation. Progress is paused. <button onClick={()=>{setResetDeferred(false);setResetConfirm(true);}}>Resolve</button></div>}
+      {resetConfirm && <div className="scrim reset-scrim"><div className="dialog-card reset-confirm" role="dialog" aria-modal="true" aria-label="Start over permanently?" onKeyDown={event=>{if(event.key==='Escape'&&!resetBusy){if(resetPending.current)closePendingReset();else{setResetConfirm(false);setResetError(null);}}if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];if(!buttons.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}>
         <span className="speaker">PERMANENT RESET</span><h2>Start over permanently?</h2>
         <p>This permanently erases your story progress, completed levels, coins, and inventory {cloudRef.current?'on all your Portal devices':'on this device'}. You’ll start again at the Oasis. This cannot be undone.</p>
         <p>Your Portal login and unlocked access stay. Previously claimed gifts cannot be claimed again. Unsynced progress will also be erased.</p>
         {resetError&&<p className="reset-error" role="alert">{resetError}</p>}
-        <div className="reset-actions"><button className="quiet" autoFocus disabled={resetBusy||Boolean(resetPending.current)} onClick={()=>{setResetConfirm(false);setResetError(null);}}>Cancel</button><button className="quiet" disabled={resetBusy} onClick={exportBeforeReset}>Export progress first</button><button className="primary" disabled={resetBusy} onClick={()=>void startOver()}>{resetPending.current?'Retry reset':'Erase progress and start over'}</button></div>
+        <div className="reset-actions"><button className="quiet" autoFocus disabled={resetBusy} onClick={()=>{if(resetPending.current)void cancelPendingReset(resetPending.current);else{setResetConfirm(false);setResetError(null);}}}>{resetPending.current?.intent==='cancel'?'Retry cancellation':'Cancel'}</button><button className="quiet" disabled={resetBusy} onClick={exportBeforeReset}>Export progress first</button>{resetPending.current && <button className="quiet" disabled={resetBusy} onClick={closePendingReset}>Close for now</button>}{resetPending.current?.intent!=='cancel' && <button className="primary" disabled={resetBusy} onClick={()=>void startOver()}>{resetPending.current?'Retry reset':'Erase progress and start over'}</button>}</div>
       </div></div>}
       {sceneIssue && <div className="scrim scene-error"><div className="dialog-card">
         <span className="speaker">SCENE INTERRUPTED</span>

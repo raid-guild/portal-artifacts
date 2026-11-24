@@ -722,3 +722,23 @@ test('permanent reset starts a new campaign without revoking access or regrantin
   const second=await ok(await call('/campaign/reset',cookie,{requestId:randomUUID(),expectedRevision:newFinish.profile.revision,campaignGeneration:1}));assert.equal(second.campaignGeneration,2);assert.equal(second.profile.campaign.completed.length,0);
   assert.equal((await call('/campaign/reset',cookie,{requestId:randomUUID(),expectedRevision:9,campaignGeneration:0})).status,409);
 });
+test('reset cancellation is idempotent and prevents a delayed reset from erasing progress',async()=>{
+  const {cookie}=await launch();
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountByCookie.get(cookie),{revision:0,campaignGeneration:0,campaign:emptyCampaign(),imported:true}]);
+  const before=(await ok(await call('/campaign',cookie))).profile;
+  const payload={requestId:randomUUID(),expectedRevision:before.revision,campaignGeneration:before.campaignGeneration};
+  const cancelled=await ok(await call('/campaign/reset/cancel',cookie,payload));
+  assert.equal(cancelled.status,'cancelled');
+  assert.deepEqual(cancelled.profile,before);
+  assert.equal((await ok(await call('/campaign/reset/cancel',cookie,payload))).status,'cancelled');
+  const late=await call('/campaign/reset',cookie,payload);
+  assert.equal(late.status,409);
+  assert.equal((await late.json()).code,'RESET_CANCELLED');
+  assert.deepEqual((await ok(await call('/campaign',cookie))).profile,before);
+  assert.equal((await call('/campaign/reset/cancel',cookie,{...payload,expectedRevision:before.revision+1})).status,409);
+  const competing={...payload,requestId:randomUUID()};
+  const [reset,cancel]=await Promise.all([call('/campaign/reset',cookie,competing),call('/campaign/reset/cancel',cookie,competing)]);
+  assert.equal(cancel.status,200);
+  if(reset.status===200){assert.equal((await cancel.json()).status,'applied');assert.equal((await ok(await call('/campaign/reset/cancel',cookie,competing))).status,'applied');}
+  else{assert.equal(reset.status,409);assert.equal((await cancel.json()).status,'cancelled');assert.equal((await ok(await call('/campaign/reset/cancel',cookie,competing))).status,'cancelled');}
+});

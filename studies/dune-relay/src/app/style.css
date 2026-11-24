@@ -477,6 +477,8 @@ button { font: inherit; cursor: pointer; }
 @keyframes lesson-swap-right { 0%,20%,100% { transform: translateX(0); } 50%,75% { transform: translateX(108%); } }
 @keyframes lesson-swap-left { 0%,20%,100% { transform: translateX(0); } 50%,75% { transform: translateX(-108%); } }
 .reset-scrim { z-index: 60; }
+.reset-deferred-note { position:absolute; z-index:55; left:50%; top:12px; transform:translateX(-50%); width:min(560px,calc(100% - 24px)); padding:8px 12px; border:2px solid #e8b965; border-radius:12px; background:#173944; color:#fff0c6; text-align:center; font-weight:700; box-shadow:0 5px 20px #001b24b8; }
+.reset-deferred-note button { margin-left:8px; padding:4px 10px; border:1px solid #e8b965; border-radius:8px; background:#e8b965; color:#173944; font-weight:800; }
 .dialog-card.reset-confirm { width:min(540px,calc(100cqw - 24px)); max-width:calc(100cqw - 24px); max-height:calc(100cqh - 24px); overflow:auto; padding:clamp(12px,2.5cqh,24px); }
 .reset-confirm h2 { font-size:clamp(27px,4.8cqh,48px); margin:6px 0; }
 .reset-confirm p { font-size:clamp(13px,2.5cqh,18px); line-height:1.35; margin:6px 0; }
