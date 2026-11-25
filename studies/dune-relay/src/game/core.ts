@@ -555,6 +555,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     // All spread decisions in this clear wave use the terrain as it stood
     // before any match or power in the wave fired.
     const wetBefore = state.condensation ? copyMask(state.condensation.wet) : undefined;
+    const crustBefore = state.condensation ? copyCrust(state.crust) : undefined;
     const wasWet = (cell: Cell) => Boolean(wetBefore?.[cell.row]?.[cell.col]);
     const removal = new Map<string, Cell>();
     for (const group of groups) for (const cell of group) removal.set(key(cell), cell);
@@ -592,6 +593,8 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const sequence: NonNullable<TurnStep["sequence"]> = [];
     type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; wetTargets: Map<string, Cell>; eligibleWetTargets: Map<string, Cell>; wetOrigin: boolean; after: number };
     const events: DamageEvent[] = [];
+    // Only the powers explicitly created by this Prism combo inherit its water.
+    const wetPrismCopies = new Set<number>();
     const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), wetTargets: new Map<string, Cell>(), eligibleWetTargets: new Map<string, Cell>(), wetOrigin: false, after: -1 }; events.push(event); return event; };
     const claimed = new Set<string>();
     const claim = (cell: Cell, event: DamageEvent) => {
@@ -659,11 +662,13 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         fireEffect({ cell: to, power: "prism", targets: [...removal.values()] });
       } else if (left.power === "prism" || right.power === "prism") {
         const partner = left.power === "prism" ? right : left;
+        if (event.wetOrigin) wetPrismCopies.add(partner.id);
         const target = partner.kind as SymbolKind;
         const hits = board.flatMap((row, r) => row.flatMap((tile, c) => isSymbol(tile) && tile.kind === target ? [{ row: r, col: c }] : []));
         for (const hit of hits) event.wetTargets.set(key(hit), hit);
         for (const cell of hits) {
           const tile = at(board, cell)!;
+          if (event.wetOrigin) wetPrismCopies.add(tile.id);
           convertedOriginals.set(tile.id, tile.kind as SymbolKind);
           if (partner.jet) tile.jet = partner.jet;
           else tile.power = "flywheel";
@@ -699,7 +704,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       fired.add(tile.id);
       if (!countedPowerActivations.has(tile.id)) { stats.powersActivated[tile.power ?? "jet"]++; countedPowerActivations.add(tile.id); }
       const event = newEvent(tile.power === "prism" ? "prism" : "power");
-      event.wetOrigin = wasWet(cell) || carriedWetPowers.has(tile.id);
+      event.wetOrigin = wasWet(cell) || carriedWetPowers.has(tile.id) || wetPrismCopies.has(tile.id);
       event.clears.set(key(cell), cell);
       if (event.wetOrigin) event.wetTargets.set(key(cell), cell);
       if (tile.jet) { fireJet(cell, tile.jet); wetJetRay(cell, tile.jet, event); addHits(jetCells(cell, tile.jet, previous.mask), event); }
@@ -764,14 +769,14 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       }
       if (podDamage.length) podEvents.push({ after: event.after, hits: podDamage });
     }
-    // Resolve salt first. Its collector square stays dry while any layer
-    // remains; an eligible wet hit can coat the square it just freed.
+    // Resolve salt first. A power that strikes salt cracks it, but cannot wet
+    // the net underneath in the same clear wave, even if another power also hits.
     // Origins and beam pickup use the pre-wave snapshot, so newly wet cells cannot
     // propagate again until a later cascade wave.
     if (state.condensation) for (const event of events) {
       const targets = event.kind === "match" ? event.adjacency : event.wetTargets.size ? event.wetTargets : event.clears;
       const eligible = event.wetOrigin ? targets.values() : event.eligibleWetTargets.values();
-      for (const cell of [...eligible, ...(freedByWetEvent.get(event) ?? [])]) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col] && state.crust[cell.row][cell.col] === 0) {
+      for (const cell of [...eligible, ...(freedByWetEvent.get(event) ?? [])]) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col] && state.crust[cell.row][cell.col] === 0 && (event.kind === "match" || crustBefore?.[cell.row]?.[cell.col] === 0)) {
         state.condensation.wet[cell.row][cell.col] = true;
         spread.push(cell);
         if ((state.goals.condensation ?? 0) > 0) { state.goals.condensation!--; collections.push({ cell, kind: "condensation" }); }

@@ -83,7 +83,7 @@ export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | n
   if (level.lesson === "prism" || level.lesson === "combo" || level.lesson === "practice" && level.id !== "primePump") {
     tips.push({ id: `${voice}-prism`, kind: "tip", text: "Five in a line makes a Prism. Swap it with a symbol to clear that symbol." });
   }
-  if (level.condensation) tips.push({ id: `${voice}-wet-${level.id}`, kind: "tip", text: "Wet ground stays on its square as symbols fall. Spread the film through every marked collector." });
+  if (level.condensation) tips.push({ id: `${voice}-wet-${level.id}`, kind: "tip", text: level.crust?.length ? "A wet power cracks salt, then a later wet hit can fill the exposed net. A wet power combo covers its full effect." : "Wet ground stays on its square as symbols fall. A wet power combo covers its full effect." });
   if (level.current?.length) tips.push({ id: `${voice}-current`, kind: "tip", text: "The current turns after your move settles. Salt on its marked route pauses the whole loop." });
   if (level.crust?.length) tips.push({ id: `${voice}-salt`, kind: "tip", text: "Match beside salt to crack it. Jets and Flywheels must hit it directly." });
   if (level.crates?.length) tips.push({ id: `${voice}-crates`, kind: "tip", text: "Crates fall into cleared gaps and deliver when they leave a bottom edge. Powers cannot destroy them." });
