@@ -61,6 +61,7 @@ async function runLevel(browser,number,id,expected){
     let wraps=0;
     if(expected.move){
       await page.waitForFunction(()=>document.querySelector('canvas[data-current-route-count]')?.dataset.introPhase==='ready',null,{timeout:30000});
+      if(process.env.RIVER_ROUTE_SCREENSHOTS)await page.screenshot({path:`${process.env.RIVER_ROUTE_SCREENSHOTS}/river-7.${number}.png`});
       const {moves,turn}=firstFlowMoves(id);
       for(const [index,move] of moves.entries()){
         await tap(page,move.from);await tap(page,move.to);
@@ -77,11 +78,16 @@ async function runLevel(browser,number,id,expected){
 async function main(){
   const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});
   try{
-    await runLevel(browser,3,'broadwaterTurn',{routes:1,frozen:0,move:true});
-    await runLevel(browser,5,'clearingTheBend',{routes:2,frozen:1,move:true});
-    await runLevel(browser,8,'splitwaterCargo',{routes:2,frozen:1,exits:9,move:true});
-    await runLevel(browser,9,'saltwindMooring',{routes:2,frozen:1,exits:9,move:true});
-    await runLevel(browser,10,'openTheCollectionRoute',{routes:2,frozen:2,exits:9,move:true});
+    const levels=[
+      [3,'broadwaterTurn',{routes:1,frozen:0,move:true}],
+      [5,'clearingTheBend',{routes:2,frozen:1,move:true}],
+      [7,'reedbankDeliveries',{routes:2,frozen:0,exits:9,move:true}],
+      [8,'splitwaterCargo',{routes:3,frozen:1,exits:9,move:true}],
+      [9,'saltwindMooring',{routes:4,frozen:3,exits:9,move:true}],
+      [10,'openTheCollectionRoute',{routes:2,frozen:2,exits:9,move:true}],
+    ];
+    const selected=process.env.RIVER_ROUTE_LEVELS?.split(',').map(Number);
+    for(const [number,id,expected] of levels) if(!selected || selected.includes(number)) await runLevel(browser,number,id,expected);
   }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

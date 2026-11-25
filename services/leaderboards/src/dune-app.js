@@ -421,7 +421,9 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
       const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1',[attemptId]);
       if (existing) {
         requireAttemptGeneration(profile,existing);
-        const sameCompanion = existing.companion_snapshot === null && companionSnapshot === null || existing.companion_snapshot && companionSnapshot && Object.keys(existing.companion_snapshot).length === Object.keys(companionSnapshot).length && Object.entries(companionSnapshot).every(([key,value])=>existing.companion_snapshot[key]===value);
+        // An attempt keeps the companion ability it started with. A later
+        // balance update must not invalidate a prepared/active retry.
+        const sameCompanion = existing.companion_snapshot === null && companionSnapshot === null || existing.companion_snapshot?.id === companionSnapshot?.id;
         if (String(existing.player_id)!==String(req.playerSession.player_id) || existing.level_id!==levelId || JSON.stringify(existing.boosters)!==JSON.stringify(selected) || !sameCompanion) throw fail(409,'Attempt ID already belongs to another attempt.');
         return {attemptId,status:existing.status,profile,companionSnapshot:existing.companion_snapshot,boosterFunding:existing.booster_funding};
       }

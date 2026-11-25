@@ -31,7 +31,12 @@ const CHAIN_CALLOUTS = ["NICE", "BADICAL", "TUBULAR", "FOR REAL", "GOORANGA", "M
 let nextChainCallout = 0;
 
 type CurrentVisual = { route: CurrentRoute; water: Phaser.GameObjects.Graphics; frost: Phaser.GameObjects.Graphics; glints: Phaser.GameObjects.Graphics[]; frozen: boolean; flow: number; surgeMs: number };
-const currentColors = [{ water: 0x167b98, rim: 0x82f5e8, arrow: 0xb4fff1 }, { water: 0x486a9a, rim: 0xbcd6ff, arrow: 0xe3edff }];
+const currentColors = [
+  { water: 0x167b98, rim: 0x82f5e8, arrow: 0xb4fff1 },
+  { water: 0x486a9a, rim: 0xbcd6ff, arrow: 0xe3edff },
+  { water: 0x247b72, rim: 0xb4f5b5, arrow: 0xd7ffcc },
+  { water: 0x775a99, rim: 0xe1bdff, arrow: 0xf3ddff },
+];
 function edgeVector(edge: CurrentEdge) { return edge === "left" ? { x: -1, y: 0 } : edge === "right" ? { x: 1, y: 0 } : edge === "top" ? { x: 0, y: -1 } : { x: 0, y: 1 }; }
 
 export type GameEvent =
@@ -139,7 +144,7 @@ function replayMarkers(scene: Phaser.Scene, props: Props) {
   return props.replayDestinations.map(group => {
     const destination = MAP_DESTINATIONS[group.destination];
     const number = LEVEL_ORDER.indexOf(group.levels[0]) % 10 + 1;
-    const caption = group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
+    const caption = props.region === "river" ? `7.${number}` : group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
     const marker = scene.add.circle(destination.marker.x,destination.marker.y,19,0x173c46,.96).setStrokeStyle(2,0xffdf9e).setDepth(12).setInteractive({useHandCursor:true});
     const text = label(scene,destination.marker.x,destination.marker.y,caption,15).setOrigin(.5).setDepth(13).setInteractive({useHandCursor:true});
     return {group,destination,marker,text};
@@ -2113,7 +2118,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const short = props.reducedMotion;
       if (step.kind === "current") {
         this.paintCurrentFreeze();
-        this.setMessage(step.currentRouteIds?.length === 2 ? "Both currents carry tiles along their arrows…" : "The current carries tiles along its arrows…");
+        this.setMessage((step.currentRouteIds?.length ?? 0) > 1 ? "The currents carry tiles along their arrows…" : "The current carries tiles along its arrows…");
         props.audio?.play("current");
         const active=new Set(step.currentRouteIds ?? this.currentVisuals.filter(visual=>!visual.frozen).map(visual=>visual.route.id));
         const flashes=this.currentVisuals.filter(visual=>active.has(visual.route.id)).map(visual=>{

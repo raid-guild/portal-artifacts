@@ -287,7 +287,7 @@ function validatedCurrent(path: readonly Cell[] | undefined, mask: BoardMask): C
 
 function validatedCurrents(routes: readonly CurrentRoute[] | undefined, mask: BoardMask): CurrentRoute[] | undefined {
   if (!routes) return undefined;
-  if (routes.length < 1 || routes.length > 2) throw new Error("Current must have one or two routes");
+  if (routes.length < 1 || routes.length > 4) throw new Error("Current must have one to four routes");
   const ids = new Set<string>(), used = new Set<string>();
   const onEdge = (cell: Cell, edge: CurrentEdge) => edge === "left" ? cell.col === 0 : edge === "right" ? cell.col === BOARD_SIZE - 1 : edge === "top" ? cell.row === 0 : cell.row === BOARD_SIZE - 1;
   return routes.map(route => {
