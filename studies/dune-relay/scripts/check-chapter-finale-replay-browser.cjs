@@ -5,7 +5,7 @@ const url=process.env.DUNE_TEST_URL||'http://127.0.0.1:3186/';
 const allSave=(region,completed)=>({version:5,completed,coins:911,region,companions:['keeper','wayfinder','gatewright','fieldkeeper','towncrier'],oasisTransition:'ready',transition:null,gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,activeCompanion:'keeper',demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done'});
 const entitlement=state=>({accountId:'42',farmland:{unlocked:true,eligible:true,unlockedAt:'2026-11-21T00:00:00.000Z'},campaignPass:{state,unlocked:state==='active',unlockedAt:state==='active'?'2026-11-21T00:00:00.000Z':null,checkedAt:'2026-11-21T00:00:01.000Z',storeUrl:'https://store.example.test/products/dune-relay-pass'}});
 async function tap(page,x,y){const box=await page.locator('canvas').first().boundingBox();assert(box);const scale=box.width/960,top=540-box.height/scale;await page.mouse.click(box.x+x*scale,box.y+(y-top)*scale);}
-async function openPicker(page,region){await page.locator(`.game-canvas[data-replay-destinations*="${region==='castle'?'openTheUpstreamRoute':'openWaterway'}"] canvas`).waitFor({timeout:30000});await tap(page,...(region==='castle'?[870,295]:[485,350]));await page.getByRole('dialog',{name:'Choose a level to replay'}).waitFor({timeout:20000});assert.equal(await page.getByRole('button',{name:'Watch chapter finale'}).count(),0,'no chapter-wide film action');}
+async function openPicker(page,region){await page.locator('.awning-wipe').waitFor({state:'detached',timeout:30000});await page.locator(`.game-canvas[data-replay-destinations*="${region==='castle'?'openTheUpstreamRoute':'openWaterway'}"] canvas`).waitFor({timeout:30000});await tap(page,...(region==='castle'?[870,295]:[485,350]));await page.getByRole('dialog',{name:'Choose a level to replay'}).waitFor({timeout:20000});assert.equal(await page.getByRole('button',{name:'Watch chapter finale'}).count(),0,'no chapter-wide film action');}
 async function selectFinale(page,name){
   await page.getByRole('button',{name:name==='oasis-awakens'?/1\.10 · OPEN THE WATERWAY/:/6\.10 · OPEN THE UPSTREAM ROUTE/}).click();
   await page.getByRole('dialog',{name:'Replay chapter finale'}).waitFor();
@@ -56,8 +56,8 @@ async function portal(browser){
   const campaign=allSave('castle',levels.slice(0,60));
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
-    if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
-    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign}}:path.endsWith('/entitlements')?entitlement('active'):{ok:true};
+    if(request.method()!=='GET'&&request.method()!=='HEAD'&&!path.endsWith('/rewards/visit'))writes.push(path);
+    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign,rewardClaims:{fieldToolkitV1:"2026-11-21T00:00:00.000Z"}}}:path.endsWith('/entitlements')?entitlement('active'):{ok:true};
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   try{
@@ -82,9 +82,9 @@ async function deniedPortal(browser,partial=false){
   let entitlementReads=0;
   await page.route('**/leaderboard-api/dune-relay/**',route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
-    if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
+    if(request.method()!=='GET'&&request.method()!=='HEAD'&&!path.endsWith('/rewards/visit'))writes.push(path);
     const state=path.endsWith('/entitlements')&&++entitlementReads===1?'active':'locked';
-    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign}}:path.endsWith('/entitlements')?entitlement(partial?'active':state):{ok:true};
+    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign,rewardClaims:{fieldToolkitV1:"2026-11-21T00:00:00.000Z"}}}:path.endsWith('/entitlements')?entitlement(partial?'active':state):{ok:true};
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   try{
@@ -97,10 +97,41 @@ async function deniedPortal(browser,partial=false){
       await openPicker(page,'castle');
       await selectFinale(page,'castle-upstream-departure');
       await page.getByRole('button',{name:'Watch cutscene'}).click();
-      await page.getByText(/This chapter is not available for replay/).waitFor();
+      await page.getByText(/Claim the Dune Pass to replay this chapter/).waitFor();
       assert.equal(await page.locator('.film-screen').count(),0,'revoked Dune Pass cannot start finale');
     }
     assert.deepEqual(writes,[]);
+  }finally{await context.close();}
+}
+async function recentlyVerifiedReplay(browser){
+  const context=await browser.newContext({viewport:{width:1100,height:650},reducedMotion:'reduce'});
+  const page=await context.newPage();
+  const campaign=allSave('castle',levels.slice(0,60));
+  let forced=0,reads=0;
+  await page.route('**/leaderboard-api/dune-relay/**',route=>{
+    const target=new URL(route.request().url()),path=target.pathname;
+    let status=200,body={ok:true};
+    if(path.endsWith('/session'))body={accountId:'42',displayName:'Replay tester',contentVersion:'chapter-7-6'};
+    else if(path.endsWith('/campaign'))body={accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign,rewardClaims:{fieldToolkitV1:"2026-11-21T00:00:00.000Z"}}};
+    else if(path.endsWith('/entitlements')){
+      reads++;
+      if(target.searchParams.get('refresh')==='1' && ++forced>1){status=429;body={message:'Refresh is cooling down.'};}
+      else body=entitlement('active');
+    }
+    return route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  try{
+    await page.goto(url);await page.getByRole('button',{name:/Enter Castle Island/}).click();
+    await page.getByRole('button',{name:'Kingdom Map'}).click();
+    await page.getByRole('button',{name:/CASTLE ISLAND/}).click();
+    await page.locator('.atlas-screen').waitFor({state:'detached',timeout:30000});
+    await openPicker(page,'castle');
+    await selectFinale(page,'castle-upstream-departure');
+    await page.getByRole('button',{name:'Watch cutscene'}).click();
+    await page.locator('.film-screen video[src]').waitFor({timeout:30000});
+    assert.equal(forced,1,'recently verified replay does not force another commerce refresh');
+    assert(reads>=2,'replay still reads authoritative server access');
+    await page.getByRole('button',{name:/Skip scene/}).click();
   }finally{await context.close();}
 }
 async function cancelledPortal(browser,action){
@@ -111,9 +142,9 @@ async function cancelledPortal(browser,action){
   const verificationStarted=new Promise(resolve=>{notify=resolve;});
   await page.route('**/leaderboard-api/dune-relay/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
-    if(request.method()!=='GET'&&request.method()!=='HEAD')writes.push(path);
+    if(request.method()!=='GET'&&request.method()!=='HEAD'&&!path.endsWith('/rewards/visit'))writes.push(path);
     if(path.endsWith('/entitlements')&&++reads===2){notify();await new Promise(resolve=>{release=resolve;});}
-    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign}}:path.endsWith('/entitlements')?entitlement('active'):{ok:true};
+    const body=path.endsWith('/session')?{accountId:'42',displayName:'Castle tester',contentVersion:'chapter-6-1'}:path.endsWith('/campaign')?{accountId:'42',hasCampaign:true,profile:{revision:20,imported:true,campaign,rewardClaims:{fieldToolkitV1:"2026-11-21T00:00:00.000Z"}}}:path.endsWith('/entitlements')?entitlement('active'):{ok:true};
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   try{
@@ -133,4 +164,4 @@ async function cancelledPortal(browser,action){
     assert.deepEqual(writes,[]);
   }finally{release?.();await context.close();}
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; blocked media, revoked/incomplete/cancelled access remain safe; River becomes playable after Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage']});try{if(process.env.DUNE_FINALE_ACCESS_ONLY){await deniedPortal(browser);await deniedPortal(browser,true);await recentlyVerifiedReplay(browser);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Paid finale access, cooldown, revocation, and cancellation checks passed.');return;}await guest(browser);await portal(browser);await deniedPortal(browser);await deniedPortal(browser,true);await recentlyVerifiedReplay(browser);await cancelledPortal(browser,'back');await cancelledPortal(browser,'level');console.log('Completed Oasis and Castle finales replay read-only; recent checks avoid 429, revoked/incomplete/cancelled access remain safe; River becomes playable after Castle completion.');}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

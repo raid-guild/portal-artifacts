@@ -36,6 +36,7 @@ type Overlay = "start" | "keeper" | "briefing" | "shop" | "replayPicker" | "repl
 type PendingAttempt = { token: number; cloudAttemptId: string; sceneAttempt: number; level: LevelId; selected: BoosterKind[]; cost: number; puzzle: Puzzle; placements: BoosterPlacement[]; companionSnapshot: CompanionSnapshot | null; status: "prepared" | "committed" | "failed" };
 type FullscreenAttempt = { token: number; started: number; timer: ReturnType<typeof setTimeout> };
 type FinaleReplay = { token: number; generation: number; accountId: string | null; region: Region; returnTo?: "settings" };
+type PassAccess = "allowed" | "login-required" | "pass-required" | "unavailable";
 
 export default function GameShell() {
   const installApp = useInstallApp();
@@ -43,6 +44,8 @@ export default function GameShell() {
   const [ready, setReady] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<"checking" | "guest" | "account" | "syncing" | "pending" | "expired">("checking");
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
+  const cloudFlush = useRef<Promise<void> | null>(null);
+  const lastCloudError = useRef<string | null>(null);
   const [portalName, setPortalName] = useState<string | null>(null);
   const [farmland, setFarmland] = useState<cloudApi.FarmlandEntitlement | null>(null);
   const [farmlandState, setFarmlandState] = useState<"idle" | "loading" | "claiming" | "error">("idle");
@@ -51,6 +54,8 @@ export default function GameShell() {
   const [campaignPass, setCampaignPass] = useState<cloudApi.CampaignPass | null>(null);
   const [passChecking, setPassChecking] = useState(false);
   const [passError, setPassError] = useState<string | null>(null);
+  const passCheck = useRef<{accountId:string; generation:number; promise:Promise<PassAccess>} | null>(null);
+  const lastPassCheck = useRef<{at:number; accountId:string; result:PassAccess} | null>(null);
   const [save, setSave] = useState<Save>({ ...EMPTY_SAVE, completed: [], companions: [] });
   const [mode, setMode] = useState<"map" | "puzzle">("map");
   const [visitedRegion, setVisitedRegion] = useState<Region | null>(null);
@@ -371,10 +376,11 @@ export default function GameShell() {
     const current=cloudRef.current;
     if (!current || playtest) return;
     const generation=++passGeneration.current, accountGeneration=cloudGeneration.current, request=++passRequest.current;
-    if (refresh) lastPassRefresh.current=Date.now();
+    const force=refresh && Date.now()-lastPassRefresh.current>=5_000;
+    if (force) lastPassRefresh.current=Date.now();
     setPassChecking(true); setPassError(null);
     try {
-      const result=await cloudApi.entitlements(current.accountId,refresh);
+      const result=await cloudApi.entitlements(current.accountId,force);
       if (cloudRef.current!==current || passGeneration.current!==generation) return;
       publishCampaignPass(current,accountGeneration,request,result.campaignPass);
     } catch (error) {
@@ -382,22 +388,33 @@ export default function GameShell() {
       setPassError((error as Error).message);
     } finally { if (passGeneration.current===generation) setPassChecking(false); }
   }
-  async function verifyTownPass(): Promise<boolean> {
-    if (playtest) return true;
+  async function verifyTownPass(requireServerRead = false): Promise<PassAccess> {
+    if (playtest) return "allowed";
     const account=cloudRef.current, generation=cloudGeneration.current;
-    if (!account || cloudStatus === "expired") return false;
+    if (!account || cloudStatus === "expired") return "login-required";
+    if (passCheck.current?.accountId===account.accountId && passCheck.current.generation===generation) return passCheck.current.promise;
+    // Entitlement refresh is rate limited upstream. Reuse the most recent
+    // authoritative answer for a few seconds; an unavailable answer remains unavailable.
+    if (!requireServerRead && lastPassCheck.current?.accountId===account.accountId && Date.now()-lastPassCheck.current.at<5_000) return lastPassCheck.current.result;
     const request=++passRequest.current;
-    try {
-      const result=await cloudApi.entitlements(account.accountId,true);
-      if (cloudRef.current!==account || cloudGeneration.current!==generation) return false;
-      const published=publishCampaignPass(account,generation,request,result.campaignPass);
-      if (published) setPassError(null);
-      return published?.state === "active";
-    } catch(error) {
-      if (cloudRef.current!==account || cloudGeneration.current!==generation) return false;
-      if (passRequest.current===request) setPassError((error as Error).message);
-      return false;
-    }
+    const promise=(async ():Promise<PassAccess>=>{
+      let access:PassAccess="unavailable";
+      try {
+        const force=Date.now()-lastPassRefresh.current>=5_000;
+        if(force)lastPassRefresh.current=Date.now();
+        const result=await cloudApi.entitlements(account.accountId,force);
+        if (cloudRef.current!==account || cloudGeneration.current!==generation) return "unavailable";
+        const published=publishCampaignPass(account,generation,request,result.campaignPass);
+        access=published?.state === "active" ? "allowed" : published?.state === "locked" ? "pass-required" : "unavailable";
+        if (published) setPassError(published.state==="unavailable" ? "Dune Pass access is temporarily unavailable." : null);
+      } catch(error) {
+        if (cloudRef.current===account && cloudGeneration.current===generation && passRequest.current===request) setPassError((error as Error).message);
+      }
+      if (cloudRef.current===account && cloudGeneration.current===generation) lastPassCheck.current={at:Date.now(),accountId:account.accountId,result:access};
+      return access;
+    })();
+    passCheck.current={accountId:account.accountId,generation,promise};
+    try{return await promise;}finally{if(passCheck.current?.promise===promise)passCheck.current=null;}
   }
   async function refreshFarmland(current = cloudRef.current) {
     if (!current || playtest || farmlandClaiming.current) return;
@@ -869,9 +886,11 @@ export default function GameShell() {
       }
     }
   }
-  async function flushCloud() {
+  async function flushCloud(explicit = false) {
     const current = cloudRef.current;
-    if (!current || current.syncing || cloudConflict.current || playtest || resetPending.current || !current.pending.length) return;
+    if (cloudFlush.current) return cloudFlush.current;
+    if (!current || (cloudConflict.current && !explicit) || playtest || resetPending.current || !current.pending.length) return;
+    const work = (async () => {
     current.syncing = true; setCloudStatus("syncing");
     try {
       while (current.pending.length && cloudRef.current === current) {
@@ -884,7 +903,7 @@ export default function GameShell() {
       }
       if (cloudRef.current === current) {
         saveRef.current = normalizeSave(current.profile.campaign); setSave(saveRef.current);
-        cacheCloud(); setCloudStatus("account"); setCloudMessage(null);
+        cacheCloud(); cloudConflict.current=false; lastCloudError.current=null; setCloudStatus("account"); setCloudMessage(null);
         void refreshFarmland(current);
         void refreshRewards(current);
       }
@@ -895,10 +914,18 @@ export default function GameShell() {
           await adoptRemoteReset(current);return;
         }
         if (status === 400 || status === 409) cloudConflict.current=true;
+        const op=current.pending[0];
+        const code=String((error as {code?:string}).code ?? "").slice(0,60);
+        const detail=`${op?.kind ?? "save"}${op?.kind==="checkpoint" && op.campaign.transition ? ` ${op.campaign.transition.from} → ${op.campaign.transition.to} (${op.campaign.transition.stage})` : ""}`;
+        logDiagnostic("cloud-sync-failed",{kind:op?.kind??"none",from:op?.kind==="checkpoint"?op.campaign.transition?.from??"none":"none",stage:op?.kind==="checkpoint"?op.campaign.transition?.stage??"none":"none",status:status??0,code});
+        lastCloudError.current=`${detail}: ${(error as Error).message}${status ? ` (HTTP ${status}${code?` · ${code}`:""})` : ""}`;
         setCloudStatus(status === 401 ? "expired" : "pending");
-        setCloudMessage(status === 400 || status === 409 ? "This save needs attention. Download a backup in Settings before loading the Portal campaign." : "Saved on this device, waiting to sync.");
+        setCloudMessage(`Saved on this device. Sync failed: ${lastCloudError.current} Retry in Settings.`);
       }
     } finally { current.syncing = false; }
+    })();
+    cloudFlush.current=work;
+    try { await work; } finally { if(cloudFlush.current===work) cloudFlush.current=null; }
   }
   async function importGuestProgress() {
     const current = cloudRef.current; if (!current) return;
@@ -1108,7 +1135,9 @@ export default function GameShell() {
     tokenCounter.current++;
     if (pendingAttempt.current?.level !== id || pendingAttempt.current.selected.length === 0 && !["castle","river"].includes(LEVELS[id].chapter ?? "oasis")) pendingAttempt.current = null;
     setShopLevel(id); setShopSelected(pendingAttempt.current?.status === "failed" && pendingAttempt.current.level === id ? pendingAttempt.current.selected : []); setShopError(null);
-    setShopReturn(overlay);
+    // The story introduction has already been acknowledged. Back from the
+    // booster screen returns to the walkable scene instead of replaying it.
+    setShopReturn(null);
     setOverlay("shop");
   }
   function currentTutorialScope(): TutorialScope {
@@ -1191,7 +1220,8 @@ export default function GameShell() {
   }
   async function launchLevelOnce(selected: readonly BoosterKind[]) {
     const id = shopLevel;
-    if ((LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && !playtest) { const allowed = await verifyTownPass(); if (!allowed) { setShopError("Sign in and activate the Dune Pass to play this chapter."); return; } }
+    if (cloudRef.current?.pending.length) { await flushCloud(true); if (cloudRef.current?.pending.length) { setShopError(lastCloudError.current ?? "Your progress could not sync. Open Settings and retry Sync now."); return; } }
+    if ((LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && !playtest) { const access = await verifyTownPass(); if (access!=="allowed") { setShopError(access==="login-required" ? "Sign in with Portal to play this chapter." : access==="pass-required" ? "Claim the Dune Pass to play this chapter." : "Dune Pass access could not be checked. Retry when connected."); return; } }
     if (LEVELS[id].chapter === "farmland" && !playtest && !(farmland?.farmland.unlocked && farmland.accountId === cloudRef.current?.accountId)) { setShopError("Sign in and unlock Farmland first."); return; }
     if ((LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") && (!(LEVELS[id].chapter === "river" ? saveRef.current.riverReady : saveRef.current.castleReady) || !saveRef.current.activeCompanion)) { setShopError("Choose an active raid member before entering this chapter."); setOverlay("party"); return; }
     let cost = loadoutCost(selected);
@@ -1208,7 +1238,7 @@ export default function GameShell() {
     }
     const cloudAttemptId = unresolved?.cloudAttemptId ?? restored?.cloudAttemptId ?? cloudApi.newOperationId();
     if (cloudRef.current && !playtest) {
-      if (cloudRef.current.pending.length) { setShopError("Your last move is still syncing. Reconnect before starting a new level."); return; }
+      if (cloudRef.current.pending.length) { setShopError(lastCloudError.current ?? "Your last move is still syncing. Open Settings and retry Sync now."); return; }
       if (selected.length > 0 || LEVELS[id].chapter === "farmland" || LEVELS[id].chapter === "town" || LEVELS[id].chapter === "castle" || LEVELS[id].chapter === "river") {
         try { const response=await cloudApi.prepareAttempt(cloudAttemptId,id,[...selected],cloudRef.current.accountId,chosenSnapshot?.id,cloudRef.current.profile.campaignGeneration??0); if (!sameCompanionSnapshot(response.companionSnapshot,chosenSnapshot)) throw new Error("The active raid member changed. Reload your save."); cost=response.boosterFunding?.coinCost??boosterCost(selected); }
         catch (error) { setShopError(`Could not prepare this level: ${(error as Error).message}`); return; }
@@ -1572,6 +1602,16 @@ export default function GameShell() {
       setMode("map"); setOverlay(null); setAttempt(value => value + 1);
     });
   }
+  function travelToChapter(from: "gatehouse" | "farmland" | "town" | "castle", to: "farmland" | "town" | "castle" | "river") {
+    // Keep each durable checkpoint in order while a single map tap travels.
+    if (saveRef.current.transition?.from===from && saveRef.current.transition.stage==="arrival") {
+      void transitionTo(()=>{setMode("map");setOverlay(null);setAttempt(value=>value+1);});
+      return;
+    }
+    if (saveRef.current.transition?.from!==from) persist(normalizeSave({...saveRef.current,transition:{from,to,stage:"handoff"}}));
+    if (saveRef.current.transition?.stage==="handoff") persist(advanceChapterTransition(saveRef.current,"handoff","atlas"));
+    if (saveRef.current.transition?.stage==="atlas") travelToCaravan();
+  }
   function visitRegion(region: Region) {
     if (saveRef.current.oasisTransition !== "ready" || region === "gatehouse" && !saveRef.current.gatehouseReady || region === "farmland" && !saveRef.current.farmlandReady || region === "town" && !saveRef.current.townReady || region === "castle" && !saveRef.current.castleReady || region === "river" && !saveRef.current.riverReady) return;
     const passActive=Boolean(playtest || currentCampaignPass()?.state==="active");
@@ -1593,10 +1633,13 @@ export default function GameShell() {
     let townUnlocked=Boolean(playtest);
     if ((region==="town" || region==="castle" || region==="river") && !playtest) {
       if (!account) { setReplayError("Sign in to replay this chapter."); return null; }
-      const request=++passRequest.current;
-      const result=await cloudApi.entitlements(account.accountId,true);
+      // Replay has no attempt-preparation request to enforce access server-side,
+      // so read the server each time. A forced commerce refresh is throttled
+      // for five seconds, but the ordinary entitlement response is still checked.
+      const status=await verifyTownPass(true);
       if (cloudRef.current!==account || cloudGeneration.current!==generation || token!==replayToken.current) return null;
-      townUnlocked=publishCampaignPass(account,generation,request,result.campaignPass)?.state==="active";
+      if(status!=="allowed") { setReplayError(status==="login-required" ? "Sign in to replay this chapter." : status==="pass-required" ? "Claim the Dune Pass to replay this chapter." : "Dune Pass access could not be checked. Retry shortly."); return null; }
+      townUnlocked=true;
     }
     if (region==="farmland" && !playtest) {
       if (!account) { setReplayError("Sign in to replay Farmland."); return null; }
@@ -1983,13 +2026,12 @@ export default function GameShell() {
     if (playtest && !demoComplete) { previewFarmlandStory(); return; }
     if (!farmlandUnlocked || !demoComplete) return;
     if (saveRef.current.farmlandReady) { visitRegion("farmland"); return; }
-    if (saveRef.current.transition?.to === "farmland") { setOverlay(overlayForSave(saveRef.current)); return; }
+    if (saveRef.current.transition?.to === "farmland") { travelToChapter("gatehouse","farmland"); return; }
     // The server requires the demo acknowledgment as its own durable checkpoint
     // before it accepts the first Farmland transition checkpoint.
     if (saveRef.current.demoEnding === "thanks") acknowledgeDemo();
     if (saveRef.current.demoEnding !== "done") return;
-    persist(normalizeSave({ ...saveRef.current, transition: { from: "gatehouse", to: "farmland", stage: "handoff" } }));
-    setOverlay("handoff");
+    travelToChapter("gatehouse","farmland");
   }
   async function beginTown() {
     if (!saveRef.current.completed.includes("openTheHarvestRoad")) return;
@@ -1998,45 +2040,42 @@ export default function GameShell() {
     if (playtest) {
       if (saveRef.current.townReady) { visitRegion("town"); return; }
     } else {
-      if (account?.pending.length) { await flushCloud(); if (!sameSession()) return; if (account.pending.length) { setPassError("Sync the harvest chapter before traveling."); return; } }
-      if (!(await verifyTownPass())) { if (sameSession()) setOverlay("dunePass"); return; }
+      if (account?.pending.length) { await flushCloud(true); if (!sameSession()) return; if (account.pending.length) { setPassError(lastCloudError.current ?? "Sync the harvest chapter before traveling."); setOverlay("dunePass"); return; } }
+      if ((await verifyTownPass())!=="allowed") { if (sameSession()) setOverlay("dunePass"); return; }
       if (!sameSession()) return;
       if (saveRef.current.townReady) { visitRegion("town"); return; }
     }
-    if (saveRef.current.transition?.to === "town") { setOverlay(overlayForSave(saveRef.current)); return; }
+    if (saveRef.current.transition?.to === "town") { travelToChapter("farmland","town"); return; }
     if (saveRef.current.farmlandEnding !== "done") return;
-    persist(normalizeSave({ ...saveRef.current, transition: { from: "farmland", to: "town", stage: "handoff" } }));
-    setOverlay("handoff");
+    travelToChapter("farmland","town");
   }
   async function beginCastle() {
     if (!saveRef.current.completed.includes("openTheMarket")) return;
     const account=cloudRef.current, generation=cloudGeneration.current;
     const sameSession=()=>cloudRef.current===account && cloudGeneration.current===generation;
     if (!playtest) {
-      if (account?.pending.length) { await flushCloud(); if (!sameSession()) return; if (account.pending.length) { setPassError("Sync the town chapter before travelling."); return; } }
-      if (!(await verifyTownPass())) { if (sameSession()) setOverlay("dunePass"); return; }
+      if (account?.pending.length) { await flushCloud(true); if (!sameSession()) return; if (account.pending.length) { setPassError(lastCloudError.current ?? "Sync the town chapter before travelling."); setOverlay("dunePass"); return; } }
+      if ((await verifyTownPass())!=="allowed") { if (sameSession()) setOverlay("dunePass"); return; }
       if (!sameSession()) return;
     }
     if (saveRef.current.castleReady) { visitRegion("castle"); return; }
-    if (saveRef.current.transition?.to === "castle") { setOverlay(overlayForSave(saveRef.current)); return; }
+    if (saveRef.current.transition?.to === "castle") { travelToChapter("town","castle"); return; }
     if (saveRef.current.townEnding !== "done") return;
-    persist(normalizeSave({ ...saveRef.current, transition: { from: "town", to: "castle", stage: "handoff" } }));
-    setOverlay("handoff");
+    travelToChapter("town","castle");
   }
   async function beginRiver() {
     if (!saveRef.current.completed.includes("openTheUpstreamRoute")) return;
     const account=cloudRef.current, generation=cloudGeneration.current;
     const sameSession=()=>cloudRef.current===account && cloudGeneration.current===generation;
     if (!playtest) {
-      if (account?.pending.length) { await flushCloud(); if (!sameSession()) return; if (account.pending.length) { setPassError("Sync the castle chapter before boarding."); return; } }
-      if (!(await verifyTownPass())) { if (sameSession()) setOverlay("dunePass"); return; }
+      if (account?.pending.length) { await flushCloud(true); if (!sameSession()) return; if (account.pending.length) { setPassError(lastCloudError.current ?? "Sync the castle chapter before boarding."); setOverlay("dunePass"); return; } }
+      if ((await verifyTownPass())!=="allowed") { if (sameSession()) setOverlay("dunePass"); return; }
       if (!sameSession()) return;
     }
     if (saveRef.current.riverReady) { visitRegion("river"); return; }
-    if (saveRef.current.transition?.to === "river") { setOverlay(overlayForSave(saveRef.current)); return; }
+    if (saveRef.current.transition?.to === "river") { travelToChapter("castle","river"); return; }
     if (saveRef.current.castleEnding !== "done") return;
-    persist(normalizeSave({ ...saveRef.current, transition: { from: "castle", to: "river", stage: "handoff" } }));
-    setOverlay("handoff");
+    travelToChapter("castle","river");
   }
   function selectActive(id: CompanionId) {
     const next=setActiveCompanion(saveRef.current,id);
@@ -2048,7 +2087,7 @@ export default function GameShell() {
     if (playtest) return <button className="farmland-action" onClick={previewFarmlandStory}>Preview Farmland →</button>;
     if (!cloudRef.current) return demoComplete ? <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in to unlock Farmland →</a> : <p className="farmland-status">Complete the 30 demo levels to unlock Farmland with a Portal login.</p>;
     if (cloudStatus==="expired") return <a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL} onClick={acknowledgeDemo}>Sign in again to unlock Farmland →</a>;
-    if (farmlandBlocked) return <><p className="farmland-status">Sync progress to unlock Farmland.</p><button className="farmland-action" onClick={() => void flushCloud()} disabled={cloudStatus==="syncing" || cloudConflict.current}>Sync progress →</button></>;
+    if (farmlandBlocked) return <><p className="farmland-status">{lastCloudError.current ?? "Sync progress to unlock Farmland."}</p><button className="farmland-action" onClick={() => void flushCloud(true)} disabled={cloudStatus==="syncing"}>Retry sync →</button></>;
     if (farmlandState==="loading") return <p className="farmland-status" role="status">Checking Farmland access…</p>;
     if (farmlandState==="claiming") return <p className="farmland-status" role="status">Unlocking Farmland…</p>;
     if (farmlandState==="error" || !farmland) return <><p className="farmland-status" role="alert">{farmlandError??"Farmland access could not be checked."}</p><button className="farmland-action" onClick={() => void (farmlandClaimId.current && farmlandEligible ? unlockFarmland() : refreshFarmland())}>Retry Farmland access →</button></>;
@@ -2056,9 +2095,11 @@ export default function GameShell() {
     return <button className="farmland-action" onClick={() => void unlockFarmland()}>Unlock Farmland →</button>;
   }
   function passAccess() {
+    if (cloudRef.current?.pending.length) return <><p role="alert">{lastCloudError.current ?? "Your progress needs to sync before this chapter opens."}</p><button className="farmland-action" onClick={()=>void flushCloud(true)} disabled={cloudStatus==="syncing"}>Retry sync →</button></>;
     if (!cloudRef.current || cloudStatus === "expired") return <><p>Sign in through RaidGuild Portal to claim the Dune Pass. Your guest progress stays on this device.</p><a className="farmland-action" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with Portal →</a></>;
     if (passChecking && !campaignPass) return <p role="status">Checking Dune Pass access…</p>;
-    if (campaignPass?.state === "active") return <><p>The Dune Pass opens Town on the Hill. Follow the harvest ledger into the evening market.</p><button className="farmland-action" onClick={() => void beginTown()} disabled={passChecking}>Travel to Town on the Hill →</button></>;
+    if (passError) return <><p role="alert">Dune Pass access could not be checked: {passError}</p><button className="farmland-action" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Retry access check"}</button></>;
+    if (campaignPass?.state === "active") return <><p>Your Dune Pass is active. Continue to the next chapter.</p><button className="farmland-action" onClick={() => void (saveRef.current.completed.includes("openTheUpstreamRoute") ? beginRiver() : saveRef.current.completed.includes("openTheMarket") ? beginCastle() : beginTown())} disabled={passChecking}>Continue journey →</button></>;
     if (campaignPass?.state === "unavailable" || passError || !campaignPass) return <><p role="status">Dune Pass access could not be checked. Your current campaign is safe.</p>{passError && <p>{passError}</p>}<button className="farmland-action" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Retry access check"}</button></>;
     return <><p>Claim the Dune Pass in the RaidGuild store. Pay what you want, including $0 with Portal login. Chapter 5 is ready.</p>{campaignPass.storeUrl ? <a className="farmland-action" href={campaignPass.storeUrl}>Open the Dune Pass store →</a> : <p>The store link is not available yet.</p>}<button className="quiet" onClick={() => void refreshPass(true)} disabled={passChecking}>{passChecking ? "Checking…" : "Check access"}</button></>;
   }
@@ -2086,8 +2127,8 @@ export default function GameShell() {
         <button className="icon-button" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       </div>
       {revealing && mode === "puzzle" && <button className="skip-reveal" onClick={() => skipReveal.current?.()}>Skip reveal →</button>}
-      {mode==='puzzle' && boardInteractive && !replayActive && (playtest || LEVEL_ORDER.indexOf(activeLevel)>=30) && puzzle?.status==='playing' && puzzle.moves>0 && !revealing && <div className="jit-tools" aria-label="In-game tools">
-        {TOOLS.map(item=><button key={item.kind} className={`jit-tool${toolMode===item.kind?' active':''}`} disabled={toolBusy || toolPending || overlay!==null || settings || tutorialSession!==null || toolLesson!==null || wipe!=='hidden'} onClick={()=>chooseTool(item.kind)} aria-pressed={toolMode===item.kind} aria-label={`${item.title}, ${inventory[item.kind]} owned`}><img src={assetUrl(item.image as `/${string}`)} alt=""/><span>{item.title}</span><b>{inventory[item.kind] || '+'}</b></button>)}
+      {mode==='puzzle' && !replayActive && (playtest || LEVEL_ORDER.indexOf(activeLevel)>=30) && puzzle?.status==='playing' && puzzle.moves>0 && !revealing && <div className="jit-tools" aria-label="In-game tools">
+        {TOOLS.map(item=><button key={item.kind} className={`jit-tool${toolMode===item.kind?' active':''}`} disabled={!boardInteractive || toolBusy || toolPending || overlay!==null || settings || tutorialSession!==null || toolLesson!==null || wipe!=='hidden'} onClick={()=>chooseTool(item.kind)} aria-pressed={toolMode===item.kind} aria-label={`${item.title}, ${inventory[item.kind]} owned`}><img src={assetUrl(item.image as `/${string}`)} alt=""/><span>{item.title}</span><b>{inventory[item.kind] || '+'}</b></button>)}
         {toolMode && <div className="jit-instruction">{TOOLS.find(item=>item.kind===toolMode)?.instruction}<button disabled={toolPending} onClick={()=>{if(toolJournal.current?.phase==='pending'||toolJournal.current?.phase==='confirmed')return;setToolMode(null);setToolError(null);}}>Cancel</button></div>}
         {toolPending && <button className="jit-retry" disabled={toolBusy} onClick={()=>void retryPendingTool()}>Retry pending tool action</button>}
         {toolError && <div className="jit-error" role="alert">{toolError}</div>}
@@ -2186,7 +2227,7 @@ export default function GameShell() {
             <path className="atlas-path-shadow" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             <path className="atlas-path-light" d="M420 575 Q550 582 650 625 Q920 710 1195 768" />
             {demoComplete && <><path className="atlas-path-shadow" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /><path className="atlas-path-light" d="M1195 768 Q1360 780 1453 699 Q1430 610 1260 570 Q1130 520 1030 470" /></>}
-            {save.completed.includes("openTheUpstreamRoute") && <><path className="atlas-path-shadow" d="M1030 470 Q942 493 805 465 Q780 438 815 390" /><path className="atlas-path-light" data-route="castle-river" d="M1030 470 Q942 493 805 465 Q780 438 815 390" /></>}
+            {save.completed.includes("openTheUpstreamRoute") && <><path className="atlas-path-shadow" d="M1030 470 Q915 470 835 420 Q750 370 750 290" /><path className="atlas-path-light" data-route="castle-river" d="M1030 470 Q915 470 835 420 Q750 370 750 290" /></>}
             {kingdomPreview && <path className="atlas-preview-line" d={`M${kingdomPreview.label.x+100} ${kingdomPreview.label.y+60} Q${kingdomPreview.anchor.x-80} ${kingdomPreview.anchor.y-55} ${kingdomPreview.anchor.x} ${kingdomPreview.anchor.y}`} />}
           </svg>
           <span className="atlas-anchor oasis-anchor" /><span className="atlas-anchor caravan-anchor" /><span className="atlas-anchor bridge-anchor" />{demoComplete && <><span className="atlas-anchor farmland-anchor" /><span className="atlas-anchor town-anchor" /><span className="atlas-anchor castle-anchor" /></>}
@@ -2204,7 +2245,8 @@ export default function GameShell() {
         </div>
         <div className="atlas-heading">THE KINGDOM <span>{overlay === "atlas" ? "A NEW ROUTE OPENS" : "THE JOURNEY"}</span></div>
         <div className="atlas-future">{kingdomPreview ? "The next chapter is coming soon. Check back often—the journey continues upstream." : save.completed.includes("openTheUpstreamRoute") ? "The route runs upstream. Board Skiff’s boat to trace the missing water." : save.completed.includes("openTheMarket") ? "The market ledger points across the water to Castle Island." : save.completed.includes("openTheHarvestRoad") ? "The harvest road is open. The town on the hill is next." : save.completed.includes("openTheCrossing") ? "The bridge is open. The Fieldkeeper is waiting beyond the river." : save.completed.includes("lightTheRoute") ? "The caravan has reached the river bridge." : "Follow the lighted road through the desert."}</div>
-        <button className="primary atlas-action" onClick={overlay === "atlas" ? travelToCaravan : () => setOverlay(null)}>{overlay === "atlas" ? save.transition?.to === "river" ? "Board the river boat" : save.transition?.to === "castle" ? "Cross to Castle Island" : save.transition?.to === "town" ? "Travel to Town on the Hill" : save.transition?.to === "farmland" ? "Cross into Farmland" : save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan" : "Return to the path"} <span>→</span></button>
+        {overlay === "atlas" && <button className="primary atlas-action" onClick={travelToCaravan}>{save.transition?.to === "river" ? "Board the river boat" : save.transition?.to === "castle" ? "Cross to Castle Island" : save.transition?.to === "town" ? "Travel to Town on the Hill" : save.transition?.to === "farmland" ? "Cross into Farmland" : save.transition?.to === "gatehouse" ? "Travel to the river bridge" : "Travel to the caravan"} <span>→</span></button>}
+        <button className="quiet atlas-close" onClick={()=>setOverlay(null)}>{overlay==="atlas"?"Stay here":"Return to the path"}</button>
       </div>}
       {overlay === "farmland" && <div className="scrim"><div className="dialog-card farmland-card"><span className="speaker">THE ROAD BEYOND THE BRIDGE</span><h2>Farmland · Chapter 4</h2><p>The gate is open. Farmland is the Portal login bonus for players who finish this 30-level demo. The seed stores and water terraces are ready to explore.</p>{farmlandAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
       {overlay === "dunePass" && <div className="scrim"><div className="dialog-card farmland-card" role="dialog" aria-modal="true" aria-label="Dune Pass"><span className="speaker">THE ROAD CONTINUES</span><h2>Dune Pass</h2>{passAccess()}<button className="quiet" onClick={() => setOverlay("kingdom")}>Back to the kingdom map</button></div></div>}
@@ -2238,19 +2280,19 @@ export default function GameShell() {
       </div></div>}
       {overlay === "harvestOpen" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/fieldkeeper-avatar.png")} alt="" /><span className="speaker">THE FIELDKEEPER · HARVEST ROAD</span></div>
-        <h2>The convoy can move</h2><p>The seed stores are open and the terraces are flowing. The ledger points to missing deliveries near the town on the hill. The raid continues at the evening market.</p>
-        <button className="primary" onClick={() => { if (saveRef.current.farmlandEnding === "thanks") persist(normalizeSave({ ...saveRef.current, farmlandEnding: "done" })); setOverlay("dunePass"); void refreshPass(); }}>See what comes next <span>→</span></button>
+        <h2>The convoy can move</h2><p>The seed stores are open and the terraces are flowing. The ledger points to missing deliveries at Town on the Hill. Tap Town on the kingdom map to continue{passUnlocked ? "." : " after claiming the Dune Pass in the RaidGuild store. A $0 claim is available with Portal login."}</p>
+        <button className="primary" onClick={() => { if (saveRef.current.farmlandEnding === "thanks") persist(normalizeSave({ ...saveRef.current, farmlandEnding: "done" })); if(passUnlocked){persist(normalizeSave({...saveRef.current,transition:{from:"farmland",to:"town",stage:"handoff"}}));persist(advanceChapterTransition(saveRef.current,"handoff","atlas"));setOverlay("atlas");}else{setOverlay("kingdom");void refreshPass();} }}>View Town on the map <span>→</span></button>
       </div></div>}
       {overlay === "townOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/towncrier-avatar.png")} alt=""/><span className="speaker">THE TOWN CRIER · MARKET OPEN</span></div>
-        <h2>THE MARKET IS OPEN</h2><p>The castle-bound delivery records still disagree. The Town Crier points across the water to Castle Island, where the quartermaster keeps another copy of the ledger.</p><p className="demo-story">The story continues…</p>
-        <button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,townEnding:"done"}));setOverlay(null);}}>Return to Town <span>→</span></button>
-        <button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,townEnding:"done"}));setOverlay("kingdom");}}>Kingdom Map</button>
+        <h2>THE MARKET IS OPEN</h2><p>The castle-bound delivery records still disagree. The Quartermaster keeps another ledger across the water at Castle Island. Tap Castle Island on the map to continue.</p>
+        <button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,townEnding:"done",transition:{from:"town",to:"castle",stage:"handoff"}}));persist(advanceChapterTransition(saveRef.current,"handoff","atlas"));setOverlay("atlas");}}>View Castle Island on the map <span>→</span></button>
+        <button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,townEnding:"done"}));setOverlay(null);}}>Stay in Town</button>
       </div></div>}
       {overlay === "skiff" && <div className="scrim"><div className="dialog-card"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/skiff-avatar.png")} alt=""/><span className="speaker">SKIFF · RIVER PILOT</span></div><p>Water’s still moving. Trouble is, it’s not reaching the people waiting for it. This boat will carry us bend by bend. Match tiles in the current as usual; after each valid move, each clear channel carries its tiles one space along its arrows. A salted channel stops until you clear it. Choose a raid member to lead while I steer.</p><button className="primary" onClick={openRiver}>Take the helm <span>→</span></button></div></div>}
       {overlay === "riverOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/skiff-avatar.png")} alt=""/><span className="speaker">SKIFF · THE UPSTREAM ROUTE</span></div><h2>THE RIVER ROUTE IS OPEN</h2><p>Skiff brings the repair boat through the last bend. Beyond it, the water collection station waits among the upper oases. The raid continues soon.</p><button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,riverEnding:"done"}));setOverlay("kingdom");}}>View the Kingdom Map <span>→</span></button><button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,riverEnding:"done"}));setOverlay(null);}}>Return to the boat</button></div></div>}
       {overlay === "quartermaster" && <div className="scrim"><div className="dialog-card"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · CASTLE DOCK</span></div><p>The town sent one manifest. My storehouse holds another. The water route runs upstream from this dock, but first we must clear the stores and reconcile the crates. Choose who leads your raid party; their familiar power will help us.</p><button className="primary" onClick={openCastle}>Choose your leader <span>→</span></button></div></div>}
-      {overlay === "castleOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · UPSTREAM ROUTE</span></div><h2>THE UPSTREAM ROUTE IS OPEN</h2><p>The castle manifest is reconciled. A boat waits at the dock; its route follows the missing water upstream. The raid will continue there.</p><button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done",riverReady:false,transition:{from:"castle",to:"river",stage:"handoff"}}));setOverlay("handoff");}}>Board the river boat <span>→</span></button><button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done",riverReady:false}));setOverlay(null);}}>Return to Castle Island</button></div></div>}
+      {overlay === "castleOpen" && <div className="scrim demo-ending"><div className="demo-confetti" data-paused={wipe !== "hidden"} aria-hidden="true">{Array.from({length:32},(_,index)=><span key={index} style={{"--x":`${(index*31+7)%100}%`,"--drift":`${(index*13%21)-10}cqw`,"--spin":`${360+index*29}deg`,"--delay":`${index%8*75}ms`,"--duration":`${2400+index%5*180}ms`,backgroundColor:["#ffd77d","#78dfca","#e8ad59","#df8b73"][index%4]} as CSSProperties}/>)}</div><div className="dialog-card demo-thanks"><div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/quartermaster-avatar.png")} alt=""/><span className="speaker">THE QUARTERMASTER · UPSTREAM ROUTE</span></div><h2>THE UPSTREAM ROUTE IS OPEN</h2><p>The castle manifest is reconciled. Skiff’s boat waits upstream. Tap River Journey on the kingdom map to board.</p><button className="primary" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done",riverReady:false,transition:{from:"castle",to:"river",stage:"handoff"}}));persist(advanceChapterTransition(saveRef.current,"handoff","atlas"));setOverlay("atlas");}}>View the river route <span>→</span></button><button className="quiet" onClick={()=>{persist(normalizeSave({...saveRef.current,castleEnding:"done",riverReady:false}));setOverlay(null);}}>Stay on Castle Island</button></div></div>}
       {overlay === "crossingOpen" && <div className="scrim"><div className="dialog-card">
         <div className="speaker-row"><img className="speaker-avatar" src={assetUrl("/sprites/gatewright-avatar.png")} alt="" /><span className="speaker">THE GATEWRIGHT · CROSSING OPEN</span></div>
         <h2>The bridge is open</h2><p>The counterweights lift, and water runs through the gatehouse. The walkers can cross toward the farmland. The Fieldkeeper needs help with the sealed stores.</p>
@@ -2266,8 +2308,7 @@ export default function GameShell() {
         } as CSSProperties} />)}</div>
         <div className="dialog-card demo-thanks">
         <span className="speaker">YOUR RAID IS JUST BEGINNING</span><h2>Thanks for playing the demo.</h2>
-        <p>You completed all 30 demo levels. More characters, tiles, power-ups, and adventures are coming soon. Explore the kingdom to see where the story goes next.</p>
-        <p className="demo-story">The story continues…</p>
+        <p>You completed all 30 demo levels. Farmland opens next with a free RaidGuild Portal login. On the kingdom map, tap Farmland to sign in or unlock it, then continue the story.</p>
         <button className="primary" onClick={() => { persist(normalizeSave({ ...saveRef.current, demoEnding: "done" })); setOverlay("kingdom"); }}>Explore the kingdom <span>→</span></button>
       </div></div>}
       {overlay === "lost" && <div className="scrim"><div className="dialog-card">
@@ -2295,7 +2336,7 @@ export default function GameShell() {
         {!playtest && <><small className="setting-note">{portalName ? `${portalName} · ${cloudStatus === "account" ? "Saved to Portal" : cloudStatus === "syncing" ? "Saving" : "Saved locally, waiting to sync"}` : "Guest progress is saved on this device."}</small>{cloudMessage && <small className="setting-note" role="status">{cloudMessage}</small>}
           {cloudStatus === "expired" && <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in to Portal again</a>}
           {cloudConflict.current && cloudRef.current && <><button className="setting" onClick={downloadCloudBackup}>Download unsynced backup</button><button className="setting" onClick={() => void usePortalSave()}>Use Portal save</button></>}
-          {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud()}>Sync now</button><button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
+          {portalName && cloudRef.current ? <><button className="setting" onClick={() => void flushCloud(true)}>{cloudConflict.current ? "Retry sync" : "Sync now"}</button>{lastCloudError.current && <small className="setting-note" role="alert">{lastCloudError.current}</small>}<button className="setting" onClick={() => void signOut()}>Sign out of Portal</button></> : !portalName ? <a className="setting" href={cloudApi.PORTAL_LOGIN_URL}>Sign in with RaidGuild Portal</a> : null}</>}
         {mode === "puzzle" && <><button className="setting return-story" onClick={() => leaveBoard("returned-to-story")}>Return to story <span aria-hidden="true">→</span></button><small className="setting-note">Unfinished levels restart. Used boosters stay spent.</small></>}
         <button className="setting" onClick={() => {setSettings(false);setTutorialLibrary(true);}}>How to play <span aria-hidden="true">→</span></button>
         {!installApp.isAppWindow && !installApp.installCompleted && <button className="setting" onClick={installApp.install} disabled={installApp.promptBusy}>Install Dune Relay <span aria-hidden="true">↗</span></button>}
