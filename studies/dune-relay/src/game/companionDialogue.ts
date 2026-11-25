@@ -42,7 +42,7 @@ const common: Record<CompanionId, CompanionLine[]> = {
   artificer: [
     { id: "artificer-nets", kind: "observation", text: "The collection nets have gone dry. We need water in every marked square before the balloons can fly." },
     { id: "artificer-wet", kind: "tip", text: "A match touching wet mesh coats its other collector squares. Dry matches still clear symbols, but spread no water." },
-    { id: "artificer-power", kind: "tip", text: "A Jet, Flywheel, or Prism that fires from wet mesh can coat the collectors its effect reaches. The power must land on a wet square when you swap." },
+    { id: "artificer-power", kind: "tip", text: "Swap a power off a wet net and it carries water into its effect. A dry Jet also picks up water as its beam crosses a wet net, coating the squares beyond." },
     { id: "artificer-raid", kind: "handbook", text: "A Raid combines different skills around a shared problem. These reservoirs need more than one kind of craft.", source: handbook.raiding },
   ],
   fieldkeeper: [
