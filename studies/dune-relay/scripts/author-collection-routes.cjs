@@ -40,7 +40,7 @@ for(const id of LEVEL_ORDER.slice(70)){
     if(compFilter&&name!==compFilter)continue;
     const authored=castleLevelForCompanion(LEVELS[id],companionSnapshot(name));
     const old=existing.find(w=>w.levelId===id&&w.companionId===name);
-    if(old){let puzzle=createPuzzle(authored),valid=true;for(const move of old.moves){const turn=playTurn(puzzle,move.from,move.to);if(!turn.valid){valid=false;break;}puzzle=turn.state;}if(valid&&puzzle.status==='won'&&puzzle.moves===old.movesRemaining){process.stdout.write(`${id}/${name}: cached ${puzzle.moves} left\n`);continue;}}
+    if(old){let puzzle=createPuzzle(authored),valid=true;const moves=[];for(const move of old.moves){const turn=playTurn(puzzle,move.from,move.to);if(!turn.valid){valid=false;break;}moves.push(move);puzzle=turn.state;if(puzzle.status==='won')break;}if(valid&&puzzle.status==='won'){if(moves.length!==old.moves.length||puzzle.moves!==old.movesRemaining){existing=existing.filter(w=>!(w.levelId===id&&w.companionId===name));existing.push({levelId:id,companionId:name,moves,movesRemaining:puzzle.moves});fs.writeFileSync(outputFile,JSON.stringify(existing)+'\n');}process.stdout.write(`${id}/${name}: cached ${puzzle.moves} left\n`);continue;}}
     let found=null;
     for(let attempt=0;attempt<maxAttempts;attempt++){
       const random=rand((authored.seed^(attempt*2654435761)^(name.length*2654435761))>>>0);

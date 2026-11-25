@@ -509,6 +509,13 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
   const direct = !bomb && distance === 0 && isSpecial(at(previous.board, from));
   if (!bomb && distance !== 1 && !direct) return invalid;
   if (action.kind === "freeSwap" && isSymbol(at(previous.board, from)) && isSymbol(at(previous.board, to)) && !isSpecial(at(previous.board, from)) && !isSpecial(at(previous.board, to)) && at(previous.board, from)?.kind === at(previous.board, to)?.kind) return invalid;
+  // Water belongs to the net, but a power picked up from that net carries
+  // water for this activation even after the swap lands it on dry ground.
+  const carriedWetPowers = new Set<number>();
+  if (!bomb && !direct && previous.condensation) for (const cell of [from, to]) {
+    const tile = at(previous.board, cell);
+    if (tile && isSpecial(tile) && previous.condensation.wet[cell.row][cell.col]) carriedWetPowers.add(tile.id);
+  }
   const board = copy(previous.board);
   if (!direct && !bomb) [board[from.row][from.col], board[to.row][to.col]] = [board[to.row][to.col], board[from.row][from.col]];
   // Match resolution may turn either swapped tile into a power. Combo and
@@ -583,9 +590,9 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const jets: TurnStep["jets"] = [];
     const effects: NonNullable<TurnStep["effects"]> = [];
     const sequence: NonNullable<TurnStep["sequence"]> = [];
-    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; wetTargets: Map<string, Cell>; wetOrigin: boolean; after: number };
+    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; wetTargets: Map<string, Cell>; eligibleWetTargets: Map<string, Cell>; wetOrigin: boolean; after: number };
     const events: DamageEvent[] = [];
-    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), wetTargets: new Map<string, Cell>(), wetOrigin: false, after: -1 }; events.push(event); return event; };
+    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), wetTargets: new Map<string, Cell>(), eligibleWetTargets: new Map<string, Cell>(), wetOrigin: false, after: -1 }; events.push(event); return event; };
     const claimed = new Set<string>();
     const claim = (cell: Cell, event: DamageEvent) => {
       const tile = at(board, cell);
@@ -617,6 +624,21 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         queue.push(hit);
       }
     };
+    const wetJetRay = (origin: Cell, direction: Direction, event: DamageEvent) => {
+      // Each side of the beam picks up water independently. A wet net behind
+      // the origin cannot coat squares on the opposite side or earlier hits.
+      const axis = direction === "row" ? origin.col : origin.row;
+      if (event.wetOrigin) event.eligibleWetTargets.set(key(origin), origin);
+      for (const step of [-1, 1]) {
+        let wet = event.wetOrigin || wasWet(origin);
+        for (let n = axis + step; n >= 0 && n < BOARD_SIZE; n += step) {
+          const cell = direction === "row" ? { row: origin.row, col: n } : { row: n, col: origin.col };
+          if (!playable(state.mask, cell)) continue;
+          if (wasWet(cell)) wet = true;
+          if (wet) event.eligibleWetTargets.set(key(cell), cell);
+        }
+      }
+    };
     if (iterations === 1 && swappedTwoPowers) {
       const left = at(board, from)!; const right = at(board, to)!;
       const comboName = [left.power ?? "jet", right.power ?? "jet"].sort().join("+");
@@ -626,7 +648,8 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       countedPowerActivations.add(left.id); countedPowerActivations.add(right.id);
       fired.add(left.id); fired.add(right.id);
       const event = newEvent("power");
-      event.wetOrigin = wasWet(from) || wasWet(to);
+      event.wetOrigin = wasWet(from) || wasWet(to) || carriedWetPowers.has(left.id) || carriedWetPowers.has(right.id);
+      if (event.wetOrigin) { event.wetTargets.set(key(from), from); event.wetTargets.set(key(to), to); }
       if (!((left.power === "prism") !== (right.power === "prism"))) {
         event.clears.set(key(from), from); event.clears.set(key(to), to);
       }
@@ -663,9 +686,9 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
           return [...jetCells({ row, col: to.col }, "row", state.mask), ...jetCells({ row: to.row, col }, "column", state.mask)];
         });
         fireEffect({ cell: to, power: "flywheel", targets: hits });
-        beams.forEach(beam => fireJet(beam.cell, beam.direction)); addHits(hits, event);
+        beams.forEach(beam => { fireJet(beam.cell, beam.direction); wetJetRay(beam.cell, beam.direction, event); }); addHits(hits, event);
       } else {
-        for (const direction of ["row", "column"] as const) { fireJet(to, direction); addHits(jetCells(to, direction, state.mask), event); }
+        for (const direction of ["row", "column"] as const) { fireJet(to, direction); wetJetRay(to, direction, event); addHits(jetCells(to, direction, state.mask), event); }
       }
       event.after = sequence.length - 1;
     }
@@ -676,9 +699,10 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       fired.add(tile.id);
       if (!countedPowerActivations.has(tile.id)) { stats.powersActivated[tile.power ?? "jet"]++; countedPowerActivations.add(tile.id); }
       const event = newEvent(tile.power === "prism" ? "prism" : "power");
-      event.wetOrigin = wasWet(cell);
+      event.wetOrigin = wasWet(cell) || carriedWetPowers.has(tile.id);
       event.clears.set(key(cell), cell);
-      if (tile.jet) { fireJet(cell, tile.jet); addHits(jetCells(cell, tile.jet, previous.mask), event); }
+      if (event.wetOrigin) event.wetTargets.set(key(cell), cell);
+      if (tile.jet) { fireJet(cell, tile.jet); wetJetRay(cell, tile.jet, event); addHits(jetCells(cell, tile.jet, previous.mask), event); }
       if (tile.power === "flywheel") { const hits = area(cell, 1, state.mask); fireEffect({ cell, power: "flywheel", targets: hits, converted: convertedOriginals.has(tile.id) }); addHits(hits, event); }
       if (tile.power === "prism") {
         const target = !direct && iterations === 1 && activated.some(member => key(member) === key(cell))
@@ -715,7 +739,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         hits.push({ cell: { ...cell }, hp: state.crust[cell.row][cell.col] });
         if (state.crust[cell.row][cell.col] === 0) {
           stats.saltBlocksBroken++;
-          if (event.wetOrigin) freedByWetEvent.set(event, [...(freedByWetEvent.get(event) ?? []), cell]);
+          if (event.wetOrigin || event.eligibleWetTargets.has(key(cell))) freedByWetEvent.set(event, [...(freedByWetEvent.get(event) ?? []), cell]);
           if ((state.goals.crust ?? 0) > 0) { state.goals.crust!--; collections.push({ cell, kind: "crust" }); }
         }
       }
@@ -741,13 +765,13 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       if (podDamage.length) podEvents.push({ after: event.after, hits: podDamage });
     }
     // Resolve salt first. Its collector square stays dry while any layer
-    // remains; a wet-origin event can coat the square it just freed.
-    // wetOrigin was captured before this wave, so newly wet cells cannot
+    // remains; an eligible wet hit can coat the square it just freed.
+    // Origins and beam pickup use the pre-wave snapshot, so newly wet cells cannot
     // propagate again until a later cascade wave.
     if (state.condensation) for (const event of events) {
-      if (!event.wetOrigin) continue;
       const targets = event.kind === "match" ? event.adjacency : event.wetTargets.size ? event.wetTargets : event.clears;
-      for (const cell of [...targets.values(), ...(freedByWetEvent.get(event) ?? [])]) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col] && state.crust[cell.row][cell.col] === 0) {
+      const eligible = event.wetOrigin ? targets.values() : event.eligibleWetTargets.values();
+      for (const cell of [...eligible, ...(freedByWetEvent.get(event) ?? [])]) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col] && state.crust[cell.row][cell.col] === 0) {
         state.condensation.wet[cell.row][cell.col] = true;
         spread.push(cell);
         if ((state.goals.condensation ?? 0) > 0) { state.goals.condensation!--; collections.push({ cell, kind: "condensation" }); }
