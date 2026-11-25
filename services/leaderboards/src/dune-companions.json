@@ -29,5 +29,11 @@
     "grantedPower": "jets",
     "grantCount": 2,
     "grantedJetDirection": "column"
+  },
+  "artificer": {
+    "chargeSymbol": "key",
+    "keeperTarget": 11,
+    "grantedPower": "prism",
+    "grantCount": 1
   }
 }

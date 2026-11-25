@@ -33,7 +33,7 @@ function candidates(puzzle,random,attempt){
  return list.sort((a,b)=>b.score-a.score);
 }
 const maxAttempts=Number(process.env.RIVER_MAX_ATTEMPTS||120);
-for(const id of LEVEL_ORDER.slice(60)){
+for(const id of LEVEL_ORDER.slice(60,70)){
  if(filter&&id!==filter)continue;
  for(const name of names){
   if(compFilter&&name!==compFilter)continue;

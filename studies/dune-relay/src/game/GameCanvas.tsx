@@ -13,6 +13,7 @@ import fieldkeeperFrames from "../../public/sprites/fieldkeeper-frames.json";
 import towncrierFrames from "../../public/sprites/towncrier-frames.json";
 import quartermasterFrames from "../../public/sprites/quartermaster-frames.json";
 import skiffFrames from "../../public/sprites/skiff-frames.json";
+import artificerFrames from "../../public/sprites/artificer-frames.json";
 import { CascadeFlair, cascadeVisualStrength, showCascadeWord } from "./cascadeFlair";
 import { crateExitCells } from "./crateExits";
 import type { CompanionId, Region } from "./save";
@@ -48,6 +49,7 @@ export type GameEvent =
   | { type: "gatewright"; position: { x: number; y: number } }
   | { type: "towncrier"; position: { x: number; y: number } }
   | { type: "fieldkeeper"; position: { x: number; y: number } }
+  | { type: "artificer"; position: { x: number; y: number } }
   | { type: "skiff"; position: { x: number; y: number } }
   | { type: "quartermaster"; position: { x: number; y: number } }
   | { type: "resolvedTurn"; puzzle: Puzzle; turn: import("./core").Turn; from: Cell; to: Cell; action?:PuzzleAction }
@@ -145,23 +147,23 @@ function replayMarkers(scene: Phaser.Scene, props: Props) {
   return props.replayDestinations.map(group => {
     const destination = MAP_DESTINATIONS[group.destination];
     const number = LEVEL_ORDER.indexOf(group.levels[0]) % 10 + 1;
-    const caption = props.region === "river" ? `7.${number}` : group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
+    const caption = (props.region === "river" || props.region === "collection") ? `${props.region === "river" ? 7 : 8}.${number}` : group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
     const marker = scene.add.circle(destination.marker.x,destination.marker.y,19,0x173c46,.96).setStrokeStyle(2,0xffdf9e).setDepth(12).setInteractive({useHandCursor:true});
     const text = label(scene,destination.marker.x,destination.marker.y,caption,15).setOrigin(.5).setDepth(13).setInteractive({useHandCursor:true});
     return {group,destination,marker,text};
   });
 }
 
-type SpriteSheet = "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster" | "skiff";
+type SpriteSheet = "artificer" | "mechanic" | "keeper" | "tiles" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster" | "skiff";
 function playerSheet(props: Props): SpriteSheet { return props.activeCompanion ?? "mechanic"; }
 function playerScale(props: Props): number {
   const sheet = playerSheet(props);
-  const height = sheet === "wayfinder" ? wayfinderFrames[0].h : sheet === "gatewright" ? gatewrightFrames[0].h : sheet === "fieldkeeper" ? fieldkeeperFrames[0].h : sheet === "towncrier" ? towncrierFrames[0].h : sheet === "keeper" ? spriteFrames.keeper[0].h : spriteFrames.mechanic[0].h;
+  const height = sheet === "artificer" ? artificerFrames[0].h : sheet === "wayfinder" ? wayfinderFrames[0].h : sheet === "gatewright" ? gatewrightFrames[0].h : sheet === "fieldkeeper" ? fieldkeeperFrames[0].h : sheet === "towncrier" ? towncrierFrames[0].h : sheet === "keeper" ? spriteFrames.keeper[0].h : spriteFrames.mechanic[0].h;
   return 70 / height;
 }
 function loadPlayerSheet(scene: Phaser.Scene, props: Props) {
   const sheet=playerSheet(props);
-  const localNpc={oasis:"keeper",caravan:"wayfinder",gatehouse:"gatewright",farmland:"fieldkeeper",town:"towncrier",castle:"quartermaster",river:"skiff"}[props.region];
+  const localNpc={collection:"artificer",oasis:"keeper",caravan:"wayfinder",gatehouse:"gatewright",farmland:"fieldkeeper",town:"towncrier",castle:"quartermaster",river:"skiff"}[props.region];
   if (sheet===localNpc) return;
   scene.load.image(sheet,assetUrl(`/sprites/${sheet}.png`));
 }
@@ -180,7 +182,7 @@ function publishPlayerPosition(scene: Phaser.Scene, props: Props, position: {x:n
 
 function registerFrames(scene: Phaser.Scene, sheet: SpriteSheet) {
   const texture = scene.textures.get(sheet);
-  const frames = sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : sheet === "towncrier" ? towncrierFrames : sheet === "quartermaster" ? quartermasterFrames : sheet === "skiff" ? skiffFrames : spriteFrames[sheet];
+  const frames = sheet === "artificer" ? artificerFrames : sheet === "wayfinder" ? wayfinderFrames : sheet === "gatewright" ? gatewrightFrames : sheet === "fieldkeeper" ? fieldkeeperFrames : sheet === "towncrier" ? towncrierFrames : sheet === "quartermaster" ? quartermasterFrames : sheet === "skiff" ? skiffFrames : spriteFrames[sheet];
   frames.forEach((cell, index) => {
     const [left, top, right, bottom] = cell.bounds;
     const crop = sheet === "tiles";
@@ -246,18 +248,18 @@ function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind |
   return scene.add.container(x, y, [art]);
 }
 
-function paintCollectorTank(tank: Phaser.GameObjects.Graphics, covered: number) {
+function paintCollectorTank(tank: Phaser.GameObjects.Graphics, covered: number, total = 25) {
   tank.clear();
   tank.fillStyle(0x2e606d).fillRoundedRect(-18, -17, 36, 34, 7);
-  tank.fillStyle(0x8edbe4, 0.92).fillRoundedRect(-14, 13 - 26 * covered / 25, 28, 26 * covered / 25, 4);
+  tank.fillStyle(0x8edbe4, 0.92).fillRoundedRect(-14, 13 - 26 * covered / total, 28, 26 * covered / total, 4);
   tank.lineStyle(3, 0xd7e8dd).strokeRoundedRect(-18, -17, 36, 34, 7);
   tank.lineStyle(2, 0xffffff, 0.8).lineBetween(-10, -8, 10, -8);
 }
 
-function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind) {
+function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind, collectorCoverage?: { covered: number; total: number }) {
   if (kind === "condensation") {
     const tank = scene.add.graphics().setPosition(x, y);
-    paintCollectorTank(tank, 3);
+    paintCollectorTank(tank, collectorCoverage?.covered ?? 3, collectorCoverage?.total ?? 25);
     return tank;
   }
   if (kind === "crate") return drawPiece(scene, x, y, "crate", undefined, false);
@@ -266,16 +268,16 @@ function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind)
   return drawPiece(scene, x, y, kind);
 }
 
-function goalName(kind: GoalKind, amount = 2): string { return kind === "condensation" ? "COLLECTORS" : kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind === "crate" ? amount === 1 ? "DELIVERY" : "DELIVERIES" : kind.toUpperCase(); }
-function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
+function goalName(kind: GoalKind, amount = 2): string { return kind === "condensation" ? "NETS" : kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind === "crate" ? amount === 1 ? "DELIVERY" : "DELIVERIES" : kind.toUpperCase(); }
+function remainingGoalLabel(kind: GoalKind, goals: Goals, total = 25): string {
   const remaining=Math.max(0,goals[kind] ?? 0);
-  if (kind === "condensation") return `${25 - remaining} / 25 WET`;
+  if (kind === "condensation") return `${total - remaining} / ${total} WET`;
   return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
 }
 
 function characterPosition(sprite: Phaser.GameObjects.Sprite, sheet: SpriteSheet, x: number, y: number) {
   const index = Number(sprite.frame.name);
-  const cell = sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : sheet === "towncrier" ? towncrierFrames[Number.isFinite(index) ? index : 0] : sheet === "quartermaster" ? quartermasterFrames[Number.isFinite(index) ? index : 0] : sheet === "skiff" ? skiffFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet as keyof typeof spriteFrames][Number.isFinite(index) ? index : 0];
+  const cell = sheet === "artificer" ? artificerFrames[Number.isFinite(index) ? index : 0] : sheet === "wayfinder" ? wayfinderFrames[Number.isFinite(index) ? index : 0] : sheet === "gatewright" ? gatewrightFrames[Number.isFinite(index) ? index : 0] : sheet === "fieldkeeper" ? fieldkeeperFrames[Number.isFinite(index) ? index : 0] : sheet === "towncrier" ? towncrierFrames[Number.isFinite(index) ? index : 0] : sheet === "quartermaster" ? quartermasterFrames[Number.isFinite(index) ? index : 0] : sheet === "skiff" ? skiffFrames[Number.isFinite(index) ? index : 0] : spriteFrames[sheet as keyof typeof spriteFrames][Number.isFinite(index) ? index : 0];
   const [left, , right, bottom] = cell.bounds;
   const scale = sprite.scaleX;
   sprite.setPosition(x - ((left + right) / 2 - cell.w / 2) * scale, y + (cell.h - bottom) * scale);
@@ -287,7 +289,7 @@ function characterAnimation(scene: Phaser.Scene, sheet: SpriteSheet, direction: 
   return key;
 }
 
-type CompanionSheet = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster" | "skiff";
+type CompanionSheet = "artificer" | "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "quartermaster" | "skiff";
 const GLOW_OFFSETS: [number, number][] = [[-1.5, 0], [1.5, 0], [0, -1.5], [0, 1.5]];
 
 function poseCompanion(scene: Phaser.Scene, sheet: CompanionSheet, sprite: Phaser.GameObjects.Sprite, glows: Phaser.GameObjects.Sprite[], pace: CompanionPace, y: number, delta: number, playerX: number, playerMoving: boolean, blocked: boolean, reducedMotion: boolean) {
@@ -1168,6 +1170,122 @@ function makeRiverScene(props: Props): typeof Phaser.Scene {
   };
 }
 
+function makeCollectionScene(props: Props): typeof Phaser.Scene {
+  const deckPoint = (x:number,y:number) => ({x:Phaser.Math.Clamp(x,90,890),y:Phaser.Math.Clamp(y,310,490)});
+  return class CollectionScene extends Phaser.Scene {
+    player = props.mapPosition ?? { x: 140, y: 440 };
+    target = { ...this.player };
+    previous = { ...this.player };
+    playerGraphic?: Phaser.GameObjects.Sprite;
+    artificerGraphic?: Phaser.GameObjects.Sprite;
+    companionPace = new CompanionPace(555);
+    companionHit?: Phaser.GameObjects.Zone;
+    companionCaption?: Phaser.GameObjects.Text;
+    glows: Phaser.GameObjects.Sprite[] = [];
+    keys?: Record<string, Phaser.Input.Keyboard.Key>;
+    facing: "left" | "right" = "right";
+    locked = false;
+    constructor() { super("Collection"); }
+    preload() {
+      this.load.on("loaderror", () => props.onFailure("asset-load"));
+      this.load.image("collection", assetUrl("/collection-station.webp"));
+      loadPlayerSheet(this, props);
+      this.load.image("artificer", assetUrl("/sprites/artificer.png"));
+    }
+    create() {
+      registerFrames(this, playerSheet(props)); registerFrames(this, "artificer");
+      for (const direction of ["left", "right"] as const) { characterAnimation(this, playerSheet(props), direction); characterAnimation(this, "artificer", direction); }
+      this.add.image(480, 270, "collection").setDisplaySize(WIDTH, HEIGHT);
+      const glints = [ [142,350,24], [862,339,31], [930,396,22] ];
+      for (const [x,y,length] of glints) {
+        const line=this.add.graphics().lineStyle(2,0xc8f6eb,.48).lineBetween(x,y,x+length,y-2).setDepth(0);
+        if (!props.reducedMotion) this.tweens.add({targets:line,alpha:.18,duration:1400+x,yoyo:true,repeat:-1});
+      }
+      const hudParts: Phaser.GameObjects.GameObject[] = [
+        panel(this, 22, 91, 302, 66, .92),
+        label(this, 40, 100, "COLLECTION STATION", 26),
+        label(this, 40, 132, "DEW ABOVE THE DUNES", 13, "#9de4d4"),
+      ];
+      const person = this.add.sprite(555, 400, "artificer", "4").setOrigin(.5, 1).setScale(90 / artificerFrames[4].h).setDepth(2);
+      characterPosition(person, "artificer", 555, 400); this.artificerGraphic = person;
+      for (const [dx,dy] of [[-1.5,0],[1.5,0],[0,-1.5],[0,1.5]]) {
+        const glow = this.add.sprite(555, 400, "artificer", "4").setOrigin(.5, 1).setScale(90 / artificerFrames[4].h).setTintFill(0xffe4af).setAlpha(.68).setDepth(1);
+        characterPosition(glow, "artificer", 555+dx, 400+dy); this.glows.push(glow);
+      }
+      if (!props.reducedMotion) this.tweens.add({ targets: this.glows, alpha: .12, duration: 850, yoyo: true, repeat: -1 });
+      const arriving = props.nextLevel === "firstDew" && !props.companionIntroduced;
+      const route = props.nextLevel && LEVELS[props.nextLevel].chapter === "collection" && !arriving ? LEVELS[props.nextLevel] : null;
+      const destination = route ? MAP_DESTINATIONS[route.destination] : null;
+      const talkHit = this.add.zone(555, 359, 100, 115);
+      this.companionHit = talkHit;
+      talkHit.setInteractive({ useHandCursor: true });
+      const talkCaption = label(this, 555, 299, props.companionIntroduced ? "TALK TO ARTIFICER" : "ARTIFICER", 15).setOrigin(.5);
+      this.companionCaption = talkCaption;
+      talkCaption.setInteractive({ useHandCursor: true });
+      let routeHit: Phaser.GameObjects.Zone | undefined; let routeCaption: Phaser.GameObjects.Text | undefined;
+      if (destination && route) {
+        const halo = this.add.circle(destination.marker.x, destination.marker.y, 15, 0xffdd8d, .48).setStrokeStyle(3, 0xfff0b8).setDepth(3);
+        if (!props.reducedMotion) this.tweens.add({ targets: halo, alpha: .13, scale: 1.6, duration: 750, yoyo: true, repeat: -1 });
+        routeHit = this.add.zone(destination.hit.x, destination.hit.y, destination.hit.width, destination.hit.height).setInteractive({ useHandCursor: true });
+        routeCaption = label(this, destination.label.x, destination.label.y, route.title, 14).setOrigin(.5).setDepth(4).setInteractive({ useHandCursor: true });
+      }
+      this.playerGraphic = this.add.sprite(this.player.x, this.player.y, playerSheet(props), "0").setOrigin(.5, 1).setScale(playerScale(props));
+      characterPosition(this.playerGraphic, playerSheet(props), this.player.x, this.player.y);
+      const replayPoints = replayMarkers(this,props);
+      this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
+        if (props.transitioning || props.interactionBlocked || this.locked) return;
+        props.audio?.unlock();
+        const replay = replayPoints.find(point => targets.includes(point.marker) || targets.includes(point.text));
+        if (replay) {
+          this.locked=true; this.target={...replay.destination.walk};
+          this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"replayDestination",destination:replay.group.destination,position:{...this.player}})});
+          return;
+        }
+        const {x,y} = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        if (destination && (targets.includes(routeCaption!) || targets.includes(routeHit!) && !targets.includes(talkCaption))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        if (targets.includes(talkHit) || targets.includes(talkCaption) || Math.abs(x-this.companionPace.x)<42 && y>=299 && y<=415) {
+          this.locked = true; this.target = {x:505,y:402}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"artificer",position:{...this.player}})}); return;
+        }
+        if (destination && (targets.includes(routeHit!) || targets.includes(routeCaption!))) {
+          this.locked = true; this.target = {...destination.walk}; this.tweens.add({targets:this.player,x:this.target.x,y:this.target.y,duration:props.reducedMotion?1:Math.hypot(this.player.x-this.target.x,this.player.y-this.target.y)*4.4,onComplete:()=>props.onEvent({type:"pump",position:{...this.player}})}); return;
+        }
+        this.target = deckPoint(x,y);
+      });
+      this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT") as Record<string, Phaser.Input.Keyboard.Key>;
+      hudParts.push(panel(this,26,469,328,46,.84));
+      hudParts.push(label(this,44,480,arriving?"Walk to the Artificer →":route?`Walk to ${route.title} →`:"The sky route is open ✓",14));
+      mapHud(this, hudParts);
+      props.onReady();
+    }
+    update(_:number,delta:number) {
+      if (!this.playerGraphic) return;
+      if (!this.locked && !props.transitioning && !props.interactionBlocked) {
+        const speed=delta*.19;
+        const dx=Number(this.keys?.D?.isDown||this.keys?.RIGHT?.isDown)-Number(this.keys?.A?.isDown||this.keys?.LEFT?.isDown);
+        const dy=Number(this.keys?.S?.isDown||this.keys?.DOWN?.isDown)-Number(this.keys?.W?.isDown||this.keys?.UP?.isDown);
+        if(dx||dy) this.target=deckPoint(this.player.x+dx*speed,this.player.y+dy*speed);
+        const distance=Math.hypot(this.target.x-this.player.x,this.target.y-this.player.y);
+        if(distance>1){this.player.x+=(this.target.x-this.player.x)/distance*Math.min(speed,distance);this.player.y+=(this.target.y-this.player.y)/distance*Math.min(speed,distance);}
+      }
+      const moved=this.player.x-this.previous.x;
+      const moving=Math.abs(moved)+Math.abs(this.player.y-this.previous.y)>.08;
+      if(Math.abs(moved)>.08)this.facing=moved>0?"right":"left";
+      const animation=characterAnimation(this,playerSheet(props),this.facing);
+      if(moving){if(this.playerGraphic.anims.currentAnim?.key!==animation||!this.playerGraphic.anims.isPlaying)this.playerGraphic.play(animation);}else{this.playerGraphic.stop();this.playerGraphic.setFrame(this.facing==="right"?"0":"4");}
+      characterPosition(this.playerGraphic,playerSheet(props),this.player.x,this.player.y);
+      if (this.artificerGraphic) {
+        const x = poseCompanion(this, "artificer", this.artificerGraphic, this.glows, this.companionPace, 400, delta, this.player.x, moving, this.locked || props.transitioning || props.interactionBlocked || document.hidden, props.reducedMotion);
+        this.companionHit?.setX(x);
+        this.companionCaption?.setX(x);
+      }
+      publishPlayerPosition(this,props,this.player);
+      this.previous={...this.player};
+    }
+  };
+}
+
 function makePuzzleScene(props: Props): typeof Phaser.Scene {
   const goalCount = Object.values(props.level.goals).filter(count => count > 0).length;
   const crowded = goalCount >= 4;
@@ -1184,6 +1302,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
   };
   return class PuzzleScene extends Phaser.Scene {
     puzzle: Puzzle = props.puzzle ?? createPuzzle(props.level);
+    get collectorTotal(): number { return this.puzzle.condensation?.collectors.flat().filter(Boolean).length ?? 25; }
     displayBoard: Board = this.puzzle.board;
     displayCrust: CrustGrid = this.puzzle.crust.map(row => [...row]);
     crustPieces = new Map<string, Phaser.GameObjects.Container>();
@@ -1235,7 +1354,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     constructor() { super("Puzzle"); }
     preload() {
       this.load.on("loaderror", () => props.onFailure("asset-load"));
-      this.load.image("backdrop", props.level.chapter === "river" ? assetUrl("/river-boat.webp") : props.level.chapter === "castle" ? assetUrl("/castle.webp") : props.level.chapter === "town" ? assetUrl("/town.webp") : props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
+      this.load.image("backdrop", props.level.chapter === "collection" ? assetUrl("/collection-station.webp") : props.level.chapter === "river" ? assetUrl("/river-boat.webp") : props.level.chapter === "castle" ? assetUrl("/castle.webp") : props.level.chapter === "town" ? assetUrl("/town.webp") : props.level.chapter === "farmland" ? assetUrl("/farmland.webp") : props.level.chapter === "gatehouse" ? assetUrl("/gatehouse.webp") : props.level.chapter === "caravan" ? assetUrl("/caravan.webp") : assetUrl("/oasis.webp"));
       this.load.image("tiles", assetUrl("/sprites/tiles.png"));
       this.load.image("companionAvatar", assetUrl(`/sprites/${props.boardCompanion ?? "keeper"}-avatar.png`));
       this.load.image("pennant", assetUrl("/sprites/pennant.png"));
@@ -1274,7 +1393,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         this.condensationVisual = this.add.graphics();
         this.boardRoot.add(this.condensationVisual);
         this.paintCondensation(this.puzzle.condensation.wet);
-        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(25 - (this.puzzle.goals.condensation ?? 0));
+        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(this.collectorTotal - (this.puzzle.goals.condensation ?? 0));
       }
       const routes=this.puzzle.currents ?? (this.puzzle.current ? [{id:"main",cells:this.puzzle.current,closure:"loop" as const}] : []);
       for (const [routeIndex, path] of routes.entries()) {
@@ -1571,7 +1690,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (!this.introActive) return;
       this.showLessonHint();
-      if (!this.puzzle.opening) this.setMessage(props.prototype === "condensation" ? "Match through a wet collector to spread the silver film." : "Drag or tap adjacent symbols to swap");
+      if (!this.puzzle.opening) this.setMessage(this.puzzle.condensation ? "Match through a wet net to spread the silver film." : "Drag or tap adjacent symbols to swap");
       this.busy = false;
       this.game.canvas.dataset.introPhase = "ready";
       this.game.canvas.dataset.playReady = "true";
@@ -1649,11 +1768,13 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       if (!completed) {
         goals.forEach(([kind, count], index) => {
           const four = goals.length >= 4;
-          const x = four ? -227 + (index % 2) * 255 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
+          // Four goals get two fixed-width columns: icon, then at most 170px
+          // of text. Even long labels cannot run into the next goal icon.
+          const x = four ? -230 + (index % 2) * 260 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
           const y = four ? 91 + Math.floor(index / 2) * 64 : 91;
-          contents.push(drawGoalIcon(this, x, y, kind));
-          const caption = this.add.text(x + 36, y - 15, kind === "condensation" ? `${count} dry collectors` : `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
-          if (four) caption.setScale(Math.min(1, 205 / caption.width));
+          contents.push(drawGoalIcon(this, x, y, kind, kind === "condensation" ? { covered: this.collectorTotal - count, total: this.collectorTotal } : undefined));
+          const caption = this.add.text(x + 36, y - 15, kind === "condensation" ? `${count} dry nets` : `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
+          if (four) caption.setScale(Math.min(1, 170 / caption.width));
           contents.push(caption);
         });
       }
@@ -1686,7 +1807,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.prototype === "condensation" ? "Try the glowing swap: the wet square coats the matching collectors." : props.level.lesson === "current" ? "The current follows its arrows one space after each move. Swap and match tiles in the water normally." : props.level.lesson === "wrapCurrent" ? "The marked outlet carries tiles off one bank and back through its matching inlet." : props.level.lesson === "frozenCurrent" ? "Clear salt from the frozen route. Other currents keep flowing." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(this.puzzle.condensation ? "Try the glowing swap: the wet square coats matching nets." : props.level.lesson === "current" ? "The current follows its arrows one space after each move. Swap and match tiles in the water normally." : props.level.lesson === "wrapCurrent" ? "The marked outlet carries tiles off one bank and back through its matching inlet." : props.level.lesson === "frozenCurrent" ? "Clear salt from the frozen route. Other currents keep flowing." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -1729,22 +1850,21 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      this.hud.push(label(this, 51, hudLayout.headingY, props.prototype === "condensation" ? "COLLECTORS" : "LEFT TO COLLECT", 17, "#a2e7da"));
+      this.hud.push(label(this, 51, hudLayout.headingY, this.puzzle.condensation ? "NETS" : "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
         const y = hudLayout.goalY(index);
-        const icon = drawGoalIcon(this, 74, y, kind);
-        if (kind === "condensation") paintCollectorTank(icon as Phaser.GameObjects.Graphics, 25 - (goals.condensation ?? 0));
+        const icon = drawGoalIcon(this, 74, y, kind, kind === "condensation" ? { covered: this.collectorTotal - (goals.condensation ?? 0), total: this.collectorTotal } : undefined);
         if (crowded && "setScale" in icon) {
           const scalable=icon as Phaser.GameObjects.Image | Phaser.GameObjects.Container;
           scalable.setScale(scalable.scaleX * 0.82, scalable.scaleY * 0.82);
         }
-        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals), crowded ? 18 : 20);
+        const text = label(this, 106, y - 15, remainingGoalLabel(kind,goals,this.collectorTotal), crowded ? 18 : 20);
         this.goalIcons.set(kind, icon);
         this.goalIconScales.set(kind, { x: icon.scaleX, y: icon.scaleY });
         this.goalLabels.set(kind, text);
         this.hud.push(icon, text);
       });
-      this.hud.push(label(this, 110, hudLayout.powerTitleY, `${({keeper:"KEEPER",wayfinder:"WAYFINDER",gatewright:"GATEWRIGHT",fieldkeeper:"FIELDKEEPER",towncrier:"TOWN CRIER"} as const)[props.boardCompanion??"keeper"]}'S POWER`, 14, "#a2e7da"));
+      this.hud.push(label(this, 110, hudLayout.powerTitleY, `${({keeper:"KEEPER",wayfinder:"WAYFINDER",gatewright:"GATEWRIGHT",fieldkeeper:"FIELDKEEPER",towncrier:"TOWN CRIER",artificer:"ARTIFICER"} as const)[props.boardCompanion??"keeper"]}'S POWER`, 14, "#a2e7da"));
       const meter = this.add.graphics();
       meter.fillStyle(0x315568).fillRoundedRect(110, hudLayout.meterY, 153, 17, 7);
       meter.fillStyle(GREEN).fillRoundedRect(110, hudLayout.meterY, 153 * Math.min(1, charge / this.puzzle.keeperTarget), 17, 7);
@@ -1791,8 +1911,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       const spread = step.spread ?? [];
       const sources = this.displayWet?.flatMap((row, r) => row.flatMap((value, c) => value ? [{ row: r, col: c }] : [])) ?? [];
       if (!spread.length) { this.paintCondensation(step.wet); return; }
-      this.setMessage(`${25 - (step.goals.condensation ?? 0)} / 25 collectors wet`);
-      if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(25 - (step.goals.condensation ?? 0));
+      this.setMessage(`${this.collectorTotal - (step.goals.condensation ?? 0)} / ${this.collectorTotal} nets wet`);
+      if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(this.collectorTotal - (step.goals.condensation ?? 0));
       if (!props.reducedMotion) await Promise.all(spread.slice(0, 12).map(async cell => {
         const source = sources.reduce((best, candidate) =>
           !best || Math.abs(candidate.row - cell.row) + Math.abs(candidate.col - cell.col) < Math.abs(best.row - cell.row) + Math.abs(best.col - cell.col) ? candidate : best, sources[0]);
@@ -1815,9 +1935,9 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
-      this.goalLabels.get(kind)?.setText(remainingGoalLabel(kind,this.displayedGoals));
+      this.goalLabels.get(kind)?.setText(remainingGoalLabel(kind,this.displayedGoals,this.collectorTotal));
       const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
-      if (kind === "condensation" && icon) paintCollectorTank(icon as Phaser.GameObjects.Graphics, 25 - (this.displayedGoals.condensation ?? 0));
+      if (kind === "condensation" && icon) paintCollectorTank(icon as Phaser.GameObjects.Graphics, this.collectorTotal - (this.displayedGoals.condensation ?? 0), this.collectorTotal);
       if (icon && !props.reducedMotion && this.sceneAlive) {
         this.tweens.killTweensOf(icon);
         const baseline = this.goalIconScales.get(kind) ?? { x: icon.scaleX, y: icon.scaleY };
@@ -1856,7 +1976,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
         if (!icon) { this.creditGoal(kind, amount); return; }
         const to = { x: icon.x, y: icon.y };
-        const flight = drawGoalIcon(this, from.x, from.y, kind).setDepth(35);
+        const flight = drawGoalIcon(this, from.x, from.y, kind, kind === "condensation" ? { covered: this.collectorTotal - (this.displayedGoals.condensation ?? 0) + amount, total: this.collectorTotal } : undefined).setDepth(35);
         flight.setScale(props.reducedMotion ? 0.7 : 0.9);
         const progress = { value: 0 };
         try {
@@ -1872,7 +1992,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }));
       if (this.sceneAlive) {
         this.displayedGoals = { ...step.goals };
-        for (const [kind, text] of this.goalLabels) text.setText(remainingGoalLabel(kind,this.displayedGoals));
+        for (const [kind, text] of this.goalLabels) text.setText(remainingGoalLabel(kind,this.displayedGoals,this.collectorTotal));
         delete this.game.canvas.dataset.collectionPhase;
       }
     }
@@ -2245,7 +2365,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (step.kind === "keeper") {
         props.audio?.play("keeper");
-        const who=({keeper:"Keeper",wayfinder:"Wayfinder",gatewright:"Gatewright",fieldkeeper:"Fieldkeeper",towncrier:"Town Crier"} as const)[props.boardCompanion??"keeper"];
+        const who=({keeper:"Keeper",wayfinder:"Wayfinder",gatewright:"Gatewright",fieldkeeper:"Fieldkeeper",towncrier:"Town Crier",artificer:"Artificer"} as const)[props.boardCompanion??"keeper"];
         const grant=props.level.grantedPower==="prism"?"a Prism":props.level.grantedPower==="flywheels"?"two Flywheels":"two Pressure Jets";
         this.setMessage(`${who}'s power! ${grant} ready. Charge resets.`);
         if (this.keeperPortrait && !short) {
@@ -2588,7 +2708,7 @@ export default function GameCanvas(props: Props) {
         type: Phaser.AUTO, width, height, parent: element, backgroundColor: "#153c48",
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER, width, height },
         render: { pixelArt: false, antialias: true },
-        scene: [props.mode === "map" ? props.region === "river" ? makeRiverScene(current) : props.region === "castle" ? makeCastleScene(current) : props.region === "town" ? makeTownScene(current) : props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
+        scene: [props.mode === "map" ? props.region === "collection" ? makeCollectionScene(current) : props.region === "river" ? makeRiverScene(current) : props.region === "castle" ? makeCastleScene(current) : props.region === "town" ? makeTownScene(current) : props.region === "farmland" ? makeFarmlandScene(current) : props.region === "gatehouse" ? makeGatehouseScene(current) : props.region === "caravan" ? makeCaravanScene(current) : makeMapScene(current) : makePuzzleScene(current)],
         audio: { disableWebAudio: true },
       });
       logDiagnostic("game-create", { mode: props.mode, width, height, mobile });
@@ -2644,5 +2764,5 @@ export default function GameCanvas(props: Props) {
     // A scene is recreated by its React key, not by ordinary HUD prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.mode]);
-  return <div className="game-canvas" ref={host} data-replay-destinations={props.mode === "map" ? props.replayDestinations.map(group => group.destination).join(",") : undefined} aria-label={props.mode === "map" ? props.region === "river" ? "Walkable river boat" : props.region === "castle" ? "Walkable Castle Island" : props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
+  return <div className="game-canvas" ref={host} data-replay-destinations={props.mode === "map" ? props.replayDestinations.map(group => group.destination).join(",") : undefined} aria-label={props.mode === "map" ? props.region === "collection" ? "Walkable water collection station" : props.region === "river" ? "Walkable river boat" : props.region === "castle" ? "Walkable Castle Island" : props.region === "town" ? "Walkable town" : props.region === "farmland" ? "Walkable farmland" : props.region === "gatehouse" ? "Walkable river gatehouse" : props.region === "caravan" ? "Walkable desert caravan" : "Walkable oasis" : `${props.level.title} puzzle`} />;
 }

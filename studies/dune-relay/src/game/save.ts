@@ -8,17 +8,18 @@ const OLD_SAVE_KEY = "dune-relay-pump-house-v1";
 export function clearLegacySaves(storage?:Pick<Storage,"removeItem">):void {
   try{for(const key of [V4_SAVE_KEY,V3_SAVE_KEY,V2_SAVE_KEY,OLD_SAVE_KEY])(storage??localStorage).removeItem(key);}catch{/* An unavailable store cannot be cleared. */}
 }
-export type Region = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river";
-export type CompanionId = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier";
+export type Region = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river" | "collection";
+export type CompanionId = "keeper" | "wayfinder" | "gatewright" | "fieldkeeper" | "towncrier" | "artificer";
 export type OasisTransition = "locked" | "film" | "keeper" | "atlas" | "arrival" | "ready";
-export type ChapterTransition = null | { from: "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle"; to: "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river"; stage: "film" | "handoff" | "atlas" | "arrival" };
+export type ChapterTransition = null | { from: "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river"; to: "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river" | "collection"; stage: "film" | "handoff" | "atlas" | "arrival" };
 export type DemoEnding = "locked" | "gate" | "film" | "thanks" | "done";
 export type FarmlandEnding = "locked" | "film" | "thanks" | "done";
 export type TownEnding = "locked" | "film" | "thanks" | "done";
 export type CastleEnding = "locked" | "film" | "thanks" | "done";
 export type RiverEnding = "locked" | "film" | "thanks" | "done";
-export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; farmlandReady: boolean; townReady: boolean; castleReady: boolean; riverReady: boolean; activeCompanion: CompanionId | null; demoEnding: DemoEnding; farmlandEnding: FarmlandEnding; townEnding: TownEnding; castleEnding: CastleEnding; riverEnding: RiverEnding };
-export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, activeCompanion: null, demoEnding: "locked", farmlandEnding: "locked", townEnding: "locked", castleEnding: "locked", riverEnding: "locked" };
+export type CollectionEnding = "locked" | "celebration" | "thanks" | "done";
+export type Save = { version: 5; completed: LevelId[]; coins: number; region: Region; companions: CompanionId[]; oasisTransition: OasisTransition; transition: ChapterTransition; gatehouseReady: boolean; farmlandReady: boolean; townReady: boolean; castleReady: boolean; riverReady: boolean; collectionReady: boolean; activeCompanion: CompanionId | null; demoEnding: DemoEnding; farmlandEnding: FarmlandEnding; townEnding: TownEnding; castleEnding: CastleEnding; riverEnding: RiverEnding; collectionEnding: CollectionEnding };
+export const EMPTY_SAVE: Save = { version: 5, completed: [], coins: 0, region: "oasis", companions: [], oasisTransition: "locked", transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, collectionReady: false, activeCompanion: null, demoEnding: "locked", farmlandEnding: "locked", townEnding: "locked", castleEnding: "locked", riverEnding: "locked", collectionEnding: "locked" };
 const oasisStages: OasisTransition[] = ["locked", "film", "keeper", "atlas", "arrival", "ready"];
 const stageOrder = ["film", "handoff", "atlas", "arrival"] as const;
 function validCoins(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
@@ -31,13 +32,14 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   const townDone = completed.includes("openTheMarket");
   const castleDone = completed.includes("openTheUpstreamRoute");
   const riverDone = completed.includes("openTheCollectionRoute");
+  const collectionDone = completed.includes("openTheSkyRoute");
   let oasisTransition: OasisTransition = oasisStages.includes(value.oasisTransition as OasisTransition) ? value.oasisTransition as OasisTransition : "locked";
   if (oasisDone && oasisTransition === "locked") oasisTransition = "film";
   if (!oasisDone) oasisTransition = "locked";
   const oasisIndex = oasisStages.indexOf(oasisTransition);
   let transition: ChapterTransition = null;
   const stored = value.transition;
-  if (stored && (stored.from === "oasis" && stored.to === "caravan" || stored.from === "caravan" && stored.to === "gatehouse" || stored.from === "gatehouse" && stored.to === "farmland" || stored.from === "farmland" && stored.to === "town" || stored.from === "town" && stored.to === "castle" || stored.from === "castle" && stored.to === "river") && stageOrder.includes(stored.stage)) transition = { ...stored };
+  if (stored && (stored.from === "oasis" && stored.to === "caravan" || stored.from === "caravan" && stored.to === "gatehouse" || stored.from === "gatehouse" && stored.to === "farmland" || stored.from === "farmland" && stored.to === "town" || stored.from === "town" && stored.to === "castle" || stored.from === "castle" && stored.to === "river" || stored.from === "river" && stored.to === "collection") && stageOrder.includes(stored.stage)) transition = { ...stored };
   if (oasisDone && oasisTransition !== "ready" && !transition) transition = { from: "oasis", to: "caravan", stage: oasisTransition === "keeper" ? "handoff" : oasisTransition === "atlas" ? "atlas" : oasisTransition === "arrival" ? "arrival" : "film" };
   const gatehouseReady = Boolean(value.gatehouseReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 20) || value.region === "gatehouse" && !transition);
   if (caravanDone && oasisTransition === "ready" && !gatehouseReady && !transition) transition = { from: "caravan", to: "gatehouse", stage: "film" };
@@ -46,18 +48,21 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   if (transition?.from === "farmland" && !farmlandDone) transition = null;
   if (transition?.from === "town" && !townDone) transition = null;
   if (transition?.from === "castle" && !castleDone) transition = null;
+  if (transition?.from === "river" && !riverDone) transition = null;
   const farmlandReady = Boolean(gatehouseDone && (value.farmlandReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 30)));
   const townReady = Boolean(farmlandDone && (value.townReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 40)));
   const castleReady = Boolean(townDone && (value.castleReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 50)));
   const riverReady = Boolean(castleDone && (value.riverReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 60) || value.riverReady === undefined && value.castleEnding === "done"));
+  const collectionReady = Boolean(riverDone && (value.collectionReady || completed.some(id => LEVEL_ORDER.indexOf(id) >= 70)));
   const companions: CompanionId[] = [];
   if (oasisIndex >= 3) companions.push("keeper");
   if (oasisIndex >= 5) companions.push("wayfinder");
   if (gatehouseReady) companions.push("gatewright");
   if (farmlandReady) companions.push("fieldkeeper");
   if (townReady) companions.push("towncrier");
+  if (collectionReady) companions.push("artificer");
   const activeCompanion = castleReady && companions.includes(value.activeCompanion as CompanionId) ? value.activeCompanion as CompanionId : null;
-  let region: Region = value.region === "oasis" ? "oasis" : value.region === "river" && riverReady ? "river" : value.region === "castle" && castleReady ? "castle" : value.region === "town" && townReady ? "town" : value.region === "farmland" && farmlandReady ? "farmland" : value.region === "gatehouse" && gatehouseReady ? "gatehouse" : oasisIndex >= 4 ? "caravan" : "oasis";
+  let region: Region = value.region === "oasis" ? "oasis" : value.region === "collection" && collectionReady ? "collection" : value.region === "river" && riverReady ? "river" : value.region === "castle" && castleReady ? "castle" : value.region === "town" && townReady ? "town" : value.region === "farmland" && farmlandReady ? "farmland" : value.region === "gatehouse" && gatehouseReady ? "gatehouse" : oasisIndex >= 4 ? "caravan" : "oasis";
   if (transition?.stage === "arrival") region = transition.to;
   const endingStages: DemoEnding[] = ["locked", "gate", "film", "thanks", "done"];
   const demoEnding: DemoEnding = completed.includes("openTheCrossing") ? endingStages.includes(value.demoEnding as DemoEnding) && value.demoEnding !== "locked" ? value.demoEnding as DemoEnding : "gate" : "locked";
@@ -67,9 +72,10 @@ export function normalizeSave(value: Partial<Save> & { completed?: LevelId[] }):
   const townEnding: TownEnding = townDone ? chapterEndings.includes(value.townEnding as TownEnding) ? value.townEnding as TownEnding : "film" : "locked";
   const castleEnding: CastleEnding = castleDone ? chapterEndings.includes(value.castleEnding as CastleEnding) ? value.castleEnding as CastleEnding : "film" : "locked";
   const riverEnding: RiverEnding = riverDone ? chapterEndings.includes(value.riverEnding as RiverEnding) ? value.riverEnding as RiverEnding : "film" : "locked";
+  const collectionEnding: CollectionEnding = collectionDone && ["celebration", "thanks", "done"].includes(value.collectionEnding as string) ? value.collectionEnding as CollectionEnding : collectionDone ? "celebration" : "locked";
   if ((demoEnding === "gate" || demoEnding === "film" || demoEnding === "thanks") && transition?.to !== "farmland") region = "gatehouse";
   if ((farmlandEnding === "film" || farmlandEnding === "thanks") && transition?.to !== "town") region = "farmland";
-  return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, farmlandReady, townReady, castleReady, riverReady, activeCompanion, demoEnding, farmlandEnding, townEnding, castleEnding, riverEnding };
+  return { version: 5, completed, coins: validCoins(value.coins), region, companions, oasisTransition, transition, gatehouseReady, farmlandReady, townReady, castleReady, riverReady, collectionReady, activeCompanion, demoEnding, farmlandEnding, townEnding, castleEnding, riverEnding, collectionEnding };
 }
 export function readSave(storage?: Pick<Storage, "getItem" | "setItem">): Save {
   try {
@@ -95,7 +101,7 @@ export function advanceTransition(save: Save, expected: OasisTransition, next: O
 export function advanceChapterTransition(save: Save, expected: NonNullable<ChapterTransition>["stage"], next: NonNullable<ChapterTransition>["stage"] | "ready"): Save {
   const current = save.transition;
   if (!current || current.stage !== expected || (next !== "ready" && stageOrder.indexOf(next) !== stageOrder.indexOf(expected) + 1) || (next === "ready" && expected !== "arrival")) return save;
-  return normalizeSave({ ...save, transition: next === "ready" ? null : { ...current, stage: next }, gatehouseReady: next === "ready" && current.to === "gatehouse" ? true : save.gatehouseReady, farmlandReady: next === "ready" && current.to === "farmland" ? true : save.farmlandReady, townReady: next === "ready" && current.to === "town" ? true : save.townReady, castleReady: next === "ready" && current.to === "castle" ? true : save.castleReady, riverReady: next === "ready" && current.to === "river" ? true : save.riverReady, region: next === "ready" ? current.to : save.region });
+  return normalizeSave({ ...save, transition: next === "ready" ? null : { ...current, stage: next }, gatehouseReady: next === "ready" && current.to === "gatehouse" ? true : save.gatehouseReady, farmlandReady: next === "ready" && current.to === "farmland" ? true : save.farmlandReady, townReady: next === "ready" && current.to === "town" ? true : save.townReady, castleReady: next === "ready" && current.to === "castle" ? true : save.castleReady, riverReady: next === "ready" && current.to === "river" ? true : save.riverReady, collectionReady: next === "ready" && current.to === "collection" ? true : save.collectionReady, region: next === "ready" ? current.to : save.region });
 }
 export function setActiveCompanion(save: Save, id: CompanionId): Save {
   if (!save.castleReady || !save.companions.includes(id)) return save;

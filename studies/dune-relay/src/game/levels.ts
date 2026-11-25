@@ -1,6 +1,6 @@
 import type { Cell, CurrentRoute, Goals, SymbolKind } from "./core";
 
-export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad", "marketArrival", "courierSteps", "terraceDeliveries", "splitMarket", "saltedStorefronts", "awningLanes", "seedExchange", "neighborhoodRounds", "townLedger", "openTheMarket", "castleReceivingDock", "provisionStores", "saltboundStorehouse", "castleSeedVault", "dividedCourtyard", "terraceDispatch", "contradictoryOrders", "reservoirLedger", "reservoirControls", "openTheUpstreamRoute", "riverBend", "reedwaterReach", "broadwaterTurn", "saltlockedEddy", "clearingTheBend", "driftingCargo", "reedbankDeliveries", "splitwaterCargo", "saltwindMooring", "openTheCollectionRoute"] as const;
+export const LEVEL_ORDER = ["pumpHouse", "primePump", "prismTower", "oasisRelay", "palmIntake", "irrigationChannels", "twinTanks", "pressureManifold", "aqueductRise", "openWaterway", "caravanPennants", "pennantLine", "walkersFoot", "caravanLaunch", "saltSealedIntake", "cisternFlush", "saltwindCrossing", "twinReservoirs", "beaconAscent", "lightTheRoute", "gatehouseApproach", "gatewrightWorkshop", "signalBalcony", "bridgeControls", "saltboundHinges", "riverSluice", "counterweightRoom", "pairedWinches", "gatehouseCrown", "openTheCrossing", "seedStore", "threshingYard", "irrigationBeds", "terraceChannels", "saltedFurrows", "pairedGranaries", "sluiceGarden", "harvestTerraces", "convoyStores", "openTheHarvestRoad", "marketArrival", "courierSteps", "terraceDeliveries", "splitMarket", "saltedStorefronts", "awningLanes", "seedExchange", "neighborhoodRounds", "townLedger", "openTheMarket", "castleReceivingDock", "provisionStores", "saltboundStorehouse", "castleSeedVault", "dividedCourtyard", "terraceDispatch", "contradictoryOrders", "reservoirLedger", "reservoirControls", "openTheUpstreamRoute", "riverBend", "reedwaterReach", "broadwaterTurn", "saltlockedEddy", "clearingTheBend", "driftingCargo", "reedbankDeliveries", "splitwaterCargo", "saltwindMooring", "openTheCollectionRoute", "firstDew", "meshWalk", "pairedCollectors", "reservoirGlass", "saltedFittings", "supplyGantry", "condensingBanks", "collectionTwinTanks", "recirculationDeck", "openTheSkyRoute"] as const;
 export type LevelId = (typeof LEVEL_ORDER)[number];
 export type LevelDefinition = {
   id: LevelId;
@@ -8,13 +8,13 @@ export type LevelDefinition = {
   seed: number;
   moves: number;
   goals: Goals;
-  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river";
+  chapter?: "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river" | "collection";
   symbols?: SymbolKind[];
   chargeSymbol?: SymbolKind;
   grantedPower?: "jets" | "flywheels" | "prism";
   grantCount?: number;
   grantedJetDirection?: "row" | "column";
-  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust" | "seedpod" | "crate" | "current" | "wrapCurrent" | "frozenCurrent";
+  lesson: "jet" | "flywheel" | "prism" | "combo" | "practice" | "pennant" | "key" | "crust" | "seedpod" | "crate" | "current" | "wrapCurrent" | "frozenCurrent" | "condensation";
   opening?: [Cell, Cell];
   boardShape?: "clippedCorners" | "twinChambers" | "steppedBasin";
   boardLayout?: string[];
@@ -25,6 +25,7 @@ export type LevelDefinition = {
   crates?: Cell[];
   current?: Cell[];
   currents?: CurrentRoute[];
+  condensation?: { collectors: Cell[]; wet: Cell[] };
   briefing: string;
   victoryEyebrow: string;
   victoryTitle: string;
@@ -38,7 +39,6 @@ export type PlayableLevelDefinition = Omit<LevelDefinition, "id" | "lesson" | "d
   lesson: LevelDefinition["lesson"] | "current";
   destination?: LevelDefinition["destination"];
   current?: Cell[];
-  condensation?: { collectors: Cell[]; wet: Cell[] };
 };
 
 function currentPerimeter(top: number, left: number, bottom: number, right: number, clockwise = true): Cell[] {
@@ -52,6 +52,25 @@ function currentPerimeter(top: number, left: number, bottom: number, right: numb
 
 function crossBoardCurrent(row: number, eastward: boolean, id: string): CurrentRoute {
   return { id, cells: Array.from({ length: 9 }, (_, index) => ({ row, col: eastward ? index : 8 - index })), closure: "edgeWrap", entry: eastward ? "left" : "right", exit: eastward ? "right" : "left" };
+}
+
+
+function collectorRect(top: number, left: number, bottom: number, right: number): Cell[] {
+  return Array.from({ length: bottom - top + 1 }, (_, index) =>
+    Array.from({ length: right - left + 1 }, (_, offset) => ({ row: top + index, col: left + offset }))).flat();
+}
+
+function collectionLevel(id: LevelId, title: string, seed: number, moves: number, collectors: Cell[], wet: Cell[], briefing: string, options: {
+  boardShape?: LevelDefinition["boardShape"]; boardLayout?: string[]; crust?: LevelDefinition["crust"]; crates?: Cell[]; currents?: CurrentRoute[]; opening?: [Cell, Cell];
+} = {}): LevelDefinition {
+  const isFinale = id === "openTheSkyRoute";
+  return { id, title, seed, moves, chapter: "collection", lesson: "condensation", destination: id as keyof typeof MAP_DESTINATIONS,
+    goals: { water: 0, leaf: 0, condensation: collectors.length - wet.length,
+      ...(options.crust?.length ? { crust: options.crust.length } : {}), ...(options.crates?.length ? { crate: options.crates.length } : {}) },
+    symbols: ["water", "gear", "leaf", "pennant", "key"], chargeSymbol: "gear", grantedPower: "flywheels", grantCount: 2, keeperTarget: 12,
+    condensation: { collectors, wet }, ...options, briefing,
+    victoryEyebrow: "WATER COLLECTION STATION", victoryTitle: isFinale ? "The sky route is open!" : "Another collector is filling!",
+    victoryMessage: isFinale ? "The reservoirs are full. The Artificer can launch the water balloons toward the twin towers." : "Follow the wet collector path to bring the next reservoir online." };
 }
 
 export const LEVELS: Record<LevelId, LevelDefinition> = {
@@ -201,6 +220,16 @@ export const LEVELS: Record<LevelId, LevelDefinition> = {
   splitwaterCargo: {"id":"splitwaterCargo","title":"SPLITWATER CARGO","chapter":"river","seed":81071,"moves":27,"goals":{"water":44,"leaf":0,"crust":4,"crate":4},"crates":[{"row":2,"col":1},{"row":3,"col":3},{"row":0,"col":3},{"row":0,"col":5}],"symbols":["water","gear","leaf","pennant","key"],"lesson":"practice","keeperTarget":9,"destination":"splitwaterCargo","briefing":"Two small whirlpools spin in opposite directions inside a larger ring. Salt seals the outer current while both inner rings keep moving.","victoryEyebrow":"RIVER JOURNEY","victoryTitle":"Another bend behind us!","victoryMessage":"Skiff follows the current toward the missing water.","boardLayout":[".#######.","#########","#########","#########","#########","#########","#########","#########","#########"],"currents":[{id:"outer-whirlpool",cells:currentPerimeter(1,0,6,8),closure:"loop"},{id:"left-whirlpool",cells:currentPerimeter(3,1,5,3,false),closure:"loop"},{id:"right-whirlpool",cells:currentPerimeter(3,5,5,7),closure:"loop"}],"crust":[{"row":1,"col":1,"hp":1},{"row":7,"col":1,"hp":1},{"row":7,"col":4,"hp":1},{"row":7,"col":7,"hp":1}]},
   saltwindMooring: {"id":"saltwindMooring","title":"SALTWIND MOORING","chapter":"river","seed":82183,"moves":28,"goals":{"water":42,"leaf":18,"crust":5,"crate":4},"crust":[{"row":3,"col":5,"hp":1},{"row":6,"col":0,"hp":1},{"row":6,"col":3,"hp":1},{"row":6,"col":8,"hp":1},{"row":7,"col":6,"hp":1}],"crates":[{"row":3,"col":0},{"row":4,"col":8},{"row":1,"col":2},{"row":1,"col":6}],"symbols":["water","gear","leaf","pennant","key"],"lesson":"practice","keeperTarget":9,"destination":"saltwindMooring","briefing":"Two middle crosscurrents and two lower lanes run in opposite directions. Break the salt seals to send cargo toward the exits.","victoryEyebrow":"RIVER JOURNEY","victoryTitle":"Another bend behind us!","victoryMessage":"Skiff follows the current toward the missing water.","boardLayout":["..##.##..",".###.###.","#########","#########","#########","#########","#########","#########","#########"],"currents":[crossBoardCurrent(3, true, "eastbound"), crossBoardCurrent(4, false, "westbound"), crossBoardCurrent(6, true, "lower-eastbound"), crossBoardCurrent(7, false, "lower-westbound")]},
   openTheCollectionRoute: {"id":"openTheCollectionRoute","title":"OPEN THE COLLECTION ROUTE","chapter":"river","seed":83297,"moves":28,"goals":{"water":44,"leaf":18,"crust":6,"crate":5},"crust":[{"row":1,"col":4,"hp":1},{"row":2,"col":4,"hp":1},{"row":8,"col":1,"hp":1},{"row":8,"col":3,"hp":1},{"row":8,"col":5,"hp":1},{"row":8,"col":7,"hp":1}],"crates":[{"row":3,"col":0},{"row":3,"col":1},{"row":0,"col":3},{"row":0,"col":5},{"row":0,"col":7}],"symbols":["water","gear","leaf","pennant","key"],"lesson":"practice","keeperTarget":9,"destination":"openTheCollectionRoute","briefing":"Two nested whirlpools turn against one another. Break each salt seal and guide five crates through the shifting rings to the exits.","victoryEyebrow":"RIVER JOURNEY","victoryTitle":"The collection route is open!","victoryMessage":"The balloon station is in sight, but its water collectors have fallen silent.","boardLayout":[".#######.","#########","#########","#########","#########","#########","#########","#########","#########"],"currents":[{id:"outer-whirlpool",cells:currentPerimeter(1,0,7,8),closure:"loop"},{id:"inner-whirlpool",cells:currentPerimeter(2,1,6,7,false),closure:"loop"}]},
+  firstDew: collectionLevel("firstDew", "FIRST DEW", 19027, 26, collectorRect(2,2,6,6), [{row:3,col:3},{row:4,col:4},{row:5,col:5}], "The Artificer's nets are dry. Match across a silver wet collector to coat the other collectors in that match. Fill every marked square to restart the water supply.", { opening:[{row:4,col:3},{row:4,col:4}] }),
+  meshWalk: collectionLevel("meshWalk", "MESH WALK", 19047, 25, collectorRect(2,1,6,6), [{row:2,col:2},{row:3,col:4},{row:5,col:2},{row:6,col:5}], "Carry moisture across the broad mesh. Dry matches clear symbols, but only matches touching an already wet collector spread the film."),
+  pairedCollectors: collectionLevel("pairedCollectors", "PAIRED COLLECTORS", 19067, 27, [...collectorRect(2,1,5,3),...collectorRect(2,5,5,7)], [{row:2,col:2},{row:4,col:2},{row:2,col:6},{row:4,col:6}], "Two collector banks need water. Wet matches on either bank can grow the film; aim for the dry gaps between them.", {boardShape:"clippedCorners"}),
+  reservoirGlass: collectionLevel("reservoirGlass", "RESERVOIR GLASS", 19087, 27, collectorRect(1,2,6,7), [{row:2,col:3},{row:3,col:4},{row:4,col:5},{row:5,col:6}], "A power formed on a wet collector keeps that square wet. Fire a wet Jet or Flywheel to coat more marked glass in its path."),
+  saltedFittings: collectionLevel("saltedFittings", "SALTED FITTINGS", 19107, 28, collectorRect(2,1,6,6), [{row:2,col:2},{row:3,col:4},{row:5,col:2},{row:6,col:5}], "Salt has seized four fittings outside the mesh. Crack those seals while spreading water through the collectors.", {boardShape:"clippedCorners",crust:[{row:1,col:2,hp:1},{row:1,col:6,hp:1},{row:7,col:2,hp:1},{row:7,col:6,hp:1}]}),
+  supplyGantry: collectionLevel("supplyGantry", "SUPPLY GANTRY", 19127, 28, collectorRect(1,2,7,6), [{row:1,col:3},{row:2,col:5},{row:4,col:4},{row:6,col:3},{row:7,col:5}], "Three supply crates must reach the bottom exits. Keep the collector path wet as you open drop lanes below them.", {crates:[{row:0,col:2},{row:0,col:4},{row:0,col:6}]}),
+  condensingBanks: collectionLevel("condensingBanks", "CONDENSING BANKS", 19147, 29, [...collectorRect(1,1,5,7),...collectorRect(6,2,6,6)], [{row:1,col:2},{row:2,col:5},{row:3,col:3},{row:4,col:6},{row:6,col:4}], "Salt crust blocks six dry nets. Break each seal, then carry water into the newly open squares.", {boardShape:"clippedCorners",crust:[{row:1,col:4,hp:1},{row:2,col:2,hp:1},{row:3,col:6,hp:1},{row:4,col:3,hp:1},{row:5,col:5,hp:1},{row:6,col:2,hp:1}]}),
+  collectionTwinTanks: collectionLevel("collectionTwinTanks", "TWIN TANKS", 19167, 29, [...collectorRect(1,1,6,3),...collectorRect(1,5,6,7)], [{row:2,col:2},{row:5,col:2},{row:2,col:6},{row:5,col:6}], "Two salt-sealed nets divide the tank banks. Break them, wet both sides, and guide four crates to the exits.", {boardLayout:["#########","####.####","####.####","#########","#########","#########","####.####","####.####","#########"],crust:[{row:3,col:2,hp:1},{row:4,col:6,hp:1}],crates:[{row:1,col:1},{row:1,col:7},{row:2,col:3},{row:2,col:5}]}),
+  recirculationDeck: collectionLevel("recirculationDeck", "RECIRCULATION DECK", 19187, 29, collectorRect(2,1,6,7), [{row:2,col:2},{row:3,col:5},{row:4,col:4},{row:5,col:2},{row:6,col:6}], "The recirculation ring shifts symbols while wet nets stay put. Break three salt-sealed nets to complete the circuit.", {crust:[{row:2,col:4,hp:1},{row:3,col:3,hp:1},{row:5,col:5,hp:1}],currents:[{id:"recirculation-ring",cells:currentPerimeter(2,1,6,7),closure:"loop"}]}),
+  openTheSkyRoute: collectionLevel("openTheSkyRoute", "SKY ROUTE", 19207, 30, collectorRect(1,1,7,7), [{row:1,col:2},{row:2,col:5},{row:3,col:3},{row:4,col:6},{row:5,col:2},{row:6,col:5},{row:7,col:4}], "The last reservoir needs every net wet. Clear four salt seals and deliver four supply crates to open the sky route.", {crust:[{row:2,col:2,hp:1},{row:3,col:5,hp:1},{row:5,col:4,hp:1},{row:6,col:6,hp:1}],crates:[{row:0,col:1},{row:0,col:3},{row:0,col:5},{row:0,col:7}]}),
 };
 
 
@@ -323,5 +352,15 @@ export const MAP_DESTINATIONS = {
   splitwaterCargo: { marker:{x:460,y:415},label:{x:460,y:380},walk:{x:460,y:445},hit:{x:460,y:415,width:64,height:64} },
   saltwindMooring: { marker:{x:340,y:440},label:{x:340,y:405},walk:{x:340,y:470},hit:{x:340,y:440,width:64,height:64} },
   openTheCollectionRoute: { marker:{x:220,y:440},label:{x:220,y:405},walk:{x:220,y:470},hit:{x:220,y:440,width:64,height:64} },
+  firstDew: {marker:{x:215,y:345},label:{x:215,y:300},walk:{x:215,y:430},hit:{x:215,y:350,width:66,height:66}},
+  meshWalk: {marker:{x:340,y:330},label:{x:340,y:285},walk:{x:340,y:425},hit:{x:340,y:335,width:66,height:66}},
+  pairedCollectors: {marker:{x:465,y:315},label:{x:465,y:270},walk:{x:465,y:425},hit:{x:465,y:320,width:66,height:66}},
+  reservoirGlass: {marker:{x:700,y:355},label:{x:700,y:310},walk:{x:700,y:430},hit:{x:700,y:355,width:66,height:66}},
+  saltedFittings: {marker:{x:720,y:290},label:{x:720,y:245},walk:{x:720,y:420},hit:{x:720,y:295,width:66,height:66}},
+  supplyGantry: {marker:{x:845,y:325},label:{x:845,y:280},walk:{x:845,y:425},hit:{x:845,y:330,width:66,height:66}},
+  condensingBanks: {marker:{x:795,y:390},label:{x:795,y:345},walk:{x:795,y:445},hit:{x:795,y:395,width:66,height:66}},
+  collectionTwinTanks: {marker:{x:650,y:465},label:{x:650,y:420},walk:{x:650,y:475},hit:{x:650,y:465,width:66,height:66}},
+  recirculationDeck: {marker:{x:455,y:425},label:{x:455,y:380},walk:{x:455,y:460},hit:{x:455,y:430,width:66,height:66}},
+  openTheSkyRoute: {marker:{x:275,y:430},label:{x:275,y:385},walk:{x:275,y:465},hit:{x:275,y:435,width:66,height:66}},
   openTheHarvestRoad: { marker:{x:875,y:360},label:{x:855,y:310},walk:{x:835,y:440},hit:{x:875,y:375,width:100,height:100} },
 } as const;

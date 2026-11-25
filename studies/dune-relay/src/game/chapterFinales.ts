@@ -4,6 +4,7 @@ export type ChapterFinale = { source: `/${string}`; poster: `/${string}`; captio
 
 // A chapter gets a replay action when its closing film has been released.
 export const CHAPTER_FINALES: Partial<Record<Region, ChapterFinale>> = {
+  collection: { source: "/cinematics/collection-airship-takeoff.mp4", poster: "/cinematics/collection-airship-takeoff-poster.webp", caption: "The reservoirs are full. The airship lifts toward the twin towers.", label: "The airship takes off from the Collection Station" },
   river: { source: "/cinematics/river-upstream-journey.mp4", poster: "/cinematics/river-upstream-journey-poster.webp", caption: "The repair boat heads upstream toward the water collection station.", label: "The repair boat heads upstream along the river" },
   castle: { source: "/cinematics/castle-upstream-departure.mp4", poster: "/cinematics/castle-upstream-departure-poster.webp", caption: "The upstream route opens. The raid’s journey will continue.", label: "The boat departs Castle Island for the upstream route" },
   town: { source: "/cinematics/town-market-opens.mp4", poster: "/cinematics/town-market-opens-poster.webp", caption: "The market opens. The next delivery crosses to Castle Island.", label: "The Town market opens for deliveries" },

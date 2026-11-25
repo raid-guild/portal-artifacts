@@ -328,7 +328,7 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
   if (current && level?.currents) throw new Error("Choose legacy current or named currents");
   const currents = validatedCurrents(level?.currents ?? (current ? [{id:"main",cells:current,closure:"loop"}] : undefined), mask);
   const condensation = level?.condensation;
-  if (condensation && (current || currents || level?.goals.condensation !== condensation.collectors.length - condensation.wet.length)) throw new Error("Invalid condensation terrain or goal");
+  if (condensation && level?.goals.condensation !== condensation.collectors.length - condensation.wet.length) throw new Error("Invalid condensation terrain or goal");
   const collectors = mask.map(row => row.map(() => false));
   const wet = mask.map(row => row.map(() => false));
   for (const cell of condensation?.collectors ?? []) {
@@ -344,6 +344,7 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
     if (!playable(mask, cell) || crust[cell.row][cell.col] || !Number.isInteger(cell.hp ?? 1) || (cell.hp ?? 1) < 1 || (cell.hp ?? 1) > 5) throw new Error(`Invalid salt crust at ${cell.row},${cell.col}`);
     crust[cell.row][cell.col] = cell.hp ?? 1;
   }
+  if (condensation && condensation.wet.some(cell => crust[cell.row][cell.col] > 0)) throw new Error("A wet collector cannot start under salt");
   if (level?.goals.crust !== undefined && level.goals.crust !== (level.crust?.length ?? 0)) throw new Error(`Salt goal differs from placed blocks in ${level.id}`);
   const symbols = level?.symbols ?? kinds;
   let fresh = newBoard(seed || 1, 1, mask, symbols, crust);
@@ -371,7 +372,7 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
     fresh.board[3][3] = { ...fresh.board[3][3]!, jet: "row" };
     fresh.board[3][4] = { ...fresh.board[3][4]!, power: "flywheel" };
     opening = [{ row: 3, col: 3 }, { row: 3, col: 4 }];
-  } else if (level && level.lesson !== "practice" && level.lesson !== "crate" && level.lesson !== "current" && level.lesson !== "wrapCurrent" && level.lesson !== "frozenCurrent") {
+  } else if (level && level.lesson !== "practice" && level.lesson !== "crate" && level.lesson !== "current" && level.lesson !== "wrapCurrent" && level.lesson !== "frozenCurrent" && level.lesson !== "condensation") {
     opening = lessonMove(fresh.board, level.lesson, crust);
     for (let attempt = 1; !opening && attempt < 50; attempt++) {
       fresh = newBoard((seed + attempt * 7919) >>> 0, 1, mask, symbols, crust);
@@ -697,15 +698,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const crustEvents: NonNullable<TurnStep["crustEvents"]> = [];
     const collections: NonNullable<TurnStep["collections"]> = [];
     const spread: Cell[] = [];
-    if (state.condensation) for (const event of events) {
-      if (!event.wetOrigin) continue;
-      const targets = event.kind === "match" ? event.adjacency : event.wetTargets.size ? event.wetTargets : event.clears;
-      for (const cell of targets.values()) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col]) {
-        state.condensation.wet[cell.row][cell.col] = true;
-        spread.push(cell);
-        if ((state.goals.condensation ?? 0) > 0) { state.goals.condensation!--; collections.push({ cell, kind: "condensation" }); }
-      }
-    }
+    const freedByWetEvent = new Map<(typeof events)[number], Cell[]>();
     for (const event of events) {
       const candidates = new Map(event.direct);
       if (event.kind === "match" || event.kind === "prism") for (const cell of (event.kind === "match" ? event.adjacency : event.clears).values()) {
@@ -722,6 +715,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         hits.push({ cell: { ...cell }, hp: state.crust[cell.row][cell.col] });
         if (state.crust[cell.row][cell.col] === 0) {
           stats.saltBlocksBroken++;
+          if (event.wetOrigin) freedByWetEvent.set(event, [...(freedByWetEvent.get(event) ?? []), cell]);
           if ((state.goals.crust ?? 0) > 0) { state.goals.crust!--; collections.push({ cell, kind: "crust" }); }
         }
       }
@@ -745,6 +739,19 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         }
       }
       if (podDamage.length) podEvents.push({ after: event.after, hits: podDamage });
+    }
+    // Resolve salt first. Its collector square stays dry while any layer
+    // remains; a wet-origin event can coat the square it just freed.
+    // wetOrigin was captured before this wave, so newly wet cells cannot
+    // propagate again until a later cascade wave.
+    if (state.condensation) for (const event of events) {
+      if (!event.wetOrigin) continue;
+      const targets = event.kind === "match" ? event.adjacency : event.wetTargets.size ? event.wetTargets : event.clears;
+      for (const cell of [...targets.values(), ...(freedByWetEvent.get(event) ?? [])]) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col] && state.crust[cell.row][cell.col] === 0) {
+        state.condensation.wet[cell.row][cell.col] = true;
+        spread.push(cell);
+        if ((state.goals.condensation ?? 0) > 0) { state.goals.condensation!--; collections.push({ cell, kind: "condensation" }); }
+      }
     }
     const removed: Cell[] = [];
     for (const cell of removal.values()) {

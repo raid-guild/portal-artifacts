@@ -71,6 +71,12 @@ function boardFor(id: TutorialId, step: number): { board: Cell[][]; hot: number[
     if(step>=2){put(0,1,".");put(0,2,".");put(0,3,".");}
     if(step>=3){put(1,0,"W");put(1,1,"L");put(2,1,"W");put(2,0,"G");put(1,3,"W");put(1,4,"G");put(2,4,"W");put(2,3,"L");}
     hot=[...frozenPath,...flowingPath];
+  } else if(id==="condensation") {
+    ["W","G","W","L","G"].forEach((v,c)=>put(2,c,v as Cell)); put(3,2,"W"); hot=[11,12,13]; arrow=[17,12];
+    if(step>=1){put(2,2,"W");put(3,2,"G");arrow=undefined;}
+    if(step>=2){put(2,1,".");put(2,2,".");put(2,3,".");hot=[11,12,13];}
+    if(step>=3){put(2,2,"H");hot=[12];beam="row";}
+    if(step>=4){for(let c=0;c<5;c++)put(2,c,".");hot=[];beam=null;}
   } else if(id==="seedpod") {
     put(2,2,"P");put(3,1,"L");put(3,2,"W");put(3,3,"W");put(4,1,"W");put(4,2,"G");hot=[12,16,17,18,21];arrow=[21,16];
     if(step>=1){put(3,1,"W");put(4,1,"L");put(2,2,"PC");hot=[12,16,17,18];arrow=[21,16];}
@@ -120,7 +126,7 @@ export function TutorialDialog({tutorial,mode,reducedMotion,onSkip,onContinue,on
     <section className="tutorial-card" role="dialog" aria-modal="true" aria-label={`${tutorial.title} lesson`} data-tutorial={tutorial.id} data-stage={step} data-finished={finished} data-hidden={hidden}>
       <header className="tutorial-header"><div className="tutorial-speaker"><img src={tutorialSpeaker.portrait} alt=""/><div><span className="speaker">{tutorialSpeaker.name.toUpperCase()} SHOWS YOU</span><h2>{tutorial.title}</h2></div></div><span className="tutorial-demo-label">DEMO · NO MOVES USED</span></header>
       <div className="tutorial-content"><div className={`tutorial-board tutorial-beam-${scene.beam ?? "none"}`} aria-label="Scripted example board" data-motion={Boolean(moving)} data-reduced={reducedMotion} data-stage={step}>
-        {scene.board.flat().map((cell,index)=><div className={`tutorial-cell ${scene.hot.includes(index)?"is-hot":""} ${routePaths.some(path=>path.cells.includes(index))?"is-current":""} ${riverMoving&&movingPaths.some(path=>path.includes(index))?"is-moving-route":""} ${cell==="."?"is-empty":""}`} key={index}>
+        {scene.board.flat().map((cell,index)=><div className={`tutorial-cell ${tutorial.id==="condensation" && [6,7,8,11,12,13,16,17,18].includes(index) ? "is-collector" : ""} ${tutorial.id==="condensation" && (index===11 || step>=2 && [12,13].includes(index) || step>=4 && [6,7,8,16,17,18].includes(index)) ? "is-wet" : ""} ${scene.hot.includes(index)?"is-hot":""} ${routePaths.some(path=>path.cells.includes(index))?"is-current":""} ${riverMoving&&movingPaths.some(path=>path.includes(index))?"is-moving-route":""} ${cell==="."?"is-empty":""}`} key={index}>
           {cell!=="."&&<img src={assetUrl(`/sprites/${art[cell]}`)} alt="" draggable={false}/>}
           {scene.arrow?.[1]===index&&<span className="tutorial-swap-arrow" aria-hidden="true">{direction}</span>}
         </div>)}

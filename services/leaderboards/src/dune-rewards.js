@@ -13,6 +13,7 @@ const chapters = [
   ['town','openTheMarket','Market Open','freeSwap'],
   ['castle','openTheUpstreamRoute','Upstream Route Open','flywheel'],
   ['river','openTheCollectionRoute','Collection Route Open','prism'],
+  ['collection','openTheSkyRoute','Sky Route Open','flywheel'],
 ];
 
 export const chapterRewards = Object.freeze(chapters.map(([chapter,finalLevel,title,item])=>{

@@ -82,7 +82,7 @@ Chapter 5 has an authored ten-level implementation. Its rules, access gate, leve
 
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
 
-The [Condensation prototype](CONDENSATION_PROTOTYPE.md) is a one-level mechanic test for the proposed collection station. It does not commit Chapter 8's rules or add a sixth symbol.
+The [Condensation prototype](CONDENSATION_PROTOTYPE.md) established the wet collector rule. Chapter 8 now uses that rule across ten levels without adding a sixth matching symbol; see the [Collection Station chapter spec](CHAPTER_8_COLLECTION_SPEC.md). The route and later chapter details remain open to playtest changes.
 
 ## Farmland starting concept
 

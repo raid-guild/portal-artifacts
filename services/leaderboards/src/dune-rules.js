@@ -30,7 +30,7 @@ export function boosterFunding(selected,inventory) {
   for (const kind of validBoosters(selected)) (inventory[kind]>0 ? owned : purchased).push(kind);
   return {owned,purchased,coinCost:purchased.reduce((sum,kind)=>sum+boosterPrices[kind],0)};
 }
-export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, activeCompanion: null, demoEnding: 'locked', farmlandEnding: 'locked', townEnding: 'locked', castleEnding: 'locked', riverEnding: 'locked' });
+export const emptyCampaign = () => ({ version: 5, completed: [], coins: 0, region: 'oasis', companions: [], oasisTransition: 'locked', transition: null, gatehouseReady: false, farmlandReady: false, townReady: false, castleReady: false, riverReady: false, collectionReady: false, activeCompanion: null, demoEnding: 'locked', farmlandEnding: 'locked', townEnding: 'locked', castleEnding: 'locked', riverEnding: 'locked', collectionEnding: 'locked' });
 export const emptyProfile = () => ({ revision: 0, campaignGeneration:0, campaign: emptyCampaign(), imported: false, inventory:emptyInventory(), rewardClaims:{},dailyVisit:null });
 export const rewardFor = moves => 20 + 3 * moves;
 // This boundary stays at the Gatehouse finale when later chapters add levels.
@@ -39,6 +39,7 @@ export const FARMLAND_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='
 export const TOWN_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheMarket') + 1;
 export const CASTLE_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheUpstreamRoute') + 1;
 export const RIVER_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheCollectionRoute') + 1;
+export const COLLECTION_LEVEL_COUNT = content.levels.findIndex(level=>level.id==='openTheSkyRoute') + 1;
 export const PASS_LEVEL_START = FARMLAND_LEVEL_COUNT;
 // Authoring metadata, not a browser-supplied unlock flag, decides the access tier.
 export function accessTierForLevel(level) {
@@ -72,7 +73,8 @@ export function requireCurrentLevel(campaign, level) {
   if (level.index >= DEMO_LEVEL_COUNT && level.index < PASS_LEVEL_START && !campaign.farmlandReady) throw fail(409, 'Finish the Farmland transition before entering Farmland.');
   if (level.index >= PASS_LEVEL_START && level.index < TOWN_LEVEL_COUNT && !campaign.townReady) throw fail(409, 'Finish the Town arrival before entering the next chapter.');
   if (level.index >= TOWN_LEVEL_COUNT && level.index < CASTLE_LEVEL_COUNT && (!campaign.castleReady || !campaign.activeCompanion)) throw fail(409, 'Arrive at Castle Island and choose an active raid member first.');
-  if (level.index >= CASTLE_LEVEL_COUNT && (!campaign.riverReady || !campaign.activeCompanion)) throw fail(409, 'Arrive at the River and choose an active raid member first.');
+  if (level.index >= CASTLE_LEVEL_COUNT && level.index < RIVER_LEVEL_COUNT && (!campaign.riverReady || !campaign.activeCompanion)) throw fail(409, 'Arrive at the River and choose an active raid member first.');
+  if (level.index >= RIVER_LEVEL_COUNT && (!campaign.collectionReady || !campaign.activeCompanion)) throw fail(409, 'Arrive at the Collection Station and choose an active raid member first.');
 }
 export function validPrefix(value) {
   if (!Array.isArray(value) || value.length > content.levels.length || value.some((id, index) => id !== content.levels[index].id)) throw fail(400, 'Invalid completed levels.');
@@ -82,7 +84,7 @@ export function deriveCampaign(completed, coins, requested = {}) {
   validPrefix(completed);
   if (!Number.isSafeInteger(coins) || coins < 0 || coins > 1000000) throw fail(400, 'Invalid coin balance.');
   const count = completed.length;
-  const oasisDone = count >= 10, caravanDone = count >= 20, gatehouseDone = count >= 30, farmlandDone = FARMLAND_LEVEL_COUNT > 0 && count >= FARMLAND_LEVEL_COUNT, townDone = TOWN_LEVEL_COUNT > 0 && count >= TOWN_LEVEL_COUNT, castleDone = CASTLE_LEVEL_COUNT > 0 && count >= CASTLE_LEVEL_COUNT, riverDone = RIVER_LEVEL_COUNT > 0 && count >= RIVER_LEVEL_COUNT;
+  const oasisDone = count >= 10, caravanDone = count >= 20, gatehouseDone = count >= 30, farmlandDone = FARMLAND_LEVEL_COUNT > 0 && count >= FARMLAND_LEVEL_COUNT, townDone = TOWN_LEVEL_COUNT > 0 && count >= TOWN_LEVEL_COUNT, castleDone = CASTLE_LEVEL_COUNT > 0 && count >= CASTLE_LEVEL_COUNT, riverDone = RIVER_LEVEL_COUNT > 0 && count >= RIVER_LEVEL_COUNT, collectionDone = COLLECTION_LEVEL_COUNT > 0 && count >= COLLECTION_LEVEL_COUNT;
   const oasisStages = ['locked','film','keeper','atlas','arrival','ready'];
   const endingStages = ['locked','gate','film','thanks','done'];
   const oasisTransition = oasisDone && oasisStages.includes(requested.oasisTransition) && requested.oasisTransition !== 'locked' ? requested.oasisTransition : oasisDone ? 'film' : 'locked';
@@ -93,6 +95,7 @@ export function deriveCampaign(completed, coins, requested = {}) {
   // Before River shipped, a finished Castle save had no riverReady field.
   // Preserve that account's access without skipping the arrival on new saves.
   const riverReady = Boolean(castleDone && (requested.riverReady || count > CASTLE_LEVEL_COUNT || !Object.hasOwn(requested, 'riverReady') && requested.castleEnding === 'done'));
+  const collectionReady = Boolean(riverDone && (requested.collectionReady || count > RIVER_LEVEL_COUNT));
   let transition = null;
   if (oasisDone && oasisTransition !== 'ready') {
     transition = { from: 'oasis', to: 'caravan', stage: oasisTransition === 'keeper' ? 'handoff' : oasisTransition === 'atlas' ? 'atlas' : oasisTransition === 'arrival' ? 'arrival' : 'film' };
@@ -111,6 +114,9 @@ export function deriveCampaign(completed, coins, requested = {}) {
   } else if (castleDone && !riverReady && requested.transition?.from === 'castle' && requested.transition?.to === 'river' && requested.castleEnding === 'done') {
     const stage = ['handoff','atlas','arrival'].includes(requested.transition.stage) ? requested.transition.stage : 'handoff';
     transition = { from: 'castle', to: 'river', stage };
+  } else if (riverDone && !collectionReady && requested.transition?.from === 'river' && requested.transition?.to === 'collection' && requested.riverEnding === 'done') {
+    const stage = ['handoff','atlas','arrival'].includes(requested.transition.stage) ? requested.transition.stage : 'handoff';
+    transition = { from: 'river', to: 'collection', stage };
   }
   const demoEnding = gatehouseDone && endingStages.includes(requested.demoEnding) && requested.demoEnding !== 'locked' ? requested.demoEnding : gatehouseDone ? 'gate' : 'locked';
   const farmlandStages = ['locked','film','thanks','done'];
@@ -119,11 +125,14 @@ export function deriveCampaign(completed, coins, requested = {}) {
   const townEnding = townDone && townStages.includes(requested.townEnding) && requested.townEnding !== 'locked' ? requested.townEnding : townDone ? 'film' : 'locked';
   const castleEnding = castleDone && townStages.includes(requested.castleEnding) && requested.castleEnding !== 'locked' ? requested.castleEnding : castleDone ? 'film' : 'locked';
   const riverEnding = riverDone && townStages.includes(requested.riverEnding) && requested.riverEnding !== 'locked' ? requested.riverEnding : riverDone ? 'film' : 'locked';
-  const companions = [ ...(oasisStages.indexOf(oasisTransition) >= 3 ? ['keeper'] : []), ...(oasisTransition === 'ready' ? ['wayfinder'] : []), ...(gatehouseReady ? ['gatewright'] : []), ...(farmlandReady ? ['fieldkeeper'] : []), ...(townReady ? ['towncrier'] : []) ];
+  const collectionStages = ['locked','celebration','thanks','done'];
+  const collectionEnding = collectionDone && collectionStages.includes(requested.collectionEnding) && requested.collectionEnding !== 'locked' ? requested.collectionEnding : collectionDone ? 'celebration' : 'locked';
+  const companions = [ ...(oasisStages.indexOf(oasisTransition) >= 3 ? ['keeper'] : []), ...(oasisTransition === 'ready' ? ['wayfinder'] : []), ...(gatehouseReady ? ['gatewright'] : []), ...(farmlandReady ? ['fieldkeeper'] : []), ...(townReady ? ['towncrier'] : []), ...(collectionReady ? ['artificer'] : []) ];
   const activeCompanion = castleReady && companions.includes(requested.activeCompanion) ? requested.activeCompanion : null;
   const region = transition?.stage === 'arrival' ? transition.to
     : demoEnding !== 'locked' && demoEnding !== 'done' && transition?.to !== 'farmland' && transition?.to !== 'town' && transition?.to !== 'castle' ? 'gatehouse'
     : farmlandEnding === 'film' || farmlandEnding === 'thanks' && transition?.to !== 'town' ? 'farmland'
+    : requested.region === 'collection' && collectionReady ? 'collection'
     : requested.region === 'river' && riverReady ? 'river'
     : requested.region === 'castle' && castleReady ? 'castle'
     : requested.region === 'town' && townReady ? 'town'
@@ -132,7 +141,7 @@ export function deriveCampaign(completed, coins, requested = {}) {
     : requested.region === 'oasis' ? 'oasis'
     : oasisTransition === 'ready' ? 'caravan' : 'oasis';
   return { version: 5, completed, coins, region,
-    companions, oasisTransition, transition, gatehouseReady, farmlandReady, townReady, castleReady, riverReady, activeCompanion, demoEnding, farmlandEnding, townEnding, castleEnding, riverEnding };
+    companions, oasisTransition, transition, gatehouseReady, farmlandReady, townReady, castleReady, riverReady, collectionReady, activeCompanion, demoEnding, farmlandEnding, townEnding, castleEnding, riverEnding, collectionEnding };
 }
 export function normalizeProfile(value) {
   if (!value || typeof value !== 'object') return emptyProfile();
@@ -145,7 +154,7 @@ export function normalizeProfile(value) {
 export function guestImport(value) {
   if (!value || value.version !== 5) throw fail(400, 'Invalid guest save.');
   const completed = validPrefix(value.completed);
-  if (completed.length > DEMO_LEVEL_COUNT || value.farmlandReady || value.townReady || value.castleReady || value.riverReady || value.activeCompanion || value.region === 'farmland' || value.region === 'town' || value.region === 'castle' || value.region === 'river' || value.transition?.to === 'farmland' || value.transition?.to === 'town' || value.transition?.to === 'castle' || value.transition?.to === 'river' || value.riverEnding && value.riverEnding !== 'locked') throw fail(400, 'Paid chapter progress cannot be imported from a guest save.');
+  if (completed.length > DEMO_LEVEL_COUNT || value.farmlandReady || value.townReady || value.castleReady || value.riverReady || value.collectionReady || value.activeCompanion || Array.isArray(value.companions) && value.companions.includes('artificer') || value.region === 'farmland' || value.region === 'town' || value.region === 'castle' || value.region === 'river' || value.region === 'collection' || value.transition?.to === 'farmland' || value.transition?.to === 'town' || value.transition?.to === 'castle' || value.transition?.to === 'river' || value.transition?.to === 'collection' || value.riverEnding && value.riverEnding !== 'locked' || value.collectionEnding && value.collectionEnding !== 'locked') throw fail(400, 'Paid chapter progress cannot be imported from a guest save.');
   // Guest saves do not record the version of each win. Accept a bounded balance
   // earned under any known authored budget without changing the saved coins.
   const maximum = completed.reduce((sum, id) => sum + rewardFor(maximumKnownMoveCap(levels.get(id))), 0);
@@ -158,13 +167,21 @@ export function applyCheckpoint(profile, requested) {
   if (Object.hasOwn(requested,'activeCompanion') && requested.activeCompanion !== before.activeCompanion && (!before.castleReady || !before.companions.includes(requested.activeCompanion))) throw fail(400, 'Choose an unlocked raid member at Castle Island.');
   if (Object.hasOwn(requested,'castleReady') && requested.castleReady && !before.castleReady && before.transition?.from !== 'town') throw fail(400, 'Castle arrival is incomplete.');
   if (Object.hasOwn(requested,'riverReady') && requested.riverReady && !before.riverReady && before.transition?.from !== 'castle') throw fail(400, 'River arrival is incomplete.');
+  if (Object.hasOwn(requested,'collectionReady') && requested.collectionReady && !before.collectionReady && before.transition?.from !== 'river') throw fail(400, 'Collection Station arrival is incomplete.');
+  if (before.collectionReady && requested.collectionReady === false) throw fail(400, 'Collection Station arrival cannot be undone.');
   if (requested.transition?.from === 'town' && requested.transition?.to === 'castle' && before.transition?.from !== 'town' && before.townEnding !== 'done' && !(before.townEnding === 'thanks' && requested.townEnding === 'done' && requested.transition.stage === 'handoff')) throw fail(400, 'Finish Town before travelling to Castle Island.');
   if (requested.transition?.from === 'castle' && requested.transition?.to === 'river' && before.transition?.from !== 'castle' && before.castleEnding !== 'done' && !(before.castleEnding === 'thanks' && requested.castleEnding === 'done' && requested.transition.stage === 'handoff')) throw fail(400, 'Finish Castle before travelling to the River.');
+  if (requested.transition?.from === 'river' && requested.transition?.to === 'collection' && before.transition?.from !== 'river' && before.riverEnding !== 'done' && !(before.riverEnding === 'thanks' && requested.riverEnding === 'done' && requested.transition.stage === 'handoff')) throw fail(400, 'Finish River before travelling to the Collection Station.');
   if (before.farmlandEnding && before.farmlandEnding !== 'locked' && requested.farmlandEnding === 'locked') throw fail(400, 'Invalid Farmland ending checkpoint.');
   if (before.townEnding && before.townEnding !== 'locked' && requested.townEnding === 'locked') throw fail(400, 'Invalid Town ending checkpoint.');
   if (before.castleEnding && before.castleEnding !== 'locked' && requested.castleEnding === 'locked') throw fail(400, 'Invalid Castle ending checkpoint.');
   if (before.riverEnding && before.riverEnding !== 'locked' && requested.riverEnding === 'locked') throw fail(400, 'Invalid River ending checkpoint.');
-  const after = deriveCampaign(before.completed, before.coins, { ...before, ...requested, farmlandEnding: requested.farmlandEnding ?? before.farmlandEnding, townEnding: requested.townEnding ?? before.townEnding, castleEnding: requested.castleEnding ?? before.castleEnding, riverEnding: requested.riverEnding ?? before.riverEnding, townReady: requested.townReady ?? before.townReady, castleReady: requested.castleReady ?? before.castleReady, riverReady: requested.riverReady ?? before.riverReady, activeCompanion: requested.activeCompanion === undefined ? before.activeCompanion : requested.activeCompanion, transition: requested.transition === undefined ? before.transition : requested.transition });
+  if (before.collectionEnding && before.collectionEnding !== 'locked' && requested.collectionEnding === 'locked') throw fail(400, 'Invalid Collection Station ending checkpoint.');
+  // An older client can still send a legal River checkpoint after Chapter 8
+  // ships. Missing new fields must never roll back a saved collection arrival.
+  const olderCollectionCheckpoint = !Object.hasOwn(requested,'collectionReady') && !Object.hasOwn(requested,'collectionEnding');
+  const preservedCollectionTransition = olderCollectionCheckpoint && before.transition?.from === 'river' && requested.transition === null;
+  const after = deriveCampaign(before.completed, before.coins, { ...before, ...requested, farmlandEnding: requested.farmlandEnding ?? before.farmlandEnding, townEnding: requested.townEnding ?? before.townEnding, castleEnding: requested.castleEnding ?? before.castleEnding, riverEnding: requested.riverEnding ?? before.riverEnding, collectionEnding: requested.collectionEnding ?? before.collectionEnding, townReady: requested.townReady ?? before.townReady, castleReady: requested.castleReady ?? before.castleReady, riverReady: requested.riverReady ?? before.riverReady, collectionReady: requested.collectionReady ?? before.collectionReady, activeCompanion: requested.activeCompanion === undefined ? before.activeCompanion : requested.activeCompanion, transition: preservedCollectionTransition || requested.transition === undefined ? before.transition : requested.transition, region: olderCollectionCheckpoint && before.collectionReady && requested.region === 'river' ? before.region : requested.region ?? before.region });
   const oasisStages = ['locked','film','keeper','atlas','arrival','ready'];
   const priorOasis = oasisStages.indexOf(before.oasisTransition), nextOasis = oasisStages.indexOf(after.oasisTransition);
   if (nextOasis < priorOasis || nextOasis > priorOasis + 1) throw fail(400, 'Invalid Oasis checkpoint.');
@@ -205,6 +222,14 @@ export function applyCheckpoint(profile, requested) {
     const next = after.transition?.from === 'castle' ? riverOrder.indexOf(after.transition.stage) : after.riverReady ? 3 : -1;
     if (next < prior || next > prior + 1) throw fail(400, 'Invalid River checkpoint.');
   }
+  if (after.transition?.from === 'river' && before.transition?.from !== 'river' && before.riverEnding !== 'done' && !(before.riverEnding === 'thanks' && after.riverEnding === 'done' && after.transition.stage === 'handoff')) throw fail(400, 'Finish River before travelling to the Collection Station.');
+  if (after.transition?.from === 'river' && before.transition?.from !== 'river' && after.transition.stage !== 'handoff') throw fail(400, 'Begin the Collection Station handoff before travelling.');
+  if (before.transition?.from === 'river') {
+    const collectionOrder = ['handoff','atlas','arrival'];
+    const prior = collectionOrder.indexOf(before.transition.stage);
+    const next = after.transition?.from === 'river' ? collectionOrder.indexOf(after.transition.stage) : after.collectionReady ? 3 : -1;
+    if (next < prior || next > prior + 1) throw fail(400, 'Invalid Collection Station checkpoint.');
+  }
   const ending = ['locked','gate','film','thanks','done'];
   const priorEnd = ending.indexOf(before.demoEnding), nextEnd = ending.indexOf(after.demoEnding);
   if (nextEnd < priorEnd || nextEnd > priorEnd + 1) throw fail(400, 'Invalid ending checkpoint.');
@@ -219,10 +244,14 @@ export function applyCheckpoint(profile, requested) {
   const riverStages = ['locked','film','thanks','done'];
   const priorRiver = riverStages.indexOf(before.riverEnding ?? 'locked'), nextRiver = riverStages.indexOf(after.riverEnding);
   if (nextRiver < priorRiver || nextRiver > priorRiver + 1) throw fail(400, 'Invalid River ending checkpoint.');
+  const collectionStages = ['locked','celebration','thanks','done'];
+  const priorCollection = collectionStages.indexOf(before.collectionEnding ?? 'locked'), nextCollection = collectionStages.indexOf(after.collectionEnding);
+  if (nextCollection < priorCollection || nextCollection > priorCollection + 1) throw fail(400, 'Invalid Collection Station ending checkpoint.');
   if (after.gatehouseReady && !before.gatehouseReady && before.transition?.stage !== 'arrival') throw fail(400, 'Gatehouse arrival is incomplete.');
   if (after.farmlandReady && !before.farmlandReady && before.transition?.from !== 'gatehouse' || after.farmlandReady && !before.farmlandReady && before.transition?.stage !== 'arrival') throw fail(400, 'Farmland arrival is incomplete.');
   if (after.townReady && !before.townReady && (before.transition?.from !== 'farmland' || before.transition?.stage !== 'arrival')) throw fail(400, 'Town arrival is incomplete.');
   if (after.castleReady && !before.castleReady && (before.transition?.from !== 'town' || before.transition?.stage !== 'arrival')) throw fail(400, 'Castle arrival is incomplete.');
   if (after.riverReady && !before.riverReady && (before.transition?.from !== 'castle' || before.transition?.stage !== 'arrival')) throw fail(400, 'River arrival is incomplete.');
+  if (after.collectionReady && !before.collectionReady && (before.transition?.from !== 'river' || before.transition?.stage !== 'arrival')) throw fail(400, 'Collection Station arrival is incomplete.');
   return { ...profile, revision: profile.revision + 1, campaign: after };
 }
