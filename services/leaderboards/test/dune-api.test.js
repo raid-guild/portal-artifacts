@@ -339,6 +339,33 @@ test('Castle attempts freeze the selected ability, including a zero-booster retr
     assert.equal((await post(`/attempts/${randomUUID()}/finish`,{levelId:content.levels[51].id,remainingMoves:10,contentVersion:content.contentVersion})).status,403);
   } finally { await new Promise(resolve=>service.close(resolve)); }
 });
+test('Gatewright retries keep the nine-key snapshot from a prepared attempt',async()=>{
+  const {cookie}=await launch({sub:'user:90818165'});
+  const accountId=accountByCookie.get(cookie);
+  const completed=content.levels.slice(0,50).map(level=>level.id);
+  const campaign=deriveCampaign(completed,800,{oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',region:'castle',activeCompanion:'gatewright'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async()=>({state:'active',unlocked:true,unlockedAt:null,checkedAt:null,storeUrl:null})}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const localBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const post=(path,body)=>fetch(localBase+path,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const levelId=content.levels[50].id,attemptId=randomUUID();
+  try {
+    const prepared=await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'gatewright'}));
+    assert.equal(prepared.companionSnapshot.keeperTarget,12,'new attempts use the new charge');
+    const oldSnapshot={...prepared.companionSnapshot,keeperTarget:9};
+    await pool.query('UPDATE artifact_leaderboards.dune_attempts SET companion_snapshot=$1 WHERE id=$2',[oldSnapshot,attemptId]);
+    const retry=await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'gatewright'}));
+    assert.deepEqual(retry.companionSnapshot,oldSnapshot,'prepared retry preserves its original charge');
+    const activated=await ok(await post(`/attempts/${attemptId}/activate`,{expectedRevision:1}));
+    assert.deepEqual(activated.companionSnapshot,oldSnapshot,'activation still uses its original charge');
+    assert.deepEqual((await ok(await post('/attempts',{attemptId,levelId,boosters:[],companionId:'gatewright'}))).companionSnapshot,oldSnapshot,'active retry remains idempotent');
+    assert.equal((await post('/attempts',{attemptId,levelId,boosters:[],companionId:'keeper'})).status,409,'identity cannot change');
+    const win=await ok(await post(`/attempts/${attemptId}/finish`,{levelId,remainingMoves:8,contentVersion:'chapter-7-6'}));
+    assert.equal(win.profile.campaign.completed.at(-1),levelId,'older queued finish remains accepted');
+  } finally { await new Promise(resolve=>service.close(resolve)); }
+});
 test('River requires the Dune Pass and preserves the selected companion on a zero-cost attempt',async()=>{
   const {cookie}=await launch({sub:'user:90818164'});
   const accountId=accountByCookie.get(cookie);

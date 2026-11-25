@@ -139,7 +139,7 @@ function replayMarkers(scene: Phaser.Scene, props: Props) {
   return props.replayDestinations.map(group => {
     const destination = MAP_DESTINATIONS[group.destination];
     const number = LEVEL_ORDER.indexOf(group.levels[0]) % 10 + 1;
-    const caption = group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
+    const caption = props.region === "river" ? `7.${number}` : group.levels.length > 1 ? `${number}–${number + group.levels.length - 1}` : String(number);
     const marker = scene.add.circle(destination.marker.x,destination.marker.y,19,0x173c46,.96).setStrokeStyle(2,0xffdf9e).setDepth(12).setInteractive({useHandCursor:true});
     const text = label(scene,destination.marker.x,destination.marker.y,caption,15).setOrigin(.5).setDepth(13).setInteractive({useHandCursor:true});
     return {group,destination,marker,text};
