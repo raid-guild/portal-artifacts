@@ -98,7 +98,7 @@ for (const id of ids) {
 }
 for (const [id, saltCount, playableCount, frozenCount] of [
   ['splitwaterCargo', 4, 79, 1],
-  ['saltwindMooring', 5, 76, 1],
+  ['saltwindMooring', 5, 73, 3],
   ['openTheCollectionRoute', 6, 79, 2],
 ]) {
   const puzzle=createPuzzle(LEVELS[id]);
@@ -124,18 +124,18 @@ assert.equal(currentStep(opposing).currentMotions.filter(motion=>motion.wrap).le
 const movedIds=currentStep(opposing).board.flat().filter(Boolean).map(tile=>tile.id);
 assert.equal(new Set(movedIds).size,movedIds.length,'counterflow never clones a tile');
 const reedbank=openingTurn(LEVELS.reedbankDeliveries);
-assert.deepEqual(currentStep(reedbank).currentRouteIds,['meander','upper-westbound'],'reedbank has two distinct currents');
+assert.deepEqual(currentStep(reedbank).currentRouteIds,['meander','lower-westbound'],'reedbank has two distinct currents');
 assert.equal(currentStep(reedbank).currentMotions.filter(motion=>motion.wrap).length,2,'reedbank wraps both currents');
 const nested=openingTurn(LEVELS.splitwaterCargo);
 assert.deepEqual(currentStep(nested).currentRouteIds,['left-whirlpool','right-whirlpool'],'salt freezes only the outer nested loop');
 const four=openingTurn(LEVELS.saltwindMooring);
 assert.equal(LEVELS.saltwindMooring.currents.length,4,'saltwind has four separate routes');
-assert.deepEqual(currentStep(four).currentRouteIds,['upper-eastbound','upper-westbound','westbound'],'salt freezes only one of four routes');
-assert.equal(currentStep(four).currentMotions.filter(motion=>motion.wrap).length,3,'three flowing routes wrap at the edges');
+assert.deepEqual(currentStep(four).currentRouteIds,['eastbound','westbound'],'the opening match releases the middle eastbound route; lower lanes remain frozen');
+assert.equal(currentStep(four).currentMotions.filter(motion=>motion.wrap).length,2,'the two flowing routes wrap at their edges');
 const fourIds=currentStep(four).board.flat().filter(Boolean).map(tile=>tile.id);
 assert.equal(new Set(fourIds).size,fourIds.length,'four simultaneous routes never clone a tile');
 const fourOpen=openingTurn({...LEVELS.saltwindMooring,crust:[],goals:{...LEVELS.saltwindMooring.goals,crust:0}});
-assert.deepEqual(currentStep(fourOpen).currentRouteIds,['upper-eastbound','upper-westbound','eastbound','westbound'],'all four unsealed routes advance together');
+assert.deepEqual(currentStep(fourOpen).currentRouteIds,['eastbound','westbound','lower-eastbound','lower-westbound'],'all four unsealed routes advance together');
 assert.equal(currentStep(fourOpen).currentMotions.filter(motion=>motion.wrap).length,4,'all four edge jumps wrap in one phase');
 const fourOpenIds=currentStep(fourOpen).board.flat().filter(Boolean).map(tile=>tile.id);
 assert.equal(new Set(fourOpenIds).size,fourOpenIds.length,'four active routes preserve tile identity');

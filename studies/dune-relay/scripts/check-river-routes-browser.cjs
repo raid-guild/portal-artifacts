@@ -83,7 +83,7 @@ async function main(){
       [5,'clearingTheBend',{routes:2,frozen:1,move:true}],
       [7,'reedbankDeliveries',{routes:2,frozen:0,exits:9,move:true}],
       [8,'splitwaterCargo',{routes:3,frozen:1,exits:9,move:true}],
-      [9,'saltwindMooring',{routes:4,frozen:1,exits:9,move:true}],
+      [9,'saltwindMooring',{routes:4,frozen:3,exits:9,move:true}],
       [10,'openTheCollectionRoute',{routes:2,frozen:2,exits:9,move:true}],
     ];
     const selected=process.env.RIVER_ROUTE_LEVELS?.split(',').map(Number);
