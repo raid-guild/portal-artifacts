@@ -16,7 +16,7 @@ import skiffFrames from "../../public/sprites/skiff-frames.json";
 import { CascadeFlair, cascadeVisualStrength, showCascadeWord } from "./cascadeFlair";
 import { crateExitCells } from "./crateExits";
 import type { CompanionId, Region } from "./save";
-import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, resolveAction, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals, type CurrentEdge, type CurrentRoute, type CurrentMotion, type PuzzleAction, type Turn } from "./core";
+import { BOARD_SIZE, Board, Cell, legalMove, createPuzzle, playTurn, resolveAction, Puzzle, resolveFinaleRefill, SymbolKind, TurnStep, Power, isSpecial, CrustGrid, GoalKind, Goals, type BoardMask, type CurrentEdge, type CurrentRoute, type CurrentMotion, type PuzzleAction, type Turn } from "./core";
 import type {ToolKind} from './inventory';
 import type { GameAudio } from "./audio";
 import { beamTravelDelay } from "./timing";
@@ -60,6 +60,7 @@ export type GameEvent =
   | { type: "lose"; puzzle: Puzzle };
 
 type Props = {
+  prototype?: "condensation";
   mode: "map" | "puzzle";
   region: Region;
   activeCompanion: CompanionId | null;
@@ -245,16 +246,30 @@ function drawPiece(scene: Phaser.Scene, x: number, y: number, kind: SymbolKind |
   return scene.add.container(x, y, [art]);
 }
 
+function paintCollectorTank(tank: Phaser.GameObjects.Graphics, covered: number) {
+  tank.clear();
+  tank.fillStyle(0x2e606d).fillRoundedRect(-18, -17, 36, 34, 7);
+  tank.fillStyle(0x8edbe4, 0.92).fillRoundedRect(-14, 13 - 26 * covered / 25, 28, 26 * covered / 25, 4);
+  tank.lineStyle(3, 0xd7e8dd).strokeRoundedRect(-18, -17, 36, 34, 7);
+  tank.lineStyle(2, 0xffffff, 0.8).lineBetween(-10, -8, 10, -8);
+}
+
 function drawGoalIcon(scene: Phaser.Scene, x: number, y: number, kind: GoalKind) {
+  if (kind === "condensation") {
+    const tank = scene.add.graphics().setPosition(x, y);
+    paintCollectorTank(tank, 3);
+    return tank;
+  }
   if (kind === "crate") return drawPiece(scene, x, y, "crate", undefined, false);
   if (kind === "seedpod") return drawPiece(scene, x, y, "seedpod", undefined, false, undefined, 2);
   if (kind === "crust") return scene.add.image(x, y, prepareSmallTexture(scene, "saltCrust", "saltCrust-small", 128)).setDisplaySize(43, 43);
   return drawPiece(scene, x, y, kind);
 }
 
-function goalName(kind: GoalKind, amount = 2): string { return kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind === "crate" ? amount === 1 ? "DELIVERY" : "DELIVERIES" : kind.toUpperCase(); }
+function goalName(kind: GoalKind, amount = 2): string { return kind === "condensation" ? "COLLECTORS" : kind === "leaf" ? "REEDS" : kind === "pennant" ? "PENNANTS" : kind === "key" ? "KEYS" : kind === "crust" ? "SALT" : kind === "seedpod" ? "PODS" : kind === "crate" ? amount === 1 ? "DELIVERY" : "DELIVERIES" : kind.toUpperCase(); }
 function remainingGoalLabel(kind: GoalKind, goals: Goals): string {
   const remaining=Math.max(0,goals[kind] ?? 0);
+  if (kind === "condensation") return `${25 - remaining} / 25 WET`;
   return remaining === 0 ? `✓  ${goalName(kind)}` : `${remaining}  ${goalName(kind)}`;
 }
 
@@ -1184,6 +1199,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
     exitPulse?: Phaser.Tweens.Tween;
     exitPulsePaused = false;
     currentVisuals: CurrentVisual[] = [];
+    condensationVisual?: Phaser.GameObjects.Graphics;
+    displayWet?: BoardMask;
     lastTap: { cell: Cell; time: number } | null = null;
     pieces = new Map<number, { graphic: Phaser.GameObjects.Container; kind: SymbolKind | "seedpod" | "crate"; hp?: number; jet?: "row" | "column"; power?: Power }>();
     lessonHint?: Phaser.GameObjects.Graphics;
@@ -1252,6 +1269,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         const cell = this.add.graphics();
         cell.fillStyle((row + col) % 2 ? 0x28515d : 0x2c5a64).fillRoundedRect(x + 2, y + 2, CELL - 4, CELL - 4, 6);
         this.boardRoot.add(cell);
+      }
+      if (this.puzzle.condensation) {
+        this.condensationVisual = this.add.graphics();
+        this.boardRoot.add(this.condensationVisual);
+        this.paintCondensation(this.puzzle.condensation.wet);
+        if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(25 - (this.puzzle.goals.condensation ?? 0));
       }
       const routes=this.puzzle.currents ?? (this.puzzle.current ? [{id:"main",cells:this.puzzle.current,closure:"loop" as const}] : []);
       for (const [routeIndex, path] of routes.entries()) {
@@ -1404,6 +1427,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         delete canvas.dataset.playReady;
         delete canvas.dataset.introPhase;
         delete canvas.dataset.collectionPhase;
+        delete canvas.dataset.condensationWet;
         props.skipReveal.current = null;
       });
       props.skipReveal.current = () => this.skipWinningReveal();
@@ -1547,7 +1571,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       if (!this.introActive) return;
       this.showLessonHint();
-      if (!this.puzzle.opening) this.setMessage("Drag or tap adjacent symbols to swap");
+      if (!this.puzzle.opening) this.setMessage(props.prototype === "condensation" ? "Match through a wet collector to spread the silver film." : "Drag or tap adjacent symbols to swap");
       this.busy = false;
       this.game.canvas.dataset.introPhase = "ready";
       this.game.canvas.dataset.playReady = "true";
@@ -1628,7 +1652,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const x = four ? -227 + (index % 2) * 255 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
           const y = four ? 91 + Math.floor(index / 2) * 64 : 91;
           contents.push(drawGoalIcon(this, x, y, kind));
-          const caption = this.add.text(x + 36, y - 15, `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
+          const caption = this.add.text(x + 36, y - 15, kind === "condensation" ? `${count} dry collectors` : `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
           if (four) caption.setScale(Math.min(1, 205 / caption.width));
           contents.push(caption);
         });
@@ -1662,7 +1686,7 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       }
       this.lessonHint = guide;
       if (!props.reducedMotion) this.tweens.add({ targets: guide, alpha: 0.35, yoyo: true, repeat: -1, duration: 650 });
-      this.setMessage(props.level.lesson === "current" ? "The current follows its arrows one space after each move. Swap and match tiles in the water normally." : props.level.lesson === "wrapCurrent" ? "The marked outlet carries tiles off one bank and back through its matching inlet." : props.level.lesson === "frozenCurrent" ? "Clear salt from the frozen route. Other currents keep flowing." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
+      this.setMessage(props.prototype === "condensation" ? "Try the glowing swap: the wet square coats the matching collectors." : props.level.lesson === "current" ? "The current follows its arrows one space after each move. Swap and match tiles in the water normally." : props.level.lesson === "wrapCurrent" ? "The marked outlet carries tiles off one bank and back through its matching inlet." : props.level.lesson === "frozenCurrent" ? "Clear salt from the frozen route. Other currents keep flowing." : props.level.lesson === "crate" ? "Clear below each crate to deliver it at any bottom edge." : props.level.lesson === "seedpod" ? "Match beside each pod twice. Pods fall and cannot be swapped." : props.level.lesson === "crust" ? "Matches and Prism-cleared tiles crack nearby salt; Jets and Flywheels need a direct hit." : props.level.lesson === "combo" ? "Try combining the highlighted powers" : props.level.lesson === "pennant" ? "Try the glowing move to match three pennants" : props.level.lesson === "key" ? "Try the glowing move to match three keys" : `Try the glowing move to discover the ${props.level.lesson === "jet" ? "Pressure Jet" : props.level.lesson === "flywheel" ? "Flywheel" : "Prism"}`);
     }
     cellAt(pointer: Phaser.Input.Pointer): Cell | null {
       const position = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -1705,10 +1729,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 66, 150, String(moves), 38, "#ffe49e"));
       this.hud.push(label(this, 129, 164, "MOVES LEFT", 14));
       const goalRows = Object.entries(props.level.goals).filter(([, count]) => count > 0) as [GoalKind, number][];
-      this.hud.push(label(this, 51, hudLayout.headingY, "LEFT TO COLLECT", 17, "#a2e7da"));
+      this.hud.push(label(this, 51, hudLayout.headingY, props.prototype === "condensation" ? "COLLECTORS" : "LEFT TO COLLECT", 17, "#a2e7da"));
       goalRows.forEach(([kind, count], index) => {
         const y = hudLayout.goalY(index);
         const icon = drawGoalIcon(this, 74, y, kind);
+        if (kind === "condensation") paintCollectorTank(icon as Phaser.GameObjects.Graphics, 25 - (goals.condensation ?? 0));
         if (crowded && "setScale" in icon) {
           const scalable=icon as Phaser.GameObjects.Image | Phaser.GameObjects.Container;
           scalable.setScale(scalable.scaleX * 0.82, scalable.scaleY * 0.82);
@@ -1727,10 +1752,72 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       this.hud.push(label(this, 110, hudLayout.chargeY, `CHARGE ${Math.min(charge, this.puzzle.keeperTarget)} / ${this.puzzle.keeperTarget} ${this.puzzle.chargeSymbol === "key" ? "KEYS" : this.puzzle.chargeSymbol === "pennant" ? "PENNANTS" : "REEDS"}`, 11));
       this.hud.push(label(this, 110, hudLayout.rewardY, this.puzzle.grantedPower === "prism" ? "→ ONE PRISM" : this.puzzle.grantedPower === "flywheels" ? "→ TWO FLYWHEELS" : "→ TWO JETS", 11));
     }
+    paintCondensation(wet: BoardMask) {
+      const terrain = this.puzzle.condensation;
+      const art = this.condensationVisual;
+      if (!terrain || !art) return;
+      art.clear();
+      this.displayWet = wet.map(row => [...row]);
+      for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) {
+        if (!terrain.collectors[row][col]) continue;
+        const x = GRID_X + col * CELL, y = GRID_Y + row * CELL;
+        if (wet[row][col]) {
+          art.fillStyle(0xa1dce3, 0.35).fillRoundedRect(x + 4, y + 4, CELL - 8, CELL - 8, 10);
+          // Broken wavelets and bubble clusters distinguish wet ground from
+          // the River current's solid rectangular rim and directional arrows.
+          art.lineStyle(2, 0xc9f4ee, 0.9);
+          for (let offset = 7; offset < 43; offset += 4) {
+            const ripple = Math.sin(offset * 0.46) * 2;
+            art.lineBetween(x + offset, y + 6 + ripple, x + offset + 2, y + 6 + Math.sin((offset + 2) * 0.46) * 2);
+            art.lineBetween(x + offset, y + 44 - ripple, x + offset + 2, y + 44 - Math.sin((offset + 2) * 0.46) * 2);
+          }
+          for (const [bx, by, radius] of [[10, 14, 3], [16, 19, 2], [38, 33, 4], [33, 38, 2]] as const) {
+            art.lineStyle(1.5, 0xe6ffff, 0.9).strokeCircle(x + bx, y + by, radius);
+          }
+          art.fillStyle(0xf3ffff, 0.9).fillCircle(x + 38, y + 11, 2);
+        } else {
+          art.lineStyle(1, 0xc2d9c9, 0.8);
+          for (let offset = 8; offset < CELL - 6; offset += 8) {
+            art.fillStyle(0xc2d9c9, 0.75).fillCircle(x + offset, y + 4, 1.5);
+            art.fillCircle(x + offset, y + CELL - 4, 1.5);
+            art.fillCircle(x + 4, y + offset, 1.5);
+            art.fillCircle(x + CELL - 4, y + offset, 1.5);
+          }
+        }
+      }
+    }
+    async showCondensationSpread(step: TurnStep) {
+      if (!step.wet || !this.condensationVisual) return;
+      const spread = step.spread ?? [];
+      const sources = this.displayWet?.flatMap((row, r) => row.flatMap((value, c) => value ? [{ row: r, col: c }] : [])) ?? [];
+      if (!spread.length) { this.paintCondensation(step.wet); return; }
+      this.setMessage(`${25 - (step.goals.condensation ?? 0)} / 25 collectors wet`);
+      if (isPlaytestMode(window.location.search)) this.game.canvas.dataset.condensationWet = String(25 - (step.goals.condensation ?? 0));
+      if (!props.reducedMotion) await Promise.all(spread.slice(0, 12).map(async cell => {
+        const source = sources.reduce((best, candidate) =>
+          !best || Math.abs(candidate.row - cell.row) + Math.abs(candidate.col - cell.col) < Math.abs(best.row - cell.row) + Math.abs(best.col - cell.col) ? candidate : best, sources[0]);
+        const start = this.center(source ?? cell), end = this.center(cell);
+        const drop = this.add.circle(start.x, start.y, 4, 0xe7ffff, 0.95).setDepth(22);
+        const flight = { t: 0 };
+        await this.tween(flight, { t: 1, duration: 260, ease: "Sine.easeInOut", onUpdate: () => {
+          drop.setPosition(start.x + (end.x - start.x) * flight.t, start.y + (end.y - start.y) * flight.t - Math.sin(Math.PI * flight.t) * 13);
+        } });
+        drop.destroy();
+      }));
+      if (!this.sceneAlive) return;
+      this.paintCondensation(step.wet);
+      await Promise.all(spread.slice(0, 12).map(async cell => {
+        const { x, y } = this.center(cell);
+        const ring = this.add.circle(x, y, 6, 0xffffff, 0).setStrokeStyle(2, 0xd9fbff, 0.9).setDepth(20);
+        await this.tween(ring, { scale: props.reducedMotion ? 1.2 : 2.3, alpha: 0, duration: props.reducedMotion ? 80 : 180 });
+        ring.destroy();
+      }));
+    }
     creditGoal(kind: GoalKind, amount: number) {
       this.displayedGoals[kind] = Math.max(0, (this.displayedGoals[kind] ?? 0) - amount);
       this.goalLabels.get(kind)?.setText(remainingGoalLabel(kind,this.displayedGoals));
       const icon = this.goalIcons.get(kind) as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform | undefined;
+      if (kind === "condensation" && icon) paintCollectorTank(icon as Phaser.GameObjects.Graphics, 25 - (this.displayedGoals.condensation ?? 0));
       if (icon && !props.reducedMotion && this.sceneAlive) {
         this.tweens.killTweensOf(icon);
         const baseline = this.goalIconScales.get(kind) ?? { x: icon.scaleX, y: icon.scaleY };
@@ -2193,6 +2280,8 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
         if (cross) this.setMessage("Jet combo! Row + column blast");
         await this.showSequence(step);
         if (!this.sceneAlive) return;
+        await this.showCondensationSpread(step);
+        if (!this.sceneAlive) return;
         props.audio?.play("clear", this.clearStreak);
         this.clearStreak++;
         const tier=this.flair?.play(this.clearStreak,step.cells.map(cell=>this.center(cell)),this.comboTurn && this.clearStreak===1) ?? 0;
@@ -2314,6 +2403,12 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
       props.onEvent({ type: "turn", puzzle: turn.state, cleared: turn.cleared.length, keeper: turn.keeperJets.length > 0 });
       if (turn.state.status === "won") {
         this.clearChainCallout();
+        if (props.prototype === "condensation") {
+          props.onEvent({ type: "victory", puzzle: turn.state });
+          await this.showGoalBanner(true);
+          if (this.sceneAlive) props.onEvent({ type: "win", puzzle: turn.state });
+          return;
+        }
         this.revealPlan = planFinale(turn.state);
         this.revealActive = true;
         this.game.canvas.dataset.revealPhase = "banner";

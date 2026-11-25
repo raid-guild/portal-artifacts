@@ -2356,6 +2356,7 @@ export default function GameShell() {
         <button className="setting" onClick={downloadDiagnostics}>Export diagnostics (JSON)</button>
         {archiveKey.current && cloudStatus !== "checking" && (playtest || cloudStatus !== "expired") && <><small className="setting-note">Level stats stay on this device{playtest ? " in a separate playtest archive" : cloudRef.current ? " for this Portal account" : " for this guest campaign"}. Export a copy here.</small><button className="setting" onClick={() => downloadStats("json")}>Export level stats (JSON)</button><button className="setting" onClick={() => downloadStats("csv")}>Export level stats (CSV)</button></>}
         {playtest ? <>
+          <a className="setting" href={`${assetUrl("/condensation/")}?playtest=1`}>Test Condensation <span aria-hidden="true">→</span></a>
           <button className="setting" onClick={() => setFarmlandPreview(value=>!value)}>Preview Farmland access <strong>{farmlandPreview ? "Unlocked" : "Locked"}</strong></button>
           <button className="setting" onClick={()=>{giftPreviewClaimed.current=false;setGiftError(null);setSettings(false);setOverlay('toolGift');}}>Preview Fieldkeeper gift</button>
           <button className="setting" onClick={()=>{rewardReturnOverlay.current=overlay==='start'?'start':null;rewardPreview.current=true;setSettings(false);setOverlay('gifts');}}>Preview daily and chapter gifts</button>

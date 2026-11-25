@@ -22,7 +22,7 @@ export type PuzzleAction = { kind: "swap" | "freeSwap"; from: Cell; to: Cell } |
 export type CurrentEdge = "left" | "right" | "top" | "bottom";
 export type CurrentRoute = { id: string; cells: Cell[]; closure: "loop" } | { id: string; cells: Cell[]; closure: "edgeWrap"; entry: CurrentEdge; exit: CurrentEdge };
 export type CurrentMotion = { routeId: string; tileId: number; from: Cell; to: Cell; wrap?: { entry: CurrentEdge; exit: CurrentEdge } };
-export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number; crate?: number };
+export type Goals = { water: number; leaf: number; pennant?: number; key?: number; crust?: number; seedpod?: number; crate?: number; condensation?: number };
 export type GoalKind = keyof Goals;
 import type { LevelDefinition, PlayableLevelDefinition } from "./levels";
 export type Puzzle = {
@@ -46,6 +46,7 @@ export type Puzzle = {
   opening?: [Cell, Cell];
   current?: Cell[];
   currents?: CurrentRoute[];
+  condensation?: { collectors: BoardMask; wet: BoardMask };
 };
 export type Turn = {
   state: Puzzle;
@@ -64,6 +65,8 @@ export type TurnStep = {
   kind: "swap" | "bomb" | "convert" | "clear" | "fall" | "deliver" | "refill" | "keeper" | "shuffle" | "current";
   board: Board;
   crust: CrustGrid;
+  wet?: BoardMask;
+  spread?: Cell[];
   cells: Cell[];
   currentMotions?: CurrentMotion[];
   currentRouteIds?: string[];
@@ -101,6 +104,7 @@ export function isSpecial(tile: Tile | null | undefined): boolean { return Boole
 function isSymbol(tile: Tile | null | undefined): tile is Tile & { kind: SymbolKind } { return Boolean(tile && ["water", "gear", "leaf", "pennant", "key"].includes(tile.kind) && !isSpecial(tile)); }
 function copy(board: Board): Board { return board.map(row => row.map(tile => tile && { ...tile })); }
 function copyCrust(crust: CrustGrid): CrustGrid { return crust.map(row => [...row]); }
+function copyMask(mask: BoardMask): BoardMask { return mask.map(row => [...row]); }
 function emptyCrust(): CrustGrid { return Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(0)); }
 
 function matches(board: Board): Cell[][] {
@@ -323,6 +327,18 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
   const current = validatedCurrent(level?.current, mask);
   if (current && level?.currents) throw new Error("Choose legacy current or named currents");
   const currents = validatedCurrents(level?.currents ?? (current ? [{id:"main",cells:current,closure:"loop"}] : undefined), mask);
+  const condensation = level?.condensation;
+  if (condensation && (current || currents || level?.goals.condensation !== condensation.collectors.length - condensation.wet.length)) throw new Error("Invalid condensation terrain or goal");
+  const collectors = mask.map(row => row.map(() => false));
+  const wet = mask.map(row => row.map(() => false));
+  for (const cell of condensation?.collectors ?? []) {
+    if (!playable(mask, cell) || collectors[cell.row][cell.col]) throw new Error("Invalid condensation collector");
+    collectors[cell.row][cell.col] = true;
+  }
+  for (const cell of condensation?.wet ?? []) {
+    if (!inside(cell) || !collectors[cell.row][cell.col] || wet[cell.row][cell.col]) throw new Error("Invalid initial condensation");
+    wet[cell.row][cell.col] = true;
+  }
   const crust = emptyCrust();
   for (const cell of level?.crust ?? []) {
     if (!playable(mask, cell) || crust[cell.row][cell.col] || !Number.isInteger(cell.hp ?? 1) || (cell.hp ?? 1) < 1 || (cell.hp ?? 1) > 5) throw new Error(`Invalid salt crust at ${cell.row},${cell.col}`);
@@ -350,7 +366,7 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
     return fresh;
   };
   if (level?.crates?.length) fresh = placeCrates(fresh);
-  let opening: [Cell, Cell] | undefined = level?.lesson === "current" ? level.opening : undefined;
+  let opening: [Cell, Cell] | undefined = level?.condensation || level?.lesson === "current" ? level.opening : undefined;
   if (level?.lesson === "combo") {
     fresh.board[3][3] = { ...fresh.board[3][3]!, jet: "row" };
     fresh.board[3][4] = { ...fresh.board[3][4]!, power: "flywheel" };
@@ -365,7 +381,7 @@ export function createPuzzle(seedOrLevel: number | PlayableLevelDefinition = Dat
     }
   }
   if ((level?.seedpods?.length || level?.crates?.length) && !hasLegalMove(fresh.board)) fresh = newBoard(fresh.seed, fresh.nextId, mask, symbols, crust, fresh.board);
-  return { ...fresh, mask, crust, ...(current ? { current } : {}), ...(currents ? { currents } : {}), symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
+  return { ...fresh, mask, crust, ...(current ? { current } : {}), ...(currents ? { currents } : {}), ...(condensation ? { condensation: { collectors, wet } } : {}), symbols: [...symbols], chargeSymbol: level?.chargeSymbol ?? "leaf", grantedPower: level?.grantedPower ?? "jets", grantCount: level?.grantCount ?? 2, moves: level?.moves ?? START_MOVES,
     goals: level ? { ...level.goals } : { ...TARGETS },
     keeperCharge: 0, keeperTarget: level?.keeperTarget ?? KEEPER_TARGET, keeperFired: false, grantedJetDirection: level?.grantedJetDirection, status: "playing",
     unlocked: level?.lesson === "jet" ? [] : level?.lesson === "flywheel" ? ["flywheel"] : ["flywheel", "prism"], opening };
@@ -505,7 +521,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
   // can pass over an idle Prism without consuming it.
   const selectedPrisms = new Set(activated.map(cell => at(board, cell)).filter(tile => tile?.power === "prism").map(tile => tile!.id));
   if (!bomb && action.kind !== "freeSwap" && !initial.length && !activated.length) return invalid;
-  const state: Puzzle = { ...previous, board, crust: copyCrust(previous.crust), moves: previous.moves - (action.kind === "swap" ? 1 : 0), goals: { ...previous.goals } };
+  const state: Puzzle = { ...previous, board, crust: copyCrust(previous.crust), ...(previous.condensation ? { condensation: { collectors: copyMask(previous.condensation.collectors), wet: copyMask(previous.condensation.wet) } } : {}), moves: previous.moves - (action.kind === "swap" ? 1 : 0), goals: { ...previous.goals } };
   const cleared = new Map<string, Cell>();
   const jetsCreated: Cell[] = [];
   const powersCreated: Turn["powersCreated"] = [];
@@ -515,9 +531,9 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
   // A Prism combo transforms normal tiles before detonating them. Retain their
   // original symbol for goal and Keeper credit while the tiles are special.
   const convertedOriginals = new Map<number, SymbolKind>();
-  const record = (kind: TurnStep["kind"], cells: Cell[] = [], jets: TurnStep["jets"] = [], effects: NonNullable<TurnStep["effects"]> = [], sequence: NonNullable<TurnStep["sequence"]> = [], crustHits: Cell[] = [], crustEvents: NonNullable<TurnStep["crustEvents"]> = [], podHits: Cell[] = [], podEvents: NonNullable<TurnStep["podEvents"]> = [], collections: NonNullable<TurnStep["collections"]> = []) => {
+  const record = (kind: TurnStep["kind"], cells: Cell[] = [], jets: TurnStep["jets"] = [], effects: NonNullable<TurnStep["effects"]> = [], sequence: NonNullable<TurnStep["sequence"]> = [], crustHits: Cell[] = [], crustEvents: NonNullable<TurnStep["crustEvents"]> = [], podHits: Cell[] = [], podEvents: NonNullable<TurnStep["podEvents"]> = [], collections: NonNullable<TurnStep["collections"]> = [], spread: Cell[] = []) => {
     steps.push({ kind, board: copy(board), crust: copyCrust(state.crust), cells: cells.map(cell => ({ ...cell })), crustHits: crustHits.map(cell => ({ ...cell })), crustEvents, podHits: podHits.map(cell => ({ ...cell })), podEvents, jets: jets.map(jet => ({ cell: { ...jet.cell }, direction: jet.direction })), effects, sequence,
-      collections: collections.map(credit => ({ cell: { ...credit.cell }, kind: credit.kind })), goals: { ...state.goals }, keeperCharge: state.keeperCharge });
+      collections: collections.map(credit => ({ cell: { ...credit.cell }, kind: credit.kind })), ...(state.condensation ? { wet: copyMask(state.condensation.wet), spread: spread.map(cell => ({ ...cell })) } : {}), goals: { ...state.goals }, keeperCharge: state.keeperCharge });
   };
   if (bomb) record("bomb", [from]);
   else if (!direct) record("swap", [from, to]);
@@ -528,6 +544,10 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
   let groups = initialGroups;
   let forced = initialForced;
   while ((groups.length || forced.length) && iterations++ < 50) {
+    // All spread decisions in this clear wave use the terrain as it stood
+    // before any match or power in the wave fired.
+    const wetBefore = state.condensation ? copyMask(state.condensation.wet) : undefined;
+    const wasWet = (cell: Cell) => Boolean(wetBefore?.[cell.row]?.[cell.col]);
     const removal = new Map<string, Cell>();
     for (const group of groups) for (const cell of group) removal.set(key(cell), cell);
     for (const cell of forced) removal.set(key(cell), cell);
@@ -562,9 +582,9 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const jets: TurnStep["jets"] = [];
     const effects: NonNullable<TurnStep["effects"]> = [];
     const sequence: NonNullable<TurnStep["sequence"]> = [];
-    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; after: number };
+    type DamageEvent = { kind: "match" | "power" | "prism"; clears: Map<string, Cell>; adjacency: Map<string, Cell>; direct: Map<string, Cell>; wetTargets: Map<string, Cell>; wetOrigin: boolean; after: number };
     const events: DamageEvent[] = [];
-    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), after: -1 }; events.push(event); return event; };
+    const newEvent = (kind: DamageEvent["kind"]): DamageEvent => { const event = { kind, clears: new Map<string, Cell>(), adjacency: new Map<string, Cell>(), direct: new Map<string, Cell>(), wetTargets: new Map<string, Cell>(), wetOrigin: false, after: -1 }; events.push(event); return event; };
     const claimed = new Set<string>();
     const claim = (cell: Cell, event: DamageEvent) => {
       const tile = at(board, cell);
@@ -578,6 +598,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     }
     for (const component of matchComponents(groups)) {
       const event = newEvent("match");
+      event.wetOrigin = component.some(group => group.some(wasWet));
       for (const cell of component.flat()) { event.adjacency.set(key(cell), cell); claim(cell, event); }
     }
     const fireJet = (cell: Cell, direction: Direction) => { jets.push({ cell, direction }); sequence.push({ kind: "jet", index: jets.length - 1 }); };
@@ -585,6 +606,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const queue: Cell[] = [...removal.values()];
     const addHits = (hits: Cell[], event: DamageEvent) => {
       for (const hit of hits) {
+        event.wetTargets.set(key(hit), hit);
         if (state.crust[hit.row][hit.col] > 0 || isPod(at(board, hit))) event.direct.set(key(hit), hit);
         const occupant = at(board, hit);
         if (isPod(occupant) || isCrate(occupant)) continue;
@@ -603,6 +625,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       countedPowerActivations.add(left.id); countedPowerActivations.add(right.id);
       fired.add(left.id); fired.add(right.id);
       const event = newEvent("power");
+      event.wetOrigin = wasWet(from) || wasWet(to);
       if (!((left.power === "prism") !== (right.power === "prism"))) {
         event.clears.set(key(from), from); event.clears.set(key(to), to);
       }
@@ -614,6 +637,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
         const partner = left.power === "prism" ? right : left;
         const target = partner.kind as SymbolKind;
         const hits = board.flatMap((row, r) => row.flatMap((tile, c) => isSymbol(tile) && tile.kind === target ? [{ row: r, col: c }] : []));
+        for (const hit of hits) event.wetTargets.set(key(hit), hit);
         for (const cell of hits) {
           const tile = at(board, cell)!;
           convertedOriginals.set(tile.id, tile.kind as SymbolKind);
@@ -651,6 +675,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       fired.add(tile.id);
       if (!countedPowerActivations.has(tile.id)) { stats.powersActivated[tile.power ?? "jet"]++; countedPowerActivations.add(tile.id); }
       const event = newEvent(tile.power === "prism" ? "prism" : "power");
+      event.wetOrigin = wasWet(cell);
       event.clears.set(key(cell), cell);
       if (tile.jet) { fireJet(cell, tile.jet); addHits(jetCells(cell, tile.jet, previous.mask), event); }
       if (tile.power === "flywheel") { const hits = area(cell, 1, state.mask); fireEffect({ cell, power: "flywheel", targets: hits, converted: convertedOriginals.has(tile.id) }); addHits(hits, event); }
@@ -671,6 +696,16 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
     const openedPods: Cell[] = [];
     const crustEvents: NonNullable<TurnStep["crustEvents"]> = [];
     const collections: NonNullable<TurnStep["collections"]> = [];
+    const spread: Cell[] = [];
+    if (state.condensation) for (const event of events) {
+      if (!event.wetOrigin) continue;
+      const targets = event.kind === "match" ? event.adjacency : event.wetTargets.size ? event.wetTargets : event.clears;
+      for (const cell of targets.values()) if (state.condensation.collectors[cell.row][cell.col] && !state.condensation.wet[cell.row][cell.col]) {
+        state.condensation.wet[cell.row][cell.col] = true;
+        spread.push(cell);
+        if ((state.goals.condensation ?? 0) > 0) { state.goals.condensation!--; collections.push({ cell, kind: "condensation" }); }
+      }
+    }
     for (const event of events) {
       const candidates = new Map(event.direct);
       if (event.kind === "match" || event.kind === "prism") for (const cell of (event.kind === "match" ? event.adjacency : event.clears).values()) {
@@ -730,7 +765,7 @@ export function resolveAction(previous: Puzzle, action: PuzzleAction): Turn {
       convertedOriginals.delete(tile.id);
       board[cell.row][cell.col] = null; cleared.set(key(cell), cell); removed.push(cell);
     }
-    record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections);
+    record("clear", [...removed, ...openedPods], jets, effects, sequence, [...crustHits.values()], crustEvents, [...podHits.values()], podEvents, collections, spread);
     settle(board, state.mask, state.crust); record("fall");
     deliverAtExits();
     groups = matches(board); forced = [];

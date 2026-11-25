@@ -68,7 +68,7 @@ Chapters 1–7 describe the current playable direction. Chapters 8–16 are prop
 | 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a birdlike Bard town crier. | Falling delivery crates; every bottom edge of the playable board is an exit. Use five matching symbols initially, with four in levels 5.8–5.10 after difficulty tuning. |
 | 6 | Castle Island | Discover that reservoir records and actual deliveries disagree; meet a beetle quartermaster and organize an upstream investigation. | Introduce active raid-member selection; combine familiar mechanics, retain five symbols, and add no new obstacle. |
 | 7 | River Journey | Follow the missing water upstream aboard a repair boat. | Clearly marked currents that shift pieces after a turn. |
-| 8 | Second Oasis and Water Collection Station | Repair the collection balloons and discover why shipments stopped. Meet an Artificer-inspired companion. | Sixth symbol, with a balloon-themed power introduced later if useful. |
+| 8 | Second Oasis and Water Collection Station | Repair the collection balloons and discover why shipments stopped. Meet an Artificer-inspired companion. | Keep the existing five symbols while testing condensation on marked collector ground; defer any new matching symbol until playtests justify it. |
 | 9 | Balloon Landing Zone | Ride to the twin towers and prepare an ascent into the clouds. | Develop balloon powers, delivery goals, and currents without another symbol. |
 | 10 | Sky Castles Arrival | Reach Raida and reconnect scattered reports from across the kingdom. | Relay objectives: activate a set of connected mechanisms. |
 | 11 | Sky Point Castle (second sky chapter) | Raida assembles the evidence. The party chooses to investigate the mountain infrastructure. | A sky-region climax combining learned mechanics. |
@@ -81,6 +81,8 @@ Chapters 1–7 describe the current playable direction. Chapters 8–16 are prop
 Chapter 5 has an authored ten-level implementation. Its rules, access gate, level sequence, and test priorities are in the [Chapter 5 implementation spec](CHAPTER_5_TOWN_SPEC.md). Castle Island is implemented as Chapter 6; see the [Chapter 6 implementation spec](CHAPTER_6_CASTLE_SPEC.md). River Journey is implemented as Chapter 7; see the [Chapter 7 implementation spec](CHAPTER_7_RIVER_SPEC.md).
 
 The river investigation leads to the second oasis because it houses water-collection balloons. Repairing them supplies transportation to the balloon landing zone and then the sky. This makes the return toward the desert a consequence of the investigation.
+
+The [Condensation prototype](CONDENSATION_PROTOTYPE.md) is a one-level mechanic test for the proposed collection station. It does not commit Chapter 8's rules or add a sixth symbol.
 
 ## Farmland starting concept
 
@@ -207,7 +209,7 @@ Queen Raida remains a major story character without needing to become a selectab
 
 The Raid Party dialogue also records nonplayable contacts, beginning with Castle Island's beetle quartermaster. NPC cards remain visibly distinct from selectable members. The active-member feature begins in Chapter 6 as described above; a new chapter does not require a new playable character or a unique power mechanic.
 
-A new companion does not require a new matching symbol. Hold at five through farmland, town, castle, and river. Consider the sixth at the collection station and the seventh in the mountains. Six or seven is the working endgame range, not a requirement to use seven if six plays better. New companions may charge from existing symbols or objectives; their exact abilities remain open.
+A new companion does not require a new matching symbol. Hold at five through farmland, town, castle, river, and the collection station experiment. Additional symbols remain candidates for later chapters, including the mountains, if playtesting supports them. Six or seven is the working endgame range, not a requirement to use seven if six plays better. New companions may charge from existing symbols or objectives; their exact abilities remain open.
 
 ## Chapter pacing and difficulty
 

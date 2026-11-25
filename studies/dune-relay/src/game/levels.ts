@@ -38,6 +38,7 @@ export type PlayableLevelDefinition = Omit<LevelDefinition, "id" | "lesson" | "d
   lesson: LevelDefinition["lesson"] | "current";
   destination?: LevelDefinition["destination"];
   current?: Cell[];
+  condensation?: { collectors: Cell[]; wet: Cell[] };
 };
 
 function currentPerimeter(top: number, left: number, bottom: number, right: number, clockwise = true): Cell[] {
