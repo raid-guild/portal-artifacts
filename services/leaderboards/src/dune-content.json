@@ -1,6 +1,6 @@
 {
-  "rulesVersion": "river-2",
-  "contentVersion": "chapter-7-7",
+  "rulesVersion": "condensation-1",
+  "contentVersion": "chapter-8-1",
   "levels": [
     {
       "id": "pumpHouse",
@@ -351,6 +351,56 @@
       "id": "openTheCollectionRoute",
       "moves": 28,
       "chapter": "river"
+    },
+    {
+      "id": "firstDew",
+      "moves": 26,
+      "chapter": "collection"
+    },
+    {
+      "id": "meshWalk",
+      "moves": 25,
+      "chapter": "collection"
+    },
+    {
+      "id": "pairedCollectors",
+      "moves": 27,
+      "chapter": "collection"
+    },
+    {
+      "id": "reservoirGlass",
+      "moves": 27,
+      "chapter": "collection"
+    },
+    {
+      "id": "saltedFittings",
+      "moves": 28,
+      "chapter": "collection"
+    },
+    {
+      "id": "supplyGantry",
+      "moves": 28,
+      "chapter": "collection"
+    },
+    {
+      "id": "condensingBanks",
+      "moves": 29,
+      "chapter": "collection"
+    },
+    {
+      "id": "collectionTwinTanks",
+      "moves": 29,
+      "chapter": "collection"
+    },
+    {
+      "id": "recirculationDeck",
+      "moves": 29,
+      "chapter": "collection"
+    },
+    {
+      "id": "openTheSkyRoute",
+      "moves": 30,
+      "chapter": "collection"
     }
   ]
 }

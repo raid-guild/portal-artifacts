@@ -414,8 +414,8 @@ export function createDuneApp({ pool, origin, issuer, launchSecret, secure = tru
     const result=await transaction(req.playerSession.player_id,async(client,profile)=>{
       requireGeneration(profile,campaignGeneration);
       await requireChapterAccess(client,req.playerSession,profile.campaign,level);
-      const usesCompanion = level.chapter === 'castle' || level.chapter === 'river';
-      if (!usesCompanion && companionId != null) throw fail(400,'Active companion only applies at Castle Island and the River.');
+      const usesCompanion = level.chapter === 'castle' || level.chapter === 'river' || level.chapter === 'collection';
+      if (!usesCompanion && companionId != null) throw fail(400,'Active companion only applies at Castle Island, the River, and the Collection Station.');
       if (usesCompanion && !Object.hasOwn(companionAbilities, companionId)) throw fail(400,'Choose an unlocked raid member.');
       const companionSnapshot = usesCompanion ? { id: companionId, ...companionAbilities[companionId] } : null;
       const {rows:[existing]}=await client.query('SELECT * FROM artifact_leaderboards.dune_attempts WHERE id=$1',[attemptId]);

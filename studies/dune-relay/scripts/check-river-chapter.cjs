@@ -13,7 +13,7 @@ const { castleLevelForCompanion, companionSnapshot } = require('../src/game/comp
 const { normalizeSave, EMPTY_SAVE, completeLevel } = require('../src/game/save.ts');
 const { TUTORIAL_BY_LEVEL } = require('../src/game/tutorials.ts');
 const witnesses = require('./fixtures/river-winning-routes.json');
-const ids = LEVEL_ORDER.slice(60);
+const ids = LEVEL_ORDER.slice(60, 70);
 assert.deepEqual(ids, ['riverBend','reedwaterReach','broadwaterTurn','saltlockedEddy','clearingTheBend','driftingCargo','reedbankDeliveries','splitwaterCargo','saltwindMooring','openTheCollectionRoute']);
 assert.equal(witnesses.length, 50);
 assert.equal(TUTORIAL_BY_LEVEL.riverBend.id,'current');

@@ -115,7 +115,7 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (col < 7) assert.ok(!(puzzle.board[row][col + 1]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 1]) && puzzle.board[row][col + 1]?.kind !== 'seedpod' && puzzle.board[row][col + 2]?.kind === tile.kind && !isSpecial(puzzle.board[row][col + 2]) && puzzle.board[row][col + 2]?.kind !== 'seedpod'), `${id}: no horizontal prematch`);
     if (row < 7) assert.ok(!(puzzle.board[row + 1][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 1][col]) && puzzle.board[row + 1][col]?.kind !== 'seedpod' && puzzle.board[row + 2][col]?.kind === tile.kind && !isSpecial(puzzle.board[row + 2][col]) && puzzle.board[row + 2][col]?.kind !== 'seedpod'), `${id}: no vertical prematch`);
   }
-  if (level.lesson === 'practice' || level.lesson === 'crate' || level.lesson === 'wrapCurrent' || level.lesson === 'frozenCurrent') {
+  if (level.lesson === 'practice' || level.lesson === 'crate' || level.lesson === 'wrapCurrent' || level.lesson === 'frozenCurrent' || (level.lesson === 'condensation' && !level.opening)) {
     assert.equal(puzzle.opening, undefined, `${id}: unguided`);
     assert.ok(legalMove(puzzle.board), `${id}: legal opening`);
     const expected = puzzle.mask.flat().filter(Boolean).length - (level.crust?.length ?? 0);
@@ -150,6 +150,9 @@ for (const [index, id] of LEVEL_ORDER.entries()) {
     if (id === 'seedStore') { assert.ok(turn.stats.seedpodHits > 0, 'first pod lesson cracks an adjacent pod'); }
     else if (id === 'saltboundHinges') { assert.ok(turn.stats.saltHits > 0, 'two-hit salt lesson makes visible damage'); }
     else if (id === 'gatehouseApproach') { assert.ok(turn.stats.symbolsCleared.key > 0, 'first gatehouse move clears keys'); }
+    else if (level.lesson === 'condensation') {
+      assert.ok(turn.state.goals.condensation < puzzle.goals.condensation, `${id}: guided wet match coats collectors`);
+    }
     else if (id === 'saltSealedIntake') {
       assert.ok(turn.state.goals.crust < 12, 'first salt lesson move cracks adjacent crust');
       assert.ok(turn.steps.some(step => step.crustHits?.length), 'salt lesson emits a damage snapshot');
@@ -813,7 +816,7 @@ const archive=addAttempt(emptyArchive(),attempt);assert.equal(JSON.parse(archive
 assert.ok(archiveCsv(archive).split('\r\n')[0].includes('contentVersion'),'CSV exports include the authored content version');
 const tunedAttempt=startAttempt(LEVELS.palmIntake,createPuzzle(LEVELS.palmIntake));
 assert.equal(tunedAttempt.initialMoves,22,'new attempt exports the tuned Palm Intake budget');
-assert.equal(tunedAttempt.contentVersion,'chapter-7-7','new attempts carry the current content version');
+assert.equal(tunedAttempt.contentVersion,'chapter-8-1','new attempts carry the current content version');
 assert.equal(startAttempt(LEVELS.gatehouseApproach,gate).initialMoves,22,'Gatehouse approach records its tuned budget');
 assert.equal(startAttempt(LEVELS.seedStore,createPuzzle(LEVELS.seedStore)).initialMoves,24,'Seed Store records its tuned budget');
 const pennantAttempt=startAttempt(LEVELS.pennantLine,createPuzzle(LEVELS.pennantLine));

@@ -39,6 +39,12 @@ const common: Record<CompanionId, CompanionLine[]> = {
     { id: "crier-route", kind: "observation", text: "A courier checks the exit before sending a crate downhill." },
     { id: "crier-call", kind: "tip", text: "Gather twelve pennants and I will rally two vertical Jets. They can clear a path beneath cargo." },
   ],
+  artificer: [
+    { id: "artificer-nets", kind: "observation", text: "The collection nets have gone dry. We need water in every marked square before the balloons can fly." },
+    { id: "artificer-wet", kind: "tip", text: "A match touching wet mesh coats its other collector squares. Dry matches still clear symbols, but spread no water." },
+    { id: "artificer-power", kind: "tip", text: "A Jet, Flywheel, or Prism that fires from wet mesh can coat the collectors its effect reaches. The power must land on a wet square when you swap." },
+    { id: "artificer-raid", kind: "handbook", text: "A Raid combines different skills around a shared problem. These reservoirs need more than one kind of craft.", source: handbook.raiding },
+  ],
   fieldkeeper: [
     { id: "fieldkeeper-druids", kind: "handbook", text: "Druids work with research and data analysis. That suits my seed ledgers.", source: handbook.roles },
     { id: "fieldkeeper-rangers", kind: "handbook", text: "Rangers specialize in user experience and usability testing.", source: handbook.roles },
@@ -48,7 +54,7 @@ const common: Record<CompanionId, CompanionLine[]> = {
   ],
 };
 
-const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier", castle: "towncrier", river: "towncrier" };
+const companionForRegion: Record<Region, CompanionId> = { oasis: "keeper", caravan: "wayfinder", gatehouse: "gatewright", farmland: "fieldkeeper", town: "towncrier", castle: "towncrier", river: "towncrier", collection: "artificer" };
 const skiffLines: CompanionLine[] = [
   { id: "skiff-route", kind: "observation", text: "Water is moving. My charts say someone redirected where it should arrive." },
   { id: "skiff-current", kind: "tip", text: "The marked current moves its tiles once after each move settles. Swaps and matches still work in the water." },
@@ -77,6 +83,7 @@ export function eligibleCompanionLines(region: Region, pendingLevel: LevelId | n
   if (level.lesson === "prism" || level.lesson === "combo" || level.lesson === "practice" && level.id !== "primePump") {
     tips.push({ id: `${voice}-prism`, kind: "tip", text: "Five in a line makes a Prism. Swap it with a symbol to clear that symbol." });
   }
+  if (level.condensation) tips.push({ id: `${voice}-wet-${level.id}`, kind: "tip", text: "Wet ground stays on its square as symbols fall. Spread the film through every marked collector." });
   if (level.current?.length) tips.push({ id: `${voice}-current`, kind: "tip", text: "The current turns after your move settles. Salt on its marked route pauses the whole loop." });
   if (level.crust?.length) tips.push({ id: `${voice}-salt`, kind: "tip", text: "Match beside salt to crack it. Jets and Flywheels must hit it directly." });
   if (level.crates?.length) tips.push({ id: `${voice}-crates`, kind: "tip", text: "Crates fall into cleared gaps and deliver when they leave a bottom edge. Powers cannot destroy them." });

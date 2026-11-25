@@ -17,9 +17,9 @@ const castleFields = {
 const step = (profile, fields) => applyCheckpoint(profile, { ...profile.campaign, ...fields });
 
 test('River catalog extends the campaign without moving Castle completion', () => {
-  assert.equal(content.contentVersion, 'chapter-7-7');
+  assert.equal(content.contentVersion, 'chapter-8-1');
   assert.equal(CASTLE_LEVEL_COUNT, 60);
-  assert.equal(RIVER_LEVEL_COUNT, content.levels.length);
+  assert.equal(content.levels.length, 80);
   assert.equal(RIVER_LEVEL_COUNT, 70);
   assert.equal(content.levels[59].id, 'openTheUpstreamRoute');
   assert.equal(content.levels[69].id, 'openTheCollectionRoute');
@@ -32,7 +32,7 @@ test('River catalog extends the campaign without moving Castle completion', () =
 });
 
 test('River tuning keeps old prepared attempts valid at their original move caps', () => {
-  for (const level of content.levels) {
+  for (const level of content.levels.slice(0, RIVER_LEVEL_COUNT)) {
     assert.equal(moveCapForVersion(level, 'chapter-7-2'), ['neighborhoodRounds','townLedger','openTheMarket'].includes(level.id) ? {neighborhoodRounds:30,townLedger:30,openTheMarket:32}[level.id] : level.moves, level.id);
     assert.equal(moveCapForVersion(level, 'chapter-7-6'), level.moves, `${level.id} keeps its complete prior cap`);
   }

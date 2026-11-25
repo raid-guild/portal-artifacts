@@ -643,7 +643,7 @@ test('Farmland expands the reserved item pool and mixed daily ledger grants rema
 });
 
 test('chapter reward catalog honors canonical completion and catches up imported chapters',async()=>{
-  assert.deepEqual(chapterRewards.map(item=>item.completedCount),[10,20,30,40,50,60,70]);
+  assert.deepEqual(chapterRewards.map(item=>item.completedCount),[10,20,30,40,50,60,70,80]);
   const {cookie}=await launch(),playerId=accountByCookie.get(cookie);
   const demo={...emptyCampaign(),completed:content.levels.slice(0,30).map(level=>level.id),coins:0,oasisTransition:'ready',gatehouseReady:true,demoEnding:'done'};
   await ok(await call('/campaign/import',cookie,{requestId:randomUUID(),guestSave:demo}));
@@ -663,8 +663,8 @@ test('chapter reward catalog honors canonical completion and catches up imported
   const finished=await Promise.all(chapterRewards.map(reward=>call('/rewards/claim',full.cookie,{requestId:randomUUID(),rewardKey:reward.key})));
   for(const response of finished)assert.equal(response.status,200);
   const current=(await ok(await call('/campaign',full.cookie))).profile;
-  assert.equal(current.campaign.coins,1400);
-  assert.deepEqual(current.inventory,{tileBomb:1,freeSwap:1,jet:1,flywheel:2,prism:2});
+  assert.equal(current.campaign.coins,1600);
+  assert.deepEqual(current.inventory,{tileBomb:1,freeSwap:1,jet:1,flywheel:3,prism:2});
   const duplicate=await ok(await call('/rewards/claim',full.cookie,{requestId:randomUUID(),rewardKey:'chapter:oasis'}));
   assert.equal(duplicate.profile.revision,current.revision);assert.equal(duplicate.award.payload.coins,200);
   const cap=await launch(),capId=accountByCookie.get(cap.cookie);
@@ -768,4 +768,66 @@ test('reset cancellation is idempotent and prevents a delayed reset from erasing
   assert.equal(cancel.status,200);
   if(reset.status===200){assert.equal((await cancel.json()).status,'applied');assert.equal((await ok(await call('/campaign/reset/cancel',cookie,competing))).status,'applied');}
   else{assert.equal(reset.status,409);assert.equal((await cancel.json()).status,'cancelled');assert.equal((await ok(await call('/campaign/reset/cancel',cookie,competing))).status,'cancelled');}
+});
+
+test('Collection arrival and Artificer attempt require Dune Pass and preserve its snapshot',async()=>{
+  const {cookie}=await launch({sub:'user:90818180'}),accountId=accountByCookie.get(cookie);
+  const completed=content.levels.slice(0,70).map(level=>level.id);
+  const campaign=deriveCampaign(completed,900,{...emptyCampaign(),oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done',riverEnding:'done',region:'river',activeCompanion:'keeper'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  let allowed=false;
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async()=>({state:allowed?'active':'unavailable',unlocked:allowed,unlockedAt:null,checkedAt:null,storeUrl:null})}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const localBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const post=(path,body)=>fetch(localBase+path,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const prepare=()=>post('/attempts',{attemptId:randomUUID(),levelId:'firstDew',boosters:[],companionId:'keeper'});
+  try{
+    assert.equal((await prepare()).status,503,'the pass gate applies to the new chapter');
+    allowed=true;
+    assert.equal((await prepare()).status,409,'a completed River save still needs arrival');
+    let saved=campaign,revision=1;
+    for(const changes of [
+      {transition:{from:'river',to:'collection',stage:'handoff'}},
+      {transition:{from:'river',to:'collection',stage:'atlas'}},
+      {transition:{from:'river',to:'collection',stage:'arrival'},region:'collection'},
+      {collectionReady:true,transition:null,region:'collection'},
+      {activeCompanion:'artificer'},
+    ]){
+      const response=await ok(await post('/campaign/checkpoint',{requestId:randomUUID(),campaign:{...saved,...changes},expectedRevision:revision}));
+      saved=response.profile.campaign;revision=response.profile.revision;
+    }
+    assert.ok(saved.companions.includes('artificer'));
+    const attemptId=randomUUID(),body={attemptId,levelId:'firstDew',boosters:[],companionId:'artificer'};
+    const prepared=await ok(await post('/attempts',body));
+    assert.deepEqual(prepared.companionSnapshot,{id:'artificer',chargeSymbol:'key',keeperTarget:11,grantedPower:'prism',grantCount:1});
+    assert.deepEqual((await ok(await post('/attempts',body))).companionSnapshot,prepared.companionSnapshot);
+    const activated=await ok(await post(`/attempts/${attemptId}/activate`,{expectedRevision:revision}));
+    assert.deepEqual(activated.companionSnapshot,prepared.companionSnapshot);
+    allowed=false;
+    const finished=await ok(await post(`/attempts/${attemptId}/finish`,{levelId:'firstDew',remainingMoves:5,contentVersion:content.contentVersion}));
+    assert.equal(finished.profile.campaign.completed.length,71);
+    assert.equal(finished.profile.campaign.region,'collection');
+    assert.equal((await post(`/attempts/${randomUUID()}/finish`,{levelId:'meshWalk',remainingMoves:5,contentVersion:content.contentVersion})).status,403);
+  }finally{await new Promise(resolve=>service.close(resolve));}
+});
+
+test('an active River attempt from chapter-7-7 finishes after Chapter 8 ships',async()=>{
+  const {cookie}=await launch({sub:'user:90818181'}),accountId=accountByCookie.get(cookie);
+  const campaign=deriveCampaign(content.levels.slice(0,69).map(level=>level.id),700,{...emptyCampaign(),oasisTransition:'ready',gatehouseReady:true,farmlandReady:true,townReady:true,castleReady:true,riverReady:true,demoEnding:'done',farmlandEnding:'done',townEnding:'done',castleEnding:'done',region:'river',activeCompanion:'gatewright'});
+  await pool.query('INSERT INTO artifact_leaderboards.dune_profiles(player_id,profile) VALUES($1,$2)',[accountId,{revision:1,campaign,imported:false}]);
+  await pool.query("INSERT INTO artifact_leaderboards.dune_entitlements(player_id,entitlement_key,source) VALUES($1,'farmland','demo_completion_bonus')",[accountId]);
+  const service=createDuneApp({pool,origin,issuer,launchSecret:secret,secure:false,commerce:{check:async()=>({state:'active',unlocked:true,unlockedAt:null,checkedAt:null,storeUrl:null})}}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>service.once('listening',resolve));
+  const localBase=`http://127.0.0.1:${service.address().port}/leaderboard-api/dune-relay`;
+  const post=(path,body)=>fetch(localBase+path,{method:'POST',headers:{Cookie:cookie,'X-Dune-Account-ID':accountId,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  try{
+    const attemptId=randomUUID(),prepared=await ok(await post('/attempts',{attemptId,levelId:'openTheCollectionRoute',boosters:[],companionId:'gatewright'}));
+    await ok(await post(`/attempts/${attemptId}/activate`,{expectedRevision:prepared.profile.revision}));
+    const win=await ok(await post(`/attempts/${attemptId}/finish`,{levelId:'openTheCollectionRoute',remainingMoves:28,contentVersion:'chapter-7-7'}));
+    assert.equal(win.profile.campaign.completed.length,70);
+    assert.equal(win.profile.campaign.riverEnding,'film');
+    assert.equal(win.profile.campaign.collectionReady,false);
+    assert.equal(win.reward,104);
+  }finally{await new Promise(resolve=>service.close(resolve));}
 });

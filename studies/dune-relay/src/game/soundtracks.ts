@@ -2,7 +2,7 @@ import type { Save } from "./save";
 import { LEVEL_ORDER } from "./levels";
 import { arrangements } from "./music";
 
-export type SoundtrackId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river";
+export type SoundtrackId = "oasis" | "caravan" | "gatehouse" | "farmland" | "town" | "castle" | "river" | "collection";
 export type TrackPreference = "auto" | SoundtrackId;
 
 export const SOUNDTRACKS: ReadonlyArray<{ id: SoundtrackId; title: string; chapter: string; bpm: number }> = [
@@ -11,6 +11,7 @@ export const SOUNDTRACKS: ReadonlyArray<{ id: SoundtrackId; title: string; chapt
   { id: "gatehouse", title: "River and Counterweight", chapter: "Bridge Gatehouse", bpm: arrangements.gatehouse.bpm },
   { id: "town", title: "Lanterns at the Market", chapter: "Town on the Hill", bpm: arrangements.town.bpm },
   { id: "castle", title: "The Ledger at Dusk", chapter: "Castle Island", bpm: arrangements.castle.bpm },
+  { id: "collection", title: "Dew Above the Dunes", chapter: "Water Collection Station", bpm: arrangements.collection.bpm },
   { id: "river", title: "Morning on the Current", chapter: "River Journey", bpm: arrangements.river.bpm },
   { id: "farmland", title: "Seeds After Rain", chapter: "Farmland", bpm: arrangements.farmland.bpm },
 ];
@@ -30,6 +31,7 @@ export function getUnlockedSoundtracks(save: Save): SoundtrackId[] {
   if (save.townReady || save.region === "town" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 40)) unlocked.push("town");
   if (save.castleReady || save.region === "castle" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 50)) unlocked.push("castle");
   if (save.riverReady || save.region === "river" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 60)) unlocked.push("river");
+  if (save.collectionReady || save.region === "collection" || save.completed.some(id => LEVEL_ORDER.indexOf(id) >= 70)) unlocked.push("collection");
   return unlocked;
 }
 
@@ -43,6 +45,6 @@ export function normalizeAudioPreferences(value: unknown): { muted: boolean; sfx
     sfx: level("sfx", 0.7),
     ambience: level("ambience", 0.22),
     music: level("music", 0.25),
-    track: track === "oasis" || track === "caravan" || track === "gatehouse" || track === "farmland" || track === "town" || track === "castle" || track === "river" ? track : "auto",
+    track: track === "oasis" || track === "caravan" || track === "gatehouse" || track === "farmland" || track === "town" || track === "castle" || track === "river" || track === "collection" ? track : "auto",
   };
 }
