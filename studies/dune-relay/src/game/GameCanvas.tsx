@@ -1770,11 +1770,11 @@ function makePuzzleScene(props: Props): typeof Phaser.Scene {
           const four = goals.length >= 4;
           // Four goals get two fixed-width columns: icon, then at most 170px
           // of text. Even long labels cannot run into the next goal icon.
-          const x = four ? -230 + (index % 2) * 260 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -205 + index * 170;
+          const x = four ? -230 + (index % 2) * 260 : goals.length === 1 ? -35 : goals.length === 2 ? index === 0 ? -170 : 65 : -230 + index * 170;
           const y = four ? 91 + Math.floor(index / 2) * 64 : 91;
           contents.push(drawGoalIcon(this, x, y, kind, kind === "condensation" ? { covered: this.collectorTotal - count, total: this.collectorTotal } : undefined));
           const caption = this.add.text(x + 36, y - 15, kind === "condensation" ? `${count} dry nets` : `${count} ${goalName(kind, count).toLowerCase()}`, { fontFamily: "Arial, sans-serif", fontSize: four ? "18px" : goals.length > 2 ? "18px" : "23px", fontStyle: "bold", color: "#21444a" });
-          if (four) caption.setScale(Math.min(1, 170 / caption.width));
+          if (goals.length >= 3) caption.setScale(Math.min(1, (four ? 170 : 114) / caption.width));
           contents.push(caption);
         });
       }
