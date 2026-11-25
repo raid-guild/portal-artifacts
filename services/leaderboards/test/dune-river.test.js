@@ -17,7 +17,7 @@ const castleFields = {
 const step = (profile, fields) => applyCheckpoint(profile, { ...profile.campaign, ...fields });
 
 test('River catalog extends the campaign without moving Castle completion', () => {
-  assert.equal(content.contentVersion, 'chapter-7-4');
+  assert.equal(content.contentVersion, 'chapter-7-6');
   assert.equal(CASTLE_LEVEL_COUNT, 60);
   assert.equal(RIVER_LEVEL_COUNT, content.levels.length);
   assert.equal(RIVER_LEVEL_COUNT, 70);
@@ -33,7 +33,7 @@ test('River catalog extends the campaign without moving Castle completion', () =
 
 test('River tuning keeps old prepared attempts valid at their original move caps', () => {
   for (const level of content.levels) {
-    assert.equal(moveCapForVersion(level, 'chapter-7-2'), level.moves, level.id);
+    assert.equal(moveCapForVersion(level, 'chapter-7-2'), ['neighborhoodRounds','townLedger','openTheMarket'].includes(level.id) ? {neighborhoodRounds:30,townLedger:30,openTheMarket:32}[level.id] : level.moves, level.id);
   }
   assert.equal(moveCapForVersion(content.levels[69], 'unknown'), null);
 });
@@ -69,6 +69,37 @@ test('new Castle-to-River handoff is staged; an early River attempt is rejected'
   assert.equal(profile.campaign.activeCompanion, 'wayfinder');
   assert.doesNotThrow(() => requireCurrentLevel(profile.campaign, riverLevel));
   assert.throws(() => requireCurrentLevel(profile.campaign, { ...content.levels[61], index: 61 }), { status: 409 });
+});
+
+test('cached Castle finale queue accepts atomic thanks acknowledgment and drains to River', () => {
+  const completed=prefix(60);
+  const inventory={jet:1,flywheel:2,prism:1,tileBomb:1,freeSwap:1};
+  let profile={revision:219,campaignGeneration:2,inventory,campaign:deriveCampaign(completed,3577,{...castleFields,castleEnding:'thanks',riverReady:false,transition:null})};
+  const queued=[
+    {castleEnding:'done',transition:{from:'castle',to:'river',stage:'handoff'}},
+    {transition:{from:'castle',to:'river',stage:'atlas'}},
+    {region:'river',transition:{from:'castle',to:'river',stage:'arrival'}},
+    {riverReady:true,transition:null},
+  ];
+  assert.throws(()=>step(profile,{castleEnding:'done',transition:{from:'castle',to:'river',stage:'arrival'}}),{status:400});
+  for(const checkpoint of queued)profile=step(profile,checkpoint);
+  assert.equal(profile.revision,223);
+  assert.equal(profile.campaignGeneration,2);
+  assert.deepEqual(profile.inventory,inventory);
+  assert.deepEqual(profile.campaign.completed,completed);
+  assert.equal(profile.campaign.coins,3577);
+  assert.equal(profile.campaign.region,'river');
+  assert.equal(profile.campaign.riverReady,true);
+  assert.equal(profile.campaign.transition,null);
+  assert.doesNotThrow(()=>requireCurrentLevel(profile.campaign,{...content.levels[60],index:60}));
+});
+
+test('atomic handoff requires a finished Castle and the first handoff stage', () => {
+  const complete=deriveCampaign(prefix(60),100,{...castleFields,castleEnding:'film'});
+  assert.throws(()=>step({revision:1,campaign:complete},{castleEnding:'film',transition:{from:'castle',to:'river',stage:'handoff'}}),{status:400});
+  assert.throws(()=>step({revision:1,campaign:{...complete,castleEnding:'thanks'}},{castleEnding:'done',transition:{from:'castle',to:'river',stage:'atlas'}}),{status:400});
+  const incomplete=deriveCampaign(prefix(59),100,{...castleFields,castleEnding:'thanks'});
+  assert.throws(()=>step({revision:1,campaign:incomplete},{castleEnding:'done',transition:{from:'castle',to:'river',stage:'handoff'}}),{status:400});
 });
 
 test('River partial and finale saves resume at the same level with protected ending order', () => {

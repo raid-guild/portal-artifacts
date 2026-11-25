@@ -2,13 +2,13 @@
 
 **Status:** Flexible starting point for future development
 
-**Updated:** November 21, 2026
+**Updated:** November 25, 2026
 
 ## Purpose and working agreement
 
 Use this as a shared reference for the kingdom journey, story, party, and introduction of mechanics. The broad direction was agreed in conversation; chapter names, characters, powers, obstacles, and level counts remain open to revision through writing and playtesting. This is not an implementation checklist or a commitment to build every proposed mechanic.
 
-The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 110 beyond the current fifty authored levels. That is a planning scale, not a production promise. The demo teaser promises new adventures without a fixed level count.
+The route contains sixteen chapters, including two in the sky. Ten levels per chapter would mean 160 total levels, or 90 beyond the current seventy authored levels. That is a planning scale, not a production promise. The demo teaser promises new adventures without a fixed level count.
 
 ## Story foundation
 
@@ -38,9 +38,26 @@ Sources:
 - [Local class profiles and lore](../../raidguild-field-guide/content-studies.json)
 - [Kingdom artwork provenance](../../raidguild-field-guide/art/kingdom-source.md)
 
+## Annotated kingdom route — November 25, 2026
+
+![Kingdom route and future chapter locations marked by the game creator](assets/kingdom-route-markup-2026-11-25.png)
+
+This supplied markup is the geographic reference for future chapter locations and travel paths. It refines the flexible route below; it does not unlock or implement the future chapters.
+
+- **7 · River Journey:** leave Castle Island and follow the river upstream. The kingdom map must visibly connect the castle's river anchor to the River Journey anchor, rather than ending the path below its chapter label.
+- **8 · Water-balloon collection station:** the second oasis in the desert, above the first Oasis and west of the river. Follow the marked return toward the desert to investigate water collection.
+- **9 · Balloon landing zone:** the hill with two towers above the collection station. The balloons take the party onward into the sky.
+- **10 · Queen Raida:** the left-hand sky-castle region.
+- **11 · Sky Point Castle:** the next sky-castle region to the right, joined by the marked sky route. This is the second sky chapter's working location/name.
+- **12 · Mountain Observatory:** the mountain settlement to the upper right, reached after the sky chapters. This refines the earlier Mountain Villa and Balloon Landing working name.
+- **13 · Waterfall:** descend from the observatory to the waterfall immediately below it.
+- **14 · Gates of Moloch:** continue east from the waterfall to the marked volcanic gateway; Lava Pool and the Moloch finale follow the existing plan.
+
+Keep these names and routes open to story development. Chapter labels should point clearly at their illustrated landmark, and travel paths should join the actual landmark anchors even when labels need an offset for readability.
+
 ## Campaign route and progression
 
-Chapters 1–5 describe the current playable direction. Chapters 6–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
+Chapters 1–7 describe the current playable direction. Chapters 8–16 are proposals. Destinations follow the agreed route; mechanics are candidates rather than a requirement to add a new rule at every stop.
 
 | Chapter | Destination | Story and reason to continue | Gameplay direction |
 | --- | --- | --- | --- |
@@ -48,14 +65,14 @@ Chapters 1–5 describe the current playable direction. Chapters 6–16 are prop
 | 2 | Open Desert | Get the desert walker caravan moving toward the river. | Existing fourth matching symbol and salt crust. |
 | 3 | River Gatehouse | Raise the gate and open the bridge into farmland. This is the river crossing, not the coastal fort. | Existing fifth symbol, stronger crust, and shaped boards. |
 | 4 | Farmland | Water has returned, but stored seeds and neglected channels need attention before the farms recover. Meet a Druid-inspired companion. | Falling, multi-hit armored seedpods; retain five symbols. |
-| 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a birdlike Bard town crier. | Falling delivery crates; every bottom edge of the playable board is an exit. Retain five matching symbols. |
+| 5 | Town on the Hill | Deliver the harvest and help neighborhoods coordinate supplies and information. Meet a birdlike Bard town crier. | Falling delivery crates; every bottom edge of the playable board is an exit. Use five matching symbols initially, with four in levels 5.8–5.10 after difficulty tuning. |
 | 6 | Castle Island | Discover that reservoir records and actual deliveries disagree; meet a beetle quartermaster and organize an upstream investigation. | Introduce active raid-member selection; combine familiar mechanics, retain five symbols, and add no new obstacle. |
 | 7 | River Journey | Follow the missing water upstream aboard a repair boat. | Clearly marked currents that shift pieces after a turn. |
 | 8 | Second Oasis and Water Collection Station | Repair the collection balloons and discover why shipments stopped. Meet an Artificer-inspired companion. | Sixth symbol, with a balloon-themed power introduced later if useful. |
 | 9 | Balloon Landing Zone | Ride to the twin towers and prepare an ascent into the clouds. | Develop balloon powers, delivery goals, and currents without another symbol. |
 | 10 | Sky Castles Arrival | Reach Raida and reconnect scattered reports from across the kingdom. | Relay objectives: activate a set of connected mechanisms. |
-| 11 | Sky Castles The Shared View | Raida assembles the evidence. The party chooses to investigate the mountain infrastructure. | A sky-region climax combining learned mechanics. |
-| 12 | Mountain Villa and Balloon Landing | Land at an isolated maintenance station and meet a Necromancer-inspired restorer. | Seventh and final symbol, if playtesting supports it; simplify other demands during introduction. |
+| 11 | Sky Point Castle (second sky chapter) | Raida assembles the evidence. The party chooses to investigate the mountain infrastructure. | A sky-region climax combining learned mechanics. |
+| 12 | Mountain Observatory and Balloon Landing | Land at an isolated maintenance station and meet a Necromancer-inspired restorer. | Seventh and final symbol, if playtesting supports it; simplify other demands during introduction. |
 | 13 | Waterfall | Restore the great cascade and open the route toward the volcanic frontier. | Candidate frozen tile shells, or a chapter focused on vertical drops and transport. |
 | 14 | Gates of Moloch | Reconnect defenses that have become isolated and obstructive. | Staged locks and coordinated objectives using established mechanics. |
 | 15 | Lava Pool | Build a crossing through machinery that drains neighboring systems to keep itself running. | Candidate lava spread with visible warnings, bounded growth, and a clear prevention action. |
@@ -121,7 +138,7 @@ Begin with one crate on a simple board. The visual lesson shows clearing beneath
 
 ## Chapter 6: Castle Island
 
-**Agreed starting direction, November 21, 2026; not implemented.** This chapter makes the collected party useful through player choice, while exploring the existing board rules rather than adding another obstacle or matching symbol.
+**Implemented as Chapter 6; the broader story direction remains flexible.** This chapter makes the collected party useful through player choice, while exploring the existing board rules rather than adding another obstacle or matching symbol.
 
 ### Story, setting, and local character
 

@@ -181,7 +181,7 @@ button { font: inherit; cursor: pointer; }
 .farmland-anchor { left: 81.91%; top: 78.8%; }
 .town-anchor { left: 71.03%; top: 64.26%; }
 .castle-anchor { left: 58.06%; top: 52.99%; }
-.river-anchor { left: 45.94%; top: 43.97%; }
+.river-anchor { left: 42.28%; top: 32.69%; }
 .atlas-path path { fill: none; stroke-linecap: round; }
 .atlas-path-shadow { stroke: #1b3940; stroke-width: 8; }
 .atlas-path-light { stroke: #fff0b6; stroke-width: 3; stroke-dasharray: 3 9; animation: atlas-wind 4s linear infinite; }
@@ -206,6 +206,7 @@ button { font: inherit; cursor: pointer; }
 .atlas-future { position: absolute; z-index: 3; right: 3%; top: 18%; width: min(28%, 240px); padding: 6px 9px; border: 1px solid #dfbe8d; background: rgba(14, 50, 61, .87); border-radius: 9px; font-size: clamp(10px, 1.8cqh, 14px); font-weight: 700; }
 .atlas-action.primary { position: absolute; z-index: 3; right: 3%; top: 4%; min-width: 0; padding: 5px 10px; font-size: clamp(14px, 3cqh, 21px); }
 .atlas-action.primary span { padding-left: 7px; }
+.atlas-close { position: absolute; z-index: 3; right: 3%; bottom: 4%; color: #ffedc4; }
 .farmland-entry { margin: 10px 0; padding: 10px 12px; border: 1px solid #d5b97f; border-radius: 10px; background: rgba(10, 43, 52, .82); color: #ffe5ad; line-height: 1.25; }
 .farmland-entry strong { display: block; font: 800 clamp(15px, 3.5cqh, 22px) 'Barlow Condensed', Arial, sans-serif; letter-spacing: .04em; }
 .farmland-status { margin: 5px 0 !important; font-size: clamp(12px, 2.8cqh, 16px) !important; }

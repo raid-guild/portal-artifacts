@@ -158,8 +158,8 @@ export function applyCheckpoint(profile, requested) {
   if (Object.hasOwn(requested,'activeCompanion') && requested.activeCompanion !== before.activeCompanion && (!before.castleReady || !before.companions.includes(requested.activeCompanion))) throw fail(400, 'Choose an unlocked raid member at Castle Island.');
   if (Object.hasOwn(requested,'castleReady') && requested.castleReady && !before.castleReady && before.transition?.from !== 'town') throw fail(400, 'Castle arrival is incomplete.');
   if (Object.hasOwn(requested,'riverReady') && requested.riverReady && !before.riverReady && before.transition?.from !== 'castle') throw fail(400, 'River arrival is incomplete.');
-  if (requested.transition?.from === 'town' && requested.transition?.to === 'castle' && before.transition?.from !== 'town' && before.townEnding !== 'done') throw fail(400, 'Finish Town before travelling to Castle Island.');
-  if (requested.transition?.from === 'castle' && requested.transition?.to === 'river' && before.transition?.from !== 'castle' && before.castleEnding !== 'done') throw fail(400, 'Finish Castle before travelling to the River.');
+  if (requested.transition?.from === 'town' && requested.transition?.to === 'castle' && before.transition?.from !== 'town' && before.townEnding !== 'done' && !(before.townEnding === 'thanks' && requested.townEnding === 'done' && requested.transition.stage === 'handoff')) throw fail(400, 'Finish Town before travelling to Castle Island.');
+  if (requested.transition?.from === 'castle' && requested.transition?.to === 'river' && before.transition?.from !== 'castle' && before.castleEnding !== 'done' && !(before.castleEnding === 'thanks' && requested.castleEnding === 'done' && requested.transition.stage === 'handoff')) throw fail(400, 'Finish Castle before travelling to the River.');
   if (before.farmlandEnding && before.farmlandEnding !== 'locked' && requested.farmlandEnding === 'locked') throw fail(400, 'Invalid Farmland ending checkpoint.');
   if (before.townEnding && before.townEnding !== 'locked' && requested.townEnding === 'locked') throw fail(400, 'Invalid Town ending checkpoint.');
   if (before.castleEnding && before.castleEnding !== 'locked' && requested.castleEnding === 'locked') throw fail(400, 'Invalid Castle ending checkpoint.');
@@ -189,7 +189,7 @@ export function applyCheckpoint(profile, requested) {
     const next = after.transition?.from === 'farmland' ? townOrder.indexOf(after.transition.stage) : after.townReady ? 3 : -1;
     if (next < prior || next > prior + 1) throw fail(400, 'Invalid Town checkpoint.');
   }
-  if (after.transition?.from === 'town' && before.transition?.from !== 'town' && before.townEnding !== 'done') throw fail(400, 'Finish Town before travelling to Castle Island.');
+  if (after.transition?.from === 'town' && before.transition?.from !== 'town' && before.townEnding !== 'done' && !(before.townEnding === 'thanks' && after.townEnding === 'done' && after.transition.stage === 'handoff')) throw fail(400, 'Finish Town before travelling to Castle Island.');
   if (after.transition?.from === 'town' && before.transition?.from !== 'town' && after.transition.stage !== 'handoff') throw fail(400, 'Begin the Castle handoff before travelling.');
   if (before.transition?.from === 'town') {
     const castleOrder = ['handoff','atlas','arrival'];
@@ -197,7 +197,7 @@ export function applyCheckpoint(profile, requested) {
     const next = after.transition?.from === 'town' ? castleOrder.indexOf(after.transition.stage) : after.castleReady ? 3 : -1;
     if (next < prior || next > prior + 1) throw fail(400, 'Invalid Castle checkpoint.');
   }
-  if (after.transition?.from === 'castle' && before.transition?.from !== 'castle' && before.castleEnding !== 'done') throw fail(400, 'Finish Castle before travelling to the River.');
+  if (after.transition?.from === 'castle' && before.transition?.from !== 'castle' && before.castleEnding !== 'done' && !(before.castleEnding === 'thanks' && after.castleEnding === 'done' && after.transition.stage === 'handoff')) throw fail(400, 'Finish Castle before travelling to the River.');
   if (after.transition?.from === 'castle' && before.transition?.from !== 'castle' && after.transition.stage !== 'handoff') throw fail(400, 'Begin the River handoff before travelling.');
   if (before.transition?.from === 'castle') {
     const riverOrder = ['handoff','atlas','arrival'];
